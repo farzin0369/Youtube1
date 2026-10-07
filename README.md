@@ -1,27 +1,24 @@
-# YouTube Automation — Imam Ali
+# YouTube Automation — امام علی
 
-اتوماسیون امن برای [imamali.110](https://www.youtube.com/@imamali.110)
+ویدیوی **سینمایی** (نه اسلاید خشک) + **یک گوینده ثابت** + **منابع معتبر**.
 
-## زمان‌بندی (Asia/Tehran)
+## ویژگی‌ها
+- پس‌زمینه متحرک سینمایی (نور طلایی، وینیت، حرکت آرام)
+- زیر‌نویس نرم پایین تصویر
+- صدای ثابت: `onyx` / `tts-1-hd` (از `config/channel.yaml`)
+- موضوعات فقط از لیست تأییدشده (نهج‌البلاغه / قرآن با ارجاع)
+- آپلود فقط private تا بازبینی شما
+
+## زمان‌بندی (تهران)
 | 06:00 | Short |
 | 20:30 | Long |
 
-## حالت ایمن
-آپلود فقط private/unlisted — انتشار عمومی خاموش است.
-
-## Pipeline
-1. موضوع (`app/research.py`)
-2. اسکریپت فارسی (`app/script_gen.py`)
-3. TTS (`app/tts.py`)
-4. ویدیو + کپشن + تامبنیل (`app/video_render.py`)
-5. آپلود خصوصی (`app/youtube_client.py`)
-
 ## Secrets
-`YOUTUBE_CLIENT_ID` · `YOUTUBE_CLIENT_SECRET` · `YOUTUBE_REFRESH_TOKEN` · `OPENAI_API_KEY`
+`OPENAI_API_KEY` · `YOUTUBE_CLIENT_ID` · `YOUTUBE_CLIENT_SECRET` · `YOUTUBE_REFRESH_TOKEN`
+
+اختیاری: `TTS_VOICE=onyx` (پیش‌فرض قفل است)
 
 ## اجرا
 ```bash
-pip install -r requirements.txt
 python -m app.pipeline --kind short --publish-mode private
-python -m app.pipeline --kind long --dry-run
 ```

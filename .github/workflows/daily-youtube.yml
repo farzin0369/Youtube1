@@ -28,6 +28,7 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,10 +37,10 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core fonts-noto-ui-core
       - name: Install Python deps
         run: pip install -r requirements.txt
-      - name: Generate content
+      - name: Generate cinematic content
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -47,7 +48,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          TTS_PROVIDER: ${{ secrets.TTS_PROVIDER }}
           TTS_VOICE: ${{ secrets.TTS_VOICE }}
           TTS_MODEL: ${{ secrets.TTS_MODEL }}
         run: |

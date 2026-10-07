@@ -1,4 +1,4 @@
-"""Topic selection for the channel."""
+"""Curated topics from trusted sources only — no invention of verses/hadith."""
 from __future__ import annotations
 
 import hashlib
@@ -7,48 +7,67 @@ from typing import Any
 
 from app.utils import load_channel_config, utc_now_iso
 
+# هر موضوع: منبع قطعی + محدودیت نقل. مدل اجازه جعل ندارد.
 TOPIC_SEEDS = [
     {
         "id": "nahj_letter_31",
         "pillar": "حکمت‌ها و نامه‌های امام علی با منبع معتبر",
-        "title_hint": "نامه ۳۱ نهج‌البلاغه؛ وصیت به امام حسن",
-        "focus": "اخلاق، تربیت فرزند، زهد و پرهیز از دنیاگرایی",
-        "source_hint": "نهج‌البلاغه، نامه ۳۱ (ترجمه‌های معتبر مانند فیض‌الاسلام یا دشتی)",
+        "title_hint": "وصیت امام علی به فرزند؛ از نامه ۳۱ نهج‌البلاغه",
+        "focus": "اخلاق، تربیت، زهد — فقط از متن نامه ۳۱",
+        "source_hint": "نهج‌البلاغه، نامه ۳۱",
+        "source_type": "nahj_letter",
+        "source_ref": "نامه ۳۱",
+        "quote_policy": "اگر نقل مستقیم می‌کنی فقط با ذکر «نهج‌البلاغه نامه ۳۱»؛ وگرنه پارافریز اخلاقی بدون ادعای متن دقیق",
     },
     {
-        "id": "nahj_hikmah_1",
+        "id": "nahj_hikmah_patience",
         "pillar": "حکمت‌ها و نامه‌های امام علی با منبع معتبر",
-        "title_hint": "حکمت‌هایی از نهج‌البلاغه درباره صبر",
-        "focus": "صبر در سختی و شکر در نعمت",
+        "title_hint": "صبر در کلام امام علی؛ از بخش حکم نهج‌البلاغه",
+        "focus": "صبر و شکیبایی",
         "source_hint": "نهج‌البلاغه، بخش حکم",
+        "source_type": "nahj_hikmah",
+        "source_ref": "حکم نهج‌البلاغه",
+        "quote_policy": "بدون جعل حکمت؛ ترجیح با دعوت به تأمل و ارجاع به مطالعه اصل متن",
     },
     {
-        "id": "quran_reflection_rahman",
+        "id": "quran_rahman_gratitude",
         "pillar": "تأملات قرآنی با ارجاع دقیق",
-        "title_hint": "تأملی کوتاه در سوره الرحمن",
-        "focus": "نعمت‌های الهی و شکرگزاری بدون ادعای تفسیر شخصی بدون منبع",
-        "source_hint": "قرآن کریم، سوره الرحمن — فقط ذکر آیه با شماره و ترجمه معتبر",
+        "title_hint": "شکر نعمت؛ تأملی کوتاه با ارجاع به سوره الرحمن",
+        "focus": "شکرگزاری؛ فقط ذکر نام سوره و در صورت نقل آیه، شماره آیه",
+        "source_hint": "قرآن کریم، سوره الرحمن",
+        "source_type": "quran",
+        "source_ref": "سوره الرحمن",
+        "quote_policy": "هر آیه باید با شماره باشد؛ بدون آیه جعلی؛ ترجمه فقط اگر مطمئن نیستی از نقل مستقیم پرهیز کن",
     },
     {
-        "id": "peace_unity",
+        "id": "nahj_kindness",
         "pillar": "صلح، اخلاق، مهربانی و وحدت ادیان",
-        "title_hint": "مهربانی و احترام به انسان‌ها در سخن امام علی",
-        "focus": "رفتار کریمانه با مردم، پرهیز از نفرت‌پراکنی",
-        "source_hint": "نهج‌البلاغه و روایات معتبر با ذکر منبع",
+        "title_hint": "مهربانی با مردم در آموزه‌های امام علی",
+        "focus": "رفتار کریمانه؛ پرهیز از نفرت",
+        "source_hint": "نهج‌البلاغه — ارجاع کلی به اخلاق عملی با ذکر منبع",
+        "source_type": "nahj_ethics",
+        "source_ref": "نهج‌البلاغه",
+        "quote_policy": "تمرکز روی اخلاق عمومی با ارجاع به نهج‌البلاغه؛ بدون فرقه‌گرایی",
     },
     {
-        "id": "ethics_honesty",
+        "id": "nahj_honesty",
         "pillar": "صلح، اخلاق، مهربانی و وحدت ادیان",
-        "title_hint": "راستی و امانت‌داری",
+        "title_hint": "راستی و امانت؛ الهام از نهج‌البلاغه",
         "focus": "صداقت در گفتار و عمل",
-        "source_hint": "نهج‌البلاغه / احادیث معتبر با ارجاع",
+        "source_hint": "نهج‌البلاغه",
+        "source_type": "nahj_ethics",
+        "source_ref": "نهج‌البلاغه",
+        "quote_policy": "پارافریز اخلاقی + دعوت به مطالعه منبع؛ بدون حدیث جعلی",
     },
     {
         "id": "short_gratitude",
         "pillar": "تأملات قرآنی با ارجاع دقیق",
-        "title_hint": "شکر نعمت؛ یادآوری کوتاه",
-        "focus": "شکرگزاری روزانه بدون ادعاهای پزشکی یا سیاسی",
-        "source_hint": "آیات مرتبط با شکر با ذکر دقیق سوره و آیه",
+        "title_hint": "یک دقیقه شکر؛ یادآوری کوتاه",
+        "focus": "شکر روزانه",
+        "source_hint": "قرآن کریم — آیات شکر با ذکر دقیق در صورت نقل",
+        "source_type": "quran",
+        "source_ref": "قرآن کریم",
+        "quote_policy": "اگر آیه نمی‌دانی شماره دقیق را، فقط دعوت به شکر بدون نقل آیه",
     },
 ]
 
@@ -65,9 +84,7 @@ def pick_topic(kind: str, seed: str | None = None) -> dict[str, Any]:
             candidates = [
                 t for t in TOPIC_SEEDS
                 if t["id"].startswith("short") or "حکمت" in t["title_hint"] or "شکر" in t["title_hint"]
-            ]
-            if not candidates:
-                candidates = TOPIC_SEEDS
+            ] or TOPIC_SEEDS
             topic = dict(random.choice(candidates))
         else:
             topic = dict(random.choice(TOPIC_SEEDS))
@@ -75,20 +92,19 @@ def pick_topic(kind: str, seed: str | None = None) -> dict[str, Any]:
     topic["kind"] = kind
     topic["picked_at"] = utc_now_iso()
     topic["channel_pillars"] = pillars
+    topic["approved_books"] = (cfg.get("content") or {}).get("approved_source_books", [])
     return topic
 
 
 def build_research_brief(topic: dict[str, Any]) -> str:
     return (
         f"موضوع: {topic['title_hint']}\n"
-        f"ستون محتوا: {topic['pillar']}\n"
+        f"ستون: {topic['pillar']}\n"
         f"تمرکز: {topic['focus']}\n"
-        f"راهنمای منبع: {topic['source_hint']}\n"
+        f"منبع مجاز: {topic['source_hint']} (نوع: {topic.get('source_type')})\n"
+        f"ارجاع: {topic.get('source_ref')}\n"
+        f"سیاست نقل: {topic.get('quote_policy')}\n"
+        f"کتاب‌های تأییدشده کانال: {topic.get('approved_books')}\n"
         f"نوع ویدیو: {topic['kind']}\n"
-        "قوانین سخت:\n"
-        "- هر نقل‌قول باید منبع داشته باشد.\n"
-        "- هرگز آیه، حدیث یا سخن جعلی نساز.\n"
-        "- بین نقل قول، ترجمه، تفسیر و روایت خلاقانه تمایز بگذار.\n"
-        "- چهره مقدس را بازنمایی نکن.\n"
-        "- نفرت‌پراکنی مذهبی ممنوع.\n"
+        "ممنوع: جعل آیه/حدیث، نقل بدون منبع، نفرت‌پراکنی، سیاست، پزشکی.\n"
     )

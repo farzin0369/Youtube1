@@ -1,4 +1,4 @@
-"""Generate Persian script + title + description."""
+"""Persian script from approved sources only."""
 from __future__ import annotations
 
 import json
@@ -6,48 +6,43 @@ from typing import Any
 
 from app.utils import clean_persian, env, has_openai, load_content_policy
 
-SYSTEM_PROMPT = """تو نویسنده‌ی اسکریپت برای کانال یوتیوب فارسی معنوی هستی.
+SYSTEM_PROMPT = """تو نویسنده‌ی اسکریپت برای کانال یوتیوب معنوی فارسی هستی.
 قوانین مطلق:
-1. هرگز آیه قرآن، حدیث، یا سخن امام علی را جعل نکن.
-2. اگر نقل قول می‌آوری، منبع را صریح بنویس.
-3. اگر منبع دقیق نداری، از زبان اخلاقی عمومی استفاده کن.
-4. لحن: آرام، محترمانه، مردانه.
-5. مخاطب همه سنین.
-6. بازنمایی چهره مقدس ممنوع.
-7. خروجی فقط JSON معتبر.
+1. هرگز آیه، حدیث یا سخن امام علی را جعل نکن.
+2. فقط از منبعی که در brief آمده استفاده کن.
+3. اگر متن دقیق حفظ نیستی، پارافریز اخلاقی کن و بگو بر اساس نهج‌البلاغه / قرآن — بدون ادعای نقل لفظی.
+4. لحن: آرام، مردانه، یک گوینده ثابت، سینمایی و دلنشین.
+5. بدون سیاست، نفرت، پزشکی.
+6. خروجی فقط JSON.
 """
 
 
 def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
+    src = topic.get("source_hint", "منابع معتبر")
     if kind == "short":
         body = (
-            f"سلام. امروز یک یادآوری کوتاه درباره «{topic['title_hint']}». "
+            f"سلام. یک یادآوری کوتاه: {topic['title_hint']}. "
             f"{topic['focus']}. "
-            "بر اساس آموزه‌های اخلاقی و منابع معتبر، بیایید امروز کمی بیشتر اهل صبر و مهربانی باشیم. "
-            "منبع پیشنهادی: " + topic["source_hint"] + ". خداحافظ."
+            f"بر اساس {src}، امروز کمی بیشتر اهل تأمل و مهربانی باشیم. "
+            f"برای متن دقیق به {topic.get('source_ref', src)} مراجعه کنید. خداحافظ."
         )
         duration_hint = 45
     else:
         body = (
-            f"بسم الله الرحمن الرحیم. سلام و احترام. "
-            f"موضوع امروز: {topic['title_hint']}. "
-            f"تمرکز ما روی {topic['focus']} است. "
-            f"بر اساس منابع معتبر مانند {topic['source_hint']}، "
-            "می‌توانیم از این آموزه‌ها برای زندگی الهام بگیریم: صبر، صداقت، و مهربانی. "
-            "لطفاً متن‌های اصلی را از منابع معتبر مطالعه کنید. خداحافظ."
+            f"بسم الله الرحمن الرحیم. سلام. "
+            f"موضوع امروز از منابع معتبر است: {topic['title_hint']}. "
+            f"تمرکز ما: {topic['focus']}. "
+            f"منبع ما {src} است. بدون نقل جعلی، از این آموزه‌ها برای صبر و صداقت الهام می‌گیریم. "
+            f"لطفاً اصل متن را در {topic.get('source_ref', src)} بخوانید. "
+            f"سپاس از همراهی‌تان. خداحافظ."
         )
         duration_hint = 420
-
     return {
         "title": topic["title_hint"][:90],
-        "description": (
-            f"{topic['title_hint']}\n\n"
-            f"منبع: {topic['source_hint']}\n\n"
-            "#امام_علی #نهج_البلاغه #تأمل #اخلاق"
-        ),
+        "description": f"{topic['title_hint']}\n\nمنبع: {src}\n\n#امام_علی #نهج_البلاغه #تأمل",
         "script": body,
-        "sources": [topic["source_hint"]],
-        "tags": ["امام علی", "نهج البلاغه", "اخلاق", "تأمل", "فارسی"],
+        "sources": [src],
+        "tags": ["امام علی", "نهج البلاغه", "اخلاق", "تأمل"],
         "duration_hint_seconds": duration_hint,
         "generated_by": "fallback",
     }
@@ -62,14 +57,14 @@ def _call_openai(topic: dict[str, Any], kind: str, research_brief: str) -> dict[
     )
     policy = load_content_policy()
     length_rule = (
-        "اسکریپت حدود ۳۵ تا ۵۰ ثانیه (۸۰ تا ۱۲۰ کلمه)."
+        "۳۵–۵۰ ثانیه صحبت، لحن سینمایی کوتاه."
         if kind == "short"
-        else "اسکریپت حدود ۶ تا ۱۰ دقیقه (۹۰۰ تا ۱۴۰۰ کلمه)."
+        else "۶–۱۰ دقیقه، مقدمه، ۲–۳ نکته با ارجاع منبع، جمع‌بندی."
     )
     user = (
-        f"{research_brief}\nمدت هدف: {length_rule}\n"
+        f"{research_brief}\nمدت: {length_rule}\n"
         f"سیاست: {json.dumps(policy, ensure_ascii=False)}\n"
-        "خروجی JSON: title, description, script, sources, tags, duration_hint_seconds"
+        "JSON: title, description, script, sources, tags, duration_hint_seconds"
     )
     resp = client.chat.completions.create(
         model=env("OPENAI_MODEL") or "gpt-4o-mini",
@@ -77,7 +72,7 @@ def _call_openai(topic: dict[str, Any], kind: str, research_brief: str) -> dict[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},
         ],
-        temperature=0.4,
+        temperature=0.35,
         response_format={"type": "json_object"},
     )
     data = json.loads(resp.choices[0].message.content or "{}")
@@ -98,9 +93,8 @@ def generate_script(topic: dict[str, Any], kind: str, research_brief: str) -> di
         try:
             return _call_openai(topic, kind, research_brief)
         except Exception as e:
-            print(f"[script] OpenAI failed: {e}")
+            print(f"[script] failed: {e}")
             out = _fallback_script(topic, kind)
             out["error"] = str(e)
             return out
-    print("[script] No OPENAI_API_KEY — fallback")
     return _fallback_script(topic, kind)
