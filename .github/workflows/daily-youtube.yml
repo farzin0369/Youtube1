@@ -66,4 +66,4 @@ jobs:
           name: youtube-output-${{ github.run_id }}
           path: output/
           retention-days: 14
-# [TEST-YOUTUBE] public upload retry after enabling public mode
+# [TEST-YOUTUBE] rerun after MoviePy compatibility fix
