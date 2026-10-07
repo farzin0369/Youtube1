@@ -1,4 +1,4 @@
-"""YouTube upload — private/unlisted only."""
+"""YouTube upload — private/unlisted/public."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,8 +35,8 @@ def upload_video(
     thumbnail_path: Path | None = None,
     category_id: str = "22",
 ) -> dict[str, Any]:
-    if privacy not in ("private", "unlisted"):
-        return {"ok": False, "error": "Only private/unlisted allowed."}
+    if privacy not in ("private", "unlisted", "public"):
+        return {"ok": False, "error": "Unsupported privacy mode."}
     if not has_youtube_creds():
         return {"ok": False, "skipped": True, "error": "Missing YouTube secrets."}
     if not video_path or not Path(video_path).exists():
