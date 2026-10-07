@@ -66,3 +66,4 @@ jobs:
           name: youtube-output-${{ github.run_id }}
           path: output/
           retention-days: 14
+# [TEST-YOUTUBE] trigger a real public test upload
