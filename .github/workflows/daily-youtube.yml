@@ -2,8 +2,7 @@ name: Daily YouTube content
 
 on:
   schedule:
-    - cron: '30 2 * * *'
-    - cron: '00 17 * * *'
+    - cron: '5 23 * * *'
   workflow_dispatch:
     inputs:
       kind:
@@ -53,11 +52,11 @@ jobs:
         run: |
           KIND="${{ github.event.inputs.kind }}"
           if [ -z "$KIND" ]; then
-            if [ "${{ github.event.schedule }}" = "30 2 * * *" ]; then KIND=short; else KIND=long; fi
+            KIND=short
           fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
-          python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
+          python -m app.pipeline --kind "$KIND" --publish-mode public $EXTRA
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         if: always()
