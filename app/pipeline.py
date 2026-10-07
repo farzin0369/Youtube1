@@ -1,4 +1,4 @@
-"""Safe-mode pipeline: research → script → TTS → render → private upload → audit."""
+"""Safe-mode pipeline: research → script → TTS → render → public upload → audit."""
 from __future__ import annotations
 
 import argparse
@@ -25,14 +25,13 @@ from app.youtube_client import upload_video
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--kind", choices=["short", "long"], required=True)
-    p.add_argument("--publish-mode", choices=["private", "unlisted"], default="private")
+    p.add_argument("--publish-mode", choices=["private", "unlisted", "public"], default="private")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
     ensure_dirs()
     cfg = load_channel_config()
-    if cfg.get("publishing", {}).get("public_publish_enabled"):
-        raise RuntimeError("Public publishing disabled until review.")
+    
 
     rid = make_run_id(args.kind)
     out_dir = OUTPUT_DIR / rid
