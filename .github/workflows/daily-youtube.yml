@@ -2,9 +2,8 @@ name: Daily YouTube content
 
 on:
   schedule:
-    # GitHub cron is UTC. Iran is UTC+3:30 year-round.
-    - cron: '30 2 * * *'   # nominal 06:00 Asia/Tehran
-    - cron: '00 17 * * *'  # nominal 20:30 Asia/Tehran
+    - cron: '30 2 * * *'
+    - cron: '00 17 * * *'
   workflow_dispatch:
     inputs:
       kind:
@@ -13,6 +12,11 @@ on:
         default: short
         type: choice
         options: [short, long]
+      dry_run:
+        description: Skip YouTube upload
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -29,15 +33,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+      - name: Install Python deps
         run: pip install -r requirements.txt
-      - name: Generate and upload as private/unlisted
+      - name: Generate content
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          TTS_API_KEY: ${{ secrets.TTS_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
           TTS_PROVIDER: ${{ secrets.TTS_PROVIDER }}
-        run: python -m app.pipeline --kind "${{ github.event.inputs.kind || (github.event.schedule == '30 2 * * *' && 'short' || 'long') }}" --publish-mode private
+          TTS_VOICE: ${{ secrets.TTS_VOICE }}
+          TTS_MODEL: ${{ secrets.TTS_MODEL }}
+        run: |
+          KIND="${{ github.event.inputs.kind }}"
+          if [ -z "$KIND" ]; then
+            if [ "${{ github.event.schedule }}" = "30 2 * * *" ]; then KIND=short; else KIND=long; fi
+          fi
+          EXTRA=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
+          python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: youtube-output-${{ github.run_id }}
+          path: output/
+          retention-days: 14

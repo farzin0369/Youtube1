@@ -1,31 +1,27 @@
-# YouTube Automation Faith
+# YouTube Automation — Imam Ali
 
-Automation scaffold for the Persian channel [imam ali](https://www.youtube.com/@imamali.110).
+اتوماسیون امن برای [imamali.110](https://www.youtube.com/@imamali.110)
 
-## Schedule (Asia/Tehran)
-- 06:00: one Short
-- 20:30: one long-form video
+## زمان‌بندی (Asia/Tehran)
+| 06:00 | Short |
+| 20:30 | Long |
 
-## Safety mode
-The initial workflow generates assets and uploads them as **private/unlisted**. Public publishing is intentionally disabled until the owner reviews quality, source citations, copyright status, and comment behavior.
+## حالت ایمن
+آپلود فقط private/unlisted — انتشار عمومی خاموش است.
 
 ## Pipeline
-1. Research from approved, traceable sources.
-2. Draft Persian script and source list.
-3. Generate male narration or avatar voice.
-4. Render video, captions, thumbnail, title and description.
-5. Upload privately/unlisted through the YouTube Data API.
-6. Fetch comments and draft context-aware replies; sensitive or uncertain comments remain pending review.
-7. Store an audit record and metrics for iteration.
+1. موضوع (`app/research.py`)
+2. اسکریپت فارسی (`app/script_gen.py`)
+3. TTS (`app/tts.py`)
+4. ویدیو + کپشن + تامبنیل (`app/video_render.py`)
+5. آپلود خصوصی (`app/youtube_client.py`)
 
-## Required GitHub Actions secrets
-- `YOUTUBE_CLIENT_ID`
-- `YOUTUBE_CLIENT_SECRET`
-- `YOUTUBE_REFRESH_TOKEN`
-- `OPENAI_API_KEY` (or compatible API endpoint)
-- `TTS_API_KEY` (provider-specific)
+## Secrets
+`YOUTUBE_CLIENT_ID` · `YOUTUBE_CLIENT_SECRET` · `YOUTUBE_REFRESH_TOKEN` · `OPENAI_API_KEY`
 
-No secret belongs in Git. See `config/channel.yaml` and `.env.example`.
-
-## Important limitation
-This scaffold does not promise subscriber growth or automatically make public claims. It is designed for quality-controlled experimentation, source attribution, and gradual optimization.
+## اجرا
+```bash
+pip install -r requirements.txt
+python -m app.pipeline --kind short --publish-mode private
+python -m app.pipeline --kind long --dry-run
+```

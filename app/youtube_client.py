@@ -1,0 +1,83 @@
+"""YouTube upload — private/unlisted only."""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from app.utils import env, has_youtube_creds
+
+
+def _build_credentials():
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+
+    creds = Credentials(
+        token=None,
+        refresh_token=env("YOUTUBE_REFRESH_TOKEN"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=env("YOUTUBE_CLIENT_ID"),
+        client_secret=env("YOUTUBE_CLIENT_SECRET"),
+        scopes=[
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.force-ssl",
+        ],
+    )
+    creds.refresh(Request())
+    return creds
+
+
+def upload_video(
+    video_path: Path | None,
+    title: str,
+    description: str,
+    tags: list[str],
+    privacy: str = "private",
+    thumbnail_path: Path | None = None,
+    category_id: str = "22",
+) -> dict[str, Any]:
+    if privacy not in ("private", "unlisted"):
+        return {"ok": False, "error": "Only private/unlisted allowed."}
+    if not has_youtube_creds():
+        return {"ok": False, "skipped": True, "error": "Missing YouTube secrets."}
+    if not video_path or not Path(video_path).exists():
+        return {"ok": False, "error": "No video file."}
+
+    try:
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+
+        youtube = build("youtube", "v3", credentials=_build_credentials())
+        body = {
+            "snippet": {
+                "title": title[:100],
+                "description": description[:5000],
+                "tags": tags[:20],
+                "categoryId": category_id,
+                "defaultLanguage": "fa",
+                "defaultAudioLanguage": "fa",
+            },
+            "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+        }
+        media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
+        request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                print(f"[youtube] {int(status.progress() * 100)}%")
+        video_id = response.get("id")
+        result: dict[str, Any] = {
+            "ok": True,
+            "video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "privacy": privacy,
+        }
+        if thumbnail_path and Path(thumbnail_path).exists() and video_id:
+            try:
+                youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumbnail_path))).execute()
+                result["thumbnail_set"] = True
+            except Exception as te:
+                result["thumbnail_error"] = str(te)
+        return result
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
