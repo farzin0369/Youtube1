@@ -18,8 +18,8 @@ schedule:
   long_duration_minutes: "6-10"
 
 publishing:
-  mode: private
-  public_publish_enabled: false
+  mode: public
+  public_publish_enabled: true
   require_review_for_sensitive_comments: true
 
 content:
