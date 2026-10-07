@@ -1,0 +1,32 @@
+channel:
+  url: https://www.youtube.com/@imamali.110
+  language: fa-IR
+  timezone: Asia/Tehran
+  audience: همه سنین
+  objective: رشد پایدار کانال و افزایش سابسکرایبر
+  narrator: مرد
+  visual_style: آواتار معنوی؛ بدون بازنمایی چهره مقدس
+  logo: generate-once-and-cache
+
+schedule:
+  short: "06:00"
+  long: "20:30"
+  short_duration_seconds: 45
+  long_duration_minutes: "6-10"
+
+publishing:
+  mode: private
+  public_publish_enabled: false
+  require_review_for_sensitive_comments: true
+
+content:
+  pillars:
+    - تأملات قرآنی با ارجاع دقیق
+    - حکمت‌ها و نامه‌های امام علی با منبع معتبر
+    - صلح، اخلاق، مهربانی و وحدت ادیان
+  forbidden:
+    - نقل‌قول بدون منبع
+    - نفرت‌پراکنی مذهبی یا حمله به پیروان ادیان
+    - ادعاهای پزشکی، سیاسی یا تاریخی بدون منبع قابل بررسی
+    - استفاده از محتوای دارای حق نشر بدون مجوز
+  source_policy: منابع رسمی، متن‌های دارای مجوز، و منابع دانشگاهی/کتاب‌شناختی قابل ردیابی
