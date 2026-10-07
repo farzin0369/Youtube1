@@ -2,7 +2,10 @@ name: Daily YouTube content
 
 on:
   schedule:
-    - cron: '5 23 * * *'
+    - cron: '0 6 * * *'
+      timezone: 'Asia/Tehran'
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       kind:
@@ -21,11 +24,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: youtube-content-${{ github.event.schedule || inputs.kind || 'manual' }}
+  group: youtube-content-${{ github.event.schedule || inputs.kind || github.event_name }}
   cancel-in-progress: false
 
 jobs:
   generate:
+    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[TEST-YOUTUBE]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -51,9 +55,7 @@ jobs:
           TTS_MODEL: ${{ secrets.TTS_MODEL }}
         run: |
           KIND="${{ github.event.inputs.kind }}"
-          if [ -z "$KIND" ]; then
-            KIND=short
-          fi
+          if [ -z "$KIND" ]; then KIND=short; fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode public $EXTRA
