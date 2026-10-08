@@ -70,5 +70,5 @@ def clean_persian(text: str) -> str:
 
 
 def split_sentences(text: str) -> list[str]:
-    parts = re.split(r"(?<=[.!?؟۔])\s+", text.strip())
+    parts = re.split(r"(?<=[.!?؟۔])(?:\s+|(?=[آ-یA-Za-z0-9]))", text.strip())
     return [p.strip() for p in parts if p.strip()]
