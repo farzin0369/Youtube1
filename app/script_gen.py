@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json
 from typing import Any
-from app.local_ai import local_enabled, ollama_generate
+from app.local_ai import local_enabled, ollama_generate, ollama_available
 from app.utils import clean_persian, env, has_openai, load_content_policy
 
 SYSTEM_PROMPT="""تو نویسنده اسکریپت فارسی برای ImamAli110 هستی.
@@ -37,10 +37,13 @@ def _call_openai(topic:dict[str,Any],kind:str,brief:str)->dict[str,Any]:
 
 def generate_script(topic:dict[str,Any],kind:str,research_brief:str)->dict[str,Any]:
     if local_enabled():
-        try: return _call_local(topic,kind,research_brief)
-        except Exception as e:
-            print(f"[local-script] failed: {e}")
-            out=_fallback_script(topic,kind); out["error"]=str(e); return out
+        if ollama_available():
+            try: return _call_local(topic,kind,research_brief)
+            except Exception as e:
+                print(f"[local-script] failed: {e}")
+                out=_fallback_script(topic,kind); out["error"]=str(e); return out
+        # Free GitHub-hosted runners do not have a resident Ollama daemon.
+        return _fallback_script(topic,kind)
     if has_openai():
         try: return _call_openai(topic,kind,research_brief)
         except Exception as e:
