@@ -11,8 +11,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.utils import OUTPUT_DIR, split_sentences
 
-W, H = 1280, 720
-FPS = 24
+W, H = 540, 960
+FPS = 18
 
 
 def _font(size: int):
@@ -173,15 +173,24 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
             return np.array(composed)
 
         video = VideoClip(make_frame, duration=duration).set_fps(FPS).set_audio(audio)
+        temp_video = out_dir / "video_low.mp4"
         video.write_videofile(
-            str(video_path),
+            str(temp_video),
             fps=FPS,
             codec="libx264",
             audio_codec="aac",
-            preset="medium",
+            preset="veryfast",
             threads=2,
             logger=None,
         )
+        import subprocess
+        subprocess.run([
+            "ffmpeg","-y","-i",str(temp_video),
+            "-vf","scale=1080:1920:flags=lanczos",
+            "-c:v","libx264","-preset","veryfast","-crf","20",
+            "-c:a","aac","-b:a","160k",str(video_path)
+        ], check=True, capture_output=True)
+        temp_video.unlink(missing_ok=True)
         audio.close()
         video.close()
         return {
