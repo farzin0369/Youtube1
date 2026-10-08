@@ -16,7 +16,9 @@ def _fallback_script(topic:dict[str,Any],kind:str)->dict[str,Any]:
 
 def _normalize(data:dict[str,Any],topic:dict[str,Any],kind:str)->dict[str,Any]:
     data["script"]=clean_persian(str(data.get("script","")))
-    data["title"]=str(data.get("title") or ("Imam Ali ✨ " + topic["title_hint"]))[:100]\n    if not data["title"].startswith("Imam Ali ✨"):\n        data["title"]="Imam Ali ✨ " + data["title"]
+    data["title"]=str(data.get("title") or ("Imam Ali ✨ " + topic["title_hint"]))[:100]
+    if not data["title"].startswith("Imam Ali ✨"):
+        data["title"]="Imam Ali ✨ " + data["title"]
     data["description"]=str(data.get("description",""))
     data["sources"]=data.get("sources") or [topic["source_hint"]]
     data["tags"]=data.get("tags") or ["امام علی","اخلاق"]
