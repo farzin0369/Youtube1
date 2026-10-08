@@ -3,7 +3,7 @@ name: ImamAli110 local AI production
 on:
   schedule:
     - cron: "5 2 * * *"
-    - cron: "30 17 * * *"
+    - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -51,7 +51,7 @@ jobs:
         run: |
           KIND="${{ github.event.inputs.kind }}"
           if [ -z "$KIND" ]; then
-            if [ "${{ github.event.schedule }}" = "30 17 * * *" ]; then KIND=long; else KIND=short; fi
+            if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
           fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
