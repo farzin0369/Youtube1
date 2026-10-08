@@ -13,10 +13,10 @@ def _build_credentials():
 
     creds = Credentials(
         token=None,
-        refresh_token=env("YOUTUBE_REFRESH_TOKEN"),
+        refresh_token=(env("YOUTUBE_REFRESH_TOKEN") or "").strip(),
         token_uri="https://oauth2.googleapis.com/token",
-        client_id=env("YOUTUBE_CLIENT_ID"),
-        client_secret=env("YOUTUBE_CLIENT_SECRET"),
+        client_id=(env("YOUTUBE_CLIENT_ID") or "").strip(),
+        client_secret=(env("YOUTUBE_CLIENT_SECRET") or "").strip(),
         scopes=[
             "https://www.googleapis.com/auth/youtube.upload",
             "https://www.googleapis.com/auth/youtube.force-ssl",
