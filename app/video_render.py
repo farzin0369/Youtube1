@@ -31,39 +31,28 @@ def _font(size: int):
 
 
 def _cinematic_frame(t: float, duration: float, seed: int = 7) -> Image.Image:
-    """Procedural cinematic background: deep teal, gold haze, slow drift."""
-    img = Image.new("RGB", (W, H))
-    px = img.load()
-    # slow phase for living motion
+    """Vectorized procedural cinematic background; avoids Python pixel-by-pixel rendering."""
+    y, x = np.mgrid[0:H, 0:W].astype(np.float32)
+    nx = x / W
+    ny = y / H
     phase = t * 0.15
-    for y in range(H):
-        for x in range(0, W, 2):  # step 2 for speed; fill neighbor
-            nx = x / W + 0.02 * math.sin(phase + y * 0.01)
-            ny = y / H + 0.015 * math.cos(phase * 0.8 + x * 0.008)
-            # base night teal
-            r = int(8 + 18 * ny + 12 * math.sin(nx * 3 + phase))
-            g = int(16 + 28 * ny + 10 * math.cos(ny * 2 - phase))
-            b = int(28 + 40 * (1 - ny) + 15 * math.sin(phase + nx))
-            # gold light pool upper-center
-            cx, cy = 0.5 + 0.05 * math.sin(phase * 0.5), 0.35
-            d = math.hypot(nx - cx, ny - cy)
-            glow = max(0.0, 1.0 - d * 2.2)
-            r = min(255, int(r + glow * 90))
-            g = min(255, int(g + glow * 70))
-            b = min(255, int(b + glow * 25))
-            # vignette
-            vig = 1.0 - 0.45 * ((nx - 0.5) ** 2 + (ny - 0.5) ** 2) * 4
-            r, g, b = int(r * vig), int(g * vig), int(b * vig)
-            px[x, y] = (r, g, b)
-            if x + 1 < W:
-                px[x + 1, y] = (r, g, b)
-    # soft blur for filmic look
-    img = img.filter(ImageFilter.GaussianBlur(radius=1.2))
+    nx2 = nx + 0.02 * np.sin(phase + y * 0.01)
+    ny2 = ny + 0.015 * np.cos(phase * 0.8 + x * 0.008)
+    r = 8 + 18 * ny2 + 12 * np.sin(nx2 * 3 + phase)
+    g = 16 + 28 * ny2 + 10 * np.cos(ny2 * 2 - phase)
+    bl = 28 + 40 * (1 - ny2) + 15 * np.sin(phase + nx2)
+    cx, cy = 0.5 + 0.05 * np.sin(phase * 0.5), 0.35
+    d = np.sqrt((nx2 - cx) ** 2 + (ny2 - cy) ** 2)
+    glow = np.maximum(0.0, 1.0 - d * 2.2)
+    r += glow * 90
+    g += glow * 70
+    bl += glow * 25
+    vig = 1.0 - 0.45 * ((nx2 - 0.5) ** 2 + (ny2 - 0.5) ** 2) * 4
+    arr = np.clip(np.stack([r * vig, g * vig, bl * vig], axis=2), 0, 255).astype(np.uint8)
+    img = Image.fromarray(arr, "RGB").filter(ImageFilter.GaussianBlur(radius=1.2))
     draw = ImageDraw.Draw(img, "RGBA")
-    # thin gold frame
     draw.rectangle([36, 36, W - 36, H - 36], outline=(200, 175, 110, 160), width=2)
     return img.convert("RGB")
-
 
 def _caption_overlay(text: str, alpha: float = 1.0) -> Image.Image:
     """Semi-transparent lower-third style caption board."""
