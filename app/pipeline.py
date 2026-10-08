@@ -35,7 +35,7 @@ def main()->None:
     script_data=generate_script(topic,args.kind,brief); script_data=enforce(script_data,args.kind); audit["steps"]["script"]={"title":script_data.get("title"),"generated_by":script_data.get("generated_by"),"quality_gate":script_data.get("quality_gate")}; save_json(out/"script.json",script_data); (out/"script.txt").write_text(script_data["script"],encoding="utf-8")
     print(f"[1] script={script_data.get('generated_by')}")
     audio=synthesize(script_data["script"],out/"narration",kind=args.kind); audit["steps"]["tts"]=audio; print(f"[2] tts={audio.get('provider')}")
-    if local_enabled():
+    if __import__("os").environ.get("VIDEO_ENGINE", "cpu").lower() == "cogvideox":
         render_meta=_local_render(script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
     else:
         render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid)
