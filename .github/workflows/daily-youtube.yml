@@ -2,8 +2,8 @@ name: Daily YouTube content
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-      timezone: 'Asia/Tehran'
+    - cron: '30 2 * * *'
+    - cron: '0 17 * * *'
   push:
     branches: [main]
   workflow_dispatch:
@@ -55,7 +55,9 @@ jobs:
           TTS_MODEL: ${{ secrets.TTS_MODEL }}
         run: |
           KIND="${{ github.event.inputs.kind }}"
-          if [ -z "$KIND" ]; then KIND=short; fi
+          if [ -z "$KIND" ]; then
+            if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
+          fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode public $EXTRA
@@ -66,4 +68,3 @@ jobs:
           name: youtube-output-${{ github.run_id }}
           path: output/
           retention-days: 14
-# [TEST-YOUTUBE] fresh run after syntax fix and OAuth update
