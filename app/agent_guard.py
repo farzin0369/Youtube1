@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 BRAND_TAGS = ["#ImamAli110", "#The110Path", "#ImamAli"]
-FORBIDDEN = ["نفرت", "توهین", "تهدید", "خودکشی", "محتوای جنسی"]
+FORBIDDEN = ["خودکشی", "محتوای جنسی", "porn", "sexual content"]
 
 def validate_package(data: dict[str, Any], kind: str) -> dict[str, Any]:
     title = str(data.get("title") or "").strip()
