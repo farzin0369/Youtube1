@@ -66,4 +66,4 @@ jobs:
           name: youtube-output-${{ github.run_id }}
           path: output/
           retention-days: 14
-# [TEST-YOUTUBE] fresh run on current main after OAuth fixes
+# [TEST-YOUTUBE] fresh run after syntax fix and OAuth update
