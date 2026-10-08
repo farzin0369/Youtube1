@@ -1,9 +1,7 @@
-name: ImamAli110 local AI production
+name: ImamAli110 local AI manual test
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "5 2 * * *"
 
 jobs:
   produce:
@@ -22,11 +20,11 @@ jobs:
           test -n "$PIPER_MODEL"
           command -v piper
           curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-      - name: Install application dependencies
+      - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-local.txt
-      - name: Generate and publish
+      - name: Test local production
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: python -m app.pipeline --kind short --publish-mode public
+        run: python -m app.pipeline --kind short --publish-mode public --dry-run
