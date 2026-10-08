@@ -1,0 +1,31 @@
+name: Automation self-test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Python syntax check
+        run: python -m compileall -q app
+      - name: Verify automation files
+        run: |
+          test -f app/pipeline.py
+          test -f app/video_render.py
+          test -f app/youtube_client.py
+          test -f app/channel_ops.py
+          test -f .github/workflows/daily-youtube.yml
+          test -f .github/workflows/channel-health.yml
+          echo "YouTube1 automation structure OK"
