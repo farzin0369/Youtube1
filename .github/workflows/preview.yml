@@ -1,8 +1,6 @@
-name: Generate preview video
+name: Generate local AI preview
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -10,35 +8,32 @@ permissions:
 
 jobs:
   preview:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: [self-hosted, linux, x64, gpu]
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Generate 1 Short preview
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TTS_VOICE: onyx
+      - name: Verify local stack
         run: |
-          test -n "$OPENAI_API_KEY"
-          python -m app.pipeline --kind short --dry-run
-
-      - name: Package generated preview
+          nvidia-smi
+          command -v piper
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-local.txt
+      - name: Generate local preview
+        env:
+          AI_ENGINE: local
+          LOCAL_VIDEO_MODEL: THUDM/CogVideoX-2b
+          LOCAL_LLM_MODEL: qwen2.5:7b
+          PIPER_MODEL: ${{ vars.PIPER_MODEL }}
+        run: python -m app.pipeline --kind short --dry-run
+      - name: Package preview
         run: |
           mkdir -p preview
           find output -type f \( -name '*.mp4' -o -name '*.jpg' -o -name '*.srt' -o -name 'script.txt' \) -exec cp {} preview/ \;
           ls -lh preview
-
       - name: Upload preview artifact
         uses: actions/upload-artifact@v4
         with:
-          name: youtube1-preview
+          name: youtube1-local-preview
           path: preview/
           retention-days: 7
