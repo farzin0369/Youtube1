@@ -5,13 +5,13 @@ on:
 
 jobs:
   produce:
-    runs-on: [self-hosted, linux, x64, gpu]
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       AI_ENGINE: local
-      LOCAL_VIDEO_MODEL: THUDM/CogVideoX-2b
+      VIDEO_ENGINE: cpu
       LOCAL_LLM_MODEL: qwen2.5:7b
-      PIPER_MODEL: ${{ vars.PIPER_MODEL }}
+      PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
     steps:
       - uses: actions/checkout@v4
       - name: Verify local AI stack
@@ -20,8 +20,6 @@ jobs:
           test -n "$PIPER_MODEL"
           command -v piper
           curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-local.txt
       - name: Test local production
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
