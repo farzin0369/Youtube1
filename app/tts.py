@@ -62,12 +62,5 @@ def synthesize(text: str, out_path: Path, kind: str = "short") -> dict:
         except Exception as e:
             print(f"[tts] failed: {e}")
 
-    out_path = out_path.with_suffix(".wav")
-    _write_silent_wav(out_path, duration_sec=40.0 if kind == "short" else 180.0)
-    return {
-        "path": str(out_path),
-        "provider": "silent_fallback",
-        "voice": voice,
-        "ok": False,
-        "note": "Set OPENAI_API_KEY for fixed narrator voice.",
-    }
+    # Never silently publish a video with missing narration.
+    raise RuntimeError("TTS generation failed; refusing to create silent fallback audio. Set OPENAI_API_KEY and verify TTS_MODEL/TTS_VOICE.")
