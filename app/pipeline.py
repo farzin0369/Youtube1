@@ -13,6 +13,7 @@ from app.utils import OUTPUT_DIR, ensure_dirs, has_openai, has_youtube_creds, lo
 from app.video_render import render_video, make_thumbnail, write_srt
 from app.youtube_client import upload_video
 from app.channel_ops import reply_to_comments
+from app.agent_guard import enforce
 
 def _local_render(script:str,title:str,audio:Path,kind:str,rid:str)->dict:
     out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; final=out/"video.mp4"
@@ -31,7 +32,7 @@ def main()->None:
     audit={"run_id":rid,"started_at":utc_now_iso(),"kind":args.kind,"publish_mode":publish_mode,"channel":cfg.get("channel",{}),"steps":{}}
     print(f"=== {rid} | {args.kind} | {publish_mode} | engine={'local' if local_enabled() else 'legacy'} ===")
     topic=pick_topic(args.kind,seed=rid); brief=build_research_brief(topic); audit["steps"]["research"]={"topic":topic}; save_json(out/"topic.json",topic)
-    script_data=generate_script(topic,args.kind,brief); audit["steps"]["script"]={"title":script_data.get("title"),"generated_by":script_data.get("generated_by")}; save_json(out/"script.json",script_data); (out/"script.txt").write_text(script_data["script"],encoding="utf-8")
+    script_data=generate_script(topic,args.kind,brief); script_data=enforce(script_data,args.kind); audit["steps"]["script"]={"title":script_data.get("title"),"generated_by":script_data.get("generated_by"),"quality_gate":script_data.get("quality_gate")}; save_json(out/"script.json",script_data); (out/"script.txt").write_text(script_data["script"],encoding="utf-8")
     print(f"[1] script={script_data.get('generated_by')}")
     audio=synthesize(script_data["script"],out/"narration",kind=args.kind); audit["steps"]["tts"]=audio; print(f"[2] tts={audio.get('provider')}")
     if local_enabled():
