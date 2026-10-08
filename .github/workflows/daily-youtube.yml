@@ -1,11 +1,9 @@
-name: Daily YouTube content
+name: ImamAli110 local AI production
 
 on:
   schedule:
-    - cron: '30 2 * * *'
-    - cron: '0 17 * * *'
-  push:
-    branches: [main]
+    - cron: "5 2 * * *"
+    - cron: "30 17 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -24,44 +22,41 @@ permissions:
   contents: read
 
 concurrency:
-  group: youtube-content-${{ github.event.schedule || inputs.kind || github.event_name }}
+  group: imamali110-local-${{ github.event.schedule || inputs.kind || github.event_name }}
   cancel-in-progress: false
 
 jobs:
   generate:
-    if: ${{ github.event_name != 'push' || contains(github.event.head_commit.message, '[TEST-YOUTUBE]') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: [self-hosted, linux, x64, gpu]
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install system deps
+      - name: Verify local AI stack
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core fonts-noto-ui-core
-      - name: Install Python deps
-        run: pip install -r requirements.txt
-      - name: Generate cinematic content
+          nvidia-smi
+          command -v piper
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          test -n "${{ vars.PIPER_MODEL }}"
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-local.txt
+      - name: Generate and publish
         env:
+          AI_ENGINE: local
+          LOCAL_VIDEO_MODEL: THUDM/CogVideoX-2b
+          LOCAL_LLM_MODEL: qwen2.5:7b
+          PIPER_MODEL: ${{ vars.PIPER_MODEL }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          TTS_VOICE: ${{ secrets.TTS_VOICE }}
-          TTS_MODEL: ${{ secrets.TTS_MODEL }}
         run: |
           KIND="${{ github.event.inputs.kind }}"
           if [ -z "$KIND" ]; then
-            if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
+            if [ "${{ github.event.schedule }}" = "30 17 * * *" ]; then KIND=long; else KIND=short; fi
           fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode public $EXTRA
-      - name: Upload artifacts
+      - name: Upload audit/output
         uses: actions/upload-artifact@v4
         if: always()
         with:
