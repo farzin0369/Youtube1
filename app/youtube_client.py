@@ -72,6 +72,17 @@ def upload_video(
             "url": f"https://www.youtube.com/watch?v={video_id}",
             "privacy": privacy,
         }
+        captions_path = Path(video_path).with_name("captions.srt") if video_path else None
+        if captions_path and captions_path.exists() and video_id:
+            try:
+                youtube.captions().insert(
+                    part="snippet",
+                    body={"snippet": {"videoId": video_id, "language": "fa", "name": "فارسی", "isDraft": False}},
+                    media_body=MediaFileUpload(str(captions_path), mimetype="application/x-subrip", resumable=False),
+                ).execute()
+                result["captions_set"] = True
+            except Exception as ce:
+                result["captions_error"] = str(ce)
         if thumbnail_path and Path(thumbnail_path).exists() and video_id:
             try:
                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumbnail_path))).execute()
