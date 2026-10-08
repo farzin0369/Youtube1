@@ -14,6 +14,9 @@ from app.utils import env
 def local_enabled() -> bool:
     return (env("AI_ENGINE") or "local").lower() == "local"
 
+def text_ai_available() -> bool:
+    return ollama_available()
+
 def ollama_available() -> bool:
     try:
         with urllib.request.urlopen(env("OLLAMA_URL") or "http://127.0.0.1:11434/api/tags", timeout=3) as r:
