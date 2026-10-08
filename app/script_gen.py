@@ -12,11 +12,11 @@ SYSTEM_PROMPT="""تو نویسنده اسکریپت فارسی برای ImamAli1
 def _fallback_script(topic:dict[str,Any],kind:str)->dict[str,Any]:
     src=topic.get("source_hint","منابع معتبر")
     body=(f"یک یادآوری کوتاه: {topic['title_hint']}. {topic['focus']}. بر اساس {src}، امروز کمی بیشتر اهل تأمل و مهربانی باشیم. برای متن دقیق به {topic.get('source_ref',src)} مراجعه کنید.") if kind=="short" else (f"بسم الله الرحمن الرحیم. موضوع امروز: {topic['title_hint']}. تمرکز ما: {topic['focus']}. منبع: {src}. بدون نقل جعلی، از این آموزه برای صبر و صداقت الهام می‌گیریم.")
-    return {"title":topic["title_hint"][:90],"description":f"{topic['title_hint']}\n\nمنبع: {src}","script":body,"sources":[src],"tags":["امام علی","نهج البلاغه","اخلاق"],"duration_hint_seconds":45 if kind=="short" else 420,"generated_by":"fallback-local"}
+    return {"title":("Imam Ali ✨ " + topic["title_hint"])[:100],"description":f"{topic['title_hint']}\n\nمنبع: {src}","script":body,"sources":[src],"tags":["امام علی","نهج البلاغه","اخلاق"],"duration_hint_seconds":45 if kind=="short" else 420,"generated_by":"fallback-local"}
 
 def _normalize(data:dict[str,Any],topic:dict[str,Any],kind:str)->dict[str,Any]:
     data["script"]=clean_persian(str(data.get("script","")))
-    data["title"]=str(data.get("title",topic["title_hint"]))[:100]
+    data["title"]=str(data.get("title") or ("Imam Ali ✨ " + topic["title_hint"]))[:100]\n    if not data["title"].startswith("Imam Ali ✨"):\n        data["title"]="Imam Ali ✨ " + data["title"]
     data["description"]=str(data.get("description",""))
     data["sources"]=data.get("sources") or [topic["source_hint"]]
     data["tags"]=data.get("tags") or ["امام علی","اخلاق"]
