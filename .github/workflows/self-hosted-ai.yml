@@ -1,0 +1,32 @@
+name: ImamAli110 local AI production
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "5 2 * * *"
+
+jobs:
+  produce:
+    runs-on: [self-hosted, linux, x64, gpu]
+    timeout-minutes: 90
+    env:
+      AI_ENGINE: local
+      LOCAL_VIDEO_MODEL: THUDM/CogVideoX-2b
+      LOCAL_LLM_MODEL: qwen2.5:7b
+      PIPER_MODEL: ${{ vars.PIPER_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify local AI stack
+        run: |
+          nvidia-smi
+          test -n "$PIPER_MODEL"
+          command -v piper
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+      - name: Install application dependencies
+        run: pip install -r requirements.txt -r requirements-local.txt
+      - name: Generate and publish
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python -m app.pipeline --kind short --publish-mode public
