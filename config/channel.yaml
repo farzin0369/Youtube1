@@ -5,14 +5,16 @@ channel:
   audience: همه سنین
   objective: رشد پایدار کانال و افزایش سابسکرایبر
   narrator: مرد
-  # یک گوینده ثابت برای همه ویدیوها — تغییر ندهید
-  tts_voice: onyx
-  tts_model: tts-1-hd
-  visual_style: سینمایی معنوی؛ نور طلایی روی پس‌زمینه تیره؛ بدون چهره مقدس؛ بدون اسلاید خشک
+  tts_voice: local
+  tts_model: piper
+  visual_style: سینمایی معنوی؛ نور طلایی؛ مستند واقع‌گرا؛ بدون چهره مقدس؛ بدون اسلاید خشک
+  ai_engine: local
+  video_model: THUDM/CogVideoX-2b
+  llm_model: qwen2.5:7b
   logo: generate-once-and-cache
 
 schedule:
-  short: "06:00"
+  short: "05:35"
   long: "20:30"
   short_duration_seconds: 45
   long_duration_minutes: "6-10"
