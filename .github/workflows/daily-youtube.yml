@@ -1,4 +1,4 @@
-name: ImamAli110 local AI production
+name: ImamAli110 cloud-free production
 
 on:
   schedule:
@@ -22,29 +22,35 @@ permissions:
   contents: read
 
 concurrency:
-  group: imamali110-local-${{ github.event.schedule || inputs.kind || github.event_name }}
+  group: imamali110-cloud-${{ github.event.schedule || inputs.kind || github.event_name }}
   cancel-in-progress: false
 
 jobs:
   generate:
-    runs-on: [self-hosted, linux, x64, gpu]
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - name: Verify local AI stack
+      - name: Install free CPU AI stack
         run: |
-          nvidia-smi
-          command -v piper
-          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-          test -n "${{ vars.PIPER_MODEL }}"
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-local.txt
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt piper-tts
+          mkdir -p "${RUNNER_TEMP}/piper"
+          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx
+          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
+          piper --help >/dev/null
+          ffmpeg -version >/dev/null
+      - name: Verify runner
+        run: |
+          echo "Runner: $RUNNER_NAME"
+          python --version
+          ffmpeg -version | head -1
       - name: Generate and publish
         env:
           AI_ENGINE: local
-          LOCAL_VIDEO_MODEL: THUDM/CogVideoX-2b
+          VIDEO_ENGINE: cpu
           LOCAL_LLM_MODEL: qwen2.5:7b
-          PIPER_MODEL: ${{ vars.PIPER_MODEL }}
+          PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
