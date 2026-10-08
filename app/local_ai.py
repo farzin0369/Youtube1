@@ -1,7 +1,5 @@
-"""Self-hosted AI adapters. No OpenAI/OpenArt/Runway API is required.
-The engine talks only to services running on the same machine:
-- Ollama for local text generation
-- Piper for local Persian TTS
+"""Cloud-safe local adapters. No paid hosted AI API is required.
+Ollama is optional; Piper is used for free Persian narration on GitHub runners.
 """
 from __future__ import annotations
 import json
