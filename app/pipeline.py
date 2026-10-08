@@ -31,7 +31,8 @@ def main() -> None:
 
     ensure_dirs()
     cfg = load_channel_config()
-    
+    configured_mode = str((cfg.get("publishing") or {}).get("mode") or "private").lower()
+    publish_mode = configured_mode if configured_mode in ("private", "unlisted", "public") else args.publish_mode
 
     rid = make_run_id(args.kind)
     out_dir = OUTPUT_DIR / rid
@@ -40,12 +41,12 @@ def main() -> None:
         "run_id": rid,
         "started_at": utc_now_iso(),
         "kind": args.kind,
-        "publish_mode": args.publish_mode,
+        "publish_mode": publish_mode,
         "channel": cfg.get("channel", {}),
         "steps": {},
     }
 
-    print(f"=== {rid} | {args.kind} | {args.publish_mode} ===")
+    print(f"=== {rid} | {args.kind} | {publish_mode} ===")
     print(f"OpenAI: {'yes' if has_openai() else 'NO'} | YouTube: {'yes' if has_youtube_creds() else 'NO'}")
 
     topic = pick_topic(args.kind, seed=rid)
@@ -85,7 +86,7 @@ def main() -> None:
             title=script_data["title"],
             description=script_data.get("description") or "",
             tags=list(script_data.get("tags") or []),
-            privacy=args.publish_mode,
+            privacy=publish_mode,
             thumbnail_path=Path(render_meta["thumbnail_path"]) if render_meta.get("thumbnail_path") else None,
         )
     audit["steps"]["upload"] = upload_meta
