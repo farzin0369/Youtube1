@@ -96,7 +96,7 @@ def main() -> None:
     save_json(out_dir / "audit.json", audit)
     save_json(OUTPUT_DIR / "audit" / f"{rid}.json", audit)
     if not args.dry_run and not upload_meta.get("ok"):
-        raise RuntimeError(f"YouTube upload failed: {upload_meta.get("error", "unknown error")}")
+        raise RuntimeError(f"YouTube upload failed: {upload_meta.get('error', 'unknown error')}")
 
     print(f"Done → {out_dir}")
     if upload_meta.get("url"):
