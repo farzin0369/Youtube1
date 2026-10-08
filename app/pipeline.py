@@ -20,6 +20,7 @@ from app.utils import (
 )
 from app.video_render import render_video
 from app.youtube_client import upload_video
+from app.channel_ops import reply_to_comments
 
 
 def main() -> None:
@@ -91,6 +92,13 @@ def main() -> None:
         )
     audit["steps"]["upload"] = upload_meta
     print(f"[5] upload: {upload_meta}")
+
+    # Safe automated replies; policy-sensitive comments remain pending.
+    if upload_meta.get("ok") and upload_meta.get("video_id"):
+        try:
+            audit["steps"]["comments"] = reply_to_comments(str(upload_meta["video_id"]))
+        except Exception as e:
+            audit["steps"]["comments"] = {"ok": False, "error": str(e)}
 
     audit["finished_at"] = utc_now_iso()
     audit["success"] = bool(render_meta.get("ok"))
