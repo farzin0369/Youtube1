@@ -1,68 +1,59 @@
-# ImamAli110 — Self-Hosted YouTube AI
+# ImamAli110 — Cloud-First YouTube Agent
 
-تولید ویدئوی **واقعاً سینمایی و text-to-video** برای ImamAli110 با موتور هوش مصنوعی محلی؛ بدون وابستگی به OpenAI، OpenArt یا Runway برای تولید محتوا.
+تولید و انتشار خودکار محتوای ImamAli110 بدون نیاز به کامپیوتر شخصی.
 
-## معماری
+## معماری رایگان
 
-موضوع/منبع → LLM محلی → فیلمنامه فارسی → Piper TTS محلی → CogVideoX text-to-video روی GPU → مونتاژ FFmpeg → زیرنویس → YouTube
+موضوع/منبع → فیلمنامه فارسی → Piper TTS محلی → رندر سینمایی CPU → FFmpeg → زیرنویس → Quality Gate → YouTube → پاسخ به کامنت‌ها
 
-### اجزای محلی
-- **LLM:** Ollama + مدل محلی مثل Qwen
-- **TTS:** Piper با صدای فارسی محلی
-- **Video:** CogVideoX-2B از پروژه متن‌باز CogVideoX
-- **Render/Mux:** FFmpeg
-- **Automation:** GitHub Actions روی **self-hosted GPU runner**
-- **YouTube:** فقط API انتشار؛ هیچ مدل هوش مصنوعی از YouTube گرفته نمی‌شود.
+نسخه فعلی برای اجرای روزانه از GitHub-hosted standard runner استفاده می‌کند و به self-hosted GPU وابسته نیست.
+
+GitHub می‌گوید standard runner برای repository عمومی رایگان و نامحدود است؛ runner استاندارد GPU ندارد، بنابراین موتور ویدئو در این مسیر از رندر سینمایی procedural/animated روی CPU استفاده می‌کند.
 
 ## زمان‌بندی تهران
 
 - **05:35 — Short**
 - **20:30 — Long**
 
-## نکته مهم
+## موتور محتوا
 
-GitHub-hosted runner معمولی GPU لازم برای تولید ویدئو ندارد. بنابراین Workflow اصلی عمداً روی runner با برچسب‌های:
+- تحقیق و انتخاب موضوع از منابع مجاز پروژه
+- فیلمنامه فارسی با کنترل منبع
+- عنوان با پیشوند ثابت **Imam Ali ✨**
+- Piper با صدای فارسی محلی
+- ویدئوی متحرک سینمایی، نه اسلایدشو ثابت
+- زیرنویس SRT
+- thumbnail
+- quality gate
+- انتشار مستقیم در YouTube
+- پاسخ خودکار به کامنت‌های امن و انتقال موارد حساس به pending
 
-`self-hosted, linux, x64, gpu`
+## Piper فارسی
 
-اجرا می‌شود.
+Workflow در هر اجرای تازه، صدای فارسی Piper را از مخزن open-source آن دریافت می‌کند. صدای fa_IR-amir-medium در مجموعه Piper موجود است.
 
-مدل فقط یک بار روی ماشین محلی/سرور دانلود و cache می‌شود و سپس تولیدها محلی انجام می‌شوند.
+## Secrets موردنیاز YouTube
 
-## راه‌اندازی
+فقط این سه Secret را در GitHub Actions قرار بده:
 
-1. یک کامپیوتر/سرور Linux با NVIDIA CUDA به عنوان GitHub self-hosted runner اضافه کن.
-2. Ollama را روی همان ماشین اجرا کن و یک مدل فارسی/چندزبانه محلی نصب کن.
-3. Piper را نصب کن و مسیر مدل صدای فارسی را در GitHub Actions Variable با نام `PIPER_MODEL` قرار بده.
-4. در همان ماشین:
+- YOUTUBE_CLIENT_ID
+- YOUTUBE_CLIENT_SECRET
+- YOUTUBE_REFRESH_TOKEN
 
-```bash
-bash scripts/bootstrap_local_ai.sh
-```
+رمز عبور Google هرگز داخل Repository ذخیره نمی‌شود.
 
-5. در GitHub repository secrets فقط اطلاعات YouTube را قرار بده:
-- `YOUTUBE_CLIENT_ID`
-- `YOUTUBE_CLIENT_SECRET`
-- `YOUTUBE_REFRESH_TOKEN`
+## اجرای دستی
 
-برای موتور تولید AI دیگر `OPENAI_API_KEY` لازم نیست.
+از GitHub: Actions → ImamAli110 cloud-free production → Run workflow
 
-## Preview
+می‌توانی short یا long و همچنین dry_run را انتخاب کنی.
 
-Workflow زیر فقط روی GPU محلی اجرا می‌شود و چیزی را به YouTube منتشر نمی‌کند:
+## مسیر GPU اختیاری
 
-`.github/workflows/preview.yml`
-
-## مدل ویدئو
-
-پیش‌فرض:
-
-`THUDM/CogVideoX-2b`
-
-برای ارتقای کیفیت بعداً می‌توانیم مدل قوی‌تر را با تغییر `LOCAL_VIDEO_MODEL` اضافه کنیم.
+اگر در آینده GPU رایگان/اختصاصی پیدا شد، موتور CogVideoX هنوز در کد باقی مانده و می‌تواند با VIDEO_ENGINE=cogvideox فعال شود؛ اما تولید روزانه فعلی به GPU پولی GitHub وابسته نیست.
 
 ## اصل طراحی
 
-این پروژه «API wrapper» برای یک سرویس هوش مصنوعی نیست؛ **AI Engine متعلق به خودت و قابل اجرای محلی است.**
+**Serve the message first. Let the algorithm follow.**
 
-YouTube فقط مقصد انتشار است.
+این Agent برای ImamAli110 طراحی شده و YouTube مقصد انتشار است.
