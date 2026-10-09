@@ -4,7 +4,7 @@
 
 ## معماری رایگان
 
-موضوع/منبع → فیلمنامه فارسی → Piper TTS محلی → رندر سینمایی CPU → FFmpeg → زیرنویس → Quality Gate → YouTube → پاسخ به کامنت‌ها
+موضوع/منبع → فیلمنامه فارسی → گویندگی عصبی فارسی Edge TTS (صدای FaridNeural) با fallback رایگان Piper → رندر سینمایی CPU → FFmpeg → زیرنویس → Quality Gate → YouTube → پاسخ به کامنت‌ها
 
 نسخه فعلی برای اجرای روزانه از GitHub-hosted standard runner استفاده می‌کند و به self-hosted GPU وابسته نیست.
 
@@ -28,9 +28,9 @@ GitHub می‌گوید standard runner برای repository عمومی رایگا
 - انتشار مستقیم در YouTube
 - پاسخ خودکار به کامنت‌های امن و انتقال موارد حساس به pending
 
-## Piper فارسی
+## گویندگی فارسی طبیعی
 
-Workflow در هر اجرای تازه، صدای فارسی Piper را از مخزن open-source آن دریافت می‌کند. صدای fa_IR-amir-medium در مجموعه Piper موجود است.
+مسیر تولید از صدای عصبی فارسی `fa-IR-FaridNeural` در Edge TTS استفاده می‌کند تا لحن طبیعی‌تری داشته باشد و به اعتبار پولی OpenAI وابسته نباشد. اگر سرویس در دسترس نباشد، صدای محلی Piper (`fa_IR-amir-medium`) به‌عنوان fallback باقی می‌ماند.
 
 ## Secrets موردنیاز YouTube
 
