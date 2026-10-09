@@ -2,7 +2,7 @@ name: ImamAli110 daily video (Qwen)
 
 on:
   schedule:
-    # 05:35 Tehran ≈ 02:05 UTC | 20:30 Tehran ≈ 17:00 UTC
+    # 05:35 Tehran = 02:05 UTC | 20:30 Tehran = 17:00 UTC
     - cron: "5 2 * * *"
     - cron: "0 17 * * *"
   workflow_dispatch:
@@ -42,21 +42,26 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements.txt piper-tts
+      - name: Download free Persian Piper voice
+        run: |
+          mkdir -p "${RUNNER_TEMP}/piper"
+          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx
+          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
       - name: Generate daily video
         env:
           AI_ENGINE: qwen
           VIDEO_ENGINE: cpu
-          # Qwen (Alibaba DashScope) — primary LLM
+          # Qwen (Alibaba DashScope) — primary LLM; local script fallback works without API credits.
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
           DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
           QWEN_API_BASE: ${{ secrets.QWEN_API_BASE }}
           QWEN_MODEL: ${{ secrets.QWEN_MODEL }}
-          # Optional fallbacks
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          TTS_VOICE: onyx
-          TTS_MODEL: tts-1-hd
+          # Free, locally generated Persian narration: no OpenAI TTS credits needed.
+          TTS_PROVIDER: piper
+          PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -65,11 +70,11 @@ jobs:
           if [ -z "$KIND" ]; then
             if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
           fi
-          # default model if secret empty
           export QWEN_MODEL="${QWEN_MODEL:-qwen-plus}"
           export QWEN_API_BASE="${QWEN_API_BASE:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}"
           EXTRA=""
-          if [ "${{ github.event.inputs.dry_run }}" != "false" ]; then EXTRA="--dry-run"; fi
+          # Scheduled runs publish; only a manual run with dry_run=true skips upload.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
       - name: Upload audit/output
         uses: actions/upload-artifact@v4
