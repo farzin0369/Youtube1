@@ -15,7 +15,7 @@ on:
       dry_run:
         description: Skip YouTube upload
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -37,22 +37,19 @@ jobs:
       - name: Install system packages
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core
-      - name: Install free CPU AI stack
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core imagemagick
+      - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt piper-tts
-          mkdir -p "${RUNNER_TEMP}/piper"
-          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx
-          curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
-          piper --help >/dev/null
-          ffmpeg -version | head -1
-      - name: Generate and publish
+          python -m pip install -r requirements.txt
+      - name: Generate (quality path)
         env:
-          AI_ENGINE: local
+          AI_ENGINE: quality
           VIDEO_ENGINE: cpu
-          LOCAL_LLM_MODEL: qwen2.5:7b
-          PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: gpt-4o
+          TTS_VOICE: onyx
+          TTS_MODEL: tts-1-hd
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -62,7 +59,7 @@ jobs:
             if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
           fi
           EXTRA=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
+          if [ "${{ github.event.inputs.dry_run }}" != "false" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
       - name: Upload audit/output
         uses: actions/upload-artifact@v4

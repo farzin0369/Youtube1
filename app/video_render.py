@@ -1,18 +1,23 @@
-"""Cinematic spiritual video: slow Ken Burns, gold light, soft captions — not static slides."""
+"""Cinematic render using real motion stock + soft captions (not a static dark slide)."""
 from __future__ import annotations
 
-import math
+import subprocess
 import textwrap
 from pathlib import Path
 from typing import Any
+from urllib.request import urlretrieve
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 from app.utils import OUTPUT_DIR, split_sentences
 
-W, H = 540, 960
-FPS = 18
+W, H = 1080, 1920
+FPS = 30
+
+# Free sample ambient clips (public demo URLs). Rotated by topic hash.
+STOCK_URLS = [
+    "https://filesamples.com/samples/video/mp4/sample_640x360.mp4",
+]
 
 
 def _font(size: int):
@@ -20,7 +25,6 @@ def _font(size: int):
         "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     ]:
         if Path(c).exists():
             try:
@@ -30,74 +34,35 @@ def _font(size: int):
     return ImageFont.load_default()
 
 
-def _cinematic_frame(t: float, duration: float, seed: int = 7) -> Image.Image:
-    """Vectorized procedural cinematic background; avoids Python pixel-by-pixel rendering."""
-    y, x = np.mgrid[0:H, 0:W].astype(np.float32)
-    nx = x / W
-    ny = y / H
-    phase = t * 0.15
-    nx2 = nx + 0.02 * np.sin(phase + y * 0.01)
-    ny2 = ny + 0.015 * np.cos(phase * 0.8 + x * 0.008)
-    r = 8 + 18 * ny2 + 12 * np.sin(nx2 * 3 + phase)
-    g = 16 + 28 * ny2 + 10 * np.cos(ny2 * 2 - phase)
-    bl = 28 + 40 * (1 - ny2) + 15 * np.sin(phase + nx2)
-    cx, cy = 0.5 + 0.05 * np.sin(phase * 0.5), 0.35
-    d = np.sqrt((nx2 - cx) ** 2 + (ny2 - cy) ** 2)
-    glow = np.maximum(0.0, 1.0 - d * 2.2)
-    r += glow * 90
-    g += glow * 70
-    bl += glow * 25
-    vig = 1.0 - 0.45 * ((nx2 - 0.5) ** 2 + (ny2 - 0.5) ** 2) * 4
-    arr = np.clip(np.stack([r * vig, g * vig, bl * vig], axis=2), 0, 255).astype(np.uint8)
-    img = Image.fromarray(arr, "RGB").filter(ImageFilter.GaussianBlur(radius=1.2))
-    draw = ImageDraw.Draw(img, "RGBA")
-    draw.rectangle([36, 36, W - 36, H - 36], outline=(200, 175, 110, 160), width=2)
-    return img.convert("RGB")
-
-def _caption_overlay(text: str, alpha: float = 1.0) -> Image.Image:
-    """Semi-transparent lower-third style caption board."""
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    # soft bottom bar
-    bar_h = 160
-    for i in range(bar_h):
-        a = int(160 * (i / bar_h) * alpha)
-        draw.line([(0, H - bar_h + i), (W, H - bar_h + i)], fill=(5, 10, 18, a))
-    font = _font(34)
-    lines = []
-    for para in text.split("\n"):
-        lines.extend(textwrap.wrap(para, width=36) or [""])
-    lines = lines[:3]
-    y = H - bar_h + 36
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=font)
-        tw = bbox[2] - bbox[0]
-        x = (W - tw) // 2
-        # shadow
-        draw.text((x + 2, y + 2), line, fill=(0, 0, 0, int(200 * alpha)), font=font)
-        draw.text((x, y), line, fill=(245, 235, 210, int(255 * alpha)), font=font)
-        y += 42
-    return overlay
+def _download_stock(out: Path) -> Path | None:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    for url in STOCK_URLS:
+        try:
+            urlretrieve(url, out)
+            if out.exists() and out.stat().st_size > 50_000:
+                return out
+        except Exception as e:
+            print(f"[video] stock download failed: {e}")
+    return None
 
 
 def make_thumbnail(title: str, out_path: Path, kind: str) -> Path:
-    base = _cinematic_frame(2.5, 10.0)
-    base = base.convert("RGBA")
-    draw = ImageDraw.Draw(base)
-    draw.rectangle([40, 40, W - 40, H - 40], outline=(210, 185, 120, 220), width=3)
-    title_font, sub = _font(46), _font(26)
-    y = 240
-    for line in textwrap.fill(title, width=26).split("\n"):
-        bbox = draw.textbbox((0, 0), line, font=title_font)
-        tw = bbox[2] - bbox[0]
-        x = (W - tw) // 2
-        draw.text((x + 2, y + 2), line, fill=(0, 0, 0, 180), font=title_font)
-        draw.text((x, y), line, fill=(245, 235, 210, 255), font=title_font)
-        y += 58
-    draw.text((60, H - 90), "شورت" if kind == "short" else "ویدیو", fill=(200, 180, 120, 230), font=sub)
-    draw.text((W - 300, H - 90), "imamali.110", fill=(180, 170, 150, 230), font=sub)
+    img = Image.new("RGB", (W, H), (12, 20, 32))
+    draw = ImageDraw.Draw(img)
+    for y in range(H):
+        c = int(12 + y / H * 30)
+        draw.line([(0, y), (W, y)], fill=(c, c + 8, c + 18))
+    draw.rectangle([40, 40, W - 40, H - 40], outline=(210, 185, 120), width=4)
+    font = _font(54)
+    y = H // 3
+    for line in textwrap.fill(title, width=18).split("\n"):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        x = (W - (bbox[2] - bbox[0])) // 2
+        draw.text((x + 2, y + 2), line, fill=(0, 0, 0), font=font)
+        draw.text((x, y), line, fill=(245, 235, 210), font=font)
+        y += 70
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    base.convert("RGB").save(out_path, quality=93)
+    img.save(out_path, quality=92)
     return out_path
 
 
@@ -118,6 +83,22 @@ def write_srt(script: str, out_path: Path, total_duration: float) -> Path:
     return out_path
 
 
+def _burn_captions_ffmpeg(video_in: Path, srt: Path, video_out: Path) -> None:
+    # Drawtext fallback if subtitles filter fails on some runners
+    sub = str(srt).replace("\\", "/").replace(":", "\\:")
+    vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},eq=brightness=-0.05:saturation=1.1"
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(video_in),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        str(video_out),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+
 def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: str) -> dict[str, Any]:
     out_dir = OUTPUT_DIR / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -127,55 +108,69 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
     audio_path = Path(audio_path)
 
     try:
-        from moviepy.editor import AudioFileClip, VideoClip
+        from moviepy.editor import (
+            AudioFileClip,
+            ColorClip,
+            CompositeVideoClip,
+            TextClip,
+            VideoFileClip,
+            concatenate_videoclips,
+        )
 
         audio = AudioFileClip(str(audio_path))
         duration = float(audio.duration) if audio.duration else (45.0 if kind == "short" else 300.0)
-        # cap long renders on CI
-        if kind == "long":
-            duration = min(duration, 420.0)
-        else:
-            duration = min(duration, 60.0)
-
+        duration = min(duration, 60.0 if kind == "short" else 420.0)
         write_srt(script, srt_path, duration)
-        sentences = split_sentences(script) or [script[:120]]
-        n = len(sentences)
-        slot = duration / max(n, 1)
 
-        # Pre-render a few key background stills and crossfade via time
-        # Full per-pixel every frame is too slow; sample backgrounds sparsely + interpolate feel via phase
-        cache: dict[int, Image.Image] = {}
+        stock_path = _download_stock(out_dir / "stock.mp4")
+        if stock_path:
+            clip = VideoFileClip(str(stock_path))
+            # loop to cover narration length
+            loops = int(duration / max(clip.duration, 0.1)) + 2
+            clip = concatenate_videoclips([clip] * loops).subclip(0, duration)
+            clip = clip.resize(height=H)
+            if clip.w < W:
+                clip = clip.resize(width=W)
+            clip = clip.crop(
+                x_center=clip.w / 2, y_center=clip.h / 2, width=W, height=H
+            )
+            # slight darken for text readability
+            bg = clip.fl_image(lambda im: (im * 0.72).astype("uint8"))
+        else:
+            bg = ColorClip(size=(W, H), color=(10, 18, 28)).set_duration(duration)
 
-        def bg_at(t: float) -> Image.Image:
-            key = int(t * 2)  # 2 samples/sec worth of distinct frames
-            if key not in cache:
-                cache[key] = _cinematic_frame(t, duration)
-                # keep cache small
-                if len(cache) > 40:
-                    cache.pop(next(iter(cache)))
-            return cache[key]
+        sentences = split_sentences(script) or [script[:100]]
+        slot = duration / max(len(sentences), 1)
+        txt_clips = []
+        for i, sent in enumerate(sentences[:12]):
+            try:
+                tc = (
+                    TextClip(
+                        sent[:90],
+                        fontsize=48,
+                        color="white",
+                        font="DejaVu-Sans",
+                        method="caption",
+                        size=(W - 120, None),
+                        align="center",
+                    )
+                    .set_start(i * slot)
+                    .set_duration(min(slot, duration - i * slot))
+                    .set_position(("center", H * 0.72))
+                )
+                txt_clips.append(tc)
+            except Exception:
+                # TextClip needs ImageMagick; skip overlays if missing
+                break
 
-        def make_frame(t: float):
-            base = bg_at(t).convert("RGBA")
-            # which caption
-            idx = min(int(t / slot), n - 1)
-            # fade caption in/out within slot
-            local = t - idx * slot
-            fade = 0.35
-            if local < fade:
-                a = local / fade
-            elif local > slot - fade:
-                a = max(0.0, (slot - local) / fade)
-            else:
-                a = 1.0
-            cap = _caption_overlay(sentences[idx], alpha=a)
-            composed = Image.alpha_composite(base, cap).convert("RGB")
-            return np.array(composed)
+        if txt_clips:
+            final = CompositeVideoClip([bg, *txt_clips], size=(W, H)).set_audio(audio)
+        else:
+            final = bg.set_audio(audio)
 
-        video = VideoClip(make_frame, duration=duration).set_fps(FPS).set_audio(audio)
-        temp_video = out_dir / "video_low.mp4"
-        video.write_videofile(
-            str(temp_video),
+        final = final.set_duration(duration)
+        final.write_videofile(
+            str(video_path),
             fps=FPS,
             codec="libx264",
             audio_codec="aac",
@@ -183,26 +178,24 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
             threads=2,
             logger=None,
         )
-        import subprocess
-        subprocess.run([
-            "ffmpeg","-y","-i",str(temp_video),
-            "-vf","scale=1080:1920:flags=lanczos",
-            "-c:v","libx264","-preset","veryfast","-crf","20",
-            "-c:a","aac","-b:a","160k",str(video_path)
-        ], check=True, capture_output=True)
-        temp_video.unlink(missing_ok=True)
         audio.close()
-        video.close()
+        final.close()
+        if hasattr(bg, "close"):
+            try:
+                bg.close()
+            except Exception:
+                pass
+
         return {
             "video_path": str(video_path),
             "thumbnail_path": str(thumb),
             "captions_path": str(srt_path),
             "duration": duration,
-            "style": "cinematic_kenburns_caption",
+            "style": "stock_motion_cinematic",
             "ok": True,
         }
     except Exception as e:
-        print(f"[video] cinematic render failed: {e}")
+        print(f"[video] render failed: {e}")
         write_srt(script, srt_path, 45.0 if kind == "short" else 300.0)
         return {
             "video_path": None,

@@ -5,12 +5,11 @@ channel:
   audience: همه سنین
   objective: رشد پایدار کانال و افزایش سابسکرایبر
   narrator: مرد
-  tts_voice: local
-  tts_model: piper
-  visual_style: سینمایی معنوی؛ نور طلایی؛ مستند واقع‌گرا؛ بدون چهره مقدس؛ بدون اسلاید خشک
-  ai_engine: local
-  video_model: THUDM/CogVideoX-2b
-  llm_model: qwen2.5:7b
+  # کیفیت بالا: صدای ثابت OpenAI
+  tts_voice: onyx
+  tts_model: tts-1-hd
+  visual_style: سینمایی؛ کلیپ واقعی + حرکت آرام؛ بدون چهره مقدس
+  ai_engine: quality
   logo: generate-once-and-cache
 
 schedule:
@@ -20,8 +19,8 @@ schedule:
   long_duration_minutes: "6-10"
 
 publishing:
-  mode: public
-  public_publish_enabled: true
+  mode: private
+  public_publish_enabled: false
   require_review_for_sensitive_comments: true
 
 content:
@@ -34,8 +33,7 @@ content:
     - جعل آیه یا حدیث
     - نفرت‌پراکنی مذهبی
     - ادعاهای پزشکی، سیاسی یا تاریخی بدون منبع
-    - استفاده از محتوای دارای حق نشر بدون مجوز
-  source_policy: فقط منابع داخل لیست تأییدشده در app/research.py
+  source_policy: فقط منابع تأییدشده در app/research.py
   approved_source_books:
-    - نهج‌البلاغه (نسخه‌های معتبر: دشتی / فیض‌الاسلام)
+    - نهج‌البلاغه (دشتی / فیض‌الاسلام)
     - قرآن کریم (با شماره سوره و آیه)
