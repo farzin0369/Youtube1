@@ -5,11 +5,11 @@ channel:
   audience: همه سنین
   objective: رشد پایدار کانال و افزایش سابسکرایبر
   narrator: مرد
-  # کیفیت بالا: صدای ثابت OpenAI
   tts_voice: onyx
   tts_model: tts-1-hd
-  visual_style: سینمایی؛ کلیپ واقعی + حرکت آرام؛ بدون چهره مقدس
-  ai_engine: quality
+  visual_style: سینمایی؛ کلیپ متحرک؛ بدون چهره مقدس
+  ai_engine: qwen
+  llm_model: qwen-plus
   logo: generate-once-and-cache
 
 schedule:
@@ -32,7 +32,6 @@ content:
     - نقل‌قول بدون منبع
     - جعل آیه یا حدیث
     - نفرت‌پراکنی مذهبی
-    - ادعاهای پزشکی، سیاسی یا تاریخی بدون منبع
   source_policy: فقط منابع تأییدشده در app/research.py
   approved_source_books:
     - نهج‌البلاغه (دشتی / فیض‌الاسلام)

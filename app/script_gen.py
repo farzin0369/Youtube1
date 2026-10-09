@@ -1,10 +1,17 @@
-"""High-quality Persian script: OpenAI first, modern fluent tone."""
+"""Script generator — Qwen (Chinese model) first, then OpenAI, then fallback."""
 from __future__ import annotations
 
 import json
 from typing import Any
 
-from app.utils import clean_persian, env, has_openai, load_content_policy
+from app.utils import (
+    clean_persian,
+    env,
+    has_openai,
+    has_qwen,
+    load_content_policy,
+    qwen_client_kwargs,
+)
 
 SYSTEM_PROMPT = """تو نویسندهٔ حرفه‌ای اسکریپت یوتیوب فارسی هستی برای کانال معنوی ImamAli110.
 
@@ -54,7 +61,7 @@ def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
         "sources": [src],
         "tags": ["امام علی", "نهج البلاغه", "اخلاق", "تأمل"],
         "duration_hint_seconds": dur,
-        "generated_by": "fallback-quality",
+        "generated_by": "fallback",
     }
 
 
@@ -73,13 +80,10 @@ def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[s
     return data
 
 
-def _call_openai(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
+def _chat_json(api_key: str, base_url: str, model: str, brief: str, kind: str, label: str) -> dict[str, Any]:
     from openai import OpenAI
 
-    client = OpenAI(
-        api_key=env("OPENAI_API_KEY"),
-        base_url=env("OPENAI_API_BASE") or "https://api.openai.com/v1",
-    )
+    client = OpenAI(api_key=api_key, base_url=base_url)
     length = (
         "حدود ۴۰ ثانیه گفتار؛ ۸۰ تا ۱۲۰ کلمه؛ طبیعی و شنیدنی."
         if kind == "short"
@@ -90,22 +94,58 @@ def _call_openai(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]
         f"سیاست: {json.dumps(load_content_policy(), ensure_ascii=False)}\n"
         "فقط JSON."
     )
-    resp = client.chat.completions.create(
-        model=env("OPENAI_MODEL") or "gpt-4o",
-        messages=[
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user},
         ],
-        temperature=0.55,
-        response_format={"type": "json_object"},
-    )
-    data = _normalize(json.loads(resp.choices[0].message.content or "{}"), topic, kind)
-    data["generated_by"] = "openai-quality"
+        "temperature": 0.55,
+    }
+    # Some Qwen deployments support json_object; if not, model still asked for JSON only.
+    try:
+        resp = client.chat.completions.create(**kwargs, response_format={"type": "json_object"})
+    except Exception:
+        resp = client.chat.completions.create(**kwargs)
+    raw = resp.choices[0].message.content or "{}"
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:].strip()
+    data = json.loads(raw)
+    data["generated_by"] = label
     return data
 
 
+def _call_qwen(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
+    kw = qwen_client_kwargs()
+    model = env("QWEN_MODEL") or env("DASHSCOPE_MODEL") or "qwen-plus"
+    data = _chat_json(kw["api_key"], kw["base_url"], model, brief, kind, f"qwen:{model}")
+    return _normalize(data, topic, kind)
+
+
+def _call_openai(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
+    model = env("OPENAI_MODEL") or "gpt-4o-mini"
+    data = _chat_json(
+        env("OPENAI_API_KEY") or "",
+        env("OPENAI_API_BASE") or "https://api.openai.com/v1",
+        model,
+        brief,
+        kind,
+        f"openai:{model}",
+    )
+    return _normalize(data, topic, kind)
+
+
 def generate_script(topic: dict[str, Any], kind: str, research_brief: str) -> dict[str, Any]:
-    # Quality path: OpenAI first when key exists
+    # 1) Qwen first (user request)
+    if has_qwen():
+        try:
+            return _call_qwen(topic, kind, research_brief)
+        except Exception as e:
+            print(f"[script] Qwen failed: {e}")
+    # 2) OpenAI fallback
     if has_openai():
         try:
             return _call_openai(topic, kind, research_brief)
