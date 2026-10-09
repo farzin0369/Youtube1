@@ -60,7 +60,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
           # Free, locally generated Persian narration: no OpenAI TTS credits needed.
-          TTS_PROVIDER: piper
+          TTS_PROVIDER: edge
+          TTS_VOICE: fa-IR-FaridNeural
           PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
