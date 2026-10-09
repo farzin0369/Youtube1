@@ -49,7 +49,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/kaggle-kernel"
           cp kaggle/kernel.py "$RUNNER_TEMP/kaggle-kernel/kernel.py"
           sed "s/KAGGLE_USERNAME/$KAGGLE_USERNAME/" kaggle/kernel-metadata.template.json > "$RUNNER_TEMP/kaggle-kernel/kernel-metadata.json"
-          echo "VIDEO_KIND=$VIDEO_KIND" >> "$RUNNER_ENV"
           # Add the kind to the script environment without embedding credentials.
           sed -i "1i import os\nos.environ['VIDEO_KIND'] = '${VIDEO_KIND}'" "$RUNNER_TEMP/kaggle-kernel/kernel.py"
           cat "$RUNNER_TEMP/kaggle-kernel/kernel-metadata.json"
