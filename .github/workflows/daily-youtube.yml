@@ -31,6 +31,13 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core
       - name: Install free CPU AI stack
         run: |
           python -m pip install --upgrade pip
@@ -39,11 +46,6 @@ jobs:
           curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx
           curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
           piper --help >/dev/null
-          ffmpeg -version >/dev/null
-      - name: Verify runner
-        run: |
-          echo "Runner: $RUNNER_NAME"
-          python --version
           ffmpeg -version | head -1
       - name: Generate and publish
         env:
@@ -61,7 +63,7 @@ jobs:
           fi
           EXTRA=""
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
-          python -m app.pipeline --kind "$KIND" --publish-mode public $EXTRA
+          python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
       - name: Upload audit/output
         uses: actions/upload-artifact@v4
         if: always()
