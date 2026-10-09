@@ -1,4 +1,4 @@
-"""Persian narration with an optional free local Piper fallback."""
+"""Persian narration: neural Edge voice, OpenAI when configured, and local Piper fallback."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,9 +20,32 @@ def synthesize(text: str, out_path: Path, kind: str = "short") -> dict:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Explicitly choose Piper for zero-paid-API production runs.
     provider = (env("TTS_PROVIDER") or "auto").lower()
     piper_model = env("PIPER_MODEL")
+
+    # Microsoft Edge neural Persian voices are available without a paid API key.
+    # Explicit edge mode uses a natural Persian voice first, with local Piper as fallback.
+    if provider == "edge":
+        voice = env("TTS_VOICE") or "fa-IR-FaridNeural"
+        try:
+            import asyncio
+            import edge_tts
+            spoken = " ".join(text.strip().replace("\\n", " ").split())
+            mp3_path = out_path.with_suffix(".mp3")
+            async def _save_edge():
+                await edge_tts.Communicate(spoken[:8000], voice=voice, rate="-5%").save(str(mp3_path))
+            asyncio.run(_save_edge())
+            if not mp3_path.exists() or mp3_path.stat().st_size < 1024:
+                raise RuntimeError("Edge TTS returned an empty audio file")
+            return {"path": str(mp3_path), "provider": "edge-tts", "voice": voice,
+                    "model": "neural", "narrator_locked": True, "ok": True}
+        except Exception as exc:
+            print(f"[tts] Edge neural voice unavailable; trying fallback: {exc}")
+            if piper_model:
+                from app.local_ai import piper_synthesize
+                return piper_synthesize(text, out_path)
+            raise RuntimeError("Edge TTS failed and no Piper fallback is configured") from exc
+
     if provider == "piper":
         from app.local_ai import piper_synthesize
         return piper_synthesize(text, out_path)
@@ -54,6 +77,6 @@ def synthesize(text: str, out_path: Path, kind: str = "short") -> dict:
         return piper_synthesize(text, out_path)
 
     raise RuntimeError(
-        "No usable TTS provider. Set TTS_PROVIDER=piper and PIPER_MODEL, "
-        "or configure a working OpenAI API key with credits."
+        "No usable TTS provider. Set TTS_PROVIDER=edge with edge-tts installed, "
+        "TTS_PROVIDER=piper with PIPER_MODEL, or configure a working OpenAI API key."
     )
