@@ -2,7 +2,6 @@ name: Channel health
 
 on:
   schedule:
-    # Tehran 22:00 = 18:30 UTC.
     - cron: '30 18 * * *'
   workflow_dispatch:
 
@@ -20,16 +19,17 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run channel health check
         env:
+          AI_ENGINE: local
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           python - <<'PY'
           import json
           from app.channel_ops import channel_health
           result = channel_health()
           print(json.dumps(result, ensure_ascii=False, indent=2))
-          if not result.get('openai') or not result.get('youtube'):
-              raise SystemExit(1)
+          if not result.get('youtube'):
+              raise SystemExit('YouTube OAuth failed — check CLIENT_ID/SECRET/REFRESH_TOKEN')
+          print('OK: YouTube credentials work')
           PY
