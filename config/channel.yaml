@@ -1,39 +1,53 @@
 channel:
-  url: https://www.youtube.com/@imamali.110
+  brand: "TT خبر"
+  display_name: "TT خبر"
+  url: "https://www.youtube.com/@imamali.110"
   language: fa-IR
   timezone: Asia/Tehran
-  audience: همه سنین
-  objective: رشد پایدار کانال و افزایش سابسکرایبر
+  audience: مخاطب عمومی فارسی‌زبان
+  objective: ارائه خبرهای جهانی دقیق، سریع، متوازن و قابل‌فهم به زبان فارسی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge
-  visual_style: سینمایی مفهومی؛ نمادین؛ بدون چهره مقدس؛ بدون اسلاید خشک
+  visual_style: مستند خبری سینمایی؛ تصاویر متحرک مرتبط با خبر؛ بدون اسلایدشو خشک؛ بدون جعل تصویر واقعی رویداد
   ai_engine: local
   llm_model: llama3.2:3b
   logo: generate-once-and-cache
 
 schedule:
-  short: "06:00,18:00"
-  long: "manual"
+  news_cycle_hours: 4
+  short: "manual"
+  long: "0 */4 * * *"
   short_duration_seconds: 45
-  long_duration_minutes: "6-10"
+  long_duration_minutes: "3-5"
 
 publishing:
   mode: public
   public_publish_enabled: true
+  category: "News & Politics"
+  default_language: fa
   require_review_for_sensitive_comments: true
+  require_sources_in_description: true
+  disclose_synthetic_media_when_required: true
 
 content:
   pillars:
-    - تأملات قرآنی با ارجاع دقیق سوره و آیه
-    - حکمت‌ها و نامه‌های امام علی فقط از نهج‌البلاغه با شماره
-    - صلح، اخلاق، مهربانی و وحدت ادیان با منبع
+    - سیاست و روابط بین‌الملل
+    - فناوری و هوش مصنوعی
+    - اقتصاد و کسب‌وکار
+    - جهان و بحران‌های انسانی
+    - علم و فضا
+    - ورزش
+    - سرگرمی و فرهنگ
+    - سلامت عمومی بر پایه منابع معتبر
   forbidden:
-    - نقل‌قول بدون منبع
-    - جعل آیه یا حدیث
-    - نفرت‌پراکنی مذهبی
-    - تصویرسازی چهره پیامبران یا امامان
-  source_policy: فقط منابع تأییدشده در app/research.py
-  approved_source_books:
-    - نهج‌البلاغه (دشتی / فیض‌الاسلام)
-    - قرآن کریم (با شماره سوره و آیه)
+    - خبر بدون منبع قابل بررسی
+    - ادعای تأییدنشده به‌عنوان واقعیت
+    - عنوان گمراه‌کننده یا اغراق‌آمیز
+    - نقل قول ساختگی
+    - محتوای نفرت‌پراکن یا آزار هدفمند
+    - توصیه پزشکی شخصی یا ادعای درمان قطعی
+    - تصاویر ساختگی که به‌عنوان تصویر واقعی رویداد معرفی شوند
+  source_policy: استفاده از خبرهای دارای لینک و زمان انتشار؛ تفکیک واقعیت، ادعا و تحلیل؛ ذکر منابع در توضیحات ویدئو
+  target_stories_per_video: 3-5
+  approved_source_books: []
