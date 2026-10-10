@@ -141,6 +141,25 @@ jobs:
             cat "$RUNNER_TEMP/colab-result.json"
           fi
 
+      - name: Verify the remote pipeline result
+        if: always()
+        run: |
+          RESULT_FILE="$RUNNER_TEMP/colab-result.json"
+          if [ ! -s "$RESULT_FILE" ]; then
+            echo "::error::Colab did not return a result file; the production pipeline cannot be considered successful."
+            exit 1
+          fi
+          python - "$RESULT_FILE" <<'PY'
+          import json, sys
+          from pathlib import Path
+          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if result.get("success") is not True:
+              print("Remote pipeline result:", json.dumps(result, ensure_ascii=False, indent=2))
+              print("::error::Remote pipeline failed or YouTube upload was not confirmed.")
+              raise SystemExit(1)
+          print("Confirmed: pipeline result reports success and YouTube upload was confirmed.")
+          PY
+
       - name: Upload run evidence
         if: always()
         uses: actions/upload-artifact@v4
