@@ -8,7 +8,7 @@
 
 **مسیر جایگزین CPU:** برای آزمون ساختار، تولید پیش‌نمایش و اجرای smoke test در GitHub Actions؛ این مسیر جایگزین کیفیت تصویری CogVideoX نیست.
 
-گردش‌کار `colab-gpu-publishing.yml` از Colab CLI برای درخواست GPU استفاده می‌کند و روزانه ساعت ۰۶:۰۰، ۰۹:۰۰ و ۱۸:۰۰ به وقت تهران اجرا می‌شود. دسترسی GPU تابع احراز هویت و سهمیه‌های Google Colab است.
+گردش‌کار `colab-gpu-publishing.yml` از Colab CLI برای درخواست GPU استفاده می‌کند و روزانه ساعت **۰۶:۰۰ و ۱۸:۰۰** به وقت تهران اجرا می‌شود. دسترسی GPU تابع احراز هویت و سهمیه‌های Google Colab است.
 
 GitHub می‌گوید standard runner برای repository عمومی رایگان و نامحدود است؛ runner استاندارد GPU ندارد، بنابراین موتور ویدئو در این مسیر از رندر سینمایی procedural/animated روی CPU استفاده می‌کند.
 
@@ -18,51 +18,55 @@ GitHub می‌گوید standard runner برای repository عمومی رایگا
 
 ## زمان‌بندی تهران
 
-- **۰۶:۰۰، ۰۹:۰۰ و ۱۸:۰۰ تهران — تولید سینمایی و انتشار عمومی از طریق Colab GPU**
+- **۰۶:۰۰ و ۱۸:۰۰ تهران — تولید شورت سینمایی و انتشار عمومی از طریق Colab GPU**
 - مسیر CPU فقط برای آزمون دستی است و به‌عنوان تولید سینمایی زمان‌بندی نمی‌شود.
 
 ## موتور محتوا
 
-- تحقیق و انتخاب موضوع از منابع مجاز پروژه
+- تحقیق و انتخاب موضوع از منابع مجاز پروژه (نهج‌البلاغه + قرآن با ارجاع دقیق)
 - فیلمنامه فارسی با کنترل منبع
 - عنوان با پیشوند ثابت **Imam Ali ✨**
-- Piper با صدای فارسی محلی
-- ویدئوی متحرک سینمایی، نه اسلایدشو ثابت
+- صدای مردانه طبیعی `fa-IR-FaridNeural` (Edge TTS) با fallback Piper
+- ویدئوی متحرک سینمایی مفهومی، نه اسلایدشو ثابت؛ بدون چهره مقدس
 - زیرنویس SRT
 - thumbnail
 - quality gate
-- انتشار مستقیم در YouTube
+- انتشار مستقیم در YouTube با `publishAt`
 - پاسخ خودکار به کامنت‌های امن و انتقال موارد حساس به pending
 
 ## گویندگی فارسی طبیعی
 
 مسیر تولید از صدای عصبی فارسی `fa-IR-FaridNeural` در Edge TTS استفاده می‌کند تا لحن طبیعی‌تری داشته باشد و به اعتبار پولی OpenAI وابسته نباشد. اگر سرویس در دسترس نباشد، صدای محلی Piper (`fa_IR-amir-medium`) به‌عنوان fallback باقی می‌ماند.
 
-## Secrets موردنیاز YouTube
+## Secrets موردنیاز
 
-فقط این سه Secret را در GitHub Actions قرار بده:
+در GitHub Actions این Secretها لازم است:
 
-- YOUTUBE_CLIENT_ID
-- YOUTUBE_CLIENT_SECRET
-- YOUTUBE_REFRESH_TOKEN
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `YOUTUBE_REFRESH_TOKEN`
+- `COLAB_CLI_TOKEN_JSON` (برای درخواست GPU از Colab CLI)
 
 رمز عبور Google هرگز داخل Repository ذخیره نمی‌شود.
 
 ## اجرای دستی
 
-برای انتشار زمان‌بندی‌شده، workflow با نام `ImamAli110 autonomous Colab GPU publishing` فعال است. پیش‌نمایش CPU فقط برای عیب‌یابی دستی باقی می‌ماند.
+برای انتشار زمان‌بندی‌شده، workflow با نام **ImamAli110 autonomous Colab GPU publishing** فعال است. می‌توانی آن را دستی (workflow_dispatch) هم اجرا کنی.
 
-می‌توانی short یا long و همچنین dry_run را انتخاب کنی.
+پیش‌نمایش CPU فقط برای عیب‌یابی دستی باقی می‌ماند.
 
-## مسیر GPU اختیاری
+## مسیر GPU
 
-تولید اصلی از `google-colab-cli` برای درخواست GPU استفاده می‌کند. کلید API مدل زبانی لازم نیست؛ مدل `llama3.2:3b` روی محیط Colab اجرا می‌شود. احراز هویت Colab CLI باید به‌صورت امن در GitHub Secret با نام `COLAB_CLI_TOKEN_JSON` قرار گیرد. Google همچنان سهمیه و دسترسی GPU را کنترل می‌کند.
+تولید اصلی از `google-colab-cli` برای درخواست T4 GPU استفاده می‌کند. کلید API مدل زبانی لازم نیست؛ مدل `llama3.2:3b` روی محیط Colab اجرا می‌شود. احراز هویت Colab CLI باید به‌صورت امن در GitHub Secret با نام `COLAB_CLI_TOKEN_JSON` قرار گیرد. Google همچنان سهمیه و دسترسی GPU را کنترل می‌کند.
+
+تنظیمات محافظه‌کارانه T4 فعلی: ۱۷ فریم، ۸ گام، ۳ صحنه برای شورت.
 
 ## اصل طراحی
 
 **Serve the message first. Let the algorithm follow.**
 
 این Agent برای ImamAli110 طراحی شده و YouTube مقصد انتشار است.
+
 ## Scene plan, checkpointing and Colab recovery
 
 The CogVideoX path now uses a versioned `scene_plan.json` as the shared contract for scene narration, visual prompts, on-screen text and estimated duration. Each generated scene clip and status is checkpointed atomically; retries with the same `PIPELINE_RUN_ID` can reuse completed clips when output storage persists. The Colab notebook mounts Google Drive and stores the output directory there.
@@ -70,7 +74,6 @@ The CogVideoX path now uses a versioned `scene_plan.json` as the shared contract
 Scheduled videos are uploaded privately with YouTube `publishAt` metadata, then released publicly by YouTube at the requested time. Colab GPU availability is not guaranteed, and GitHub-hosted CPU Actions are not a substitute for GPU-generated CogVideoX footage. Output is encoded at 1080x1920 and 24 output fps; this does not mean the underlying model natively generates 24 fps or 4K/8K video.
 
 See [docs/PRODUCTION_ARCHITECTURE.md](docs/PRODUCTION_ARCHITECTURE.md) for checkpoint semantics, limitations, release gates and the remaining roadmap. Regression tests live in `tests/` and run in pull requests.
-
 
 ## مدیریت کامنت و گزارش روزانه
 

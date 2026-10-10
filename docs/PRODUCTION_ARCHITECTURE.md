@@ -5,7 +5,7 @@
 - `app/pipeline.py` runs research, local-model script generation, TTS, rendering, quality checks, scheduled YouTube upload, and a first-pass comment reply step.
 - `app/local_video_engine.py` uses CogVideoX only when `VIDEO_ENGINE=cogvideox`; that path requires a live CUDA GPU.
 - `colab/ImamAli110_Cinematic_Production.ipynb` is the available Colab GPU entrypoint.
-- `.github/workflows/colab-gpu-publishing.yml` requests a Colab T4 runtime through Colab CLI, then runs local Ollama + CogVideoX and asks YouTube to publish at 06:00, 09:00, and 18:00 Asia/Tehran.
+- `.github/workflows/colab-gpu-publishing.yml` requests a Colab T4 runtime through Colab CLI, then runs local Ollama + CogVideoX and asks YouTube to publish at **06:00 and 18:00 Asia/Tehran only**.
 - The old CPU workflow is manual diagnostic only; the legacy Kaggle workflow is no longer scheduled.
 - Colab CLI requires a previously authenticated OAuth token, and GPU allocation can still fail because Google controls account access and quotas.
 
@@ -35,17 +35,18 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 
 ## Current autonomous loop
 
-1. Three daily GitHub schedule triggers request a Colab T4 runtime about six hours before each target publication slot.
+1. Two daily GitHub schedule triggers request a Colab T4 runtime about six hours before each target publication slot (06:00 and 18:00 Tehran).
 2. A local Ollama model generates scripts using a bounded cache of editorial lessons; no hosted LLM API is used.
 3. CogVideoX runs only after a CUDA check and media QA blocks an invalid render from upload.
 4. YouTube receives a private upload with a `publishAt` timestamp so it can release the video at the requested Tehran time.
 5. After each run, a local model reviews the audit and may update only short editorial lessons and run summaries. It is not permitted to rewrite code or secrets.
 6. GitHub Actions retains bounded memory and evidence artifacts. A failed Colab auth, unavailable GPU, failed test, invalid render, or failed upload must surface as a failed run rather than silently switching to CPU.
 
+T4-safe defaults in production: `VIDEO_FRAMES=17`, `VIDEO_STEPS=8`, `VIDEO_CLIPS_SHORT=3`.
+
 ## Remaining external dependency
 
 The workflow requires `COLAB_CLI_TOKEN_JSON` plus the existing YouTube OAuth secrets. The repository tools cannot read or create GitHub Actions secrets, and the first Colab OAuth authorization cannot be bypassed safely. After this one-time credential setup, scheduled execution is automated subject to Colab quota and availability.
-
 
 ## Channel operations and daily reporting
 
@@ -54,9 +55,7 @@ The workflow requires `COLAB_CLI_TOKEN_JSON` plus the existing YouTube OAuth sec
 - The daily `channel-health.yml` workflow runs syntax/unit tests, checks YouTube OAuth/API access, and uploads a health report plus the last-24-hour repository change list as an artifact.
 - The health report is a diagnostic snapshot, not full YouTube Analytics ingestion. CTR and audience-retention analysis still needs Analytics API authorization and a separate data pipeline.
 
-
 The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads a pending-review index containing comment/video IDs and reasons only; raw comment text is not persisted in the public-repository artifact or cache. This is bounded sampling, not a complete scan of the entire channel history.
-
 
 ## Colab dependency repair
 
