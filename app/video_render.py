@@ -5,7 +5,7 @@ import subprocess
 import textwrap
 from pathlib import Path
 from typing import Any
-from urllib.request import urlretrieve
+from urllib.request import Request, urlopen
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -38,11 +38,27 @@ def _download_stock(out: Path) -> Path | None:
     out.parent.mkdir(parents=True, exist_ok=True)
     for url in STOCK_URLS:
         try:
-            urlretrieve(url, out)
+            # Some free sample hosts reject Python's default urllib user-agent with HTTP 403.
+            request = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+                    "Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
+                },
+            )
+            with urlopen(request, timeout=45) as response, out.open("wb") as target:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    target.write(chunk)
             if out.exists() and out.stat().st_size > 50_000:
                 return out
+            out.unlink(missing_ok=True)
+            print(f"[video] stock download returned an empty or tiny file: {url}")
         except Exception as e:
-            print(f"[video] stock download failed: {e}")
+            out.unlink(missing_ok=True)
+            print(f"[video] stock download failed for {url}: {e}")
     return None
 
 
