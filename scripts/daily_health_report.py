@@ -19,6 +19,17 @@ def _git_sha() -> str:
         return os.environ.get("GITHUB_SHA", "unknown")
 
 
+def _recent_changes() -> list[str]:
+    try:
+        raw = subprocess.check_output(
+            ["git", "log", "--since=24 hours", "--pretty=format:%h %s", "-n", "30"],
+            text=True, timeout=5,
+        )
+        return [line.strip() for line in raw.splitlines() if line.strip()]
+    except Exception:
+        return []
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--test-status", default="unknown")
@@ -32,6 +43,7 @@ def main() -> int:
         "python": platform.python_version(),
         "test_status": args.test_status,
         "channel_health": health,
+        "recent_changes": _recent_changes(),
         "secrets_present": {
             "youtube_oauth": all(os.environ.get(k) for k in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")),
             "qwen": bool(os.environ.get("QWEN_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")),
@@ -54,6 +66,10 @@ def main() -> int:
         "",
         f"- Channel URL: {health.get('channel', 'not configured')}",
         f"- Channel title: {health.get('channel_title', 'unavailable')}",
+        "",
+        "## Changes in the last 24 hours",
+        "",
+        *([f"- `{line}`" for line in data["recent_changes"]] or ["- No repository commits found in the last 24 hours."]),
         "",
         "## Notes",
         "",
