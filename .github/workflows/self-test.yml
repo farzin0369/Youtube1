@@ -28,6 +28,7 @@ jobs:
       - name: Verify automation files
         run: |
           test -f app/pipeline.py
+          test -f tests/test_news_research.py
           test -f app/scene_plan.py
           test -f app/media_qa.py
           test -f app/video_render.py
@@ -38,4 +39,5 @@ jobs:
           test -f .github/workflows/daily-youtube.yml
           test -f .github/workflows/channel-health.yml
           test -f .github/workflows/youtube-oauth-check.yml
-          echo "YouTube1 automation structure OK"
+          test -f config/channel.yaml
+          echo "TT Khabar news automation structure OK"
