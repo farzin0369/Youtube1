@@ -36,11 +36,14 @@ jobs:
         run: |
           mkdir -p output
           if [ ! -f output/comment_reply_ledger.json ]; then printf '{"replied":{}}\\n' > output/comment_reply_ledger.json; fi
+          if [ ! -f output/pending_replies.json ]; then printf '{"pending":[]}\\n' > output/pending_replies.json; fi
       - name: Restore comment reply ledger
         if: always()
         uses: actions/cache/restore@v4
         with:
-          path: output/comment_reply_ledger.json
+          path: |
+            output/comment_reply_ledger.json
+            output/pending_replies.json
           key: imamali110-comment-ledger-${{ github.run_id }}
           restore-keys: |
             imamali110-comment-ledger-
@@ -63,7 +66,9 @@ jobs:
         if: always()
         uses: actions/cache/save@v4
         with:
-          path: output/comment_reply_ledger.json
+          path: |
+            output/comment_reply_ledger.json
+            output/pending_replies.json
           key: imamali110-comment-ledger-${{ github.run_id }}
       - name: Upload daily report and test log
         if: always()
