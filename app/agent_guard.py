@@ -10,6 +10,7 @@ def validate_package(data: dict[str, Any], kind: str) -> dict[str, Any]:
     script = str(data.get("script") or "").strip()
     tags = [str(x).strip() for x in (data.get("tags") or []) if str(x).strip()]
     sources = [str(x).strip() for x in (data.get("sources") or []) if str(x).strip()]
+    scenes = data.get("scene_plan") if isinstance(data.get("scene_plan"), list) else []
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -21,6 +22,25 @@ def validate_package(data: dict[str, Any], kind: str) -> dict[str, Any]:
         errors.append("missing_script")
     if not sources:
         errors.append("missing_sources")
+    if not scenes:
+        errors.append("missing_scene_plan")
+    else:
+        spoken: list[str] = []
+        for index, scene in enumerate(scenes):
+            if not isinstance(scene, dict):
+                errors.append(f"invalid_scene_{index}")
+                continue
+            for key in ("spoken_text", "visual_prompt", "on_screen_text"):
+                if not str(scene.get(key) or "").strip():
+                    errors.append(f"scene_{index}_missing_{key}")
+            try:
+                if float(scene.get("duration_hint_seconds") or 0) <= 0:
+                    errors.append(f"scene_{index}_invalid_duration")
+            except (TypeError, ValueError):
+                errors.append(f"scene_{index}_invalid_duration")
+            spoken.append(str(scene.get("spoken_text") or "").strip())
+        if spoken and " ".join(spoken) != script:
+            errors.append("script_must_equal_scene_spoken_text")
     if kind == "short" and not (30 <= int(data.get("duration_hint_seconds") or 0) <= 60):
         warnings.append("short_duration_hint_outside_30_60")
     if not any("امام علی" in t.lower() or "imam ali" in t.lower() for t in tags):
