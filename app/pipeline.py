@@ -14,6 +14,7 @@ from app.video_render import render_video, make_thumbnail, write_srt
 from app.youtube_client import upload_video
 from app.channel_ops import reply_to_comments
 from app.agent_guard import enforce
+from app.media_qa import validate_render_package
 
 def _probe_duration(path:Path)->float:
     result=subprocess.run(
@@ -60,6 +61,12 @@ def main()->None:
     else:
         render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid,scene_plan_path=out/"script_scene_plan.json")
     audit["steps"]["render"]=render_meta; print(f"[3] render={render_meta.get('provider',render_meta.get('style'))}")
+    media_qa=validate_render_package(render_meta,Path(audio["path"]) if audio.get("path") else None)
+    audit["steps"]["media_quality"]=media_qa
+    if not media_qa["ok"]:
+        audit["finished_at"]=utc_now_iso(); audit["success"]=False
+        save_json(out/"audit.json",audit); save_json(OUTPUT_DIR/"audit"/f"{rid}.json",audit)
+        raise RuntimeError("Media quality gate failed; upload blocked: " + ", ".join(media_qa["errors"]))
     if args.dry_run: upload_meta={"skipped":True,"reason":"dry-run"}
     else:
         upload_meta=upload_video(video_path=Path(render_meta["video_path"]) if render_meta.get("video_path") else None,title=script_data["title"],description=script_data.get("description") or "",tags=list(script_data.get("tags") or []),privacy=publish_mode,thumbnail_path=Path(render_meta["thumbnail_path"]) if render_meta.get("thumbnail_path") else None)
