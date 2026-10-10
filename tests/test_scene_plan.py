@@ -65,3 +65,17 @@ def test_changed_script_does_not_reuse_stale_scene_plan(tmp_path: Path):
     assert second["scenes"][0]["spoken_text"] == "متن دوم."
     assert second["scenes"][0]["status"] == "pending"
     assert path.with_suffix(".json.stale").exists()
+
+
+def test_srt_uses_scene_plan_and_finishes_at_media_duration(tmp_path: Path):
+    from app.video_render import write_srt
+
+    plan_path = tmp_path / "scene_plan.json"
+    plan = build_scene_plan("آغاز. پایان.", "title", scene_count=2)
+    plan["scenes"][0]["on_screen_text"] = "آغاز"
+    plan["scenes"][1]["on_screen_text"] = "پایان"
+    atomic_write_json(plan_path, plan)
+    srt_path = write_srt("متن کلی", tmp_path / "captions.srt", 12.0, scene_plan_path=plan_path)
+    output = srt_path.read_text(encoding="utf-8")
+    assert "آغاز" in output and "پایان" in output
+    assert "00:00:12,000" in output
