@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 import time
 import urllib.error
@@ -71,7 +72,7 @@ def parse_rss(xml_bytes: bytes, category: str, feed_url: str) -> list[dict[str, 
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             continue
         source = _text(item, "source")
-        description = re.sub(r"<[^>]+>", " ", _text(item, "description"))
+        description = html.unescape(re.sub(r"<[^>]+>", " ", _text(item, "description")))
         description = " ".join(description.split())[:1200]
         stories.append({
             "id": hashlib.sha256((title.lower() + "|" + link).encode()).hexdigest()[:16],
