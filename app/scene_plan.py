@@ -132,6 +132,8 @@ def build_scene_plan_from_scenes(
     return plan
 
 def validate_scene_plan(plan: dict[str, Any]) -> None:
+    if not isinstance(plan, dict):
+        raise ValueError("scene plan must be an object")
     if plan.get("schema_version") != 1:
         raise ValueError("unsupported scene plan schema_version")
     scenes = plan.get("scenes")
