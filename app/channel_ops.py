@@ -29,8 +29,8 @@ def _has_our_reply(thread: dict[str, Any], own_channel_id: str) -> bool:
 
 def _looks_like_spam(text: str) -> bool:
     lower = text.lower()
-    urls = re.findall(r"https?://|www\\.", lower)
-    repeated = len(re.sub(r"\\s+", " ", lower).split()) > 0 and len(set(re.sub(r"\\s+", " ", lower).split())) <= 3
+    urls = re.findall(r"https?://|www\.", lower)
+    repeated = len(re.sub(r"\s+", " ", lower).split()) > 0 and len(set(re.sub(r"\s+", " ", lower).split())) <= 3
     promotional = any(term in lower for term in ("subscribe my channel", "follow me", "crypto signal", "earn money fast"))
     return len(urls) >= 2 or promotional or repeated
 
