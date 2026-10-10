@@ -59,6 +59,9 @@ def env(name: str, default: str | None = None) -> str | None:
     return v
 
 
+def has_openai() -> bool:
+    return bool(env("OPENAI_API_KEY"))
+
 def has_youtube_creds() -> bool:
     return all(
         env(k)
