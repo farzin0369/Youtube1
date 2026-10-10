@@ -8,19 +8,65 @@ from typing import Any
 from app.utils import env
 
 
+def _valid_frames(frames: int) -> int:
+    """CogVideoX accepts frame counts where (num_frames - 1) is divisible by 4."""
+    frames = max(9, int(frames))
+    remainder = (frames - 1) % 4
+    if remainder:
+        frames -= remainder
+    return max(9, frames)
+
+
+def render_attempt_profiles(frames: int, steps: int) -> list[tuple[int, int]]:
+    """Full request first, then smaller T4-safe profiles. Duplicates are dropped."""
+    frames = _valid_frames(frames)
+    steps = max(1, int(steps))
+    candidates = (
+        (frames, steps),
+        (_valid_frames(min(frames, 13)), min(steps, 6)),
+        (9, min(steps, 4)),
+    )
+    profiles: list[tuple[int, int]] = []
+    for candidate in candidates:
+        if candidate not in profiles:
+            profiles.append(candidate)
+    return profiles
+
+
+def _release_process_memory() -> None:
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
 def _load():
     import torch
     from diffusers import CogVideoXPipeline
     if not torch.cuda.is_available():
         raise RuntimeError("Local text-to-video requires a CUDA GPU. In Colab select Runtime → Change runtime type → T4 GPU.")
+    _release_process_memory()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     model_id = env("LOCAL_VIDEO_MODEL") or "THUDM/CogVideoX-2b"
-    pipe = CogVideoXPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
-    # CogVideoX-2b on a Colab T4 is memory-constrained. Offload model weights and tile the VAE.
-    pipe.enable_model_cpu_offload()
+    pipe = CogVideoXPipeline.from_pretrained(model_id, torch_dtype=torch.float16, low_cpu_mem_usage=True)
     if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
         pipe.vae.enable_tiling()
     if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_slicing"):
         pipe.vae.enable_slicing()
+    # Sequential offload keeps only one block on the T4. Model offload is the fallback.
+    try:
+        pipe.enable_sequential_cpu_offload()
+        offload = "sequential"
+    except Exception as exc:
+        print(f"[video] sequential offload unavailable ({exc}); using model CPU offload", flush=True)
+        pipe.enable_model_cpu_offload()
+        offload = "model"
+    free, total = torch.cuda.mem_get_info()
+    print(f"[video] loaded {model_id} with {offload} CPU offload; GPU free {free / 1e9:.2f}/{total / 1e9:.2f} GiB", flush=True)
     return pipe, torch, model_id
 
 
@@ -116,10 +162,14 @@ def _scene_prompt(sentence: str, title: str, index: int) -> str:
 def generate_film(script: str, title: str, out_path: Path, kind: str = "short", seed: int = 110, scene_plan: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Generate clips from a durable scene plan and resume completed scenes when possible."""
     from diffusers.utils import export_to_video
+    from app.local_ai import release_ollama_model
     from app.scene_plan import (
         atomic_write_json, completed_scene_indices, load_or_create_plan, mark_scene,
     )
 
+    print("[video] unloading the language model before CogVideoX", flush=True)
+    release_ollama_model()
+    _release_process_memory()
     pipe, torch, model_id = _load()
     count = int(env("VIDEO_CLIPS_SHORT") or "3") if kind == "short" else int(env("VIDEO_CLIPS_LONG") or "12")
     out_path = Path(out_path)
@@ -142,7 +192,7 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
     clips_dir.mkdir(parents=True, exist_ok=True)
     # Conservative T4 defaults.
     steps = max(1, int(env("VIDEO_STEPS") or "8"))
-    frames = max(9, int(env("VIDEO_FRAMES") or "17"))
+    frames = _valid_frames(int(env("VIDEO_FRAMES") or "17"))
     completed = completed_scene_indices(plan)
 
     try:
@@ -160,9 +210,8 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
             atomic_write_json(plan_path, plan)
             print(f"[video] scene {i + 1}/{len(plan['scenes'])}: {prompt[:180]}", flush=True)
             try:
-                render_profiles = [(frames, steps)]
-                if frames > 13 or steps > 6:
-                    render_profiles.append((13, min(6, steps)))
+                import threading
+                render_profiles = render_attempt_profiles(frames, steps)
                 last_error = None
                 for attempt, (attempt_frames, attempt_steps) in enumerate(render_profiles, start=1):
                     try:
@@ -171,14 +220,28 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
                             f"(frames={attempt_frames}, steps={attempt_steps})",
                             flush=True,
                         )
-                        result = pipe(
-                            prompt=prompt,
-                            num_videos_per_prompt=1,
-                            num_inference_steps=attempt_steps,
-                            num_frames=attempt_frames,
-                            guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
-                            generator=torch.Generator(device="cuda").manual_seed(seed + i),
-                        )
+                        stop_beat = threading.Event()
+
+                        def _beat(label: str = f"scene {i + 1} attempt {attempt}", event: threading.Event = stop_beat) -> None:
+                            elapsed = 0
+                            while not event.wait(15):
+                                elapsed += 15
+                                print(f"[video] {label} still running ({elapsed}s)", flush=True)
+
+                        beater = threading.Thread(target=_beat, daemon=True)
+                        beater.start()
+                        try:
+                            result = pipe(
+                                prompt=prompt,
+                                num_videos_per_prompt=1,
+                                num_inference_steps=attempt_steps,
+                                num_frames=attempt_frames,
+                                guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
+                                generator=torch.Generator(device="cpu").manual_seed(seed + i + attempt),
+                            )
+                        finally:
+                            stop_beat.set()
+                            beater.join(timeout=1)
                         export_to_video(result.frames[0], str(clip), fps=8)
                         del result
                         if not clip.exists() or clip.stat().st_size <= 1024:
@@ -203,6 +266,7 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
                     finally:
                         if "result" in locals():
                             del result
+                        _release_process_memory()
                         if torch.cuda.is_available():
                             torch.cuda.empty_cache()
                 if last_error is not None:

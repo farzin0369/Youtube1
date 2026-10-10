@@ -94,18 +94,29 @@ def main():
     rid = str(secrets.get("PIPELINE_RUN_ID") or ("short_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
     model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
 
-    print("[agent] Checking Colab GPU runtime.")
-    import torch
-    if not torch.cuda.is_available():
-        raise RuntimeError("Colab runtime has no CUDA GPU; refusing CPU fallback.")
-    gpu_name = torch.cuda.get_device_name(0)
-    print("[agent] GPU:", gpu_name)
+    print("[agent] Checking Colab GPU runtime without holding a CUDA context in this process.")
+    probe = subprocess.run(
+        ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+        check=False, capture_output=True, text=True,
+    )
+    gpu_line = (probe.stdout or "").strip()
+    if probe.returncode != 0 or not gpu_line:
+        detail = ((probe.stderr or "") + (probe.stdout or ""))[-800:]
+        raise RuntimeError("Colab runtime has no CUDA GPU; refusing CPU fallback. " + detail)
+    gpu_name = gpu_line.split(",")[0].strip()
+    print("[agent] GPU:", gpu_line)
 
-    if not REPO.exists():
-        run(["git", "clone", "--depth", "1", "https://github.com/farzin0369/Youtube1.git", str(REPO)])
-    else:
-        run(["git", "-C", str(REPO), "fetch", "--depth", "1", "origin", "main"], check=False)
-        run(["git", "-C", str(REPO), "reset", "--hard", "origin/main"], check=False)
+    sha = str(secrets.get("GIT_SHA") or "").strip()
+    if REPO.exists():
+        shutil.rmtree(REPO)
+    run(["git", "clone", "https://github.com/farzin0369/Youtube1.git", str(REPO)])
+    if sha:
+        fetched = run(["git", "-C", str(REPO), "fetch", "--depth", "1", "origin", sha], check=False)
+        if fetched.returncode == 0:
+            run(["git", "-C", str(REPO), "checkout", "--detach", "FETCH_HEAD"])
+            print("[agent] checked out", sha)
+        else:
+            print("[agent] GIT_SHA fetch failed; using the default branch.")
     os.chdir(REPO)
     (REPO / "state").mkdir(parents=True, exist_ok=True)
     (REPO / "state" / "agent_memory.json").write_text(
@@ -124,7 +135,15 @@ def main():
         print("[agent] Ollama is missing; installing with captured diagnostics.")
         install_ollama()
     ollama_log = open("/tmp/ollama.log", "w", encoding="utf-8")
-    ollama = subprocess.Popen(["ollama", "serve"], stdout=ollama_log, stderr=subprocess.STDOUT)
+    ollama_env = os.environ.copy()
+    # Keep llama on CPU. A T4 cannot hold Ollama and CogVideoX at the same time.
+    ollama_env["OLLAMA_NUM_GPU"] = "0"
+    ollama_env["CUDA_VISIBLE_DEVICES"] = ""
+    ollama_env["OLLAMA_KEEP_ALIVE"] = "0"
+    ollama_env["OLLAMA_MAX_LOADED_MODELS"] = "1"
+    ollama = subprocess.Popen(
+        ["ollama", "serve"], stdout=ollama_log, stderr=subprocess.STDOUT, env=ollama_env,
+    )
     base = "http://127.0.0.1:11434"
     ready = False
     for _ in range(90):
@@ -163,6 +182,10 @@ def main():
         "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
         "VIDEO_STEPS": str(secrets.get("VIDEO_STEPS") or "8"),
         "VIDEO_CLIPS_SHORT": str(secrets.get("VIDEO_CLIPS_SHORT") or "3"),
+        "OLLAMA_NUM_GPU": "0",
+        "OLLAMA_KEEP_ALIVE": "0",
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+        "TOKENIZERS_PARALLELISM": "false",
     })
 
     # Stream logs to a file to avoid pipe-buffer deadlock on long CogVideoX runs.
@@ -175,6 +198,12 @@ def main():
         )
     log_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
     print("[pipeline log tail]\n" + log_tail)
+    if pipeline.returncode < 0:
+        print(
+            f"[agent] pipeline was killed by signal {-pipeline.returncode}. "
+            "Signal 9 is SIGKILL, usually the Linux OOM killer.",
+            flush=True,
+        )
 
     audit_path = REPO / "output" / "audit" / (rid + ".json")
     audit = load_json(audit_path, {})
@@ -248,9 +277,13 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
+        extra = {}
+        if PIPELINE_LOG.exists():
+            extra["log_tail"] = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-4000:]
         RESULT_FILE.write_text(json.dumps({
             "success": False, "error": str(exc)[:1000],
             "traceback_tail": traceback.format_exc()[-3000:],
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            **extra,
         }, ensure_ascii=False, indent=2), encoding="utf-8")
         raise
