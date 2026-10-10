@@ -37,8 +37,9 @@ jobs:
             printf '%s\n' '{"schema_version":1,"editorial_lessons":[],"runs":[]}' > state/agent_memory.json
           fi
 
-      - name: Install Colab CLI
-        run: python -m pip install --upgrade google-colab-cli
+      - name: Install Colab CLI and YouTube auth deps
+        run: |
+          python -m pip install --upgrade google-colab-cli google-auth google-auth-oauthlib google-api-python-client
 
       - name: Configure Colab CLI account session
         env:
@@ -53,16 +54,32 @@ jobs:
           chmod 600 "$HOME/.config/colab-cli/token.json"
           colab --auth oauth2 sessions || true
 
-      - name: Validate YouTube publishing credentials
+      - name: Real YouTube OAuth preflight (fail fast before GPU)
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           if [ -z "$YOUTUBE_CLIENT_ID" ] || [ -z "$YOUTUBE_CLIENT_SECRET" ] || [ -z "$YOUTUBE_REFRESH_TOKEN" ]; then
-            echo "::error::The existing YouTube OAuth secrets are incomplete. No video will be generated or published."
+            echo "::error::YouTube OAuth secrets incomplete."
             exit 1
           fi
+          python - <<'PY'
+          import os, sys
+          os.environ["YOUTUBE_CLIENT_ID"] = os.environ["YOUTUBE_CLIENT_ID"].strip()
+          os.environ["YOUTUBE_CLIENT_SECRET"] = os.environ["YOUTUBE_CLIENT_SECRET"].strip()
+          os.environ["YOUTUBE_REFRESH_TOKEN"] = os.environ["YOUTUBE_REFRESH_TOKEN"].strip()
+          print("[preflight] client_id prefix:", os.environ["YOUTUBE_CLIENT_ID"][:12] + "…")
+          print("[preflight] refresh_token prefix:", os.environ["YOUTUBE_REFRESH_TOKEN"][:8] + "…")
+          print("[preflight] refresh_token length:", len(os.environ["YOUTUBE_REFRESH_TOKEN"]))
+          from app.youtube_client import probe_youtube_auth
+          result = probe_youtube_auth()
+          print("[preflight]", result)
+          if not result.get("ok"):
+              print("::error::YouTube OAuth preflight failed:", result.get("error"))
+              sys.exit(1)
+          print("[preflight] OK channel:", result.get("title"), result.get("channel_id"))
+          PY
 
       - name: Calculate the YouTube publication timestamp
         id: publish_time
@@ -108,7 +125,7 @@ jobs:
           import json, os
           from pathlib import Path
           target = Path(os.environ["RUNNER_TEMP"]) / "imamali-secrets.json"
-          payload = {key: os.environ.get(key, "") for key in (
+          payload = {key: (os.environ.get(key, "") or "").strip() for key in (
               "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
               "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "YOUTUBE_PUBLISH_AT", "GIT_SHA",
               "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_SHORT",

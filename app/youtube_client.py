@@ -7,6 +7,13 @@ from typing import Any
 
 from app.utils import env, has_youtube_creds
 
+# Must match scripts/get_youtube_token.py so refresh_token works.
+YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/youtube",
+]
+
 
 def _contains_synthetic_media() -> bool:
     setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
@@ -15,16 +22,24 @@ def _contains_synthetic_media() -> bool:
     return setting.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str:
-    """Accept only a genuinely future slot; never silently move it to another day."""
+def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str | None:
+    """Return a future publishAt, or None to upload without scheduling.
+
+    If the requested slot is too close/past (common after a long Colab render),
+    drop scheduling instead of failing the whole upload — the video still goes up
+    as private/public per privacy mode.
+    """
     parsed = datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        raise ValueError("publishAt must include a timezone")
+        parsed = parsed.replace(tzinfo=timezone.utc)
     current = now or datetime.now(timezone.utc)
     if parsed <= current + timedelta(minutes=15):
-        raise ValueError(
-            "publishAt is too close or already past; refusing to move publication to another day"
+        print(
+            f"[youtube] publishAt {publish_at} is too close/past; "
+            "uploading without schedule so the render is not discarded",
+            flush=True,
         )
+        return None
     return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -32,19 +47,66 @@ def _build_credentials():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
 
+    client_id = (env("YOUTUBE_CLIENT_ID") or "").strip()
+    client_secret = (env("YOUTUBE_CLIENT_SECRET") or "").strip()
+    refresh_token = (env("YOUTUBE_REFRESH_TOKEN") or "").strip()
+    if not client_id or not client_secret or not refresh_token:
+        raise RuntimeError("Missing YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN")
+
+    # Do not force a narrower scope set on refresh — that triggers invalid_scope
+    # when the token was issued with the full set from get_youtube_token.py.
     creds = Credentials(
         token=None,
-        refresh_token=(env("YOUTUBE_REFRESH_TOKEN") or "").strip(),
+        refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
-        client_id=(env("YOUTUBE_CLIENT_ID") or "").strip(),
-        client_secret=(env("YOUTUBE_CLIENT_SECRET") or "").strip(),
-        scopes=[
-            "https://www.googleapis.com/auth/youtube.upload",
-            "https://www.googleapis.com/auth/youtube.force-ssl",
-        ],
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=YOUTUBE_SCOPES,
     )
-    creds.refresh(Request())
+    try:
+        creds.refresh(Request())
+    except Exception as exc:
+        msg = str(exc)
+        hint = ""
+        low = msg.lower()
+        if "invalid_grant" in low:
+            hint = (
+                " | HINT: refresh_token rejected. Re-run scripts/get_youtube_token.py, "
+                "put ALL THREE values from the same run into GitHub Secrets, and ensure "
+                "the OAuth client is Desktop + YouTube Data API enabled."
+            )
+        elif "invalid_scope" in low:
+            hint = (
+                " | HINT: token scopes mismatch. Revoke app access at "
+                "https://myaccount.google.com/permissions and re-issue the token."
+            )
+        raise RuntimeError(f"YouTube OAuth refresh failed: {msg}{hint}") from exc
+    if not creds.valid or not creds.token:
+        raise RuntimeError("YouTube OAuth refresh produced no access token")
     return creds
+
+
+def probe_youtube_auth() -> dict[str, Any]:
+    """Cheap auth check: refresh + channels.list(mine=True). Call before GPU work."""
+    try:
+        from googleapiclient.discovery import build
+
+        youtube = build("youtube", "v3", credentials=_build_credentials())
+        resp = youtube.channels().list(part="snippet,contentDetails", mine=True).execute()
+        items = resp.get("items") or []
+        if not items:
+            return {
+                "ok": False,
+                "error": "OAuth ok but no channel returned for this account (wrong Google account?).",
+            }
+        ch = items[0]
+        return {
+            "ok": True,
+            "channel_id": ch.get("id"),
+            "title": (ch.get("snippet") or {}).get("title"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def upload_video(
@@ -73,7 +135,6 @@ def upload_video(
         youtube = build("youtube", "v3", credentials=_build_credentials())
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
-            # If rendering overruns the target slot, fail visibly rather than publish on the wrong day.
             scheduled_at = _validate_publish_at(scheduled_at)
         # YouTube requires scheduled videos to be uploaded as private with publishAt set.
         effective_privacy = "private" if scheduled_at and privacy == "public" else privacy
@@ -86,7 +147,6 @@ def upload_video(
                 "defaultLanguage": "fa",
                 "defaultAudioLanguage": "fa",
             },
-            # Disclose realistic generated scenes; allow an explicit override for other video engines.
             "status": {
                 "privacyStatus": effective_privacy,
                 "selfDeclaredMadeForKids": False,
