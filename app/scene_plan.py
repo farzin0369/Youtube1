@@ -78,6 +78,59 @@ def build_scene_plan(
     return plan
 
 
+
+def build_scene_plan_from_scenes(
+    script: str,
+    title: str,
+    scene_items: list[dict[str, Any]],
+    *,
+    kind: str = "short",
+    duration_hint_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Normalize model-authored scene directions while enforcing exact narration identity."""
+    if kind not in {"short", "long"}:
+        raise ValueError("kind must be 'short' or 'long'")
+    if not isinstance(scene_items, list) or not scene_items:
+        raise ValueError("scene_plan must be a non-empty list")
+    normalized = []
+    for index, item in enumerate(scene_items):
+        if not isinstance(item, dict):
+            raise ValueError(f"scene {index} must be an object")
+        spoken = re.sub(r"\\s+", " ", str(item.get("spoken_text") or "")).strip()
+        visual = str(item.get("visual_prompt") or "").strip()
+        on_screen = str(item.get("on_screen_text") or "").strip()
+        duration = float(item.get("duration_hint_seconds") or 0)
+        if not spoken or not visual or not on_screen or duration <= 0:
+            raise ValueError(f"scene {index} is missing spoken text, visual prompt, on-screen text, or duration")
+        normalized.append({
+            "scene_id": f"scene_{index + 1:03d}",
+            "index": index,
+            "spoken_text": spoken,
+            "visual_prompt": visual,
+            "on_screen_text": on_screen,
+            "duration_hint_seconds": round(duration, 3),
+            "status": "pending",
+            "clip_path": None,
+            "error": None,
+        })
+    normalized_script = " ".join(item["spoken_text"] for item in normalized)
+    expected_script = re.sub(r"\\s+", " ", str(script or "")).strip()
+    if normalized_script != expected_script:
+        raise ValueError("script must exactly equal joined scene spoken_text")
+    total = float(duration_hint_seconds or sum(s["duration_hint_seconds"] for s in normalized))
+    plan = {
+        "schema_version": 1,
+        "source_sha256": hashlib.sha256(expected_script.encode("utf-8")).hexdigest(),
+        "title": str(title or "").strip(),
+        "kind": kind,
+        "language": "fa",
+        "scene_count": len(normalized),
+        "duration_hint_seconds": round(total, 3),
+        "scenes": normalized,
+    }
+    validate_scene_plan(plan)
+    return plan
+
 def validate_scene_plan(plan: dict[str, Any]) -> None:
     if plan.get("schema_version") != 1:
         raise ValueError("unsupported scene plan schema_version")
@@ -118,7 +171,7 @@ def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
             os.unlink(temp_name)
 
 
-def load_or_create_plan(path: Path, script: str, title: str, **kwargs: Any) -> dict[str, Any]:
+def load_or_create_plan(path: Path, script: str, title: str, *, scene_plan: list[dict[str, Any]] | None = None, **kwargs: Any) -> dict[str, Any]:
     """Reuse a valid existing plan; create it once otherwise."""
     path = Path(path)
     if path.exists():
@@ -140,7 +193,8 @@ def load_or_create_plan(path: Path, script: str, title: str, **kwargs: Any) -> d
             backup = path.with_suffix(path.suffix + ".invalid")
             if not backup.exists():
                 path.replace(backup)
-    plan = build_scene_plan(script, title, **kwargs)
+    plan = (build_scene_plan_from_scenes(script, title, scene_plan, **kwargs) if scene_plan is not None
+            else build_scene_plan(script, title, **kwargs))
     atomic_write_json(path, plan)
     return plan
 
