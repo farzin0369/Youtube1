@@ -1,10 +1,6 @@
-name: ImamAli110 daily private preview (CPU fallback)
+name: ImamAli110 manual CPU preview (not production)
 
 on:
-  schedule:
-    # One scheduled run per day: 05:35 Tehran = 02:05 UTC.
-    # This is a PRIVATE CPU fallback preview, not the Colab CogVideoX cinematic render.
-    - cron: "5 2 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -50,7 +46,7 @@ jobs:
           curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
       - name: Generate daily video
         env:
-          AI_ENGINE: qwen
+          AI_ENGINE: local
           VIDEO_ENGINE: cpu
           # Qwen (Alibaba DashScope) — primary LLM; local script fallback works without API credits.
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
