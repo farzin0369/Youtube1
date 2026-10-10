@@ -146,7 +146,7 @@ jobs:
           SESSION: imamali-${{ github.run_id }}
         run: |
           colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/imamali-secrets.json" /content/.tt-khabar-secrets.json
-          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.imamali110-agent-memory.json
+          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.tt-khabar-agent-memory.json
 
       - name: Run local-model self-review and cinematic video pipeline on Colab GPU
         env:
