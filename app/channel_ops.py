@@ -20,6 +20,8 @@ def _youtube():
 
 
 def _has_our_reply(thread: dict[str, Any], own_channel_id: str) -> bool:
+    if not own_channel_id:
+        return False
     replies = thread.get("replies", {}).get("comments", []) or []
     return any(
         str(reply.get("snippet", {}).get("authorChannelId", {}).get("value") or "") == own_channel_id
