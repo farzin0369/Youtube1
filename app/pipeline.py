@@ -43,7 +43,7 @@ def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str
     scene_plan=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
     srt=write_srt(script,out/"captions.srt",seconds,scene_plan_path=scene_plan)
     thumb=make_thumbnail(title,out/"thumbnail.jpg",kind)
-    return {"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,**meta,"ok":True}
+    return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"ok":True}
 
 def main()->None:
     p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
