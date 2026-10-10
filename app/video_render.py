@@ -66,23 +66,55 @@ def make_thumbnail(title: str, out_path: Path, kind: str) -> Path:
     return out_path
 
 
-def write_srt(script: str, out_path: Path, total_duration: float) -> Path:
-    sentences = split_sentences(script) or [script[:200]]
-    slot = max(total_duration / len(sentences), 1.5)
+def write_srt(script: str, out_path: Path, total_duration: float, scene_plan_path: Path | None = None) -> Path:
+    """Write SRT captions; when a scene plan exists, align captions to scene narration."""
+    import json
 
-    def ts(sec: float) -> str:
-        h, m = int(sec // 3600), int((sec % 3600) // 60)
-        s, ms = int(sec % 60), int((sec - int(sec)) * 1000)
-        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    segments: list[str] = []
+    plan = None
+    if scene_plan_path and Path(scene_plan_path).exists():
+        try:
+            candidate = json.loads(Path(scene_plan_path).read_text(encoding="utf-8"))
+            scenes = candidate.get("scenes", [])
+            if scenes and all(str(s.get("spoken_text") or "").strip() for s in scenes):
+                plan = scenes
+        except (OSError, ValueError, TypeError):
+            plan = None
 
-    lines = []
-    for i, sent in enumerate(sentences):
-        start, end = i * slot, min((i + 1) * slot, total_duration)
-        lines += [str(i + 1), f"{ts(start)} --> {ts(end)}", sent[:180], ""]
-    out_path.write_text("\n".join(lines), encoding="utf-8")
+    if plan:
+        weights = [max(1, len(str(scene["spoken_text"]))) for scene in plan]
+        total_weight = sum(weights)
+        cursor = 0.0
+        for scene, weight in zip(plan, weights):
+            start = cursor
+            cursor += total_duration * weight / total_weight
+            end = min(total_duration, cursor)
+            text = str(scene.get("on_screen_text") or scene["spoken_text"]).strip()
+            segments.append(f"{len(segments) + 1}\n{_srt_time(start)} --> {_srt_time(end)}\n{text}\n")
+    else:
+        from app.utils import split_sentences
+        sentences = split_sentences(script) or [script.strip()]
+        sentences = [s for s in sentences if s]
+        weights = [max(1, len(s)) for s in sentences]
+        total_weight = sum(weights) or 1
+        cursor = 0.0
+        for sentence, weight in zip(sentences, weights):
+            start = cursor
+            cursor += total_duration * weight / total_weight
+            end = min(total_duration, cursor)
+            segments.append(f"{len(segments) + 1}\n{_srt_time(start)} --> {_srt_time(end)}\n{sentence}\n")
+    out_path.write_text("\n".join(segments), encoding="utf-8")
     return out_path
 
 
+def _srt_time(seconds: float) -> str:
+    millis = max(0, int(round(seconds * 1000)))
+    hours, remainder = divmod(millis, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    secs, ms = divmod(remainder, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 def _burn_captions_ffmpeg(video_in: Path, srt: Path, video_out: Path) -> None:
     # Drawtext fallback if subtitles filter fails on some runners
     sub = str(srt).replace("\\", "/").replace(":", "\\:")
