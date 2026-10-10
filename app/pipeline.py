@@ -28,22 +28,29 @@ def _probe_duration(path:Path)->float:
 
 
 def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str,rid:str)->dict:
-    out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; final=out/"video.mp4"
+    out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; muxed=out/"video_muxed.mp4"; final=out/"video.mp4"
     meta=generate_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan)
     audio_seconds=_probe_duration(audio)
     video_seconds=_probe_duration(raw)
+    scene_plan_path=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
+    srt=write_srt(script,out/"captions.srt",audio_seconds,scene_plan_path=scene_plan_path)
     pad=max(0.0,audio_seconds-video_seconds)
     video_filter=f"tpad=stop_mode=clone:stop_duration={pad:.3f},fps=24,format=yuv420p"
     subprocess.run([
         "ffmpeg","-y","-i",str(raw),"-i",str(audio),"-vf",video_filter,"-t",f"{audio_seconds:.3f}",
         "-c:v","libx264","-preset","medium","-crf","18","-c:a","aac","-b:a","192k","-ar","48000",
-        "-movflags","+faststart",str(final)
+        "-movflags","+faststart",str(muxed)
+    ],check=True,capture_output=True)
+    # Burn the scene-aligned Persian captions into the picture while keeping the SRT sidecar.
+    escaped_srt=str(srt).replace("\\","/").replace(":","\\:").replace("'","\\'")
+    subtitle_filter=f"subtitles='{escaped_srt}':force_style='FontName=Noto Sans Arabic,FontSize=42,Outline=2,Shadow=1,MarginV=140,Alignment=2'"
+    subprocess.run([
+        "ffmpeg","-y","-i",str(muxed),"-vf",subtitle_filter,"-c:v","libx264","-preset","medium","-crf","18",
+        "-c:a","copy","-movflags","+faststart",str(final)
     ],check=True,capture_output=True)
     seconds=_probe_duration(final)
-    scene_plan=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
-    srt=write_srt(script,out/"captions.srt",seconds,scene_plan_path=scene_plan)
     thumb=make_thumbnail(title,out/"thumbnail.jpg",kind)
-    return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"ok":True}
+    return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"on_screen_captions":True,"ok":True}
 
 def main()->None:
     p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
