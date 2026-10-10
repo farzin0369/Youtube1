@@ -1,17 +1,22 @@
 name: TT Khabar autonomous global-news publishing
 
+
 on:
   schedule:
-    # Run a source-grounded global-news cycle every four hours (UTC).
-    - cron: "0 */4 * * *"
+    # Run an Iran-related, source-grounded news cycle at the top of every hour (UTC).
+    - cron: "0 * * * *"→ Runs at 0 minutes past the hour, every 4 hours
+
   workflow_dispatch:
+
 
 permissions:
   contents: read
 
+
 concurrency:
   group: tt-khabar-colab-gpu-${{ github.event.schedule || github.run_id }}
   cancel-in-progress: false
+
 
 jobs:
   global-news-publish:
@@ -19,6 +24,7 @@ jobs:
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
+
 
       - name: Restore bounded agent memory
         uses: actions/cache@v4
@@ -28,6 +34,7 @@ jobs:
           restore-keys: |
             tt-khabar-agent-memory-
 
+
       - name: Initialize memory when this is the first run
         run: |
           mkdir -p state
@@ -35,14 +42,17 @@ jobs:
             printf '%s\n' '{"schema_version":1,"editorial_lessons":[],"runs":[]}' > state/agent_memory.json
           fi
 
+
       - name: Install Colab CLI and YouTube auth deps
         run: |
           python -m pip install --upgrade google-colab-cli google-auth google-auth-oauthlib google-api-python-client PyYAML
+
 
       - name: Collect and validate current news before GPU allocation
         env:
           TT_KHABAR_NEWS_OUTPUT: ${{ runner.temp }}/tt-khabar-news.json
         run: python scripts/collect_news.py --output "$TT_KHABAR_NEWS_OUTPUT"
+
 
       - name: Configure Colab CLI account session
         env:
@@ -57,6 +67,7 @@ jobs:
           chmod 600 "$HOME/.config/colab-cli/token.json"
           colab --auth oauth2 sessions || true
 
+
       - name: Real YouTube OAuth preflight (fail fast before GPU)
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -66,146 +77,3 @@ jobs:
           if [ -z "$YOUTUBE_CLIENT_ID" ] || [ -z "$YOUTUBE_CLIENT_SECRET" ] || [ -z "$YOUTUBE_REFRESH_TOKEN" ]; then
             echo "::error::YouTube OAuth secrets incomplete."
             exit 1
-          fi
-          python - <<'PY'
-          import os, sys
-          os.environ["YOUTUBE_CLIENT_ID"] = os.environ["YOUTUBE_CLIENT_ID"].strip()
-          os.environ["YOUTUBE_CLIENT_SECRET"] = os.environ["YOUTUBE_CLIENT_SECRET"].strip()
-          os.environ["YOUTUBE_REFRESH_TOKEN"] = os.environ["YOUTUBE_REFRESH_TOKEN"].strip()
-          # Never print credential values, prefixes, or lengths to workflow logs.
-          from app.youtube_client import probe_youtube_auth
-          result = probe_youtube_auth()
-          print("[preflight]", result)
-          if not result.get("ok"):
-              print("::error::YouTube OAuth preflight failed:", result.get("error"))
-              sys.exit(1)
-          print("[preflight] OK channel:", result.get("title"), result.get("channel_id"))
-          PY
-
-      - name: Calculate the YouTube publication timestamp
-        id: publish_time
-        env:
-          SCHEDULE: ${{ github.event.schedule || '' }}
-        run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          from datetime import datetime, time, timedelta, timezone
-          from zoneinfo import ZoneInfo
-          import os
-          tz = ZoneInfo("Asia/Tehran")
-          now = datetime.now(tz)
-          target = now + timedelta(hours=6)
-          # Keep a six-hour buffer for news research, GPU rendering, QA and upload.
-          utc_target = target.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-          print(f"publish_at={utc_target}")
-          print(f"publish_local={target.strftime('%Y-%m-%d %H:%M %Z')}")
-          PY
-          echo "TT خبر scheduled publication: ${{ steps.publish_time.outputs.publish_local }}"
-
-      - name: Create a temporary protected credential payload
-        env:
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          PIPELINE_RUN_ID: news_${{ github.run_id }}_${{ github.run_attempt }}
-          LOCAL_LLM_MODEL: llama3.2:3b
-          YOUTUBE_PUBLISH_AT: ${{ steps.publish_time.outputs.publish_at }}
-          GIT_SHA: ${{ github.sha }}
-          VIDEO_FRAMES: "17"
-          VIDEO_STEPS: "8"
-          VIDEO_CLIPS_LONG: "12"
-          PIPELINE_KIND: "long"
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
-          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
-          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          target = Path(os.environ["RUNNER_TEMP"]) / "tt-khabar-secrets.json"
-          payload = {key: (os.environ.get(key, "") or "").strip() for key in (
-              "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
-              "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "YOUTUBE_PUBLISH_AT", "GIT_SHA",
-              "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_LONG", "PIPELINE_KIND",
-              "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION",
-          )}
-          target.write_text(json.dumps(payload), encoding="utf-8")
-          target.chmod(0o600)
-          PY
-          chmod 600 state/agent_memory.json
-
-      - name: Provision Colab T4 GPU runtime
-        env:
-          SESSION: tt-khabar-${{ github.run_id }}
-        run: |
-          if colab --auth oauth2 new --gpu T4 --high-mem -s "$SESSION"; then
-            echo "Provisioned a high-RAM T4."
-          else
-            echo "High-RAM T4 is unavailable on this account; requesting a standard T4."
-            colab --auth oauth2 stop -s "$SESSION" || true
-            colab --auth oauth2 new --gpu T4 -s "$SESSION"
-          fi
-
-      - name: Transfer protected job inputs to the private runtime
-        env:
-          SESSION: imamali-${{ github.run_id }}
-        run: |
-          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/tt-khabar-secrets.json" /content/.tt-khabar-secrets.json
-          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/tt-khabar-news.json" /content/.tt-khabar-news.json
-          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.tt-khabar-agent-memory.json
-
-      - name: Run local-model self-review and cinematic video pipeline on Colab GPU
-        env:
-          SESSION: imamali-${{ github.run_id }}
-        run: colab --auth oauth2 exec -s "$SESSION" --timeout 14400 -f scripts/colab_agent_job.py
-
-      - name: Retrieve result and updated agent memory
-        if: always()
-        env:
-          SESSION: imamali-${{ github.run_id }}
-        run: |
-          colab --auth oauth2 download -s "$SESSION" /tmp/colab-result.json "$RUNNER_TEMP/colab-result.json" || true
-          colab --auth oauth2 download -s "$SESSION" /tmp/agent-memory.json state/agent_memory.json || true
-          colab --auth oauth2 download -s "$SESSION" /tmp/pipeline.log "$RUNNER_TEMP/pipeline.log" || true
-          if [ -f "$RUNNER_TEMP/colab-result.json" ]; then
-            cat "$RUNNER_TEMP/colab-result.json"
-          fi
-
-      - name: Verify the remote pipeline result
-        if: always()
-        run: |
-          RESULT_FILE="$RUNNER_TEMP/colab-result.json"
-          if [ ! -s "$RESULT_FILE" ]; then
-            echo "::error::Colab did not return a result file; the production pipeline cannot be considered successful."
-            exit 1
-          fi
-          python - "$RESULT_FILE" <<'PY'
-          import json, sys
-          from pathlib import Path
-          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          if result.get("success") is not True:
-              print("Remote pipeline result:", json.dumps(result, ensure_ascii=False, indent=2))
-              print("::error::Remote pipeline failed or YouTube upload was not confirmed.")
-              raise SystemExit(1)
-          print("Confirmed: pipeline result reports success and YouTube upload was confirmed.")
-          print("video_url:", result.get("video_url") or "(missing)")
-          PY
-
-      - name: Upload run evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tt-khabar-colab-run-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/colab-result.json
-            ${{ runner.temp }}/pipeline.log
-            ${{ runner.temp }}/tt-khabar-news.json
-            state/agent_memory.json
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Stop Colab GPU runtime
-        if: always()
-        env:
-          SESSION: imamali-${{ github.run_id }}
-        run: colab --auth oauth2 stop -s "$SESSION" || true
