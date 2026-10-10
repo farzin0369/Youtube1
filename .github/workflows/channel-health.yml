@@ -1,4 +1,4 @@
-name: Channel health
+name: Channel health and daily report
 
 on:
   schedule:
@@ -8,28 +8,50 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: imamali110-channel-health
+  cancel-in-progress: false
+
 jobs:
   health:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - name: Run channel health check
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run regression tests
+        id: tests
+        run: |
+          mkdir -p output
+          python -m compileall -q app scripts
+          python -m pytest -q 2>&1 | tee output/tests.log
+      - name: Generate daily health report
+        if: always()
         env:
-          AI_ENGINE: local
+          AI_ENGINE: qwen
+          TEST_STATUS: ${{ steps.tests.outcome }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: |
-          python - <<'PY'
-          import json
-          from app.channel_ops import channel_health
-          result = channel_health()
-          print(json.dumps(result, ensure_ascii=False, indent=2))
-          if not result.get('youtube'):
-              raise SystemExit('YouTube OAuth failed — check CLIENT_ID/SECRET/REFRESH_TOKEN')
-          print('OK: YouTube credentials work')
-          PY
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+          QWEN_API_BASE: ${{ secrets.QWEN_API_BASE }}
+          QWEN_MODEL: ${{ secrets.QWEN_MODEL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        run: python scripts/daily_health_report.py --test-status "${TEST_STATUS}"
+      - name: Upload daily report and test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: imamali110-daily-health-${{ github.run_id }}
+          path: |
+            output/daily_health_report.md
+            output/daily_health_report.json
+            output/tests.log
+          retention-days: 30

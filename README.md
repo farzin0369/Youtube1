@@ -66,3 +66,10 @@ The CogVideoX path now uses a versioned `scene_plan.json` as the shared contract
 For an initial validation run, keep YouTube privacy set to `private`. Colab GPU availability is not guaranteed, and GitHub-hosted CPU Actions are not a substitute for GPU-generated CogVideoX footage. Output is encoded at 1080x1920 and 24 output fps; this does not mean the underlying model natively generates 24 fps or 4K/8K video.
 
 See [docs/PRODUCTION_ARCHITECTURE.md](docs/PRODUCTION_ARCHITECTURE.md) for checkpoint semantics, limitations, release gates and the remaining roadmap. Regression tests live in `tests/` and run in pull requests.
+
+
+## مدیریت کامنت و گزارش روزانه
+
+- پاسخ‌های موفق با شناسهٔ کامنت ثبت می‌شوند تا اجرای دوباره تا حد امکان پاسخ تکراری نفرستد.
+- موارد مشکوک به اسپم یا حساس به `output/pending_replies.json` می‌روند؛ حذف و گزارش خودکار کامنت‌ها عمداً فعال نیست تا اشتباه برگشت‌ناپذیر رخ ندهد.
+- workflow روزانهٔ `Channel health and daily report` تست‌ها و وضعیت دسترسی YouTube را بررسی می‌کند و گزارش سلامت، لاگ تست و فهرست تغییرات ۲۴ ساعت اخیر را به‌صورت Artifact نگه می‌دارد.
