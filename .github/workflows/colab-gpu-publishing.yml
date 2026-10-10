@@ -69,9 +69,7 @@ jobs:
           os.environ["YOUTUBE_CLIENT_ID"] = os.environ["YOUTUBE_CLIENT_ID"].strip()
           os.environ["YOUTUBE_CLIENT_SECRET"] = os.environ["YOUTUBE_CLIENT_SECRET"].strip()
           os.environ["YOUTUBE_REFRESH_TOKEN"] = os.environ["YOUTUBE_REFRESH_TOKEN"].strip()
-          print("[preflight] client_id prefix:", os.environ["YOUTUBE_CLIENT_ID"][:12] + "…")
-          print("[preflight] refresh_token prefix:", os.environ["YOUTUBE_REFRESH_TOKEN"][:8] + "…")
-          print("[preflight] refresh_token length:", len(os.environ["YOUTUBE_REFRESH_TOKEN"]))
+          # Never print credential values, prefixes, or lengths to workflow logs.
           from app.youtube_client import probe_youtube_auth
           result = probe_youtube_auth()
           print("[preflight]", result)
