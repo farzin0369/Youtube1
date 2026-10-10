@@ -14,8 +14,9 @@ GitHub می‌گوید standard runner برای repository عمومی رایگا
 
 ## زمان‌بندی تهران
 
-- **05:35 — Short**
-- **20:30 — Long**
+- **05:35 Tehran — one scheduled private CPU fallback preview per day**
+- Long-form production remains manual until a persistent, authorized GPU execution mechanism is available.
+- The daily GitHub runner has no CUDA GPU; run `colab/ImamAli110_Cinematic_Production.ipynb` for CogVideoX generation on a Colab GPU.
 
 ## موتور محتوا
 
