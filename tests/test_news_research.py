@@ -1,4 +1,4 @@
-from app.research import build_research_brief, parse_rss, rank_stories
+from app.research import build_research_brief, parse_rss, pick_topic, rank_stories
 
 
 def test_parse_rss_keeps_source_link_publisher_and_timestamp():
@@ -36,3 +36,22 @@ def test_research_brief_refuses_items_without_source_links():
         assert "source-linked" in str(exc)
     else:
         raise AssertionError("brief must not be created without linked sources")
+
+
+
+def test_pick_topic_uses_prefetched_news_without_network(tmp_path, monkeypatch):
+    import json
+    import app.research as research
+
+    stories = [
+        {"id": "1", "title": "World story", "url": "https://example.com/world", "publisher": "World News", "category": "world", "category_fa": "جهان", "published_at": "2026-10-10T12:00:00+00:00", "description": "A world report."},
+        {"id": "2", "title": "Technology story", "url": "https://example.com/tech", "publisher": "Tech News", "category": "technology", "category_fa": "فناوری", "published_at": "2026-10-10T11:00:00+00:00", "description": "A technology report."},
+        {"id": "3", "title": "Business story", "url": "https://example.com/business", "publisher": "Business News", "category": "business", "category_fa": "اقتصاد", "published_at": "2026-10-10T10:00:00+00:00", "description": "A business report."},
+    ]
+    path = tmp_path / "news.json"
+    path.write_text(json.dumps({"stories": stories}), encoding="utf-8")
+    monkeypatch.setattr(research, "env", lambda key: str(path) if key == "TT_KHABAR_NEWS_FILE" else None)
+    monkeypatch.setattr(research, "fetch_news", lambda: (_ for _ in ()).throw(AssertionError("network fetch must not run")))
+    topic = pick_topic("long")
+    assert len(topic["stories"]) == 3
+    assert topic["source_type"] == "current_news_rss"
