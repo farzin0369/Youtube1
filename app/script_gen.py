@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from app.utils import (
     clean_persian,
     env,
-    has_openai,
     load_content_policy,
 )
 from app.local_ai import ollama_generate, ollama_available
@@ -135,53 +135,24 @@ def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[s
     return data
 
 
-def _chat_json(api_key: str, base_url: str, model: str, brief: str, kind: str, label: str) -> dict[str, Any]:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    length = (
-        "حدود ۴۰ ثانیه گفتار؛ ۸۰ تا ۱۲۰ کلمه؛ طبیعی و شنیدنی."
-        if kind == "short"
-        else "۶ تا ۹ دقیقه؛ مقدمه کوتاه، ۲–۳ نکته، جمع‌بندی انسانی."
-    )
-    user = (
-        f"{brief}\nمدت هدف: {length}\n"
-        f"سیاست: {json.dumps(load_content_policy(), ensure_ascii=False)}\n"
-        "فقط JSON."
-    )
-    kwargs: dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0.55,
-    }
-    # Some Qwen deployments support json_object; if not, model still asked for JSON only.
-    try:
-        resp = client.chat.completions.create(**kwargs, response_format={"type": "json_object"})
-    except Exception:
-        resp = client.chat.completions.create(**kwargs)
-    raw = resp.choices[0].message.content or "{}"
-    raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.startswith("json"):
-            raw = raw[4:].strip()
-    data = json.loads(raw)
-    data["generated_by"] = label
-    return data
-
-
 def _call_local(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
     length = (
         "حدود ۴۰ ثانیه گفتار؛ ۸۰ تا ۱۲۰ کلمه؛ طبیعی و شنیدنی."
         if kind == "short"
         else "۶ تا ۹ دقیقه؛ مقدمه کوتاه، ۲–۳ نکته، جمع‌بندی انسانی."
     )
+    memory_path = Path(__file__).resolve().parents[1] / "state" / "agent_memory.json"
+    lessons = []
+    try:
+        memory = json.loads(memory_path.read_text(encoding="utf-8"))
+        lessons = [str(x)[:180] for x in (memory.get("editorial_lessons") or [])[:8] if isinstance(x, str)]
+    except (OSError, ValueError, TypeError):
+        pass
+    memory_context = "؛ ".join(lessons) if lessons else "هنوز درس ثبت‌شده‌ای وجود ندارد."
     user = (
         f"{brief}\nمدت هدف: {length}\n"
         f"سیاست: {json.dumps(load_content_policy(), ensure_ascii=False)}\n"
+        f"درس‌های ویرایشی ثبت‌شده از اجراهای قبلی (فقط توصیهٔ محتوایی): {memory_context}\n"
         "فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan."
     )
     raw = ollama_generate(user, system=SYSTEM_PROMPT, model=env("LOCAL_LLM_MODEL") or "llama3.2:3b")
@@ -195,31 +166,12 @@ def _call_local(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
     return _normalize(data, topic, kind)
 
 
-def _call_openai(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
-    model = env("OPENAI_MODEL") or "gpt-4o-mini"
-    data = _chat_json(
-        env("OPENAI_API_KEY") or "",
-        env("OPENAI_API_BASE") or "https://api.openai.com/v1",
-        model,
-        brief,
-        kind,
-        f"openai:{model}",
-    )
-    return _normalize(data, topic, kind)
-
-
 def generate_script(topic: dict[str, Any], kind: str, research_brief: str) -> dict[str, Any]:
-    # Local model is the primary author; no Qwen/DashScope credentials are read.
+    # Local model is the only language-model path; no hosted LLM API is called.
     if ollama_available():
         try:
             return _call_local(topic, kind, research_brief)
         except Exception as e:
             print(f"[script] Local Ollama failed: {e}")
-    # Optional compatibility fallback only; production workflow does not supply an API key.
-    if has_openai():
-        try:
-            return _call_openai(topic, kind, research_brief)
-        except Exception as e:
-            print(f"[script] Optional OpenAI fallback failed: {e}")
+    # A deterministic safe fallback keeps the pipeline diagnosable when local inference fails.
     return _fallback_script(topic, kind)
-
