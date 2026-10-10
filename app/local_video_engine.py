@@ -109,7 +109,7 @@ def _scene_prompt(sentence: str, title: str, index: int) -> str:
     return f"{visual}. {BASE_STYLE}. This scene visually expresses the narration theme: {title}. Avoid literal text in the frame."
 
 
-def generate_film(script: str, title: str, out_path: Path, kind: str = "short", seed: int = 110) -> dict[str, Any]:
+def generate_film(script: str, title: str, out_path: Path, kind: str = "short", seed: int = 110, scene_plan: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Generate clips from a durable scene plan and resume completed scenes when possible."""
     from diffusers.utils import export_to_video
     from app.scene_plan import (
@@ -121,10 +121,14 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plan_path = out_path.with_name("scene_plan.json")
-    plan = load_or_create_plan(
-        plan_path, script, title, kind=kind, scene_count=count,
-        duration_hint_seconds=float(env("VIDEO_DURATION_HINT_SECONDS") or (45 if kind == "short" else 240)),
-    )
+    plan_kwargs = {
+        "kind": kind,
+        "duration_hint_seconds": float(env("VIDEO_DURATION_HINT_SECONDS") or (45 if kind == "short" else 240)),
+    }
+    if scene_plan:
+        plan = load_or_create_plan(plan_path, script, title, scene_plan=scene_plan, **plan_kwargs)
+    else:
+        plan = load_or_create_plan(plan_path, script, title, scene_count=count, **plan_kwargs)
     clips_dir = out_path.parent / "scene_clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     steps = max(1, int(env("VIDEO_STEPS") or "25"))
@@ -139,7 +143,8 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
                 print(f"[video] resume: reusing {scene['scene_id']}", flush=True)
                 continue
             sentence = str(scene["spoken_text"])
-            prompt = _scene_prompt(sentence, title, i)
+            authored_prompt = str(scene.get("visual_prompt") or "").strip()
+            prompt = f"{authored_prompt or _scene_prompt(sentence, title, i)}. {BASE_STYLE}. Directly visualize this narration meaning: {sentence}. Avoid unrelated imagery."
             scene["visual_prompt"] = prompt
             mark_scene(plan, i, status="running", clip_path=str(clip), error=None)
             atomic_write_json(plan_path, plan)
