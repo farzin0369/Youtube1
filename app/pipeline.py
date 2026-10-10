@@ -69,7 +69,7 @@ def main()->None:
     print(f"[1] script={script_data.get('generated_by')}")
     audio=synthesize(script_data["script"],out/"narration",kind=args.kind); audit["steps"]["tts"]=audio; print(f"[2] tts={audio.get('provider')}")
     if __import__("os").environ.get("VIDEO_ENGINE", "cpu").lower() == "cogvideox":
-        render_meta=_local_render(scene_plan,script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
+        render_meta=_local_render(script_data.get("scene_plan"),script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
     else:
         render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid,scene_plan_path=out/"script_scene_plan.json")
     audit["steps"]["render"]=render_meta; print(f"[3] render={render_meta.get('provider',render_meta.get('style'))}")
