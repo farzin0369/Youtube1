@@ -11,10 +11,11 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app.utils import load_channel_config, utc_now_iso
+from app.utils import env, load_channel_config, utc_now_iso
 
 # Google News RSS category feeds aggregate reporting from multiple publishers.
 # Every selected story retains its feed URL, publisher, publication time and source link.
