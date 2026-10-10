@@ -21,6 +21,7 @@ def _package(tmp_path: Path):
         "thumbnail_path": str(thumb),
         "captions_path": str(captions),
         "duration": 4.0,
+        "on_screen_captions": True,
     }
     return meta, audio
 
