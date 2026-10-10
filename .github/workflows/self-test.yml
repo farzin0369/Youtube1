@@ -2,7 +2,8 @@ name: Automation self-test
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -17,12 +18,17 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
       - name: Python syntax check
         run: python -m compileall -q app
+      - name: Run unit tests
+        run: python -m pytest -q
       - name: Verify automation files
         run: |
           test -f app/pipeline.py
+          test -f app/scene_plan.py
           test -f app/video_render.py
           test -f app/youtube_client.py
           test -f app/channel_ops.py
