@@ -41,6 +41,7 @@ def upload_video(
     privacy: str = "private",
     thumbnail_path: Path | None = None,
     category_id: str = "22",
+    publish_at: str | None = None,
 ) -> dict[str, Any]:
     if privacy not in ("private", "unlisted", "public"):
         return {"ok": False, "error": "Unsupported privacy mode."}
@@ -56,6 +57,9 @@ def upload_video(
         from googleapiclient.http import MediaFileUpload
 
         youtube = build("youtube", "v3", credentials=_build_credentials())
+        scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
+        # YouTube requires scheduled videos to be uploaded as private with publishAt set.
+        effective_privacy = "private" if scheduled_at and privacy == "public" else privacy
         body = {
             "snippet": {
                 "title": title[:100],
@@ -67,9 +71,10 @@ def upload_video(
             },
             # Disclose realistic generated scenes; allow an explicit override for other video engines.
             "status": {
-                "privacyStatus": privacy,
+                "privacyStatus": effective_privacy,
                 "selfDeclaredMadeForKids": False,
                 "containsSyntheticMedia": contains_synthetic_media,
+                **({"publishAt": scheduled_at} if scheduled_at and effective_privacy == "private" else {}),
             },
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
@@ -84,7 +89,8 @@ def upload_video(
             "ok": True,
             "video_id": video_id,
             "url": f"https://www.youtube.com/watch?v={video_id}",
-            "privacy": privacy,
+            "privacy": "scheduled" if scheduled_at and effective_privacy == "private" else privacy,
+            "scheduled_for": scheduled_at if scheduled_at and effective_privacy == "private" else None,
         }
         captions_path = Path(video_path).with_name("captions.srt") if video_path else None
         if captions_path and captions_path.exists() and video_id:
