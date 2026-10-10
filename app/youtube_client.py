@@ -15,6 +15,19 @@ def _contains_synthetic_media() -> bool:
     return setting.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str:
+    """Accept only a genuinely future slot; never silently move it to another day."""
+    parsed = datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("publishAt must include a timezone")
+    current = now or datetime.now(timezone.utc)
+    if parsed <= current + timedelta(minutes=15):
+        raise ValueError(
+            "publishAt is too close or already past; refusing to move publication to another day"
+        )
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _build_credentials():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -60,11 +73,8 @@ def upload_video(
         youtube = build("youtube", "v3", credentials=_build_credentials())
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
-            # If rendering overruns the target slot, keep the release scheduled instead of uploading late.
-            parsed_at = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
-            if parsed_at <= datetime.now(timezone.utc) + timedelta(minutes=15):
-                parsed_at += timedelta(days=1)
-                scheduled_at = parsed_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            # If rendering overruns the target slot, fail visibly rather than publish on the wrong day.
+            scheduled_at = _validate_publish_at(scheduled_at)
         # YouTube requires scheduled videos to be uploaded as private with publishAt set.
         effective_privacy = "private" if scheduled_at and privacy == "public" else privacy
         body = {
