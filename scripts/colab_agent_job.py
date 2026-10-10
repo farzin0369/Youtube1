@@ -11,8 +11,8 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-SECRETS_FILE = Path("/content/.imamali110-secrets.json")
-MEMORY_FILE = Path("/content/.imamali110-agent-memory.json")
+SECRETS_FILE = Path("/content/.tt-khabar-secrets.json")
+MEMORY_FILE = Path("/content/.tt-khabar-agent-memory.json")
 REPO = Path("/content/Youtube1")
 RESULT_FILE = Path("/tmp/colab-result.json")
 MEMORY_OUT = Path("/tmp/agent-memory.json")
@@ -91,7 +91,7 @@ def main():
     memory = load_json(MEMORY_FILE, {"schema_version": 1, "editorial_lessons": [], "runs": []})
     memory["editorial_lessons"] = clean_lessons(memory.get("editorial_lessons"))
     memory.setdefault("runs", [])
-    rid = str(secrets.get("PIPELINE_RUN_ID") or ("short_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
+    rid = str(secrets.get("PIPELINE_RUN_ID") or ("news_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
     model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
 
     print("[agent] Checking Colab GPU runtime without holding a CUDA context in this process.")
@@ -163,6 +163,21 @@ def main():
     print("[agent] Ensuring local language model is available:", model)
     run(["ollama", "pull", model])
 
+    piper_dir = Path("/content/models/piper")
+    piper_dir.mkdir(parents=True, exist_ok=True)
+    piper_model = piper_dir / "fa_IR-amir-medium.onnx"
+    piper_json = piper_dir / "fa_IR-amir-medium.onnx.json"
+    if not piper_model.exists() or not piper_json.exists():
+        print("[agent] Preparing local Persian Piper fallback.")
+        model_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx"
+        json_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json"
+        model_result = subprocess.run(["curl", "-fL", "--retry", "2", "-o", str(piper_model), model_url], check=False)
+        json_result = subprocess.run(["curl", "-fL", "--retry", "2", "-o", str(piper_json), json_url], check=False)
+        if model_result.returncode or json_result.returncode:
+            print("[agent] Piper model unavailable; cloud TTS fallbacks remain enabled.")
+            piper_model.unlink(missing_ok=True)
+            piper_json.unlink(missing_ok=True)
+
     env = os.environ.copy()
     env.update({
         "AI_ENGINE": "local",
@@ -170,32 +185,66 @@ def main():
         "OLLAMA_BASE_URL": base,
         "VIDEO_ENGINE": "cogvideox",
         "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
-        "TTS_PROVIDER": "edge",
+        "TTS_PROVIDER": "auto",
         "TTS_VOICE": "fa-IR-FaridNeural",
+        "PIPER_MODEL": str(piper_model) if piper_model.exists() and piper_json.exists() else "",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "PIPELINE_RUN_ID": rid,
         "YOUTUBE_CLIENT_ID": str(secrets["YOUTUBE_CLIENT_ID"]),
         "YOUTUBE_CLIENT_SECRET": str(secrets["YOUTUBE_CLIENT_SECRET"]),
         "YOUTUBE_REFRESH_TOKEN": str(secrets["YOUTUBE_REFRESH_TOKEN"]),
+        "ELEVENLABS_API_KEY": str(secrets.get("ELEVENLABS_API_KEY") or ""),
+        "ELEVENLABS_VOICE_ID": str(secrets.get("ELEVENLABS_VOICE_ID") or ""),
+        "AZURE_SPEECH_KEY": str(secrets.get("AZURE_SPEECH_KEY") or ""),
+        "AZURE_SPEECH_REGION": str(secrets.get("AZURE_SPEECH_REGION") or ""),
         "YOUTUBE_PUBLISH_AT": str(secrets.get("YOUTUBE_PUBLISH_AT") or ""),
         # T4-safe defaults (secrets can override)
         "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
         "VIDEO_STEPS": str(secrets.get("VIDEO_STEPS") or "8"),
-        "VIDEO_CLIPS_SHORT": str(secrets.get("VIDEO_CLIPS_SHORT") or "3"),
+        "VIDEO_CLIPS_LONG": str(secrets.get("VIDEO_CLIPS_LONG") or "12"),
         "OLLAMA_NUM_GPU": "0",
         "OLLAMA_KEEP_ALIVE": "0",
         "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
         "TOKENIZERS_PARALLELISM": "false",
     })
 
-    # Stream logs to a file to avoid pipe-buffer deadlock on long CogVideoX runs.
-    print("[agent] Starting production pipeline (logs -> /tmp/pipeline.log).")
-    with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
-        pipeline = subprocess.run(
-            [sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "public"],
-            cwd=REPO, env=env, check=False, text=True,
-            stdout=logf, stderr=subprocess.STDOUT,
-        )
+    kind = str(secrets.get("PIPELINE_KIND") or "long")
+    if kind not in {"short", "long"}:
+        raise RuntimeError("Unsupported pipeline kind; refusing to publish.")
+
+    # Bounded self-healing: retry transient infrastructure/model errors up to five times.
+    # Do not retry permanent editorial or OAuth failures; those require a source/config change.
+    max_attempts = min(5, max(1, int(secrets.get("MAX_PIPELINE_ATTEMPTS") or 5)))
+    fatal_markers = (
+        "invalid_grant", "YouTube OAuth refresh failed", "No source-linked news",
+        "News topic contains no source-linked stories", "Production quality gate failed",
+        "news_script_word_count_outside", "news_sources_must_be_urls",
+        "all_news_source_urls_must_be_in_description",
+    )
+    pipeline = None
+    for attempt in range(1, max_attempts + 1):
+        print(f"[self-heal] pipeline attempt {attempt}/{max_attempts}")
+        mode = "w" if attempt == 1 else "a"
+        with PIPELINE_LOG.open(mode, encoding="utf-8") as logf:
+            logf.write(f"\\n[self-heal] attempt {attempt}/{max_attempts}\\n")
+            logf.flush()
+            pipeline = subprocess.run(
+                [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
+                cwd=REPO, env=env, check=False, text=True,
+                stdout=logf, stderr=subprocess.STDOUT,
+            )
+        if pipeline.returncode == 0:
+            print(f"[self-heal] attempt {attempt} succeeded")
+            break
+        current_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
+        if any(marker.lower() in current_tail.lower() for marker in fatal_markers):
+            print("[self-heal] non-retryable content/OAuth failure detected; stopping safely")
+            break
+        if attempt < max_attempts:
+            delay = min(30 * (2 ** (attempt - 1)), 180)
+            print(f"[self-heal] transient failure; retrying after {delay}s")
+            time.sleep(delay)
+
     log_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
     print("[pipeline log tail]\n" + log_tail)
     if pipeline.returncode < 0:
@@ -214,7 +263,8 @@ def main():
     run_record = {
         "run_id": rid,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "success": pipeline.returncode == 0 and bool(upload.get("ok")),
+        "success": pipeline is not None and pipeline.returncode == 0 and bool(upload.get("ok")),
+        "attempts": attempt,
         "topic": str(topic.get("title_hint") or topic.get("title") or "")[:180],
         "title": str(((audit.get("steps") or {}).get("script") or {}).get("title") or "")[:180],
         "video_url": str(upload.get("url") or ""),
@@ -264,7 +314,7 @@ def main():
     except Exception:
         pass
     ollama_log.close()
-    if pipeline.returncode != 0 or not upload.get("ok"):
+    if pipeline is None or pipeline.returncode != 0 or not upload.get("ok"):
         raise RuntimeError(
             "Pipeline failed or YouTube upload was not confirmed. "
             f"exit={pipeline.returncode} upload_ok={upload.get('ok')} "

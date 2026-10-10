@@ -1,15 +1,15 @@
-name: Channel health and daily report
+name: TT Khabar health, analytics and comment review
 
 on:
   schedule:
-    - cron: '30 18 * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: imamali110-channel-health
+  group: tt-khabar-channel-health
   cancel-in-progress: false
 
 jobs:
@@ -44,9 +44,9 @@ jobs:
           path: |
             output/comment_reply_ledger.json
             output/pending_replies.json
-          key: imamali110-comment-ledger-${{ github.run_id }}
+          key: tt-khabar-comment-ledger-${{ github.run_id }}
           restore-keys: |
-            imamali110-comment-ledger-
+            tt-khabar-comment-ledger-
       - name: Install local Ollama model for bounded comment replies
         if: steps.tests.outcome == 'success'
         run: |
@@ -75,12 +75,12 @@ jobs:
           path: |
             output/comment_reply_ledger.json
             output/pending_replies.json
-          key: imamali110-comment-ledger-${{ github.run_id }}
+          key: tt-khabar-comment-ledger-${{ github.run_id }}
       - name: Upload daily report and test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: imamali110-daily-health-${{ github.run_id }}
+          name: tt-khabar-health-${{ github.run_id }}
           path: |
             output/daily_health_report.md
             output/daily_health_report.json

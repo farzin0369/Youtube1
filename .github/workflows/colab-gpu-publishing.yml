@@ -1,22 +1,20 @@
-name: ImamAli110 autonomous Colab GPU publishing
+name: TT Khabar autonomous global-news publishing
 
 on:
   schedule:
-    # GitHub cron is UTC. These runs start about six hours before the release;
-    # the job passes publishAt for the exact Tehran slot below.
-    - cron: "30 20 * * *" # 00:00 Tehran → publishAt 06:00 Tehran
-    - cron: "30 8 * * *"  # 12:00 Tehran → publishAt 18:00 Tehran
+    # Run a source-grounded global-news cycle every four hours (UTC).
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: imamali110-colab-gpu-${{ github.event.schedule || github.run_id }}
+  group: tt-khabar-colab-gpu-${{ github.event.schedule || github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  cinematic-publish:
+  global-news-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
@@ -26,9 +24,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: state/agent_memory.json
-          key: imamali110-agent-memory-${{ github.run_id }}
+          key: tt-khabar-agent-memory-${{ github.run_id }}
           restore-keys: |
-            imamali110-agent-memory-
+            tt-khabar-agent-memory-
 
       - name: Initialize memory when this is the first run
         run: |
@@ -90,43 +88,41 @@ jobs:
           import os
           tz = ZoneInfo("Asia/Tehran")
           now = datetime.now(tz)
-          slots = {"30 20 * * *": time(6, 0), "30 8 * * *": time(18, 0)}
-          slot = slots.get(os.environ.get("SCHEDULE", ""))
-          if slot is None:
-              candidates = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in (6, 18)]
-              candidates = [item for item in candidates if item > now + timedelta(minutes=30)]
-              target = min(candidates) if candidates else now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=1)
-          else:
-              target = now.replace(hour=slot.hour, minute=slot.minute, second=0, microsecond=0)
-              if target <= now + timedelta(minutes=30):
-                  target += timedelta(days=1)
+          target = now + timedelta(hours=6)
+          # Keep a six-hour buffer for news research, GPU rendering, QA and upload.
           utc_target = target.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           print(f"publish_at={utc_target}")
           print(f"publish_local={target.strftime('%Y-%m-%d %H:%M %Z')}")
           PY
-          echo "YouTube scheduled publication: ${{ steps.publish_time.outputs.publish_local }}"
+          echo "TT خبر scheduled publication: ${{ steps.publish_time.outputs.publish_local }}"
 
       - name: Create a temporary protected credential payload
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          PIPELINE_RUN_ID: short_${{ github.run_id }}_${{ github.run_attempt }}
+          PIPELINE_RUN_ID: news_${{ github.run_id }}_${{ github.run_attempt }}
           LOCAL_LLM_MODEL: llama3.2:3b
           YOUTUBE_PUBLISH_AT: ${{ steps.publish_time.outputs.publish_at }}
           GIT_SHA: ${{ github.sha }}
           VIDEO_FRAMES: "17"
           VIDEO_STEPS: "8"
-          VIDEO_CLIPS_SHORT: "3"
+          VIDEO_CLIPS_LONG: "12"
+          PIPELINE_KIND: "long"
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
-          target = Path(os.environ["RUNNER_TEMP"]) / "imamali-secrets.json"
+          target = Path(os.environ["RUNNER_TEMP"]) / "tt-khabar-secrets.json"
           payload = {key: (os.environ.get(key, "") or "").strip() for key in (
               "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
               "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "YOUTUBE_PUBLISH_AT", "GIT_SHA",
-              "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_SHORT",
+              "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_LONG", "PIPELINE_KIND",
+              "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION",
           )}
           target.write_text(json.dumps(payload), encoding="utf-8")
           target.chmod(0o600)
@@ -135,7 +131,7 @@ jobs:
 
       - name: Provision Colab T4 GPU runtime
         env:
-          SESSION: imamali-${{ github.run_id }}
+          SESSION: tt-khabar-${{ github.run_id }}
         run: |
           if colab --auth oauth2 new --gpu T4 --high-mem -s "$SESSION"; then
             echo "Provisioned a high-RAM T4."
@@ -149,8 +145,8 @@ jobs:
         env:
           SESSION: imamali-${{ github.run_id }}
         run: |
-          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/imamali-secrets.json" /content/.imamali110-secrets.json
-          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.imamali110-agent-memory.json
+          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/tt-khabar-secrets.json" /content/.tt-khabar-secrets.json
+          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.tt-khabar-agent-memory.json
 
       - name: Run local-model self-review and cinematic video pipeline on Colab GPU
         env:
@@ -193,7 +189,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: imamali110-colab-run-${{ github.run_id }}
+          name: tt-khabar-colab-run-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/colab-result.json
             ${{ runner.temp }}/pipeline.log

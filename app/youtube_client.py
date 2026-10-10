@@ -116,7 +116,7 @@ def upload_video(
     tags: list[str],
     privacy: str = "private",
     thumbnail_path: Path | None = None,
-    category_id: str = "22",
+    category_id: str = "25",
     publish_at: str | None = None,
 ) -> dict[str, Any]:
     if privacy not in ("private", "unlisted", "public"):

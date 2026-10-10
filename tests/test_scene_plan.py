@@ -94,14 +94,43 @@ def test_authored_scene_plan_must_match_exact_narration():
         build_scene_plan_from_scenes("سلام. متن دیگری.", "title", scenes)
 
 
-def test_fallback_script_has_scene_contract_and_passes_guard():
+def test_fallback_news_script_has_scene_contract_and_quality_gate_blocks_short_bulletin():
     from app.script_gen import _fallback_script
     from app.agent_guard import validate_package
 
-    data = _fallback_script(
-        {"title_hint": "مهربانی", "focus": "کمک به دیگران", "source_hint": "نهج البلاغه"},
-        "short",
-    )
+    stories = [
+        {
+            "title": "World leaders meet for climate talks",
+            "description": "Officials discussed a proposed climate framework.",
+            "publisher": "Example World",
+            "published_at": "2026-10-10T12:00:00+00:00",
+            "category": "world",
+            "category_fa": "جهان",
+            "url": "https://example.com/world",
+        },
+        {
+            "title": "New computing research announced",
+            "description": "Researchers published a new technical study.",
+            "publisher": "Example Tech",
+            "published_at": "2026-10-10T11:00:00+00:00",
+            "category": "technology",
+            "category_fa": "فناوری",
+            "url": "https://example.com/technology",
+        },
+        {
+            "title": "Markets close after a volatile session",
+            "description": "Financial markets moved during the trading session.",
+            "publisher": "Example Business",
+            "published_at": "2026-10-10T10:00:00+00:00",
+            "category": "business",
+            "category_fa": "اقتصاد",
+            "url": "https://example.com/business",
+        },
+    ]
+    data = _fallback_script({"title_hint": stories[0]["title"], "stories": stories}, "long")
+    assert data["title"].startswith("TT خبر |")
     assert data["scene_plan"]
     assert " ".join(scene["spoken_text"] for scene in data["scene_plan"]) == data["script"]
-    assert validate_package(data, "short")["ok"]
+    result = validate_package(data, "long")
+    assert not result["ok"]
+    assert any(error.startswith("news_script_word_count_outside") for error in result["errors"])

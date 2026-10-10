@@ -70,94 +70,104 @@ def _load():
     return pipe, torch, model_id
 
 
-# Short visual sequences keyed to the meaning of the spoken Persian narration.
-# The prompts are English because the video model follows English visual direction more reliably.
+# News-category visual sequences. These are illustrative B-roll, never claimed to be footage of the actual event.
 VISUAL_SEQUENCES = {
-    "kindness": [
-        "Close-up of a supportive hand guiding an elderly person across a quiet street, golden-hour cinematic documentary, faces softly out of focus",
-        "Hands placing a warm meal into another person's hands in a humble community kitchen, genuine kindness, realistic fabric and steam",
-        "Two silhouettes sitting on a park bench at dusk, one listening with compassion, natural light, documentary realism",
-        "A neighbor carrying grocery bags upstairs, candid human moment, handheld documentary camera, faces not identifiable",
-        "Several people from different backgrounds sharing food at a community table, warm sunlight, respectful framing",
-        "Someone quietly leaving groceries at a doorway and walking away, compassionate understated action",
-        "A child offering water to a tired worker on a hot day, close-up of the exchange, natural documentary realism",
-        "Two people reconciling with a sincere handshake, peaceful atmosphere, faces softly blurred",
+    "world": [
+        "Wide establishing shot of a major international city at dawn, neutral documentary camera, authentic street movement",
+        "Journalists reviewing international dispatches in a newsroom, screens out of focus, candid professional atmosphere",
+        "Wide shot of a diplomatic district with flags in the distance, no readable signage, neutral framing",
+        "Cargo ships moving through an international port, realistic documentary footage style, no company logos",
+        "Aerial view of a busy airport terminal and aircraft taxiing, global travel context, natural light",
     ],
-    "patience": [
-        "A person waiting calmly beside a hospital garden window, breathing slowly, soft morning light, quiet cinematic documentary",
-        "A gardener carefully tending a small plant in rich soil, close-up of patient hands, sunlight and shallow depth of field",
-        "A craftsperson patiently repairing a handmade object at a wooden workbench, detailed hands, calm warm light",
-        "Someone walking slowly through a rain-soaked city street without rushing, reflective mood, cinematic tracking shot",
-        "A farmer waiting beside a field at sunrise, wind moving the crops, wide peaceful landscape shot",
-        "Hands resting still during a difficult conversation, restrained natural acting, soft interior light",
+    "politics": [
+        "Exterior of a government building with journalists setting up cameras, no identifiable political figure",
+        "Empty press briefing room before a news conference, microphones and podium, no party logos",
+        "Wide shot of diplomats entering a conference venue from behind, faces not identifiable",
+        "Legislative chamber seen from a distant wide angle, no readable signage, neutral documentary",
+        "Journalists typing notes during a press briefing, close-up of notebooks without readable text",
     ],
-    "gratitude": [
-        "Sunlight falling across a simple breakfast table as hands gently pour tea, quiet everyday gratitude, cinematic close-up",
-        "Curtains opening to a beautiful sunrise and a quiet pause of appreciation, natural realistic film",
-        "A modest family meal table with warm light and gentle conversation, documentary style, faces not centered",
-        "Hands watering a small garden after rain, sparkling droplets and new leaves, contemplative cinematic macro shot",
-        "A respectful nod toward a street cleaner at dawn, authentic everyday kindness, soft focus faces",
-        "A wide sunrise over a peaceful landscape, soft golden light, slow cinematic camera movement",
+    "technology": [
+        "Close-up of a semiconductor wafer and precision equipment in a clean technology lab",
+        "Engineers testing a robotics prototype in a modern research workspace, realistic documentary lighting",
+        "Data center aisle with server racks and blinking status lights, slow tracking shot",
+        "Researcher inspecting an AI computing workstation, screens blurred with no readable text",
+        "Industrial robotic arms assembling electronic components, precise motion, cinematic macro details",
     ],
-    "honesty": [
-        "A shopkeeper returning a lost wallet in a busy market, sincere gesture, documentary realism, faces soft",
-        "A worker calmly admitting a mistake to a colleague, respectful conversation, natural office light",
-        "Hands carefully counting change and returning extra coins, close-up on hands",
-        "Two colleagues discussing a difficult decision at a simple table, natural light",
-        "Someone finding a dropped envelope and handing it back on a city sidewalk",
+    "business": [
+        "Busy financial district at the start of the business day, glass office towers and commuters",
+        "Cargo containers being loaded at a commercial port, cranes moving in the distance",
+        "Workers inspecting products on a modern factory production line, neutral documentary",
+        "Close-up of currency notes being counted at a bank counter, no visible brand or exact financial claim",
+        "Small business owner opening a shop at sunrise, authentic everyday commerce",
     ],
-    "forgiveness": [
-        "Two old friends meeting after disagreement, one offers a sincere apology, soft cinematic light, faces not sacred or iconic",
-        "A person taking a deep breath and choosing not to argue, restrained natural acting",
-        "Family members reconciling at a doorway with a gentle embrace, warm natural light",
-        "Someone walking away from tension into a peaceful garden, reflective slow tracking shot",
+    "science": [
+        "Scientists in a laboratory observing samples through a microscope, realistic instruments",
+        "Large radio telescope dishes turning under a clear night sky, science documentary",
+        "Spacecraft model and engineers in a mission-control environment, screens out of focus",
+        "Research vessel moving through open ocean with instruments on deck",
+        "Close-up of gloved hands handling a laboratory sample, safe and realistic procedure",
     ],
-    "charity": [
-        "Volunteers packing fresh food into paper bags at a community aid center, teamwork, cinematic documentary",
-        "A volunteer handing a warm blanket outdoors on a cold evening, respectful framing, no sensationalism",
-        "Hands placing bread, fruit and water into a donation box, close-up, natural light",
-        "Neighbors distributing food parcels with dignity and warmth, realistic documentary film",
+    "sports": [
+        "Wide stadium shot before a major sporting event, crowd atmosphere, no visible team crests",
+        "Athletes warming up on a track, cinematic slow tracking shot, no identifiable celebrity",
+        "Football pitch seen from a high wide angle during play, no specific team branding",
+        "Close-up of a referee preparing equipment before a match, documentary framing",
+        "Fans watching a live sporting event on a large screen, faces not emphasized",
     ],
-    "faith": [
-        "A solitary figure walking at dawn through a quiet stone courtyard, sunlight through arches, contemplative spiritual mood, face not identifiable",
-        "Close-up of hands resting peacefully on wood beside a small beam of sunlight, quiet reflective moment",
-        "A wide landscape at sunrise with distant birds, gentle wind across grasses, reverent cinematic documentary",
-        "An empty historic stone courtyard with intricate geometric architecture, warm light and long shadows, no readable text",
-        "Symbolic lion silhouette on a desert ridge at golden hour, majestic and respectful, no human faces, cinematic wide shot",
-        "Open book pages turning in soft wind under warm light, abstract spiritual mood, no sacred portraits",
+    "entertainment": [
+        "Film production crew preparing lights on a soundstage, no celebrity likeness",
+        "Concert venue before the show with stage lights warming up, no artist branding",
+        "Museum visitors viewing a contemporary art exhibition, natural candid documentary",
+        "Camera operators and editors working in a post-production suite, screens blurred",
+        "Crowd entering a cultural festival venue, colorful but realistic documentary coverage",
+    ],
+    "health": [
+        "Medical researchers working in a clinical laboratory, professional and non-sensational",
+        "Public health professionals reviewing charts in a hospital conference room, text unreadable",
+        "Doctor and nurse preparing medical equipment in a clean clinic, no identifiable patient",
+        "Scientist examining a sample under laboratory lighting, realistic close-up",
+        "Wide exterior of a modern hospital during daytime, no emergency sensationalism",
+    ],
+    "humanitarian": [
+        "Relief workers sorting boxed supplies in a warehouse, dignified documentary framing",
+        "Volunteers distributing water and essential goods in an organized aid center, no identifiable vulnerable faces",
+        "Emergency response teams preparing equipment at a staging area, no graphic imagery",
+        "Wide view of temporary shelters from a respectful distance, no identifiable individuals",
+        "Aid trucks moving along a road toward a distribution point, realistic documentary style",
     ],
 }
 BASE_STYLE = (
-    "photorealistic premium cinematic documentary, natural human motion when people appear, anatomically correct hands, "
-    "authentic candid behavior, realistic skin and fabric, subtle film grain, soft volumetric golden light, "
-    "shallow depth of field when appropriate, slow controlled dolly or tracking camera, vertical 9:16 composition, "
-    "consistent warm-neutral color grade, no subtitles, no written text, no logos, no watermark, "
-    "no fantasy effects, no cartoon, no slideshow, no depiction of prophets or sacred faces, no religious iconography of holy figures"
+    "premium photorealistic international news documentary B-roll, natural motion, accurate everyday objects, "
+    "neutral non-partisan framing, realistic camera movement, vertical 9:16 composition, subtle film grain, "
+    "natural color grade, no subtitles, no written text, no logos, no watermark, no fake news graphics, "
+    "no fabricated quotes, no synthetic depiction presented as authentic footage of a specific real event"
 )
 
 
 def _scene_prompt(sentence: str, title: str, index: int) -> str:
     text = f"{title} {sentence}".lower()
-    if any(k in text for k in ("مهربان", "رحمت", "محبت", "kindness")):
-        key = "kindness"
-    elif any(k in text for k in ("صبر", "شکیب", "تحمل", "صبور", "patience")):
-        key = "patience"
-    elif any(k in text for k in ("شکر", "سپاس", "نعمت", "gratitude")):
-        key = "gratitude"
-    elif any(k in text for k in ("راستی", "صداقت", "امانت", "دروغ", "honest")):
-        key = "honesty"
-    elif any(k in text for k in ("بخش", "گذشت", "عفو", "forgiveness")):
-        key = "forgiveness"
-    elif any(k in text for k in ("کمک", "نیازمند", "بخشش", "انفاق", "charity")):
-        key = "charity"
-    elif any(k in text for k in ("خدا", "ایمان", "معنوی", "قرآن", "امام علی", "توحید", "شیر", "faith")):
-        key = "faith"
+    if any(k in text for k in ("انتخابات", "دولت", "پارلمان", "president", "election", "politic", "حکومت")):
+        key = "politics"
+    elif any(k in text for k in ("هوش مصنوعی", "فناوری", "تراشه", "technology", "artificial intelligence", "chip", "ربات")):
+        key = "technology"
+    elif any(k in text for k in ("اقتصاد", "بازار", "تورم", "business", "market", "economy", "شرکت")):
+        key = "business"
+    elif any(k in text for k in ("سلامت", "بیمارستان", "پزشکی", "health", "medical", "واکسن")):
+        key = "health"
+    elif any(k in text for k in ("ورزش", "فوتبال", "مسابقه", "sport", "football", "match", "المپیک")):
+        key = "sports"
+    elif any(k in text for k in ("علم", "فضا", "دانشمند", "science", "space", "research", "ناسا")):
+        key = "science"
+    elif any(k in text for k in ("فیلم", "موسیقی", "هنر", "فرهنگ", "entertainment", "movie", "music", "جشنواره")):
+        key = "entertainment"
+    elif any(k in text for k in ("کمک‌رسانی", "آوارگان", "بحران انسانی", "humanitarian", "relief", "زلزله", "سیل")):
+        key = "humanitarian"
     else:
-        key = "faith"
+        key = "world"
     sequence = VISUAL_SEQUENCES[key]
     visual = sequence[index % len(sequence)]
-    return f"{visual}. {BASE_STYLE}. Theme: {title}. Avoid literal on-screen text."
-
+    return f"{visual}. {BASE_STYLE}. Context: {title}. Illustrative B-roll only; do not imply this is actual footage of a specific event."
+    
 
 def generate_film(script: str, title: str, out_path: Path, kind: str = "short", seed: int = 110, scene_plan: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Generate clips from a durable scene plan and resume completed scenes when possible."""
