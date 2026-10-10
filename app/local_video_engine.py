@@ -110,40 +110,83 @@ def _scene_prompt(sentence: str, title: str, index: int) -> str:
 
 
 def generate_film(script: str, title: str, out_path: Path, kind: str = "short", seed: int = 110) -> dict[str, Any]:
+    """Generate clips from a durable scene plan and resume completed scenes when possible."""
     from diffusers.utils import export_to_video
+    from app.scene_plan import (
+        atomic_write_json, completed_scene_indices, load_or_create_plan, mark_scene,
+    )
+
     pipe, torch, model_id = _load()
     count = int(env("VIDEO_CLIPS_SHORT") or "6") if kind == "short" else int(env("VIDEO_CLIPS_LONG") or "60")
-    sentences = split_sentences(script) or [title]
-    steps = int(env("VIDEO_STEPS") or "25")
-    frames = int(env("VIDEO_FRAMES") or "49")
-    with tempfile.TemporaryDirectory(prefix="imamali110_") as td:
-        clips = []
-        for i in range(count):
-            sentence = sentences[min(i, len(sentences) - 1)]
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path = out_path.with_name("scene_plan.json")
+    plan = load_or_create_plan(
+        plan_path, script, title, kind=kind, scene_count=count,
+        duration_hint_seconds=float(env("VIDEO_DURATION_HINT_SECONDS") or (45 if kind == "short" else 240)),
+    )
+    clips_dir = out_path.parent / "scene_clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    steps = max(1, int(env("VIDEO_STEPS") or "25"))
+    frames = max(9, int(env("VIDEO_FRAMES") or "49"))
+    completed = completed_scene_indices(plan)
+
+    try:
+        for scene in plan["scenes"]:
+            i = int(scene["index"])
+            clip = clips_dir / f"{scene['scene_id']}.mp4"
+            if i in completed and clip.exists() and clip.stat().st_size > 1024:
+                print(f"[video] resume: reusing {scene['scene_id']}", flush=True)
+                continue
+            sentence = str(scene["spoken_text"])
             prompt = _scene_prompt(sentence, title, i)
-            print(f"[video] scene {i+1}/{count}: {prompt[:180]}")
-            result = pipe(
-                prompt=prompt,
-                num_videos_per_prompt=1,
-                num_inference_steps=steps,
-                num_frames=frames,
-                guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
-                generator=torch.Generator(device="cuda").manual_seed(seed + i),
-            )
-            clip = Path(td) / f"clip_{i:03d}.mp4"
-            export_to_video(result.frames[0], str(clip), fps=8)
-            clips.append(clip)
-            del result
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        concat = Path(td) / "concat.txt"
-        concat.write_text("\n".join(f"file '{p.as_posix()}'" for p in clips), encoding="utf-8")
-        out_path = Path(out_path)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+            scene["visual_prompt"] = prompt
+            mark_scene(plan, i, status="running", clip_path=str(clip), error=None)
+            atomic_write_json(plan_path, plan)
+            print(f"[video] scene {i + 1}/{len(plan['scenes'])}: {prompt[:180]}", flush=True)
+            try:
+                result = pipe(
+                    prompt=prompt,
+                    num_videos_per_prompt=1,
+                    num_inference_steps=steps,
+                    num_frames=frames,
+                    guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
+                    generator=torch.Generator(device="cuda").manual_seed(seed + i),
+                )
+                export_to_video(result.frames[0], str(clip), fps=8)
+                del result
+                if not clip.exists() or clip.stat().st_size <= 1024:
+                    raise RuntimeError("Generated clip is missing or unexpectedly small")
+                mark_scene(plan, i, status="complete", clip_path=str(clip), error=None)
+                atomic_write_json(plan_path, plan)
+            except Exception as exc:
+                mark_scene(plan, i, status="failed", clip_path=str(clip), error=repr(exc))
+                atomic_write_json(plan_path, plan)
+                raise
+            finally:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+        clip_paths = [Path(scene["clip_path"] or "") for scene in plan["scenes"]]
+        missing = [str(path) for path in clip_paths if not path.exists() or path.stat().st_size <= 1024]
+        if missing:
+            raise RuntimeError("Scene plan has missing completed clips: " + ", ".join(missing))
+        concat = out_path.parent / "scene_concat.txt"
+        concat.write_text(
+            "\n".join("file '" + p.resolve().as_posix().replace("'", "'\\''") + "'" for p in clip_paths),
+            encoding="utf-8",
+        )
         subprocess.run([
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-            "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-            "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", str(out_path)
+            "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=24",
+            "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+            str(out_path)
         ], check=True, capture_output=True)
-    return {"video_path": str(out_path), "provider": "cogvideox-colab-gpu", "model": model_id,
-            "clips": count, "scene_mapping": "semantic_templates_v1", "ok": True}
+    except Exception:
+        atomic_write_json(plan_path, plan)
+        raise
+    return {
+        "video_path": str(out_path), "provider": "cogvideox-colab-gpu", "model": model_id,
+        "clips": len(plan["scenes"]), "scene_mapping": "scene_plan_v1",
+        "scene_plan_path": str(plan_path), "resumable": True, "output_fps": 24, "ok": True,
+    }
