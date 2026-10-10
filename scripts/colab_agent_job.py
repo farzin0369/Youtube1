@@ -26,6 +26,33 @@ def run(cmd, *, cwd=None, env=None, check=True, capture_output=False):
     )
 
 
+def install_ollama():
+    """Install Ollama while preserving actionable diagnostics without exposing env secrets."""
+    script = Path("/tmp/ollama-install.sh")
+    log = Path("/tmp/ollama-install.log")
+    with log.open("w", encoding="utf-8") as output:
+        download = subprocess.run(
+            ["curl", "-fL", "--retry", "3", "--connect-timeout", "20",
+             "https://ollama.com/install.sh", "-o", str(script)],
+            text=True, stdout=output, stderr=subprocess.STDOUT, check=False, timeout=90,
+        )
+        if download.returncode:
+            detail = log.read_text(encoding="utf-8", errors="replace")[-5000:]
+            print("[ollama installer download log tail]\n" + detail)
+            raise RuntimeError(f"Could not download Ollama installer (exit {download.returncode}).")
+        install = subprocess.run(
+            ["bash", str(script)], text=True, stdout=output, stderr=subprocess.STDOUT,
+            check=False, timeout=240,
+        )
+    detail = log.read_text(encoding="utf-8", errors="replace")[-7000:]
+    print("[ollama installer log tail]\n" + detail)
+    if install.returncode:
+        raise RuntimeError(
+            f"Ollama installer failed with exit {install.returncode}; "
+            "see the installer log tail above."
+        )
+
+
 def load_json(path: Path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -82,7 +109,8 @@ def main():
     run([sys.executable, "scripts/repair_colab_cogvideox.py"])
 
     if shutil.which("ollama") is None:
-        run(["bash", "-lc", "curl -fsSL https://ollama.com/install.sh | sh"])
+        print("[agent] Ollama is missing; installing with captured diagnostics.")
+        install_ollama()
     ollama_log = open("/tmp/ollama.log", "w", encoding="utf-8")
     ollama = subprocess.Popen(["ollama", "serve"], stdout=ollama_log, stderr=subprocess.STDOUT)
     base = "http://127.0.0.1:11434"
@@ -97,7 +125,9 @@ def main():
         except Exception:
             time.sleep(2)
     if not ready:
-        raise RuntimeError("Local Ollama service did not become ready; see /tmp/ollama.log")
+        ollama_log.flush()
+        detail = Path("/tmp/ollama.log").read_text(encoding="utf-8", errors="replace")[-5000:]
+        raise RuntimeError("Local Ollama service did not become ready. Log tail:\n" + detail)
 
     print("[agent] Ensuring local language model is available:", model)
     run(["ollama", "pull", model])
