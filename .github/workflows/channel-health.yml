@@ -15,7 +15,7 @@ concurrency:
 jobs:
   health:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,10 +31,27 @@ jobs:
           mkdir -p output
           python -m compileall -q app scripts
           python -m pytest -q 2>&1 | tee output/tests.log
+      - name: Prepare persistent moderation state
+        if: always()
+        run: |
+          mkdir -p output
+          if [ ! -f output/comment_reply_ledger.json ]; then printf '{"replied":{}}\\n' > output/comment_reply_ledger.json; fi
+          if [ ! -f output/pending_replies.json ]; then printf '{"pending":[]}\\n' > output/pending_replies.json; fi
+      - name: Restore comment reply ledger
+        if: always()
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            output/comment_reply_ledger.json
+            output/pending_replies.json
+          key: imamali110-comment-ledger-${{ github.run_id }}
+          restore-keys: |
+            imamali110-comment-ledger-
       - name: Generate daily health report
         if: always()
         env:
           AI_ENGINE: qwen
+          ENABLE_AUTO_COMMENT_REPLIES: ${{ steps.tests.outcome == 'success' && 'true' || 'false' }}
           TEST_STATUS: ${{ steps.tests.outcome }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -45,6 +62,14 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: python scripts/daily_health_report.py --test-status "${TEST_STATUS}"
+      - name: Save comment reply ledger
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            output/comment_reply_ledger.json
+            output/pending_replies.json
+          key: imamali110-comment-ledger-${{ github.run_id }}
       - name: Upload daily report and test log
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,4 +79,5 @@ jobs:
             output/daily_health_report.md
             output/daily_health_report.json
             output/tests.log
+            output/pending_replies.json
           retention-days: 30

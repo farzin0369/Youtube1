@@ -49,3 +49,6 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 - Suspected spam is queued for human review; this workflow does not automatically delete comments or report users because those actions can be irreversible and may misclassify legitimate comments.
 - The daily `channel-health.yml` workflow runs syntax/unit tests, checks YouTube OAuth/API access, and uploads a health report plus the last-24-hour repository change list as an artifact.
 - The health report is a diagnostic snapshot, not full YouTube Analytics ingestion. CTR and audience-retention analysis still needs Analytics API authorization and a separate data pipeline.
+
+
+The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads a pending-review index containing comment/video IDs and reasons only; raw comment text is not persisted in the public-repository artifact or cache. This is bounded sampling, not a complete scan of the entire channel history.
