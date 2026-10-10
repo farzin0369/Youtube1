@@ -51,7 +51,7 @@ jobs:
           mkdir -p "$HOME/.config/colab-cli"
           printf '%s' "$COLAB_CLI_TOKEN_JSON" > "$HOME/.config/colab-cli/token.json"
           chmod 600 "$HOME/.config/colab-cli/token.json"
-          colab sessions || true
+          colab --auth oauth2 sessions || true
 
       - name: Validate YouTube publishing credentials
         env:
@@ -116,27 +116,27 @@ jobs:
       - name: Provision Colab T4 GPU runtime
         env:
           SESSION: imamali-\${{ github.run_id }}
-        run: colab new --gpu T4 -s "$SESSION"
+        run: colab --auth oauth2 new --gpu T4 -s "$SESSION"
 
       - name: Transfer protected job inputs to the private runtime
         env:
           SESSION: imamali-\${{ github.run_id }}
         run: |
-          colab upload -s "$SESSION" "$RUNNER_TEMP/imamali-secrets.json" /content/.imamali110-secrets.json
-          colab upload -s "$SESSION" state/agent_memory.json /content/.imamali110-agent-memory.json
+          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/imamali-secrets.json" /content/.imamali110-secrets.json
+          colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.imamali110-agent-memory.json
 
       - name: Run local-model self-review and cinematic video pipeline on Colab GPU
         env:
           SESSION: imamali-\${{ github.run_id }}
-        run: colab exec -s "$SESSION" -f scripts/colab_agent_job.py
+        run: colab --auth oauth2 exec -s "$SESSION" -f scripts/colab_agent_job.py
 
       - name: Retrieve result and updated agent memory
         if: always()
         env:
           SESSION: imamali-\${{ github.run_id }}
         run: |
-          colab download -s "$SESSION" /tmp/colab-result.json "$RUNNER_TEMP/colab-result.json" || true
-          colab download -s "$SESSION" /tmp/agent-memory.json state/agent_memory.json || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/colab-result.json "$RUNNER_TEMP/colab-result.json" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/agent-memory.json state/agent_memory.json || true
           if [ -f "$RUNNER_TEMP/colab-result.json" ]; then
             cat "$RUNNER_TEMP/colab-result.json"
           fi
@@ -156,4 +156,4 @@ jobs:
         if: always()
         env:
           SESSION: imamali-\${{ github.run_id }}
-        run: colab stop -s "$SESSION" || true
+        run: colab --auth oauth2 stop -s "$SESSION" || true
