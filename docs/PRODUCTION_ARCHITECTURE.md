@@ -1,64 +1,39 @@
-# Production architecture and rollout plan
+# TT خبر — Production architecture and rollout
 
-## Current facts
+## Production pipeline
 
-- `app/pipeline.py` runs research, local-model script generation, TTS, rendering, quality checks, scheduled YouTube upload, and a first-pass comment reply step.
-- `app/local_video_engine.py` uses CogVideoX only when `VIDEO_ENGINE=cogvideox`; that path requires a live CUDA GPU.
-- `colab/ImamAli110_Cinematic_Production.ipynb` is the available Colab GPU entrypoint.
-- `.github/workflows/colab-gpu-publishing.yml` requests a Colab T4 runtime through Colab CLI, then runs local Ollama + CogVideoX and asks YouTube to publish at **06:00 and 18:00 Asia/Tehran only**.
-- The old CPU workflow is manual diagnostic only; the legacy Kaggle workflow is no longer scheduled.
-- Colab CLI requires a previously authenticated OAuth token, and GPU allocation can still fail because Google controls account access and quotas.
+1. app/research.py fetches public RSS headlines and summaries across world, politics, technology, business, science, sports, entertainment and health.
+2. Stories are deduplicated and selected with category diversity. The original publisher, story URL and publication time are retained.
+3. app/script_gen.py uses the local Ollama model to write a 3–5 minute Persian bulletin grounded only in fetched source data. The quality gate rejects missing source URLs and undersized/oversized scripts.
+4. app/tts.py generates Persian narration; Edge TTS is primary and local Piper can be configured as fallback.
+5. app/local_video_engine.py uses CogVideoX on a CUDA GPU and category-specific illustrative news B-roll prompts. AI-generated scenes must never be presented as authentic footage of a specific real event.
+6. FFmpeg muxes narration and subtitles, then app/media_qa.py verifies the media package before YouTube upload.
+7. YouTube upload must confirm a video ID. Scheduled publication is rejected when the requested publish time is too close or past.
+8. Comment automation is bounded and idempotent. Sensitive or uncertain cases remain pending for human review.
 
-## Scene contract and checkpoint behavior
+## Schedules
 
-`app/scene_plan.py` defines a versioned scene plan with `spoken_text`, `visual_prompt`, `on_screen_text`, duration hints, status, clip path, and error. Writes are atomic. A plan is reused only when its script fingerprint, title, and kind match; stale plans are preserved with a `.stale` suffix rather than silently reused.
+- Global-news production workflow: scheduled every four hours (UTC) with a six-hour publish buffer.
+- Health, analytics and comment review: every six hours.
+- OAuth preflight: manual only; it validates authentication and the channel without publishing.
+- CPU smoke tests validate structure and media assembly only. They do not prove CogVideoX GPU production or a real YouTube upload.
 
-The CogVideoX engine writes each scene clip into the run output folder and updates `scene_plan.json` after each scene. On retry with the same run ID and persistent output storage, completed clips can be reused. This does not make ephemeral `/content` durable by itself: mount Google Drive or another persistent storage before relying on cross-session recovery.
+## Failure handling
 
-Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, hyphen; max 80 chars) when retrying the same job. Do not reuse the ID if the script/topic should be regenerated.
+- No usable RSS sources: fail closed; do not invent a bulletin.
+- Local model unavailable or malformed output: stop publication rather than publish unsupported fallback news.
+- Fewer than three source URLs, URLs absent from the description, or script length outside the 300–750-word guard: stop publication.
+- Missing GPU, model download failure, media QA failure, or rejected YouTube OAuth: report the failure and preserve run artifacts when available.
+- OAuth credentials must never be printed, even as prefixes or lengths.
 
-## Quality and publishing gates
+## Known external dependencies
 
-1. Run CPU-safe tests and syntax checks before a pull request can be merged.
-2. Run a GPU smoke test in Colab with `VIDEO_ENGINE=cogvideox`; verify `scene_plan.json`, all clip files, final MP4 duration, audio, SRT, and thumbnail.
-3. Production workflow uses YouTube scheduled publishing (`publishAt`); a run is considered successful only when the upload API confirms the video ID. If rendering misses the target by 15 minutes or less, the upload fails visibly instead of being silently moved to the next day. Public publication must still obey the channel's source and media QA gates.
-4. Never put OAuth tokens, model keys, or personal credentials in source files or notebook output.
-5. Sensitive comment categories stay pending; automated replies must not be treated as a substitute for moderation.
-6. Do not deploy self-modifying code automatically. A repair can create a patch and run tests, but production deployment requires a passing test suite and a reviewed change.
+- Google News RSS endpoints and publisher links are external and can be unavailable or rate-limited.
+- Google Colab controls GPU allocation and quotas.
+- Google OAuth consent settings and the three YouTube OAuth secrets must remain valid.
+- A free T4 can be too slow or memory-constrained for 3–5 minutes of generated video every four hours. The schedule is configured, but throughput and queue behavior must be measured from real runs before claiming the target cadence is met.
+- config/channel.yaml holds the current channel URL. After the owner changes the YouTube channel handle to TT خبر, update this URL to the new handle.
 
-## Operational limitations
+## Safety and rollout
 
-- CogVideoX 2B generation on a free Colab GPU may be slow, memory-constrained, or unavailable. Do not promise 4K/8K native generation or true 24 fps motion from an 8 fps source. Current export targets 1080x1920 at 24 output fps; this can repeat frames and is not equivalent to native 24 fps capture.
-- Scene captions are proportionally timed from each scene's narration length. This is an estimate, not forced alignment at phoneme/word level.
-- A clone of the repository is not a persistent job queue. Cross-session resume requires persistent storage and a stable `PIPELINE_RUN_ID`.
-- Public uploads and automated replies are side effects. The production schedule is explicitly enabled by the owner; uncertain comments stay pending, and the self-review agent may update only bounded editorial memory, never executable code or credentials.
-
-## Current autonomous loop
-
-1. Two daily GitHub schedule triggers request a Colab T4 runtime about six hours before each target publication slot (06:00 and 18:00 Tehran).
-2. A local Ollama model generates scripts using a bounded cache of editorial lessons; no hosted LLM API is used.
-3. CogVideoX runs only after a CUDA check and media QA blocks an invalid render from upload.
-4. YouTube receives a private upload with a `publishAt` timestamp so it can release the video at the requested Tehran time.
-5. After each run, a local model reviews the audit and may update only short editorial lessons and run summaries. It is not permitted to rewrite code or secrets.
-6. GitHub Actions retains bounded memory and evidence artifacts. A failed Colab auth, unavailable GPU, failed test, invalid render, or failed upload must surface as a failed run rather than silently switching to CPU.
-
-T4-safe defaults in production: `VIDEO_FRAMES=17`, `VIDEO_STEPS=8`, `VIDEO_CLIPS_SHORT=3`. If a scene still exhausts GPU memory, the renderer retries 13 frames / 6 steps and then 9 frames / 4 steps.
-
-Ollama runs with `OLLAMA_NUM_GPU=0` and is unloaded before CogVideoX loads, so the language model and the video model do not share the T4. The Colab job checks the GPU with `nvidia-smi` instead of importing PyTorch in the parent process. `colab exec` is called with `--timeout 14400` because the CLI default is 30 seconds and a silent CogVideoX step was aborting the run (`exit=-9`). A high-RAM T4 is requested first and a standard T4 is used when that shape is not entitled. The remote runtime checks out `GIT_SHA` from the workflow, not whatever happens to be on `main`.
-
-## Remaining external dependency
-
-The workflow requires `COLAB_CLI_TOKEN_JSON` plus the existing YouTube OAuth secrets. The repository tools cannot read or create GitHub Actions secrets, and the first Colab OAuth authorization cannot be bypassed safely. After this one-time credential setup, scheduled execution is automated subject to Colab quota and availability.
-
-## Channel operations and daily reporting
-
-- `app/channel_ops.py` records successful reply IDs in `output/comment_reply_ledger.json`, checks for an existing channel reply, skips the channel's own comments, and preserves uncertain/spam-like cases in `output/pending_replies.json`.
-- Suspected spam is queued for human review; this workflow does not automatically delete comments or report users because those actions can be irreversible and may misclassify legitimate comments.
-- The daily `channel-health.yml` workflow runs syntax/unit tests, checks YouTube OAuth/API access, and uploads a health report plus the last-24-hour repository change list as an artifact.
-- The health report is a diagnostic snapshot, not full YouTube Analytics ingestion. CTR and audience-retention analysis still needs Analytics API authorization and a separate data pipeline.
-
-The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads a pending-review index containing comment/video IDs and reasons only; raw comment text is not persisted in the public-repository artifact or cache. This is bounded sampling, not a complete scan of the entire channel history.
-
-## Colab dependency repair
-
-The Colab notebook keeps the runtime's CUDA-enabled PyTorch wheel. Before CogVideoX import, `scripts/repair_colab_cogvideox.py` checks whether TorchAO is missing the `FqnToConfig` symbol and removes only an incompatible TorchAO package directory when needed. It then verifies `CogVideoXPipeline` import. It does not blindly uninstall TorchAO or reinstall PyTorch/torchvision, and a failed import stops the GPU path rather than silently switching to CPU.
+No self-modifying code is deployed automatically. Repairs must be isolated, tested, reviewed, and merged. Public uploads and comment replies are external side effects; only a run with confirmed upload metadata counts as a successful production run.
