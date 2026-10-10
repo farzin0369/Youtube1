@@ -37,4 +37,5 @@ jobs:
           test -f scripts/repair_colab_cogvideox.py
           test -f .github/workflows/daily-youtube.yml
           test -f .github/workflows/channel-health.yml
+          test -f .github/workflows/youtube-oauth-check.yml
           echo "YouTube1 automation structure OK"

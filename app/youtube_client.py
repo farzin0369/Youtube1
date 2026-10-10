@@ -68,9 +68,12 @@ def _build_credentials():
         low = msg.lower()
         if "invalid_grant" in low:
             hint = (
-                " | HINT: refresh_token rejected. Re-run scripts/get_youtube_token.py, "
-                "put ALL THREE values from the same run into GitHub Secrets, and ensure "
-                "the OAuth client is Desktop + YouTube Data API enabled."
+                " | HINT: Google rejected the refresh token. Revoke the old app grant, "
+                "run scripts/get_youtube_token.py again, and update all three GitHub "
+                "Secrets from that same run. Verify the Desktop OAuth client matches "
+                "the token and YouTube Data API is enabled. If the OAuth consent screen "
+                "is External and still in Testing, refresh tokens for YouTube scopes "
+                "can expire after 7 days; review the app publishing status in Google Cloud."
             )
         elif "invalid_scope" in low:
             hint = (
