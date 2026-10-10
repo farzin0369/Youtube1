@@ -227,7 +227,7 @@ def main():
         print(f"[self-heal] pipeline attempt {attempt}/{max_attempts}")
         mode = "w" if attempt == 1 else "a"
         with PIPELINE_LOG.open(mode, encoding="utf-8") as logf:
-            logf.write(f"\\n[self-heal] attempt {attempt}/{max_attempts}\\n")
+            logf.write(f"\n[self-heal] attempt {attempt}/{max_attempts}\n")
             logf.flush()
             pipeline = subprocess.run(
                 [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
