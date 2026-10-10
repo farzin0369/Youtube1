@@ -69,24 +69,34 @@ def _download_stock(out: Path) -> Path | None:
 
 
 def make_thumbnail(title: str, out_path: Path, kind: str) -> Path:
-    img = Image.new("RGB", (W, H), (12, 20, 32))
+    # Long-form news uses a standard 16:9 thumbnail; Shorts keep a 9:16 poster.
+    width, height = (1280, 720) if kind == "long" else (1080, 1920)
+    img = Image.new("RGB", (width, height), (10, 20, 38))
     draw = ImageDraw.Draw(img)
-    for y in range(H):
-        c = int(12 + y / H * 30)
-        draw.line([(0, y), (W, y)], fill=(c, c + 8, c + 18))
-    draw.rectangle([40, 40, W - 40, H - 40], outline=(210, 185, 120), width=4)
-    font = _font(54)
-    y = H // 3
-    for line in textwrap.fill(title, width=18).split("\n"):
+    for y in range(height):
+        ratio = y / max(1, height)
+        draw.line([(0, y), (width, y)], fill=(int(8 + 8 * ratio), int(24 + 12 * ratio), int(48 + 20 * ratio)))
+    # Newsroom-style red accent and restrained frame.
+    draw.rectangle([0, 0, width, max(16, height // 36)], fill=(210, 38, 48))
+    margin = max(24, width // 32)
+    draw.rectangle([margin, margin, width - margin, height - margin], outline=(90, 145, 190), width=max(2, width // 500))
+    brand_font = _font(max(28, width // 22))
+    draw.text((margin + 12, margin + 8), "TT خبر", fill=(255, 255, 255), font=brand_font)
+    font = _font(max(34, width // (18 if kind == "long" else 20)))
+    wrapped = textwrap.fill(title.replace("TT خبر |", "").strip(), width=30 if kind == "long" else 18)
+    lines = wrapped.split("\n")
+    line_height = max(46, int(font.size * 1.28)) if hasattr(font, "size") else 58
+    text_height = line_height * len(lines)
+    y = max(height // 2 - text_height // 2, margin + 60)
+    for line in lines[:5]:
         bbox = draw.textbbox((0, 0), line, font=font)
-        x = (W - (bbox[2] - bbox[0])) // 2
+        x = (width - (bbox[2] - bbox[0])) // 2
         draw.text((x + 2, y + 2), line, fill=(0, 0, 0), font=font)
-        draw.text((x, y), line, fill=(245, 235, 210), font=font)
-        y += 70
+        draw.text((x, y), line, fill=(250, 250, 250), font=font)
+        y += line_height
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path, quality=92)
     return out_path
-
 
 def write_srt(script: str, out_path: Path, total_duration: float, scene_plan_path: Path | None = None) -> Path:
     """Write SRT captions; when a scene plan exists, align captions to scene narration."""
