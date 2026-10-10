@@ -16,9 +16,12 @@ def _load():
         raise RuntimeError("Local text-to-video requires a CUDA GPU. In Colab select Runtime → Change runtime type → T4 GPU.")
     model_id = env("LOCAL_VIDEO_MODEL") or "THUDM/CogVideoX-2b"
     pipe = CogVideoXPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+    # CogVideoX-2b on a Colab T4 is memory-constrained. Offload model weights and tile the VAE.
     pipe.enable_model_cpu_offload()
     if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
         pipe.vae.enable_tiling()
+    if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_slicing"):
+        pipe.vae.enable_slicing()
     return pipe, torch, model_id
 
 
@@ -131,8 +134,9 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
         plan = load_or_create_plan(plan_path, script, title, scene_count=count, **plan_kwargs)
     clips_dir = out_path.parent / "scene_clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
-    steps = max(1, int(env("VIDEO_STEPS") or "25"))
-    frames = max(9, int(env("VIDEO_FRAMES") or "49"))
+    # Conservative T4 defaults avoid the 49-frame peak-memory failure seen in production.
+    steps = max(1, int(env("VIDEO_STEPS") or "12"))
+    frames = max(9, int(env("VIDEO_FRAMES") or "25"))
     completed = completed_scene_indices(plan)
 
     try:
@@ -150,27 +154,61 @@ def generate_film(script: str, title: str, out_path: Path, kind: str = "short", 
             atomic_write_json(plan_path, plan)
             print(f"[video] scene {i + 1}/{len(plan['scenes'])}: {prompt[:180]}", flush=True)
             try:
-                result = pipe(
-                    prompt=prompt,
-                    num_videos_per_prompt=1,
-                    num_inference_steps=steps,
-                    num_frames=frames,
-                    guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
-                    generator=torch.Generator(device="cuda").manual_seed(seed + i),
-                )
-                export_to_video(result.frames[0], str(clip), fps=8)
-                del result
-                if not clip.exists() or clip.stat().st_size <= 1024:
-                    raise RuntimeError("Generated clip is missing or unexpectedly small")
+                # Retry once at a lower memory footprint if the GPU cannot fit the first render.
+                render_profiles = [(frames, steps)]
+                if frames > 17 or steps > 8:
+                    render_profiles.append((17, min(8, steps)))
+                last_error = None
+                for attempt, (attempt_frames, attempt_steps) in enumerate(render_profiles, start=1):
+                    try:
+                        print(
+                            f"[video] render attempt {attempt}/{len(render_profiles)} "
+                            f"(frames={attempt_frames}, steps={attempt_steps})",
+                            flush=True,
+                        )
+                        result = pipe(
+                            prompt=prompt,
+                            num_videos_per_prompt=1,
+                            num_inference_steps=attempt_steps,
+                            num_frames=attempt_frames,
+                            guidance_scale=float(env("VIDEO_GUIDANCE") or "6"),
+                            generator=torch.Generator(device="cuda").manual_seed(seed + i),
+                        )
+                        export_to_video(result.frames[0], str(clip), fps=8)
+                        del result
+                        if not clip.exists() or clip.stat().st_size <= 1024:
+                            raise RuntimeError("Generated clip is missing or unexpectedly small")
+                        last_error = None
+                        break
+                    except RuntimeError as exc:
+                        last_error = exc
+                        message = str(exc).lower()
+                        is_memory_error = (
+                            "out of memory" in message
+                            or "cuda error: out of memory" in message
+                            or "cudnn_status_alloc_failed" in message
+                        )
+                        print(
+                            f"[video] render attempt failed: {type(exc).__name__}: {str(exc)[:1200]}",
+                            flush=True,
+                        )
+                        if not is_memory_error or attempt >= len(render_profiles):
+                            raise
+                        print("[video] GPU memory pressure detected; clearing cache and retrying smaller.", flush=True)
+                    finally:
+                        if "result" in locals():
+                            del result
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                if last_error is not None:
+                    raise last_error
                 mark_scene(plan, i, status="complete", clip_path=str(clip), error=None)
                 atomic_write_json(plan_path, plan)
             except Exception as exc:
                 mark_scene(plan, i, status="failed", clip_path=str(clip), error=repr(exc))
                 atomic_write_json(plan_path, plan)
+                print("[video] FATAL scene render error:", repr(exc), flush=True)
                 raise
-            finally:
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
 
         clip_paths = [Path(scene["clip_path"] or "") for scene in plan["scenes"]]
         missing = [str(path) for path in clip_paths if not path.exists() or path.stat().st_size <= 1024]
