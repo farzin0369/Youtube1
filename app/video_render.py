@@ -117,7 +117,7 @@ def _srt_time(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 def _burn_captions_ffmpeg(video_in: Path, srt: Path, video_out: Path) -> None:
     """Burn the Persian SRT into the rendered video using FFmpeg/libass."""
-    escaped_srt = str(Path(srt).resolve()).replace("\\\\", "/").replace(":", "\\\\:").replace("'", "\\\\'")
+    escaped_srt = str(Path(srt).resolve()).replace(":", "\\:").replace("'", "\\'")
     subtitle_filter = (
         f"subtitles='{escaped_srt}':"
         "force_style='FontName=Noto Sans Arabic,FontSize=42,Outline=2,"
