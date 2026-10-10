@@ -263,7 +263,8 @@ def main():
     run_record = {
         "run_id": rid,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "success": pipeline is not None and pipeline.returncode == 0 and bool(upload.get("ok")),\n        "attempts": attempt,
+        "success": pipeline is not None and pipeline.returncode == 0 and bool(upload.get("ok")),
+        "attempts": attempt,
         "topic": str(topic.get("title_hint") or topic.get("title") or "")[:180],
         "title": str(((audit.get("steps") or {}).get("script") or {}).get("title") or "")[:180],
         "video_url": str(upload.get("url") or ""),
