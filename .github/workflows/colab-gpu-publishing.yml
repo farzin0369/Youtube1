@@ -2,10 +2,8 @@ name: TT Khabar autonomous global-news publishing
 
 on:
   schedule:
-    # GitHub cron is UTC. These runs start about six hours before the release;
-    # the job passes publishAt for the exact Tehran slot below.
-    - cron: "30 20 * * *" # 00:00 Tehran → publishAt 06:00 Tehran
-    - cron: "30 8 * * *"  # 12:00 Tehran → publishAt 18:00 Tehran
+    # Run a source-grounded global-news cycle every four hours (UTC).
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  cinematic-publish:
+  global-news-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
@@ -28,7 +26,7 @@ jobs:
           path: state/agent_memory.json
           key: tt-khabar-agent-memory-${{ github.run_id }}
           restore-keys: |
-            imamali110-agent-memory-
+            tt-khabar-agent-memory-
 
       - name: Initialize memory when this is the first run
         run: |
@@ -90,16 +88,8 @@ jobs:
           import os
           tz = ZoneInfo("Asia/Tehran")
           now = datetime.now(tz)
-          slots = {"30 20 * * *": time(6, 0), "30 8 * * *": time(18, 0)}
-          slot = slots.get(os.environ.get("SCHEDULE", ""))
-          if slot is None:
-              candidates = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in (6, 18)]
-              candidates = [item for item in candidates if item > now + timedelta(minutes=30)]
-              target = min(candidates) if candidates else now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=1)
-          else:
-              target = now.replace(hour=slot.hour, minute=slot.minute, second=0, microsecond=0)
-              if target <= now + timedelta(minutes=30):
-                  target += timedelta(days=1)
+          target = now + timedelta(hours=6)
+          # Keep a six-hour buffer for news research, GPU rendering, QA and upload.
           utc_target = target.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           print(f"publish_at={utc_target}")
           print(f"publish_local={target.strftime('%Y-%m-%d %H:%M %Z')}")
