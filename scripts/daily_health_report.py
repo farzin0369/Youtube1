@@ -6,7 +6,14 @@ import json
 import os
 import platform
 import subprocess
+import sys
 from pathlib import Path
+
+# Allow direct execution as `python scripts/daily_health_report.py` from
+# the repository root by adding the project root to Python's import path.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.channel_ops import channel_health, reply_to_recent_comments
 from app.utils import utc_now_iso
