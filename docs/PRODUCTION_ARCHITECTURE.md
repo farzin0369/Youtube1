@@ -51,4 +51,4 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 - The health report is a diagnostic snapshot, not full YouTube Analytics ingestion. CTR and audience-retention analysis still needs Analytics API authorization and a separate data pipeline.
 
 
-The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads pending-review items as a private repository artifact. This is bounded sampling, not a complete scan of the entire channel history.
+The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads a pending-review index containing comment/video IDs and reasons only; raw comment text is not persisted in the public-repository artifact or cache. This is bounded sampling, not a complete scan of the entire channel history.
