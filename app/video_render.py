@@ -116,9 +116,17 @@ def _srt_time(seconds: float) -> str:
     secs, ms = divmod(remainder, 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 def _burn_captions_ffmpeg(video_in: Path, srt: Path, video_out: Path) -> None:
-    # Drawtext fallback if subtitles filter fails on some runners
-    sub = str(srt).replace("\\", "/").replace(":", "\\:")
-    vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},eq=brightness=-0.05:saturation=1.1"
+    """Burn the Persian SRT into the rendered video using FFmpeg/libass."""
+    escaped_srt = str(Path(srt).resolve()).replace("\\\\", "/").replace(":", "\\\\:").replace("'", "\\\\'")
+    subtitle_filter = (
+        f"subtitles='{escaped_srt}':"
+        "force_style='FontName=Noto Sans Arabic,FontSize=42,Outline=2,"
+        "Shadow=1,MarginV=140,Alignment=2'"
+    )
+    vf = (
+        f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+        f"eq=brightness=-0.05:saturation=1.1,{subtitle_filter}"
+    )
     cmd = [
         "ffmpeg", "-y",
         "-i", str(video_in),
@@ -237,13 +245,32 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
             except Exception:
                 pass
 
+        captions_burned = bool(txt_clips)
+        if not captions_burned:
+            # MoviePy TextClip may be unavailable when ImageMagick is absent.
+            # Use FFmpeg/libass as a real burn-in fallback instead of silently
+            # producing a captionless video that the quality gate must reject.
+            captioned_path = out_dir / "video_captioned.mp4"
+            try:
+                _burn_captions_ffmpeg(video_path, srt_path, captioned_path)
+                if not captioned_path.is_file() or captioned_path.stat().st_size <= 1024:
+                    raise RuntimeError("FFmpeg caption fallback produced an empty file")
+                captioned_path.replace(video_path)
+                captions_burned = True
+            except Exception as caption_error:
+                print(f"[video] caption burn-in fallback failed: {caption_error}")
+                try:
+                    captioned_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
         return {
             "video_path": str(video_path),
             "thumbnail_path": str(thumb),
             "captions_path": str(srt_path),
             "duration": duration,
             "style": "stock_motion_cinematic",
-            "on_screen_captions": bool(txt_clips),
+            "on_screen_captions": captions_burned,
             "ok": True,
         }
     except Exception as e:
