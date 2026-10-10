@@ -43,7 +43,7 @@ jobs:
         if: always()
         env:
           AI_ENGINE: qwen
-          ENABLE_AUTO_COMMENT_REPLIES: "true"
+          ENABLE_AUTO_COMMENT_REPLIES: ${{ steps.tests.outcome == 'success' && 'true' || 'false' }}
           TEST_STATUS: ${{ steps.tests.outcome }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
