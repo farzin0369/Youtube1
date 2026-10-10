@@ -37,6 +37,8 @@ jobs:
           test -f app/channel_ops.py
           test -f scripts/daily_health_report.py
           test -f scripts/smoke_render.py
+          test -f scripts/collect_news.py
+          test -f .github/workflows/news-research-check.yml
           test -f scripts/repair_colab_cogvideox.py
           test -f .github/workflows/daily-youtube.yml
           test -f .github/workflows/channel-health.yml
