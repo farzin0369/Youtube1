@@ -29,6 +29,7 @@ jobs:
         run: |
           test -f app/pipeline.py
           test -f tests/test_news_research.py
+          test -f tests/test_agent_guard.py
           test -f app/scene_plan.py
           test -f app/media_qa.py
           test -f app/video_render.py
