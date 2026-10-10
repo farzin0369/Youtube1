@@ -1,4 +1,4 @@
-name: ImamAli110 cloud-free smoke test
+name: TT Khabar cloud-free render smoke test
 
 on:
   push:
@@ -29,12 +29,13 @@ jobs:
         env:
           AI_ENGINE: local
           VIDEO_ENGINE: cpu
+          TTS_PROVIDER: piper
           PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
-        run: python -m app.pipeline --kind short --dry-run
+        run: python scripts/smoke_render.py
       - name: Upload smoke artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: imamali110-smoke-${{ github.run_id }}
+          name: tt-khabar-smoke-${{ github.run_id }}
           path: output/
           retention-days: 3
