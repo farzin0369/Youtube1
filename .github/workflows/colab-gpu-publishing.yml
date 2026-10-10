@@ -2,10 +2,9 @@ name: ImamAli110 autonomous Colab GPU publishing
 
 on:
   schedule:
-    # Start rendering before the intended Asia/Tehran publication slot.
-    - cron: "30 20 * * *" # publish at 06:00 Tehran
-    - cron: "30 23 * * *" # publish at 09:00 Tehran
-    - cron: "30 8 * * *"  # publish at 18:00 Tehran
+    # Render starts early so publishAt lands on the Tehran slot.
+    - cron: "30 20 * * *" # → 06:00 Asia/Tehran
+    - cron: "30 8 * * *"  # → 18:00 Asia/Tehran
   workflow_dispatch:
 
 permissions:
@@ -75,10 +74,10 @@ jobs:
           import os
           tz = ZoneInfo("Asia/Tehran")
           now = datetime.now(tz)
-          slots = {"30 20 * * *": time(6, 0), "30 23 * * *": time(9, 0), "30 8 * * *": time(18, 0)}
+          slots = {"30 20 * * *": time(6, 0), "30 8 * * *": time(18, 0)}
           slot = slots.get(os.environ.get("SCHEDULE", ""))
           if slot is None:
-              candidates = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in (6, 9, 18)]
+              candidates = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in (6, 18)]
               candidates = [item for item in candidates if item > now + timedelta(minutes=30)]
               target = min(candidates) if candidates else now.replace(hour=6, minute=0, second=0, microsecond=0) + timedelta(days=1)
           else:
@@ -99,6 +98,9 @@ jobs:
           PIPELINE_RUN_ID: short_${{ github.run_id }}_${{ github.run_attempt }}
           LOCAL_LLM_MODEL: llama3.2:3b
           YOUTUBE_PUBLISH_AT: ${{ steps.publish_time.outputs.publish_at }}
+          VIDEO_FRAMES: "17"
+          VIDEO_STEPS: "8"
+          VIDEO_CLIPS_SHORT: "3"
         run: |
           python - <<'PY'
           import json, os
@@ -106,7 +108,8 @@ jobs:
           target = Path(os.environ["RUNNER_TEMP"]) / "imamali-secrets.json"
           payload = {key: os.environ.get(key, "") for key in (
               "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
-              "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "YOUTUBE_PUBLISH_AT"
+              "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "YOUTUBE_PUBLISH_AT",
+              "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_SHORT",
           )}
           target.write_text(json.dumps(payload), encoding="utf-8")
           target.chmod(0o600)
@@ -158,6 +161,7 @@ jobs:
               print("::error::Remote pipeline failed or YouTube upload was not confirmed.")
               raise SystemExit(1)
           print("Confirmed: pipeline result reports success and YouTube upload was confirmed.")
+          print("video_url:", result.get("video_url") or "(missing)")
           PY
 
       - name: Upload run evidence

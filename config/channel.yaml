@@ -5,15 +5,15 @@ channel:
   audience: همه سنین
   objective: رشد پایدار کانال و افزایش سابسکرایبر
   narrator: مرد
-  tts_voice: onyx
-  tts_model: tts-1-hd
-  visual_style: سینمایی؛ کلیپ متحرک؛ بدون چهره مقدس
+  tts_voice: fa-IR-FaridNeural
+  tts_model: edge
+  visual_style: سینمایی مفهومی؛ نمادین؛ بدون چهره مقدس؛ بدون اسلاید خشک
   ai_engine: local
   llm_model: llama3.2:3b
   logo: generate-once-and-cache
 
 schedule:
-  short: "06:00,09:00,18:00"
+  short: "06:00,18:00"
   long: "manual"
   short_duration_seconds: 45
   long_duration_minutes: "6-10"
@@ -32,6 +32,7 @@ content:
     - نقل‌قول بدون منبع
     - جعل آیه یا حدیث
     - نفرت‌پراکنی مذهبی
+    - تصویرسازی چهره پیامبران یا امامان
   source_policy: فقط منابع تأییدشده در app/research.py
   approved_source_books:
     - نهج‌البلاغه (دشتی / فیض‌الاسلام)

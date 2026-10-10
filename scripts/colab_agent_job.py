@@ -16,6 +16,7 @@ MEMORY_FILE = Path("/content/.imamali110-agent-memory.json")
 REPO = Path("/content/Youtube1")
 RESULT_FILE = Path("/tmp/colab-result.json")
 MEMORY_OUT = Path("/tmp/agent-memory.json")
+PIPELINE_LOG = Path("/tmp/pipeline.log")
 
 
 def run(cmd, *, cwd=None, env=None, check=True, capture_output=False):
@@ -27,15 +28,14 @@ def run(cmd, *, cwd=None, env=None, check=True, capture_output=False):
 
 
 def install_ollama():
-    """Install Ollama and its required extractor while preserving safe diagnostics."""
     print("[agent] Installing zstd, required by the current Ollama installer.")
     update = subprocess.run(["apt-get", "update", "-qq"], text=True, capture_output=True, check=False, timeout=180)
     if update.returncode:
-        print("[zstd apt update stderr tail]\\n" + (update.stderr or "")[-3000:])
+        print("[zstd apt update stderr tail]\n" + (update.stderr or "")[-3000:])
         raise RuntimeError(f"apt-get update failed before Ollama installation (exit {update.returncode}).")
     install_zstd = subprocess.run(["apt-get", "install", "-y", "-qq", "zstd"], text=True, capture_output=True, check=False, timeout=180)
     if install_zstd.returncode:
-        print("[zstd apt install stderr tail]\\n" + (install_zstd.stderr or "")[-3000:])
+        print("[zstd apt install stderr tail]\n" + (install_zstd.stderr or "")[-3000:])
         raise RuntimeError(f"Could not install zstd (exit {install_zstd.returncode}).")
     script = Path("/tmp/ollama-install.sh")
     log = Path("/tmp/ollama-install.log")
@@ -103,6 +103,9 @@ def main():
 
     if not REPO.exists():
         run(["git", "clone", "--depth", "1", "https://github.com/farzin0369/Youtube1.git", str(REPO)])
+    else:
+        run(["git", "-C", str(REPO), "fetch", "--depth", "1", "origin", "main"], check=False)
+        run(["git", "-C", str(REPO), "reset", "--hard", "origin/main"], check=False)
     os.chdir(REPO)
     (REPO / "state").mkdir(parents=True, exist_ok=True)
     (REPO / "state" / "agent_memory.json").write_text(
@@ -112,7 +115,7 @@ def main():
     print("[agent] Installing the repository's production stack.")
     run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements.txt",
          "diffusers>=0.32,<0.42", "transformers>=4.46", "accelerate>=1.0",
-         "safetensors", "imageio-ffmpeg", "piper-tts"])
+         "safetensors", "imageio-ffmpeg", "piper-tts", "edge-tts"])
 
     print("[agent] Repairing only known incompatible TorchAO packages and validating CogVideoX.")
     run([sys.executable, "scripts/repair_colab_cogvideox.py"])
@@ -156,19 +159,29 @@ def main():
         "YOUTUBE_CLIENT_SECRET": str(secrets["YOUTUBE_CLIENT_SECRET"]),
         "YOUTUBE_REFRESH_TOKEN": str(secrets["YOUTUBE_REFRESH_TOKEN"]),
         "YOUTUBE_PUBLISH_AT": str(secrets.get("YOUTUBE_PUBLISH_AT") or ""),
+        # T4-safe defaults (secrets can override)
+        "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
+        "VIDEO_STEPS": str(secrets.get("VIDEO_STEPS") or "8"),
+        "VIDEO_CLIPS_SHORT": str(secrets.get("VIDEO_CLIPS_SHORT") or "3"),
     })
-    pipeline = run([sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "public"],
-                   cwd=REPO, env=env, check=False, capture_output=True)
-    # Keep logs useful without echoing any environment values.
-    print("[pipeline stdout tail]\n" + (pipeline.stdout or "")[-7000:])
-    if pipeline.returncode:
-        print("[pipeline stderr tail]\n" + (pipeline.stderr or "")[-7000:])
+
+    # Stream logs to a file to avoid pipe-buffer deadlock on long CogVideoX runs.
+    print("[agent] Starting production pipeline (logs -> /tmp/pipeline.log).")
+    with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
+        pipeline = subprocess.run(
+            [sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "public"],
+            cwd=REPO, env=env, check=False, text=True,
+            stdout=logf, stderr=subprocess.STDOUT,
+        )
+    log_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
+    print("[pipeline log tail]\n" + log_tail)
 
     audit_path = REPO / "output" / "audit" / (rid + ".json")
     audit = load_json(audit_path, {})
     upload = ((audit.get("steps") or {}).get("upload") or {})
     topic = ((audit.get("steps") or {}).get("research") or {}).get("topic") or {}
     qa = ((audit.get("steps") or {}).get("media_quality") or {})
+    render = ((audit.get("steps") or {}).get("render") or {})
     run_record = {
         "run_id": rid,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -176,14 +189,17 @@ def main():
         "topic": str(topic.get("title_hint") or topic.get("title") or "")[:180],
         "title": str(((audit.get("steps") or {}).get("script") or {}).get("title") or "")[:180],
         "video_url": str(upload.get("url") or ""),
+        "video_id": str(upload.get("video_id") or ""),
         "media_quality_ok": bool(qa.get("ok")),
+        "render_ok": bool(render.get("ok")),
+        "upload_error": str(upload.get("error") or "")[:500],
         "errors": [str(e)[:180] for e in (qa.get("errors") or [])[:5]],
+        "pipeline_exit_code": pipeline.returncode,
         "gpu": gpu_name,
+        "log_tail": log_tail[-4000:],
     }
-    memory["runs"] = (memory.get("runs") or [])[-19:] + [run_record]
+    memory["runs"] = (memory.get("runs") or [])[-19:] + [{k: v for k, v in run_record.items() if k != "log_tail"}]
 
-    # Self-review is constrained to editorial lessons and reliability observations;
-    # the model is never allowed to rewrite executable code or secrets.
     review = {}
     try:
         from app.local_ai import ollama_generate
@@ -192,7 +208,8 @@ def main():
             "editorial_lessons (array of at most 8 short Persian strings) and observation (one short Persian string). "
             "Suggest only concrete improvements to future scripts, scene variety, source fidelity, or QA. "
             "Never request secrets, network access, code changes, or policy bypasses.\n"
-            + json.dumps({"current_run": run_record, "recent_runs": memory["runs"][-5:],
+            + json.dumps({"current_run": {k: v for k, v in run_record.items() if k != "log_tail"},
+                          "recent_runs": memory["runs"][-5:],
                           "previous_lessons": memory["editorial_lessons"]}, ensure_ascii=False)
         )
         raw = ollama_generate(prompt, system="You are a cautious production-review agent. Output JSON only.", model=model)
@@ -208,7 +225,6 @@ def main():
     MEMORY_OUT.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
     result = {
         **run_record,
-        "pipeline_exit_code": pipeline.returncode,
         "self_review": memory.get("last_observation", ""),
         "editorial_lessons": memory["editorial_lessons"],
         "audit_path": str(audit_path),
@@ -220,7 +236,12 @@ def main():
         pass
     ollama_log.close()
     if pipeline.returncode != 0 or not upload.get("ok"):
-        raise RuntimeError("Pipeline failed or YouTube upload was not confirmed. See result JSON and workflow logs.")
+        raise RuntimeError(
+            "Pipeline failed or YouTube upload was not confirmed. "
+            f"exit={pipeline.returncode} upload_ok={upload.get('ok')} "
+            f"upload_error={upload.get('error') or 'n/a'} "
+            f"qa_errors={qa.get('errors') or []}"
+        )
 
 
 if __name__ == "__main__":
