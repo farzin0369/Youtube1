@@ -31,6 +31,14 @@ jobs:
           mkdir -p output
           python -m compileall -q app scripts
           python -m pytest -q 2>&1 | tee output/tests.log
+      - name: Restore comment reply ledger
+        if: always()
+        uses: actions/cache/restore@v4
+        with:
+          path: output/comment_reply_ledger.json
+          key: imamali110-comment-ledger-${{ github.run_id }}
+          restore-keys: |
+            imamali110-comment-ledger-
       - name: Generate daily health report
         if: always()
         env:
@@ -46,6 +54,12 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: python scripts/daily_health_report.py --test-status "${TEST_STATUS}"
+      - name: Save comment reply ledger
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: output/comment_reply_ledger.json
+          key: imamali110-comment-ledger-${{ github.run_id }}
       - name: Upload daily report and test log
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,4 +69,5 @@ jobs:
             output/daily_health_report.md
             output/daily_health_report.json
             output/tests.log
+            output/pending_replies.json
           retention-days: 30
