@@ -1,4 +1,4 @@
-"""Script generator — Qwen (Chinese model) first, then OpenAI, then fallback."""
+"""Local-first Persian script generator. Uses a self-hosted Ollama model; no Qwen or paid LLM API required."""
 from __future__ import annotations
 
 import json
@@ -8,10 +8,9 @@ from app.utils import (
     clean_persian,
     env,
     has_openai,
-    has_qwen,
     load_content_policy,
-    qwen_client_kwargs,
 )
+from app.local_ai import ollama_generate, ollama_available
 
 SYSTEM_PROMPT = """تو نویسنده و کارگردان محتوای فارسی کانال معنوی ImamAli110 هستی.
 خروجی فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan باشد.
@@ -174,10 +173,25 @@ def _chat_json(api_key: str, base_url: str, model: str, brief: str, kind: str, l
     return data
 
 
-def _call_qwen(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
-    kw = qwen_client_kwargs()
-    model = env("QWEN_MODEL") or env("DASHSCOPE_MODEL") or "qwen-plus"
-    data = _chat_json(kw["api_key"], kw["base_url"], model, brief, kind, f"qwen:{model}")
+def _call_local(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
+    length = (
+        "حدود ۴۰ ثانیه گفتار؛ ۸۰ تا ۱۲۰ کلمه؛ طبیعی و شنیدنی."
+        if kind == "short"
+        else "۶ تا ۹ دقیقه؛ مقدمه کوتاه، ۲–۳ نکته، جمع‌بندی انسانی."
+    )
+    user = (
+        f"{brief}\nمدت هدف: {length}\n"
+        f"سیاست: {json.dumps(load_content_policy(), ensure_ascii=False)}\n"
+        "فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan."
+    )
+    raw = ollama_generate(user, system=SYSTEM_PROMPT, model=env("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:].strip()
+    data = json.loads(raw)
+    data["generated_by"] = "local-ollama:" + (env("LOCAL_LLM_MODEL") or "llama3.2:3b")
     return _normalize(data, topic, kind)
 
 
@@ -195,19 +209,17 @@ def _call_openai(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]
 
 
 def generate_script(topic: dict[str, Any], kind: str, research_brief: str) -> dict[str, Any]:
-    # 1) Qwen first (user request)
-    if has_qwen():
+    # Local model is the primary author; no Qwen/DashScope credentials are read.
+    if ollama_available():
         try:
-            return _call_qwen(topic, kind, research_brief)
+            return _call_local(topic, kind, research_brief)
         except Exception as e:
-            print(f"[script] Qwen failed: {e}")
-    # 2) OpenAI fallback
+            print(f"[script] Local Ollama failed: {e}")
+    # Optional compatibility fallback only; production workflow does not supply an API key.
     if has_openai():
         try:
             return _call_openai(topic, kind, research_brief)
         except Exception as e:
-            print(f"[script] OpenAI failed: {e}")
-            out = _fallback_script(topic, kind)
-            out["error"] = str(e)
-            return out
+            print(f"[script] Optional OpenAI fallback failed: {e}")
     return _fallback_script(topic, kind)
+
