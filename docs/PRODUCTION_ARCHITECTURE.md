@@ -52,3 +52,8 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 
 
 The daily health workflow now checks the most recent three uploads and considers up to ten top-level comments per public/unlisted video. It skips private videos, uses the configured text model, persists the reply ledger in GitHub Actions Cache, and uploads a pending-review index containing comment/video IDs and reasons only; raw comment text is not persisted in the public-repository artifact or cache. This is bounded sampling, not a complete scan of the entire channel history.
+
+
+## Colab dependency repair
+
+The Colab notebook keeps the runtime's CUDA-enabled PyTorch wheel. Before CogVideoX import, `scripts/repair_colab_cogvideox.py` checks whether TorchAO is missing the `FqnToConfig` symbol and removes only an incompatible TorchAO package directory when needed. It then verifies `CogVideoXPipeline` import. It does not blindly uninstall TorchAO or reinstall PyTorch/torchvision, and a failed import stops the GPU path rather than silently switching to CPU.
