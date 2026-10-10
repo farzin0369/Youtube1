@@ -59,6 +59,7 @@ jobs:
         env:
           AI_ENGINE: local
           LOCAL_LLM_MODEL: llama3.2:3b
+          OLLAMA_KEEP_ALIVE: 5m
           MAX_COMMENT_VIDEOS: "1"
           MAX_COMMENTS_PER_VIDEO: "5"
           ENABLE_AUTO_COMMENT_REPLIES: ${{ steps.tests.outcome == 'success' && 'true' || 'false' }}
