@@ -2,9 +2,10 @@ name: ImamAli110 autonomous Colab GPU publishing
 
 on:
   schedule:
-    # Render starts early so publishAt lands on the Tehran slot.
-    - cron: "30 20 * * *" # → 06:00 Asia/Tehran
-    - cron: "30 8 * * *"  # → 18:00 Asia/Tehran
+    # GitHub cron is UTC. These runs start about six hours before the release;
+    # the job passes publishAt for the exact Tehran slot below.
+    - cron: "30 20 * * *" # 00:00 Tehran → publishAt 06:00 Tehran
+    - cron: "30 8 * * *"  # 12:00 Tehran → publishAt 18:00 Tehran
   workflow_dispatch:
 
 permissions:
