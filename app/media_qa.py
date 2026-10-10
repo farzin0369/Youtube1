@@ -19,6 +19,8 @@ def validate_render_package(render_meta: dict[str, Any], audio_path: Path | None
     checks: dict[str, Any] = {}
     if not render_meta.get("ok"):
         errors.append("renderer_reported_failure")
+    if render_meta.get("on_screen_captions") is not True:
+        errors.append("visible_captions_missing")
     for field, error_name in (
         ("video_path", "missing_or_empty_video"),
         ("thumbnail_path", "missing_or_empty_thumbnail"),
