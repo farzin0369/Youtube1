@@ -15,7 +15,7 @@ concurrency:
 jobs:
   health:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,6 +35,7 @@ jobs:
         if: always()
         env:
           AI_ENGINE: qwen
+          ENABLE_AUTO_COMMENT_REPLIES: "true"
           TEST_STATUS: ${{ steps.tests.outcome }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
