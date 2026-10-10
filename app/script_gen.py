@@ -49,7 +49,7 @@ def _short_on_screen_text(text: str, limit: int = 42) -> str:
 
 def _fallback_scenes(body: str) -> list[dict[str, Any]]:
     import re
-    parts = [part.strip() for part in re.split(r"(?<=[.!?؟۔])\\s+", str(body).strip()) if part.strip()]
+    parts = [part.strip() for part in re.split(r"(?<=[.!?؟۔])\s+", str(body).strip()) if part.strip()]
     if not parts and body.strip():
         parts = [body.strip()]
     return [{
