@@ -14,20 +14,53 @@ from app.video_render import render_video, make_thumbnail, write_srt
 from app.youtube_client import upload_video
 from app.channel_ops import reply_to_comments
 from app.agent_guard import enforce
+from app.media_qa import validate_render_package
 
-def _local_render(script:str,title:str,audio:Path,kind:str,rid:str)->dict:
-    out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; final=out/"video.mp4"
-    meta=generate_film(script,title,raw,kind=kind,seed=110)
-    subprocess.run(["ffmpeg","-y","-i",str(raw),"-i",str(audio),"-shortest","-c:v","copy","-c:a","aac","-b:a","192k",str(final)],check=True,capture_output=True)
-    seconds=6.125*(meta.get("clips") or 1)
-    srt=write_srt(script,out/"captions.srt",seconds)
+def _probe_duration(path:Path)->float:
+    result=subprocess.run(
+        ["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(path)],
+        check=True,capture_output=True,text=True,
+    )
+    duration=float(result.stdout.strip())
+    if duration <= 0:
+        raise RuntimeError(f"Invalid media duration for {path}")
+    return duration
+
+
+def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str,rid:str)->dict:
+    out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; muxed=out/"video_muxed.mp4"; final=out/"video.mp4"
+    meta=generate_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan)
+    audio_seconds=_probe_duration(audio)
+    video_seconds=_probe_duration(raw)
+    scene_plan_path=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
+    srt=write_srt(script,out/"captions.srt",audio_seconds,scene_plan_path=scene_plan_path)
+    pad=max(0.0,audio_seconds-video_seconds)
+    video_filter=f"tpad=stop_mode=clone:stop_duration={pad:.3f},fps=24,format=yuv420p"
+    subprocess.run([
+        "ffmpeg","-y","-i",str(raw),"-i",str(audio),"-vf",video_filter,"-t",f"{audio_seconds:.3f}",
+        "-c:v","libx264","-preset","medium","-crf","18","-c:a","aac","-b:a","192k","-ar","48000",
+        "-movflags","+faststart",str(muxed)
+    ],check=True,capture_output=True)
+    # Burn the scene-aligned Persian captions into the picture while keeping the SRT sidecar.
+    escaped_srt=str(srt).replace("\\","/").replace(":","\\:").replace("'","\\'")
+    subtitle_filter=f"subtitles='{escaped_srt}':force_style='FontName=Noto Sans Arabic,FontSize=42,Outline=2,Shadow=1,MarginV=140,Alignment=2'"
+    subprocess.run([
+        "ffmpeg","-y","-i",str(muxed),"-vf",subtitle_filter,"-c:v","libx264","-preset","medium","-crf","18",
+        "-c:a","copy","-movflags","+faststart",str(final)
+    ],check=True,capture_output=True)
+    seconds=_probe_duration(final)
     thumb=make_thumbnail(title,out/"thumbnail.jpg",kind)
-    return {"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,**meta,"ok":True}
+    return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"on_screen_captions":True,"ok":True}
 
 def main()->None:
     p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
     ensure_dirs(); cfg=load_channel_config()
-    configured=str((cfg.get("publishing") or {}).get("mode") or "private").lower(); publish_mode=configured if configured in ("private","unlisted","public") else args.publish_mode
+    publishing_cfg=cfg.get("publishing") or {}
+    configured=str(publishing_cfg.get("mode") or "private").lower()
+    publish_mode=configured if configured in ("private","unlisted","public") else args.publish_mode
+    if publish_mode=="public" and not bool(publishing_cfg.get("public_publish_enabled",False)):
+        print("[safety] public publishing is disabled by config; forcing private upload",flush=True)
+        publish_mode="private"
     rid=make_run_id(args.kind); out=OUTPUT_DIR/rid; out.mkdir(parents=True,exist_ok=True)
     audit={"run_id":rid,"started_at":utc_now_iso(),"kind":args.kind,"publish_mode":publish_mode,"channel":cfg.get("channel",{}),"steps":{}}
     print(f"=== {rid} | {args.kind} | {publish_mode} | engine={'local' if local_enabled() else 'legacy'} ===")
@@ -36,10 +69,16 @@ def main()->None:
     print(f"[1] script={script_data.get('generated_by')}")
     audio=synthesize(script_data["script"],out/"narration",kind=args.kind); audit["steps"]["tts"]=audio; print(f"[2] tts={audio.get('provider')}")
     if __import__("os").environ.get("VIDEO_ENGINE", "cpu").lower() == "cogvideox":
-        render_meta=_local_render(script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
+        render_meta=_local_render(scene_plan,script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
     else:
-        render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid)
+        render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid,scene_plan_path=out/"script_scene_plan.json")
     audit["steps"]["render"]=render_meta; print(f"[3] render={render_meta.get('provider',render_meta.get('style'))}")
+    media_qa=validate_render_package(render_meta,Path(audio["path"]) if audio.get("path") else None)
+    audit["steps"]["media_quality"]=media_qa
+    if not media_qa["ok"]:
+        audit["finished_at"]=utc_now_iso(); audit["success"]=False
+        save_json(out/"audit.json",audit); save_json(OUTPUT_DIR/"audit"/f"{rid}.json",audit)
+        raise RuntimeError("Media quality gate failed; upload blocked: " + ", ".join(media_qa["errors"]))
     if args.dry_run: upload_meta={"skipped":True,"reason":"dry-run"}
     else:
         upload_meta=upload_video(video_path=Path(render_meta["video_path"]) if render_meta.get("video_path") else None,title=script_data["title"],description=script_data.get("description") or "",tags=list(script_data.get("tags") or []),privacy=publish_mode,thumbnail_path=Path(render_meta["thumbnail_path"]) if render_meta.get("thumbnail_path") else None)

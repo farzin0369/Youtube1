@@ -13,23 +13,52 @@ from app.utils import (
     qwen_client_kwargs,
 )
 
-SYSTEM_PROMPT = """تو نویسندهٔ حرفه‌ای اسکریپت یوتیوب فارسی هستی برای کانال معنوی ImamAli110.
-
-سبک الزامی:
-- فارسی امروزی، روان، گرم و انسانی — نه کتابی، نه رباتی، نه شعارزده
-- مثل یک گویندهٔ با‌تجربه که آرام و صمیمی حرف می‌زند
-- جمله‌های کوتاه و قابل شنیدن
-- لحن مردانه، محترم، بدون اغراق
-
-قوانین سخت:
-1) هرگز آیه یا حدیث جعل نکن
-2) اگر نقل مستقیم نداری، با زبان خودت معنا را بگو و منبع کلی را ذکر کن
-3) بدون سیاست، نفرت، پزشکی
-4) خروجی فقط JSON معتبر با کلیدها: title, description, script, sources, tags, duration_hint_seconds
-
-title باید با «Imam Ali ✨ » شروع شود.
-script فقط متن گفتاری باشد (بدون مرحله‌بندی مثل [مقدمه]).
+SYSTEM_PROMPT = """تو نویسنده و کارگردان محتوای فارسی کانال معنوی ImamAli110 هستی.
+خروجی فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan باشد.
+scene_plan آرایه‌ای از صحنه‌هاست. هر صحنه باید کلیدهای spoken_text، visual_prompt، on_screen_text و duration_hint_seconds داشته باشد.
+spoken_text متن دقیق گویندگی همان صحنه است. script باید دقیقاً از اتصال spoken_textها با یک فاصله ساخته شود.
+visual_prompt باید یک دستور تصویری انگلیسی مشخص و مستقیم باشد که همان کنش یا احساس را نمایش دهد؛ از تصویر عمومی و نامرتبط پرهیز کن.
+on_screen_text باید فارسی، کوتاه و حداکثر ۸ کلمه باشد. مدت هر صحنه مثبت باشد.
+عنوان با «Imam Ali ✨ » شروع شود. فارسی روان و انسانی بنویس. آیه، حدیث، منبع یا نقل‌قول جعل نکن؛ نقل مستقیم باید منبع داشته باشد.
+تصویر نباید متن، زیرنویس، لوگو یا واترمارک داشته باشد. چهرهٔ پیامبران یا چهرهٔ مقدسات را بازنمایی نکن.
 """
+
+def _visual_prompt_for_text(text: str) -> str:
+    t = text.lower()
+    if any(k in t for k in ("مهربان", "لبخند", "دلجویی", "کمک", "محبت", "بخشش")):
+        return "Cinematic realistic close shot of ordinary people helping or comforting one another, visible kind action, natural Persian everyday setting, warm daylight, no text, no logo, no watermark"
+    if any(k in t for k in ("آرام", "آرامش", "نگران", "صبر", "تحمل")):
+        return "Cinematic realistic scene of a person calmly breathing and listening beside a sunlit window, relaxed hands, gentle camera movement, no text, no logo, no watermark"
+    if any(k in t for k in ("نور", "روشن", "امید")):
+        return "A person opening curtains as morning light fills a modest room, a second person visibly encouraged, realistic cinematic lighting, no text, no logo, no watermark"
+    if any(k in t for k in ("راست", "صداقت", "امانت")):
+        return "A realistic cinematic moment of a person honestly returning a lost item to its owner, clear exchange and sincere expressions, no text, no logo, no watermark"
+    return "A realistic cinematic live-action scene directly depicting the action and emotion described in the narration, clear subject and natural behavior, no text, no logo, no watermark"
+
+
+def _short_on_screen_text(text: str, limit: int = 42) -> str:
+    words = str(text).split()
+    result = ""
+    for word in words:
+        candidate = (result + " " + word).strip()
+        if len(candidate) > limit or len(candidate.split()) > 8:
+            break
+        result = candidate
+    return result or str(text)[:limit]
+
+
+def _fallback_scenes(body: str) -> list[dict[str, Any]]:
+    import re
+    parts = [part.strip() for part in re.split(r"(?<=[.!?؟۔])\s+", str(body).strip()) if part.strip()]
+    if not parts and body.strip():
+        parts = [body.strip()]
+    return [{
+        "spoken_text": part,
+        "visual_prompt": _visual_prompt_for_text(part),
+        "on_screen_text": _short_on_screen_text(part),
+        "duration_hint_seconds": max(2.5, min(8.0, len(part) / 13.0)),
+    } for part in parts]
+
 
 
 def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
@@ -61,12 +90,13 @@ def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
         "sources": [src],
         "tags": ["امام علی", "نهج البلاغه", "اخلاق", "تأمل"],
         "duration_hint_seconds": dur,
+        "scene_plan": _fallback_scenes(body),
         "generated_by": "fallback",
     }
 
 
 def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[str, Any]:
-    data["script"] = clean_persian(str(data.get("script", "")))
+    data["script"] = clean_persian(str(data.get("script", ""))).strip()
     title = str(data.get("title") or topic["title_hint"])[:100]
     if not title.startswith("Imam Ali ✨"):
         title = "Imam Ali ✨ " + title
@@ -74,9 +104,35 @@ def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[s
     data["description"] = str(data.get("description", ""))
     data["sources"] = data.get("sources") or [topic["source_hint"]]
     data["tags"] = data.get("tags") or ["امام علی", "اخلاق"]
-    data["duration_hint_seconds"] = int(
-        data.get("duration_hint_seconds") or (45 if kind == "short" else 420)
-    )
+    data["duration_hint_seconds"] = int(data.get("duration_hint_seconds") or (45 if kind == "short" else 420))
+
+    raw_scenes = data.get("scene_plan")
+    if not isinstance(raw_scenes, list) or not raw_scenes:
+        raw_scenes = _fallback_scenes(data["script"])
+    normalized = []
+    for raw in raw_scenes:
+        if not isinstance(raw, dict):
+            continue
+        spoken = clean_persian(str(raw.get("spoken_text") or "")).strip()
+        if not spoken:
+            continue
+        visual = str(raw.get("visual_prompt") or _visual_prompt_for_text(spoken)).strip()
+        on_screen = _short_on_screen_text(clean_persian(str(raw.get("on_screen_text") or spoken)).strip())
+        try:
+            duration = max(1.5, float(raw.get("duration_hint_seconds") or 4.0))
+        except (TypeError, ValueError):
+            duration = 4.0
+        normalized.append({
+            "spoken_text": spoken,
+            "visual_prompt": visual,
+            "on_screen_text": on_screen,
+            "duration_hint_seconds": duration,
+        })
+    if not normalized:
+        normalized = _fallback_scenes(data["script"])
+    # The narration is always derived from the same scene contract used by the visual engine.
+    data["scene_plan"] = normalized
+    data["script"] = " ".join(scene["spoken_text"] for scene in normalized)
     return data
 
 

@@ -38,6 +38,12 @@ def utc_now_iso() -> str:
 
 
 def run_id(kind: str) -> str:
+    """Use a validated caller-supplied id for retries; otherwise create a unique UTC id."""
+    requested = str(env("PIPELINE_RUN_ID") or "").strip()
+    if requested:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", requested):
+            raise ValueError("PIPELINE_RUN_ID may contain only letters, digits, '_' and '-' (max 80 chars)")
+        return requested
     return f"{kind}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
 
