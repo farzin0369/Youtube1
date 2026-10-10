@@ -107,7 +107,7 @@ def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[s
     data["title"] = title[:100]
     data["description"] = str(data.get("description", "")).strip()
     story_urls = [str(item.get("url")) for item in (topic.get("stories") or []) if item.get("url")]
-    data["sources"] = [str(x) for x in (data.get("sources") or story_urls) if str(x).strip()]
+    # Source URLs are taken from the RSS research object, never invented by the model.\n    data["sources"] = story_urls
     if story_urls:
         missing = [url for url in story_urls if url not in data["description"]]
         if missing:
