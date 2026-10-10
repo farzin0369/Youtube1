@@ -1,12 +1,14 @@
-# ImamAli110 — Cloud-First YouTube Agent
+# ImamAli110 — Scene-Grounded YouTube Agent
 
 تولید و انتشار خودکار محتوای ImamAli110 بدون نیاز به کامپیوتر شخصی.
 
-## معماری رایگان
+## معماری فعلی
 
-موضوع/منبع → فیلمنامه فارسی → گویندگی عصبی فارسی Edge TTS (صدای FaridNeural) با fallback رایگان Piper → رندر سینمایی CPU → FFmpeg → زیرنویس → Quality Gate → YouTube → پاسخ به کامنت‌ها
+**مسیر GPU سینمایی:** موضوع/منبع → فیلمنامهٔ صحنه‌محور → گویندگی فارسی → برنامهٔ صحنه‌ای مشترک → کلیپ‌های CogVideoX روی GPU در Google Colab → تدوین/صدا/زیرنویس → Quality Gate → آپلود خصوصی در YouTube.
 
-نسخه فعلی برای اجرای روزانه از GitHub-hosted standard runner استفاده می‌کند و به self-hosted GPU وابسته نیست.
+**مسیر جایگزین CPU:** برای آزمون ساختار، تولید پیش‌نمایش و اجرای smoke test در GitHub Actions؛ این مسیر جایگزین کیفیت تصویری CogVideoX نیست.
+
+زمان‌بندی GitHub Actions روی runner معمولی CPU اجرا می‌شود؛ تولید واقعی CogVideoX باید در نشست Colab دارای GPU اجرا شود. رایگان بودن Colab به معنی دسترسی دائمی یا اجرای تضمین‌شدهٔ زمان‌بندی‌شده نیست.
 
 GitHub می‌گوید standard runner برای repository عمومی رایگان و نامحدود است؛ runner استاندارد GPU ندارد، بنابراین موتور ویدئو در این مسیر از رندر سینمایی procedural/animated روی CPU استفاده می‌کند.
 
