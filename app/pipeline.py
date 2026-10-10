@@ -55,7 +55,12 @@ def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str
 def main()->None:
     p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
     ensure_dirs(); cfg=load_channel_config()
-    configured=str((cfg.get("publishing") or {}).get("mode") or "private").lower(); publish_mode=configured if configured in ("private","unlisted","public") else args.publish_mode
+    publishing_cfg=cfg.get("publishing") or {}
+    configured=str(publishing_cfg.get("mode") or "private").lower()
+    publish_mode=configured if configured in ("private","unlisted","public") else args.publish_mode
+    if publish_mode=="public" and not bool(publishing_cfg.get("public_publish_enabled",False)):
+        print("[safety] public publishing is disabled by config; forcing private upload",flush=True)
+        publish_mode="private"
     rid=make_run_id(args.kind); out=OUTPUT_DIR/rid; out.mkdir(parents=True,exist_ok=True)
     audit={"run_id":rid,"started_at":utc_now_iso(),"kind":args.kind,"publish_mode":publish_mode,"channel":cfg.get("channel",{}),"steps":{}}
     print(f"=== {rid} | {args.kind} | {publish_mode} | engine={'local' if local_enabled() else 'legacy'} ===")
