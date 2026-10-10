@@ -79,3 +79,29 @@ def test_srt_uses_scene_plan_and_finishes_at_media_duration(tmp_path: Path):
     output = srt_path.read_text(encoding="utf-8")
     assert "آغاز" in output and "پایان" in output
     assert "00:00:12,000" in output
+
+
+def test_authored_scene_plan_must_match_exact_narration():
+    from app.scene_plan import build_scene_plan_from_scenes
+
+    scenes = [
+        {"spoken_text": "سلام.", "visual_prompt": "A person greeting a neighbor", "on_screen_text": "سلام", "duration_hint_seconds": 3},
+        {"spoken_text": "مهربانی مهم است.", "visual_prompt": "Two people helping each other", "on_screen_text": "مهربانی مهم است", "duration_hint_seconds": 4},
+    ]
+    plan = build_scene_plan_from_scenes("سلام. مهربانی مهم است.", "title", scenes)
+    assert [s["visual_prompt"] for s in plan["scenes"]] == [s["visual_prompt"] for s in scenes]
+    with pytest.raises(ValueError, match="exactly equal"):
+        build_scene_plan_from_scenes("سلام. متن دیگری.", "title", scenes)
+
+
+def test_fallback_script_has_scene_contract_and_passes_guard():
+    from app.script_gen import _fallback_script
+    from app.agent_guard import validate_package
+
+    data = _fallback_script(
+        {"title_hint": "مهربانی", "focus": "کمک به دیگران", "source_hint": "نهج البلاغه"},
+        "short",
+    )
+    assert data["scene_plan"]
+    assert " ".join(scene["spoken_text"] for scene in data["scene_plan"]) == data["script"]
+    assert validate_package(data, "short")["ok"]
