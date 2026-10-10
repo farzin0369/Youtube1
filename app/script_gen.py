@@ -41,7 +41,7 @@ def _short_on_screen_text(text: str, limit: int = 42) -> str:
     result = ""
     for word in words:
         candidate = (result + " " + word).strip()
-        if len(candidate) > limit:
+        if len(candidate) > limit or len(candidate.split()) > 8:
             break
         result = candidate
     return result or str(text)[:limit]
