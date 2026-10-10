@@ -37,7 +37,7 @@ python scripts/get_youtube_token.py
 
 سه مقدار چاپ‌شده را در:
 GitHub → Youtube1 → Settings → Secrets and variables → Actions
-بگذارید (اگر از قبل هستند، مقدارشان را Update کنید).
+بگذارید (اگر از قبل هستند، مقدارشان را Update کنید).\n\nپس از به‌روزرسانی، در GitHub → Actions، گردش‌کار **YouTube OAuth preflight (no publishing)** را دستی اجرا کنید. این بررسی فقط اعتبار OAuth و کانال را می‌سنجد و هیچ ویدئویی بارگذاری یا منتشر نمی‌کند.
 
 ## مهم
 
