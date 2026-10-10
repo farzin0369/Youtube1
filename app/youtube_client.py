@@ -22,24 +22,21 @@ def _contains_synthetic_media() -> bool:
     return setting.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str | None:
-    """Return a future publishAt, or None to upload without scheduling.
+def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str:
+    """Validate a requested publish slot and reject slots that are too close/past.
 
-    If the requested slot is too close/past (common after a long Colab render),
-    drop scheduling instead of failing the whole upload — the video still goes up
-    as private/public per privacy mode.
+    Do not silently drop scheduling for a late slot: with public privacy that
+    could publish immediately instead of at the requested time.
     """
     parsed = datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     current = now or datetime.now(timezone.utc)
     if parsed <= current + timedelta(minutes=15):
-        print(
-            f"[youtube] publishAt {publish_at} is too close/past; "
-            "uploading without schedule so the render is not discarded",
-            flush=True,
+        raise ValueError(
+            f"publishAt {publish_at} is too close/past; choose a future slot "
+            "at least 15 minutes away"
         )
-        return None
     return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
