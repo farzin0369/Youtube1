@@ -243,6 +243,7 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
             "captions_path": str(srt_path),
             "duration": duration,
             "style": "stock_motion_cinematic",
+            "on_screen_captions": bool(txt_clips),
             "ok": True,
         }
     except Exception as e:
@@ -252,6 +253,7 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
             "video_path": None,
             "thumbnail_path": str(thumb),
             "captions_path": str(srt_path),
+            "on_screen_captions": False,
             "ok": False,
             "error": str(e),
         }
