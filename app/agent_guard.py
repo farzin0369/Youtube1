@@ -33,6 +33,8 @@ def validate_package(data: dict[str, Any], kind: str) -> dict[str, Any]:
             for key in ("spoken_text", "visual_prompt", "on_screen_text"):
                 if not str(scene.get(key) or "").strip():
                     errors.append(f"scene_{index}_missing_{key}")
+            if len(str(scene.get("on_screen_text") or "").split()) > 8:
+                errors.append(f"scene_{index}_on_screen_text_too_long")
             try:
                 if float(scene.get("duration_hint_seconds") or 0) <= 0:
                     errors.append(f"scene_{index}_invalid_duration")
