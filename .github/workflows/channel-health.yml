@@ -47,20 +47,25 @@ jobs:
           key: imamali110-comment-ledger-${{ github.run_id }}
           restore-keys: |
             imamali110-comment-ledger-
+      - name: Install local Ollama model for bounded comment replies
+        if: steps.tests.outcome == 'success'
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &)
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break || sleep 2; done
+          ollama pull llama3.2:3b
       - name: Generate daily health report
         if: always()
         env:
-          AI_ENGINE: qwen
+          AI_ENGINE: local
+          LOCAL_LLM_MODEL: llama3.2:3b
+          MAX_COMMENT_VIDEOS: "1"
+          MAX_COMMENTS_PER_VIDEO: "5"
           ENABLE_AUTO_COMMENT_REPLIES: ${{ steps.tests.outcome == 'success' && 'true' || 'false' }}
           TEST_STATUS: ${{ steps.tests.outcome }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-          QWEN_API_BASE: ${{ secrets.QWEN_API_BASE }}
-          QWEN_MODEL: ${{ secrets.QWEN_MODEL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
         run: python scripts/daily_health_report.py --test-status "${TEST_STATUS}"
       - name: Save comment reply ledger
         if: always()
