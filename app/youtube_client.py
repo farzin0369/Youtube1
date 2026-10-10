@@ -42,6 +42,12 @@ def upload_video(
     if not video_path or not Path(video_path).exists():
         return {"ok": False, "error": "No video file."}
 
+    synthetic_setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
+    if synthetic_setting is None:
+        contains_synthetic_media = (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
+    else:
+        contains_synthetic_media = synthetic_setting.strip().lower() in {"1", "true", "yes", "on"}
+
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
@@ -56,11 +62,11 @@ def upload_video(
                 "defaultLanguage": "fa",
                 "defaultAudioLanguage": "fa",
             },
-            # CogVideoX produces realistic-looking scenes that did not occur; disclose them to YouTube.
+            # Disclose realistic generated scenes; allow an explicit override for other video engines.
             "status": {
                 "privacyStatus": privacy,
                 "selfDeclaredMadeForKids": False,
-                "containsSyntheticMedia": True,
+                "containsSyntheticMedia": contains_synthetic_media,
             },
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
