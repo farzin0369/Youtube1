@@ -171,10 +171,29 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
         else:
             bg = ColorClip(size=(W, H), color=(10, 18, 28)).set_duration(duration)
 
-        sentences = split_sentences(script) or [script[:100]]
-        slot = duration / max(len(sentences), 1)
+        caption_items = []
+        if scene_plan_path and Path(scene_plan_path).exists():
+            try:
+                import json
+                candidate = json.loads(Path(scene_plan_path).read_text(encoding="utf-8"))
+                source_scenes = candidate.get("scenes", []) if isinstance(candidate, dict) else candidate
+                caption_items = [
+                    str(item.get("on_screen_text") or item.get("spoken_text") or "").strip()
+                    for item in source_scenes if isinstance(item, dict)
+                ]
+                caption_items = [item for item in caption_items if item]
+            except (OSError, ValueError, TypeError):
+                caption_items = []
+        if not caption_items:
+            caption_items = split_sentences(script) or [script[:100]]
+        weights = [max(1, len(item)) for item in caption_items]
+        total_weight = sum(weights) or 1
+        cursor = 0.0
         txt_clips = []
-        for i, sent in enumerate(sentences[:12]):
+        for i, (sent, weight) in enumerate(zip(caption_items[:40], weights[:40])):
+            start_at = cursor
+            cursor += duration * weight / total_weight
+            segment_duration = max(0.1, min(duration - start_at, cursor - start_at))
             try:
                 tc = (
                     TextClip(
@@ -186,8 +205,8 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
                         size=(W - 120, None),
                         align="center",
                     )
-                    .set_start(i * slot)
-                    .set_duration(min(slot, duration - i * slot))
+                    .set_start(start_at)
+                    .set_duration(segment_duration)
                     .set_position(("center", H * 0.72))
                 )
                 txt_clips.append(tc)
