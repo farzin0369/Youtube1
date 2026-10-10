@@ -11,8 +11,8 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-SECRETS_FILE = Path("/content/.imamali110-secrets.json")
-MEMORY_FILE = Path("/content/.imamali110-agent-memory.json")
+SECRETS_FILE = Path("/content/.tt-khabar-secrets.json")
+MEMORY_FILE = Path("/content/.tt-khabar-agent-memory.json")
 REPO = Path("/content/Youtube1")
 RESULT_FILE = Path("/tmp/colab-result.json")
 MEMORY_OUT = Path("/tmp/agent-memory.json")
@@ -91,7 +91,7 @@ def main():
     memory = load_json(MEMORY_FILE, {"schema_version": 1, "editorial_lessons": [], "runs": []})
     memory["editorial_lessons"] = clean_lessons(memory.get("editorial_lessons"))
     memory.setdefault("runs", [])
-    rid = str(secrets.get("PIPELINE_RUN_ID") or ("short_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
+    rid = str(secrets.get("PIPELINE_RUN_ID") or ("news_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
     model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
 
     print("[agent] Checking Colab GPU runtime without holding a CUDA context in this process.")
@@ -181,7 +181,7 @@ def main():
         # T4-safe defaults (secrets can override)
         "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
         "VIDEO_STEPS": str(secrets.get("VIDEO_STEPS") or "8"),
-        "VIDEO_CLIPS_SHORT": str(secrets.get("VIDEO_CLIPS_SHORT") or "3"),
+        "VIDEO_CLIPS_LONG": str(secrets.get("VIDEO_CLIPS_LONG") or "12"),
         "OLLAMA_NUM_GPU": "0",
         "OLLAMA_KEEP_ALIVE": "0",
         "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
@@ -192,7 +192,7 @@ def main():
     print("[agent] Starting production pipeline (logs -> /tmp/pipeline.log).")
     with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
         pipeline = subprocess.run(
-            [sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "public"],
+            [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
             cwd=REPO, env=env, check=False, text=True,
             stdout=logf, stderr=subprocess.STDOUT,
         )
