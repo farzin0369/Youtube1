@@ -1,4 +1,4 @@
-name: ImamAli110 manual CPU preview (not production)
+name: TT Khabar manual CPU preview (not production)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: imamali110-manual-cpu-preview-${{ github.run_id }}
+  group: tt-khabar-manual-cpu-preview-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
