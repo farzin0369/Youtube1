@@ -1,10 +1,10 @@
-name: ImamAli110 daily video (Qwen)
+name: ImamAli110 daily private preview (CPU fallback)
 
 on:
   schedule:
-    # 05:35 Tehran = 02:05 UTC | 20:30 Tehran = 17:00 UTC
+    # One scheduled run per day: 05:35 Tehran = 02:05 UTC.
+    # This is a PRIVATE CPU fallback preview, not the Colab CogVideoX cinematic render.
     - cron: "5 2 * * *"
-    - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -68,9 +68,7 @@ jobs:
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           KIND="${{ github.event.inputs.kind }}"
-          if [ -z "$KIND" ]; then
-            if [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then KIND=long; else KIND=short; fi
-          fi
+          if [ -z "$KIND" ]; then KIND=short; fi
           export QWEN_MODEL="${QWEN_MODEL:-qwen-plus}"
           export QWEN_API_BASE="${QWEN_API_BASE:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}"
           EXTRA=""
