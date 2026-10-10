@@ -2,11 +2,12 @@
 
 ## Current facts
 
-- `app/pipeline.py` runs research, script generation, TTS, rendering, private/unlisted/public YouTube upload, and a first-pass comment reply step.
+- `app/pipeline.py` runs research, local-model script generation, TTS, rendering, quality checks, scheduled YouTube upload, and a first-pass comment reply step.
 - `app/local_video_engine.py` uses CogVideoX only when `VIDEO_ENGINE=cogvideox`; that path requires a live CUDA GPU.
 - `colab/ImamAli110_Cinematic_Production.ipynb` is the available Colab GPU entrypoint.
-- `.github/workflows/daily-youtube.yml` runs on a standard GitHub-hosted CPU runner. It is not a Colab GPU runner and should not be described as producing CogVideoX footage.
-- Free Colab sessions are temporary and not guaranteed to be available at a particular time. GitHub Actions cannot guarantee that a free Colab session starts or remains connected.
+- `.github/workflows/colab-gpu-publishing.yml` requests a Colab T4 runtime through Colab CLI, then runs local Ollama + CogVideoX and asks YouTube to publish at 06:00, 09:00, and 18:00 Asia/Tehran.
+- The old CPU workflow is manual diagnostic only; the legacy Kaggle workflow is no longer scheduled.
+- Colab CLI requires a previously authenticated OAuth token, and GPU allocation can still fail because Google controls account access and quotas.
 
 ## Scene contract and checkpoint behavior
 
@@ -20,7 +21,7 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 
 1. Run CPU-safe tests and syntax checks before a pull request can be merged.
 2. Run a GPU smoke test in Colab with `VIDEO_ENGINE=cogvideox`; verify `scene_plan.json`, all clip files, final MP4 duration, audio, SRT, and thumbnail.
-3. Keep first uploads `private`. Review a real output in YouTube Studio before enabling public or scheduled release.
+3. Production workflow uses YouTube scheduled publishing (`publishAt`); a run is considered successful only when the upload API confirms the video ID. Public publication must still obey the channel's source and media QA gates.
 4. Never put OAuth tokens, model keys, or personal credentials in source files or notebook output.
 5. Sensitive comment categories stay pending; automated replies must not be treated as a substitute for moderation.
 6. Do not deploy self-modifying code automatically. A repair can create a patch and run tests, but production deployment requires a passing test suite and a reviewed change.
@@ -30,17 +31,20 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 - CogVideoX 2B generation on a free Colab GPU may be slow, memory-constrained, or unavailable. Do not promise 4K/8K native generation or true 24 fps motion from an 8 fps source. Current export targets 1080x1920 at 24 output fps; this can repeat frames and is not equivalent to native 24 fps capture.
 - Scene captions are proportionally timed from each scene's narration length. This is an estimate, not forced alignment at phoneme/word level.
 - A clone of the repository is not a persistent job queue. Cross-session resume requires persistent storage and a stable `PIPELINE_RUN_ID`.
-- Public uploads, deletion of comments, and automated replies are side effects. Keep them behind explicit config/policy gates and use private uploads while validating.
+- Public uploads and automated replies are side effects. The production schedule is explicitly enabled by the owner; uncertain comments stay pending, and the self-review agent may update only bounded editorial memory, never executable code or credentials.
 
-## Next phases
+## Current autonomous loop
 
-1. Validate this scene-plan/checkpoint change in CI.
-2. Add Colab persistent-storage setup and confirm a same-run retry reuses generated clips.
-3. Add media QA: ffprobe metadata, non-empty audio, subtitle bounds, thumbnail existence, scene completeness, and configurable duration thresholds.
-4. Add a durable job ledger with lease/lock to prevent duplicate runs.
-5. Add YouTube Analytics ingestion only after API scopes/permissions are verified; measure impressions CTR, retention and watch time with documented sample windows.
-6. Add comment deduplication, reply audit trail, spam handling review queue, and a strict allowlist for safe auto-replies.
-7. Add daily changelog/report artifacts and rollback-by-reverting a reviewed commit. Never let an untested agent edit and deploy production code without a gate.
+1. Three daily GitHub schedule triggers request a Colab T4 runtime about six hours before each target publication slot.
+2. A local Ollama model generates scripts using a bounded cache of editorial lessons; no hosted LLM API is used.
+3. CogVideoX runs only after a CUDA check and media QA blocks an invalid render from upload.
+4. YouTube receives a private upload with a `publishAt` timestamp so it can release the video at the requested Tehran time.
+5. After each run, a local model reviews the audit and may update only short editorial lessons and run summaries. It is not permitted to rewrite code or secrets.
+6. GitHub Actions retains bounded memory and evidence artifacts. A failed Colab auth, unavailable GPU, failed test, invalid render, or failed upload must surface as a failed run rather than silently switching to CPU.
+
+## Remaining external dependency
+
+The workflow requires `COLAB_CLI_TOKEN_JSON` plus the existing YouTube OAuth secrets. The repository tools cannot read or create GitHub Actions secrets, and the first Colab OAuth authorization cannot be bypassed safely. After this one-time credential setup, scheduled execution is automated subject to Colab quota and availability.
 
 
 ## Channel operations and daily reporting

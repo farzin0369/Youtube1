@@ -1,10 +1,6 @@
-name: ImamAli110 daily private preview (CPU fallback)
+name: ImamAli110 manual CPU preview (not production)
 
 on:
-  schedule:
-    # One scheduled run per day: 05:35 Tehran = 02:05 UTC.
-    # This is a PRIVATE CPU fallback preview, not the Colab CogVideoX cinematic render.
-    - cron: "5 2 * * *"
   workflow_dispatch:
     inputs:
       kind:
@@ -23,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: imamali110-qwen-${{ github.event.schedule || inputs.kind || github.event_name }}
+  group: imamali110-manual-cpu-preview-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -48,18 +44,11 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/piper"
           curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx
           curl -L --fail --retry 3 -o "${RUNNER_TEMP}/piper/fa_IR-amir-medium.onnx.json" https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json
-      - name: Generate daily video
+      - name: Generate diagnostic preview
         env:
-          AI_ENGINE: qwen
+          AI_ENGINE: local
+          LOCAL_LLM_MODEL: llama3.2:3b
           VIDEO_ENGINE: cpu
-          # Qwen (Alibaba DashScope) — primary LLM; local script fallback works without API credits.
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
-          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-          QWEN_API_BASE: ${{ secrets.QWEN_API_BASE }}
-          QWEN_MODEL: ${{ secrets.QWEN_MODEL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          # Free, locally generated Persian narration: no OpenAI TTS credits needed.
           TTS_PROVIDER: edge
           TTS_VOICE: fa-IR-FaridNeural
           PIPER_MODEL: ${{ runner.temp }}/piper/fa_IR-amir-medium.onnx
@@ -69,16 +58,13 @@ jobs:
         run: |
           KIND="${{ github.event.inputs.kind }}"
           if [ -z "$KIND" ]; then KIND=short; fi
-          export QWEN_MODEL="${QWEN_MODEL:-qwen-plus}"
-          export QWEN_API_BASE="${QWEN_API_BASE:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}"
           EXTRA=""
-          # Scheduled runs publish; only a manual run with dry_run=true skips upload.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then EXTRA="--dry-run"; fi
           python -m app.pipeline --kind "$KIND" --publish-mode private $EXTRA
       - name: Upload audit/output
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: youtube-output-${{ github.run_id }}
+          name: youtube-cpu-diagnostic-${{ github.run_id }}
           path: output/
           retention-days: 14

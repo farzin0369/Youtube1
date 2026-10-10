@@ -1,9 +1,6 @@
-name: ImamAli110 cinematic GPU video
+name: Legacy Kaggle GPU launcher (manual only; production uses Colab)
 
 on:
-  schedule:
-    # 05:35 Tehran = 02:05 UTC
-    - cron: "5 2 * * *"
   workflow_dispatch:
     inputs:
       kind:

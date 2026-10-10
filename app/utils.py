@@ -59,23 +59,6 @@ def env(name: str, default: str | None = None) -> str | None:
     return v
 
 
-def has_qwen() -> bool:
-    return bool(env("QWEN_API_KEY") or env("DASHSCOPE_API_KEY"))
-
-
-def has_openai() -> bool:
-    return bool(env("OPENAI_API_KEY"))
-
-
-def qwen_client_kwargs() -> dict[str, str]:
-    """OpenAI-compatible client settings for Alibaba Qwen (DashScope)."""
-    key = env("QWEN_API_KEY") or env("DASHSCOPE_API_KEY") or ""
-    base = env("QWEN_API_BASE") or env("DASHSCOPE_API_BASE") or (
-        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    )
-    return {"api_key": key, "base_url": base}
-
-
 def has_youtube_creds() -> bool:
     return all(
         env(k)

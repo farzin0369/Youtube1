@@ -39,7 +39,7 @@ def main() -> int:
     health = channel_health()
     moderation = None
     if os.environ.get("ENABLE_AUTO_COMMENT_REPLIES", "false").strip().lower() in {"1", "true", "yes", "on"}:
-        moderation = reply_to_recent_comments(max_videos=3, max_comments_per_video=10)
+        moderation = reply_to_recent_comments(max_videos=int(os.environ.get("MAX_COMMENT_VIDEOS", "1")), max_comments_per_video=int(os.environ.get("MAX_COMMENTS_PER_VIDEO", "5")))
     data = {
         "created_at": utc_now_iso(),
         "git_sha": _git_sha(),
@@ -50,8 +50,7 @@ def main() -> int:
         "recent_changes": _recent_changes(),
         "secrets_present": {
             "youtube_oauth": all(os.environ.get(k) for k in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")),
-            "qwen": bool(os.environ.get("QWEN_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")),
-            "openai": bool(os.environ.get("OPENAI_API_KEY")),
+            "local_model": bool(os.environ.get("LOCAL_LLM_MODEL") or os.environ.get("AI_ENGINE") == "local"),
         },
     }
     (report_dir / "daily_health_report.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -63,8 +62,7 @@ def main() -> int:
         f"- Python: {data['python']}",
         f"- Unit tests: **{args.test_status}**",
         f"- YouTube OAuth/API: **{'OK' if health.get('youtube') else 'FAILED'}**",
-        f"- Qwen configured: **{'yes' if health.get('qwen_configured') else 'no'}**",
-        f"- OpenAI configured: **{'yes' if health.get('openai_configured') else 'no'}**",
+        f"- Local model configured: **{'yes' if health.get('local_ai') else 'no'}**",
         "",
         f"- Auto comment moderation: **{'enabled' if moderation is not None else 'disabled'}**",
         "",
@@ -81,7 +79,7 @@ def main() -> int:
         "",
         "- This report does not include credentials or tokens.",
         "- GitHub-hosted runners have no CUDA GPU; this is a health/test report, not proof of a successful Colab GPU render.",
-        "- Public publishing remains disabled unless explicitly enabled in channel configuration.",
+        "- Public publishing is controlled by the channel configuration and the scheduled Colab GPU workflow.",
     ]
     stats = health.get("statistics")
     if isinstance(stats, dict):

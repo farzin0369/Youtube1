@@ -53,11 +53,11 @@ def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str
     return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"on_screen_captions":True,"ok":True}
 
 def main()->None:
-    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default=None); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
     ensure_dirs(); cfg=load_channel_config()
     publishing_cfg=cfg.get("publishing") or {}
     configured=str(publishing_cfg.get("mode") or "private").lower()
-    publish_mode=configured if configured in ("private","unlisted","public") else args.publish_mode
+    publish_mode=args.publish_mode or (configured if configured in ("private","unlisted","public") else "private")
     if publish_mode=="public" and not bool(publishing_cfg.get("public_publish_enabled",False)):
         print("[safety] public publishing is disabled by config; forcing private upload",flush=True)
         publish_mode="private"
