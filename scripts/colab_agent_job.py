@@ -116,6 +116,7 @@ def main():
         "YOUTUBE_CLIENT_ID": str(secrets["YOUTUBE_CLIENT_ID"]),
         "YOUTUBE_CLIENT_SECRET": str(secrets["YOUTUBE_CLIENT_SECRET"]),
         "YOUTUBE_REFRESH_TOKEN": str(secrets["YOUTUBE_REFRESH_TOKEN"]),
+        "YOUTUBE_PUBLISH_AT": str(secrets.get("YOUTUBE_PUBLISH_AT") or ""),
     })
     pipeline = run([sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "public"],
                    cwd=REPO, env=env, check=False, capture_output=True)
