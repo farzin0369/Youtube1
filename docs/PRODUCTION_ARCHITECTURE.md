@@ -42,7 +42,9 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 5. After each run, a local model reviews the audit and may update only short editorial lessons and run summaries. It is not permitted to rewrite code or secrets.
 6. GitHub Actions retains bounded memory and evidence artifacts. A failed Colab auth, unavailable GPU, failed test, invalid render, or failed upload must surface as a failed run rather than silently switching to CPU.
 
-T4-safe defaults in production: `VIDEO_FRAMES=17`, `VIDEO_STEPS=8`, `VIDEO_CLIPS_SHORT=3`.
+T4-safe defaults in production: `VIDEO_FRAMES=17`, `VIDEO_STEPS=8`, `VIDEO_CLIPS_SHORT=3`. If a scene still exhausts GPU memory, the renderer retries 13 frames / 6 steps and then 9 frames / 4 steps.
+
+Ollama runs with `OLLAMA_NUM_GPU=0` and is unloaded before CogVideoX loads, so the language model and the video model do not share the T4. The Colab job checks the GPU with `nvidia-smi` instead of importing PyTorch in the parent process. `colab exec` is called with `--timeout 14400` because the CLI default is 30 seconds and a silent CogVideoX step was aborting the run (`exit=-9`). A high-RAM T4 is requested first and a standard T4 is used when that shape is not entitled. The remote runtime checks out `GIT_SHA` from the workflow, not whatever happens to be on `main`.
 
 ## Remaining external dependency
 
