@@ -212,14 +212,39 @@ def main():
     if kind not in {"short", "long"}:
         raise RuntimeError("Unsupported pipeline kind; refusing to publish.")
 
-    # Stream logs to a file to avoid pipe-buffer deadlock on long CogVideoX runs.
-    print(f"[agent] Starting TT Khabar {kind} news pipeline (logs -> /tmp/pipeline.log).")
-    with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
-        pipeline = subprocess.run(
-            [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
-            cwd=REPO, env=env, check=False, text=True,
-            stdout=logf, stderr=subprocess.STDOUT,
-        )
+    # Bounded self-healing: retry transient infrastructure/model errors up to five times.
+    # Do not retry permanent editorial or OAuth failures; those require a source/config change.
+    max_attempts = min(5, max(1, int(secrets.get("MAX_PIPELINE_ATTEMPTS") or 5)))
+    fatal_markers = (
+        "invalid_grant", "YouTube OAuth refresh failed", "No source-linked news",
+        "News topic contains no source-linked stories", "Production quality gate failed",
+        "news_script_word_count_outside", "news_sources_must_be_urls",
+        "all_news_source_urls_must_be_in_description",
+    )
+    pipeline = None
+    for attempt in range(1, max_attempts + 1):
+        print(f"[self-heal] pipeline attempt {attempt}/{max_attempts}")
+        mode = "w" if attempt == 1 else "a"
+        with PIPELINE_LOG.open(mode, encoding="utf-8") as logf:
+            logf.write(f"\\n[self-heal] attempt {attempt}/{max_attempts}\\n")
+            logf.flush()
+            pipeline = subprocess.run(
+                [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
+                cwd=REPO, env=env, check=False, text=True,
+                stdout=logf, stderr=subprocess.STDOUT,
+            )
+        if pipeline.returncode == 0:
+            print(f"[self-heal] attempt {attempt} succeeded")
+            break
+        current_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
+        if any(marker.lower() in current_tail.lower() for marker in fatal_markers):
+            print("[self-heal] non-retryable content/OAuth failure detected; stopping safely")
+            break
+        if attempt < max_attempts:
+            delay = min(30 * (2 ** (attempt - 1)), 180)
+            print(f"[self-heal] transient failure; retrying after {delay}s")
+            time.sleep(delay)
+
     log_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
     print("[pipeline log tail]\n" + log_tail)
     if pipeline.returncode < 0:
@@ -238,7 +263,7 @@ def main():
     run_record = {
         "run_id": rid,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "success": pipeline.returncode == 0 and bool(upload.get("ok")),
+        "success": pipeline is not None and pipeline.returncode == 0 and bool(upload.get("ok")),\n        "attempts": attempt,
         "topic": str(topic.get("title_hint") or topic.get("title") or "")[:180],
         "title": str(((audit.get("steps") or {}).get("script") or {}).get("title") or "")[:180],
         "video_url": str(upload.get("url") or ""),
@@ -288,7 +313,7 @@ def main():
     except Exception:
         pass
     ollama_log.close()
-    if pipeline.returncode != 0 or not upload.get("ok"):
+    if pipeline is None or pipeline.returncode != 0 or not upload.get("ok"):
         raise RuntimeError(
             "Pipeline failed or YouTube upload was not confirmed. "
             f"exit={pipeline.returncode} upload_ok={upload.get('ok')} "
