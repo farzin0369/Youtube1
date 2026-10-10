@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.utils import env, has_youtube_creds
@@ -58,6 +59,12 @@ def upload_video(
 
         youtube = build("youtube", "v3", credentials=_build_credentials())
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
+        if scheduled_at:
+            # If rendering overruns the target slot, keep the release scheduled instead of uploading late.
+            parsed_at = datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+            if parsed_at <= datetime.now(timezone.utc) + timedelta(minutes=15):
+                parsed_at += timedelta(days=1)
+                scheduled_at = parsed_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         # YouTube requires scheduled videos to be uploaded as private with publishAt set.
         effective_privacy = "private" if scheduled_at and privacy == "public" else privacy
         body = {
