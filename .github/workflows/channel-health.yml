@@ -31,6 +31,11 @@ jobs:
           mkdir -p output
           python -m compileall -q app scripts
           python -m pytest -q 2>&1 | tee output/tests.log
+      - name: Prepare persistent moderation state
+        if: always()
+        run: |
+          mkdir -p output
+          if [ ! -f output/comment_reply_ledger.json ]; then printf '{"replied":{}}\\n' > output/comment_reply_ledger.json; fi
       - name: Restore comment reply ledger
         if: always()
         uses: actions/cache/restore@v4
