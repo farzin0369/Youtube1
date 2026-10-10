@@ -1,0 +1,137 @@
+name: ImamAli110 Colab GPU quality preview (no upload)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: imamali110-quality-preview-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  quality-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Colab CLI
+        run: python -m pip install --upgrade google-colab-cli
+
+      - name: Configure Colab CLI account session
+        env:
+          COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
+        run: |
+          if [ -z "$COLAB_CLI_TOKEN_JSON" ]; then
+            echo "::error::COLAB_CLI_TOKEN_JSON secret is missing."
+            exit 1
+          fi
+          mkdir -p "$HOME/.config/colab-cli"
+          printf '%s' "$COLAB_CLI_TOKEN_JSON" > "$HOME/.config/colab-cli/token.json"
+          chmod 600 "$HOME/.config/colab-cli/token.json"
+          colab --auth oauth2 sessions || true
+
+      - name: Create job payload (no YouTube required)
+        env:
+          PIPELINE_RUN_ID: preview_${{ github.run_id }}_${{ github.run_attempt }}
+          LOCAL_LLM_MODEL: llama3.2:3b
+          GIT_SHA: ${{ github.sha }}
+          VIDEO_FRAMES: "17"
+          VIDEO_STEPS: "8"
+          VIDEO_CLIPS_SHORT: "3"
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          target = Path(os.environ["RUNNER_TEMP"]) / "imamali-preview.json"
+          payload = {key: os.environ.get(key, "") for key in (
+              "PIPELINE_RUN_ID", "LOCAL_LLM_MODEL", "GIT_SHA",
+              "VIDEO_FRAMES", "VIDEO_STEPS", "VIDEO_CLIPS_SHORT",
+          )}
+          target.write_text(json.dumps(payload), encoding="utf-8")
+          target.chmod(0o600)
+          PY
+
+      - name: Provision Colab T4 GPU runtime
+        env:
+          SESSION: preview-${{ github.run_id }}
+        run: |
+          if colab --auth oauth2 new --gpu T4 --high-mem -s "$SESSION"; then
+            echo "High-RAM T4 ready."
+          else
+            colab --auth oauth2 stop -s "$SESSION" || true
+            colab --auth oauth2 new --gpu T4 -s "$SESSION"
+          fi
+
+      - name: Transfer job inputs
+        env:
+          SESSION: preview-${{ github.run_id }}
+        run: |
+          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/imamali-preview.json" /content/.imamali110-secrets.json
+
+      - name: Run cinematic render preview (dry-run, no YouTube)
+        env:
+          SESSION: preview-${{ github.run_id }}
+        run: colab --auth oauth2 exec -s "$SESSION" --timeout 14400 -f scripts/colab_preview_job.py
+
+      - name: Download preview video and evidence
+        if: always()
+        env:
+          SESSION: preview-${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/preview"
+          colab --auth oauth2 download -s "$SESSION" /tmp/colab-result.json "$RUNNER_TEMP/colab-result.json" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/pipeline.log "$RUNNER_TEMP/pipeline.log" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/preview/video.mp4 "$RUNNER_TEMP/preview/video.mp4" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/preview/thumbnail.jpg "$RUNNER_TEMP/preview/thumbnail.jpg" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/preview/script.txt "$RUNNER_TEMP/preview/script.txt" || true
+          colab --auth oauth2 download -s "$SESSION" /tmp/preview/scene_plan.json "$RUNNER_TEMP/preview/scene_plan.json" || true
+          if [ -f "$RUNNER_TEMP/colab-result.json" ]; then
+            cat "$RUNNER_TEMP/colab-result.json"
+          fi
+          ls -la "$RUNNER_TEMP/preview" || true
+
+      - name: Verify preview success
+        if: always()
+        run: |
+          RESULT_FILE="$RUNNER_TEMP/colab-result.json"
+          if [ ! -s "$RESULT_FILE" ]; then
+            echo "::error::No result file from Colab."
+            exit 1
+          fi
+          python - "$RESULT_FILE" <<'PY'
+          import json, sys
+          from pathlib import Path
+          result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if result.get("success") is not True:
+              print("Preview result:", json.dumps(result, ensure_ascii=False, indent=2))
+              print("::error::Quality preview render failed.")
+              raise SystemExit(1)
+          print("Preview OK. title=", result.get("title"))
+          print("video_bytes=", result.get("video_bytes"))
+          PY
+          if [ ! -s "$RUNNER_TEMP/preview/video.mp4" ]; then
+            echo "::error::video.mp4 was not downloaded."
+            exit 1
+          fi
+          ls -lh "$RUNNER_TEMP/preview/video.mp4"
+
+      - name: Upload downloadable preview artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: imamali110-quality-preview-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/preview/
+            ${{ runner.temp }}/colab-result.json
+            ${{ runner.temp }}/pipeline.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop Colab GPU runtime
+        if: always()
+        env:
+          SESSION: preview-${{ github.run_id }}
+        run: colab --auth oauth2 stop -s "$SESSION" || true
