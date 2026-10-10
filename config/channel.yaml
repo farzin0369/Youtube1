@@ -8,19 +8,19 @@ channel:
   tts_voice: onyx
   tts_model: tts-1-hd
   visual_style: سینمایی؛ کلیپ متحرک؛ بدون چهره مقدس
-  ai_engine: qwen
-  llm_model: qwen-plus
+  ai_engine: local
+  llm_model: llama3.2:3b
   logo: generate-once-and-cache
 
 schedule:
-  short: "05:35"
+  short: "06:00,09:00,18:00"
   long: "manual"
   short_duration_seconds: 45
   long_duration_minutes: "6-10"
 
 publishing:
-  mode: private
-  public_publish_enabled: false
+  mode: public
+  public_publish_enabled: true
   require_review_for_sensitive_comments: true
 
 content:
