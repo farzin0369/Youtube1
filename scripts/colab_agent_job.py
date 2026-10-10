@@ -185,9 +185,10 @@ def main():
         "OLLAMA_BASE_URL": base,
         "VIDEO_ENGINE": "cogvideox",
         "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
-        "TTS_PROVIDER": "auto",
+        # Pin one provider and voice so configured API-key fallbacks cannot change the narrator.
+        "TTS_PROVIDER": "edge",
         "TTS_VOICE": "fa-IR-FaridNeural",
-        "PIPER_MODEL": str(piper_model) if piper_model.exists() and piper_json.exists() else "",
+        "PIPER_MODEL": "",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "PIPELINE_RUN_ID": rid,
         "TT_KHABAR_NEWS_FILE": "/content/.tt-khabar-news.json",

@@ -5,7 +5,7 @@ channel:
   language: fa-IR
   timezone: Asia/Tehran
   audience: مخاطب عمومی فارسی‌زبان
-  objective: ارائه خبرهای جهانی دقیق، سریع، متوازن و قابل‌فهم به زبان فارسی
+  objective: ارائه خبرهای دقیق، سریع، متوازن و قابل‌فهم درباره ایران و رویدادهای جهانی مرتبط با ایران به زبان فارسی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge
@@ -15,9 +15,9 @@ channel:
   logo: generate-once-and-cache
 
 schedule:
-  news_cycle_hours: 4
+  news_cycle_hours: 1
   short: "manual"
-  long: "0 */4 * * *"
+  long: "0 * * * *"
   short_duration_seconds: 45
   long_duration_minutes: "3-5"
 
