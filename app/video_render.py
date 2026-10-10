@@ -77,8 +77,8 @@ def write_srt(script: str, out_path: Path, total_duration: float, scene_plan_pat
     if scene_plan_path and Path(scene_plan_path).exists():
         try:
             candidate = json.loads(Path(scene_plan_path).read_text(encoding="utf-8"))
-            scenes = candidate.get("scenes", [])
-            if scenes and all(str(s.get("spoken_text") or "").strip() for s in scenes):
+            scenes = candidate.get("scenes", []) if isinstance(candidate, dict) else candidate
+            if scenes and all(isinstance(s, dict) and str(s.get("spoken_text") or "").strip() for s in scenes):
                 plan = scenes
         except (OSError, ValueError, TypeError):
             plan = None
@@ -131,7 +131,7 @@ def _burn_captions_ffmpeg(video_in: Path, srt: Path, video_out: Path) -> None:
     subprocess.run(cmd, check=True, capture_output=True)
 
 
-def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: str) -> dict[str, Any]:
+def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: str, scene_plan_path: Path | None = None) -> dict[str, Any]:
     out_dir = OUTPUT_DIR / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     thumb = make_thumbnail(title, out_dir / "thumbnail.jpg", kind)
@@ -152,7 +152,7 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
         audio = AudioFileClip(str(audio_path))
         duration = float(audio.duration) if audio.duration else (45.0 if kind == "short" else 300.0)
         duration = min(duration, 60.0 if kind == "short" else 420.0)
-        write_srt(script, srt_path, duration)
+        write_srt(script, srt_path, duration, scene_plan_path=scene_plan_path)
 
         stock_path = _download_stock(out_dir / "stock.mp4")
         if stock_path:
@@ -228,7 +228,7 @@ def render_video(script: str, audio_path: Path, title: str, kind: str, run_id: s
         }
     except Exception as e:
         print(f"[video] render failed: {e}")
-        write_srt(script, srt_path, 45.0 if kind == "short" else 300.0)
+        write_srt(script, srt_path, 45.0 if kind == "short" else 300.0, scene_plan_path=scene_plan_path)
         return {
             "video_path": None,
             "thumbnail_path": str(thumb),
