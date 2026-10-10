@@ -93,7 +93,11 @@ def reply_to_comments(video_id: str, max_comments: int = 10) -> dict[str, Any]:
         ledger["replied"] = {}
     previous_pending = _load_json(pending_path, {"pending": []}).get("pending", [])
     pending_by_id = {
-        str(item.get("comment_id")): item
+        str(item.get("comment_id")): {
+            key: item.get(key)
+            for key in ("comment_id", "video_id", "reason", "created_at")
+            if item.get(key) is not None
+        }
         for item in previous_pending if isinstance(item, dict) and item.get("comment_id")
     }
     replied = 0
@@ -116,7 +120,7 @@ def reply_to_comments(video_id: str, max_comments: int = 10) -> dict[str, Any]:
             skipped += 1
             continue
         if _looks_like_spam(text):
-            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "comment": text, "reason": "possible spam; manual review"}
+            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "reason": "possible spam; manual review", "created_at": utc_now_iso()}
             continue
 
         prompt = (
@@ -130,10 +134,10 @@ def reply_to_comments(video_id: str, max_comments: int = 10) -> dict[str, Any]:
         try:
             reply = _generate_reply(prompt).strip()
         except Exception as exc:
-            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "comment": text, "reason": f"generation failed: {exc}"}
+            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "reason": f"generation failed: {exc}", "created_at": utc_now_iso()}
             continue
         if not reply or reply.upper().strip(" .!؟") == "PENDING":
-            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "comment": text, "reason": "policy review"}
+            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "reason": "policy review", "created_at": utc_now_iso()}
             continue
         if len(reply) > 1000:
             reply = reply[:997].rstrip() + "..."
@@ -147,7 +151,7 @@ def reply_to_comments(video_id: str, max_comments: int = 10) -> dict[str, Any]:
             save_json(ledger_path, ledger)
             replied += 1
         except Exception as exc:
-            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "comment": text, "reason": f"YouTube reply failed: {exc}"}
+            pending_by_id[comment_id] = {"comment_id": comment_id, "video_id": video_id, "reason": f"YouTube reply failed: {exc}", "created_at": utc_now_iso()}
 
     save_json(pending_path, {"updated_at": utc_now_iso(), "pending": list(pending_by_id.values())})
     return {"ok": True, "replied": replied, "skipped_duplicate_or_self": skipped, "pending": len(pending_by_id)}
