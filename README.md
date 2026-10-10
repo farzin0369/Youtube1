@@ -63,7 +63,7 @@ GitHub می‌گوید standard runner برای repository عمومی رایگا
 
 The CogVideoX path now uses a versioned `scene_plan.json` as the shared contract for scene narration, visual prompts, on-screen text and estimated duration. Each generated scene clip and status is checkpointed atomically; retries with the same `PIPELINE_RUN_ID` can reuse completed clips when output storage persists. The Colab notebook mounts Google Drive and stores the output directory there.
 
-For an initial validation run, keep YouTube privacy set to `private`. Colab GPU availability is not guaranteed, and GitHub-hosted CPU Actions are not a substitute for GPU-generated CogVideoX footage. Output is encoded at 1080x1920 and 24 output fps; this does not mean the underlying model natively generates 24 fps or 4K/8K video.
+Scheduled videos are uploaded privately with YouTube `publishAt` metadata, then released publicly by YouTube at the requested time. Colab GPU availability is not guaranteed, and GitHub-hosted CPU Actions are not a substitute for GPU-generated CogVideoX footage. Output is encoded at 1080x1920 and 24 output fps; this does not mean the underlying model natively generates 24 fps or 4K/8K video.
 
 See [docs/PRODUCTION_ARCHITECTURE.md](docs/PRODUCTION_ARCHITECTURE.md) for checkpoint semantics, limitations, release gates and the remaining roadmap. Regression tests live in `tests/` and run in pull requests.
 
