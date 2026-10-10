@@ -1,0 +1,43 @@
+# Production architecture and rollout plan
+
+## Current facts
+
+- `app/pipeline.py` runs research, script generation, TTS, rendering, private/unlisted/public YouTube upload, and a first-pass comment reply step.
+- `app/local_video_engine.py` uses CogVideoX only when `VIDEO_ENGINE=cogvideox`; that path requires a live CUDA GPU.
+- `colab/ImamAli110_Cinematic_Production.ipynb` is the available Colab GPU entrypoint.
+- `.github/workflows/daily-youtube.yml` runs on a standard GitHub-hosted CPU runner. It is not a Colab GPU runner and should not be described as producing CogVideoX footage.
+- Free Colab sessions are temporary and not guaranteed to be available at a particular time. GitHub Actions cannot guarantee that a free Colab session starts or remains connected.
+
+## Scene contract and checkpoint behavior
+
+`app/scene_plan.py` defines a versioned scene plan with `spoken_text`, `visual_prompt`, `on_screen_text`, duration hints, status, clip path, and error. Writes are atomic. A plan is reused only when its script fingerprint, title, and kind match; stale plans are preserved with a `.stale` suffix rather than silently reused.
+
+The CogVideoX engine writes each scene clip into the run output folder and updates `scene_plan.json` after each scene. On retry with the same run ID and persistent output storage, completed clips can be reused. This does not make ephemeral `/content` durable by itself: mount Google Drive or another persistent storage before relying on cross-session recovery.
+
+Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, hyphen; max 80 chars) when retrying the same job. Do not reuse the ID if the script/topic should be regenerated.
+
+## Quality and publishing gates
+
+1. Run CPU-safe tests and syntax checks before a pull request can be merged.
+2. Run a GPU smoke test in Colab with `VIDEO_ENGINE=cogvideox`; verify `scene_plan.json`, all clip files, final MP4 duration, audio, SRT, and thumbnail.
+3. Keep first uploads `private`. Review a real output in YouTube Studio before enabling public or scheduled release.
+4. Never put OAuth tokens, model keys, or personal credentials in source files or notebook output.
+5. Sensitive comment categories stay pending; automated replies must not be treated as a substitute for moderation.
+6. Do not deploy self-modifying code automatically. A repair can create a patch and run tests, but production deployment requires a passing test suite and a reviewed change.
+
+## Operational limitations
+
+- CogVideoX 2B generation on a free Colab GPU may be slow, memory-constrained, or unavailable. Do not promise 4K/8K native generation or true 24 fps motion from an 8 fps source. Current export targets 1080x1920 at 24 output fps; this can repeat frames and is not equivalent to native 24 fps capture.
+- Scene captions are proportionally timed from each scene's narration length. This is an estimate, not forced alignment at phoneme/word level.
+- A clone of the repository is not a persistent job queue. Cross-session resume requires persistent storage and a stable `PIPELINE_RUN_ID`.
+- Public uploads, deletion of comments, and automated replies are side effects. Keep them behind explicit config/policy gates and use private uploads while validating.
+
+## Next phases
+
+1. Validate this scene-plan/checkpoint change in CI.
+2. Add Colab persistent-storage setup and confirm a same-run retry reuses generated clips.
+3. Add media QA: ffprobe metadata, non-empty audio, subtitle bounds, thumbnail existence, scene completeness, and configurable duration thresholds.
+4. Add a durable job ledger with lease/lock to prevent duplicate runs.
+5. Add YouTube Analytics ingestion only after API scopes/permissions are verified; measure impressions CTR, retention and watch time with documented sample windows.
+6. Add comment deduplication, reply audit trail, spam handling review queue, and a strict allowlist for safe auto-replies.
+7. Add daily changelog/report artifacts and rollback-by-reverting a reviewed commit. Never let an untested agent edit and deploy production code without a gate.
