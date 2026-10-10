@@ -42,7 +42,7 @@ def test_checkpoint_round_trip_and_resume(tmp_path: Path):
     plan = load_or_create_plan(path, "صحنهٔ اول. صحنهٔ دوم.", "title", scene_count=2)
     mark_scene(plan, 0, status="complete", clip_path="clips/scene_001.mp4")
     atomic_write_json(path, plan)
-    restored = load_or_create_plan(path, "متن متفاوت که نباید طرح ذخیره‌شده را جایگزین کند.", "other")
+    restored = load_or_create_plan(path, "صحنهٔ اول. صحنهٔ دوم.", "title", scene_count=2)
     assert completed_scene_indices(restored) == {0}
     assert restored["title"] == "title"
     assert json.loads(path.read_text(encoding="utf-8"))["scenes"][0]["status"] == "complete"
@@ -54,3 +54,14 @@ def test_invalid_checkpoint_is_preserved_for_debugging(tmp_path: Path):
     plan = load_or_create_plan(path, "یک صحنه.", "title")
     assert plan["scene_count"] == 1
     assert path.with_suffix(".json.invalid").exists()
+
+
+def test_changed_script_does_not_reuse_stale_scene_plan(tmp_path: Path):
+    path = tmp_path / "scene_plan.json"
+    first = load_or_create_plan(path, "متن اول.", "title")
+    mark_scene(first, 0, status="complete", clip_path="clips/scene_001.mp4")
+    atomic_write_json(path, first)
+    second = load_or_create_plan(path, "متن دوم.", "title")
+    assert second["scenes"][0]["spoken_text"] == "متن دوم."
+    assert second["scenes"][0]["status"] == "pending"
+    assert path.with_suffix(".json.stale").exists()
