@@ -56,7 +56,12 @@ def upload_video(
                 "defaultLanguage": "fa",
                 "defaultAudioLanguage": "fa",
             },
-            "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+            # CogVideoX produces realistic-looking scenes that did not occur; disclose them to YouTube.
+            "status": {
+                "privacyStatus": privacy,
+                "selfDeclaredMadeForKids": False,
+                "containsSyntheticMedia": True,
+            },
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
