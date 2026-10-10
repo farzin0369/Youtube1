@@ -29,6 +29,7 @@ jobs:
         run: |
           test -f app/pipeline.py
           test -f app/scene_plan.py
+          test -f app/media_qa.py
           test -f app/video_render.py
           test -f app/youtube_client.py
           test -f app/channel_ops.py
