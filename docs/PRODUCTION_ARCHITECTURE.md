@@ -41,3 +41,11 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 5. Add YouTube Analytics ingestion only after API scopes/permissions are verified; measure impressions CTR, retention and watch time with documented sample windows.
 6. Add comment deduplication, reply audit trail, spam handling review queue, and a strict allowlist for safe auto-replies.
 7. Add daily changelog/report artifacts and rollback-by-reverting a reviewed commit. Never let an untested agent edit and deploy production code without a gate.
+
+
+## Channel operations and daily reporting
+
+- `app/channel_ops.py` records successful reply IDs in `output/comment_reply_ledger.json`, checks for an existing channel reply, skips the channel's own comments, and preserves uncertain/spam-like cases in `output/pending_replies.json`.
+- Suspected spam is queued for human review; this workflow does not automatically delete comments or report users because those actions can be irreversible and may misclassify legitimate comments.
+- The daily `channel-health.yml` workflow runs syntax/unit tests, checks YouTube OAuth/API access, and uploads a health report plus the last-24-hour repository change list as an artifact.
+- The health report is a diagnostic snapshot, not full YouTube Analytics ingestion. CTR and audience-retention analysis still needs Analytics API authorization and a separate data pipeline.
