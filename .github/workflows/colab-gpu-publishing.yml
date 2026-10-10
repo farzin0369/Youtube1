@@ -37,7 +37,12 @@ jobs:
 
       - name: Install Colab CLI and YouTube auth deps
         run: |
-          python -m pip install --upgrade google-colab-cli google-auth google-auth-oauthlib google-api-python-client
+          python -m pip install --upgrade google-colab-cli google-auth google-auth-oauthlib google-api-python-client PyYAML
+
+      - name: Collect and validate current news before GPU allocation
+        env:
+          TT_KHABAR_NEWS_OUTPUT: ${{ runner.temp }}/tt-khabar-news.json
+        run: python scripts/collect_news.py --output "$TT_KHABAR_NEWS_OUTPUT"
 
       - name: Configure Colab CLI account session
         env:
@@ -146,6 +151,7 @@ jobs:
           SESSION: imamali-${{ github.run_id }}
         run: |
           colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/tt-khabar-secrets.json" /content/.tt-khabar-secrets.json
+          colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/tt-khabar-news.json" /content/.tt-khabar-news.json
           colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.tt-khabar-agent-memory.json
 
       - name: Run local-model self-review and cinematic video pipeline on Colab GPU
@@ -193,6 +199,7 @@ jobs:
           path: |
             ${{ runner.temp }}/colab-result.json
             ${{ runner.temp }}/pipeline.log
+            ${{ runner.temp }}/tt-khabar-news.json
             state/agent_memory.json
           if-no-files-found: warn
           retention-days: 30

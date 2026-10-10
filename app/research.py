@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import re
 import time
 import urllib.error
@@ -10,10 +11,11 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app.utils import load_channel_config, utc_now_iso
+from app.utils import env, load_channel_config, utc_now_iso
 
 # Google News RSS category feeds aggregate reporting from multiple publishers.
 # Every selected story retains its feed URL, publisher, publication time and source link.
@@ -164,9 +166,23 @@ def pick_topic(kind: str, seed: str | None = None) -> dict[str, Any]:
     """Build a current news assignment. If feeds fail, stop instead of inventing news."""
     cfg = load_channel_config()
     channel = cfg.get("channel", {})
-    stories = rank_stories(fetch_news(), limit=5 if kind == "long" else 1)
+    limit = 5 if kind == "long" else 1
+    prefetched_path = (env("TT_KHABAR_NEWS_FILE") or "").strip()
+    if prefetched_path:
+        try:
+            payload = json.loads(Path(prefetched_path).read_text(encoding="utf-8"))
+            prefetched = payload.get("stories") if isinstance(payload, dict) else None
+            if not isinstance(prefetched, list):
+                raise ValueError("news JSON must contain a stories array")
+            stories = rank_stories(prefetched, limit=limit)
+        except (OSError, ValueError, TypeError) as exc:
+            raise RuntimeError(f"Prefetched news input is invalid; refusing to fetch untracked replacement stories: {type(exc).__name__}") from exc
+    else:
+        stories = rank_stories(fetch_news(), limit=limit)
     if not stories:
         raise RuntimeError("No source-linked news stories available; refusing to invent a bulletin.")
+    if kind == "long" and len(stories) < 3:
+        raise RuntimeError("Fewer than three source-linked news stories are available; refusing to publish a bulletin.")
     digest = hashlib.sha256("|".join(item["id"] for item in stories).encode()).hexdigest()[:12]
     return {
         "id": "news_" + digest,

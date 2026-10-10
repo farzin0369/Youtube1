@@ -190,6 +190,7 @@ def main():
         "PIPER_MODEL": str(piper_model) if piper_model.exists() and piper_json.exists() else "",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "PIPELINE_RUN_ID": rid,
+        "TT_KHABAR_NEWS_FILE": "/content/.tt-khabar-news.json",
         "YOUTUBE_CLIENT_ID": str(secrets["YOUTUBE_CLIENT_ID"]),
         "YOUTUBE_CLIENT_SECRET": str(secrets["YOUTUBE_CLIENT_SECRET"]),
         "YOUTUBE_REFRESH_TOKEN": str(secrets["YOUTUBE_REFRESH_TOKEN"]),
