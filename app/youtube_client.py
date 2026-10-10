@@ -7,6 +7,13 @@ from typing import Any
 from app.utils import env, has_youtube_creds
 
 
+def _contains_synthetic_media() -> bool:
+    setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
+    if setting is None:
+        return (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
+    return setting.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _build_credentials():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -42,6 +49,8 @@ def upload_video(
     if not video_path or not Path(video_path).exists():
         return {"ok": False, "error": "No video file."}
 
+    contains_synthetic_media = _contains_synthetic_media()
+
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
@@ -56,7 +65,12 @@ def upload_video(
                 "defaultLanguage": "fa",
                 "defaultAudioLanguage": "fa",
             },
-            "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False},
+            # Disclose realistic generated scenes; allow an explicit override for other video engines.
+            "status": {
+                "privacyStatus": privacy,
+                "selfDeclaredMadeForKids": False,
+                "containsSyntheticMedia": contains_synthetic_media,
+            },
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
