@@ -15,14 +15,34 @@ from app.youtube_client import upload_video
 from app.channel_ops import reply_to_comments
 from app.agent_guard import enforce
 
+def _probe_duration(path:Path)->float:
+    result=subprocess.run(
+        ["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(path)],
+        check=True,capture_output=True,text=True,
+    )
+    duration=float(result.stdout.strip())
+    if duration <= 0:
+        raise RuntimeError(f"Invalid media duration for {path}")
+    return duration
+
+
 def _local_render(script:str,title:str,audio:Path,kind:str,rid:str)->dict:
     out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; final=out/"video.mp4"
     meta=generate_film(script,title,raw,kind=kind,seed=110)
-    subprocess.run(["ffmpeg","-y","-i",str(raw),"-i",str(audio),"-shortest","-c:v","copy","-c:a","aac","-b:a","192k",str(final)],check=True,capture_output=True)
-    seconds=6.125*(meta.get("clips") or 1)
-    srt=write_srt(script,out/"captions.srt",seconds)
+    audio_seconds=_probe_duration(audio)
+    video_seconds=_probe_duration(raw)
+    pad=max(0.0,audio_seconds-video_seconds)
+    video_filter=f"tpad=stop_mode=clone:stop_duration={pad:.3f},fps=24,format=yuv420p"
+    subprocess.run([
+        "ffmpeg","-y","-i",str(raw),"-i",str(audio),"-vf",video_filter,"-t",f"{audio_seconds:.3f}",
+        "-c:v","libx264","-preset","medium","-crf","18","-c:a","aac","-b:a","192k","-ar","48000",
+        "-movflags","+faststart",str(final)
+    ],check=True,capture_output=True)
+    seconds=_probe_duration(final)
+    scene_plan=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
+    srt=write_srt(script,out/"captions.srt",seconds,scene_plan_path=scene_plan)
     thumb=make_thumbnail(title,out/"thumbnail.jpg",kind)
-    return {"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,**meta,"ok":True}
+    return {"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,**meta,"ok":True}
 
 def main()->None:
     p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default="private"); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
