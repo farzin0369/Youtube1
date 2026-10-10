@@ -1,4 +1,4 @@
-from app.research import build_research_brief, parse_rss, pick_topic, rank_stories
+from app.research import build_research_brief, is_iran_related, parse_rss, pick_topic, rank_stories
 
 
 def test_parse_rss_keeps_source_link_publisher_and_timestamp():
@@ -38,15 +38,22 @@ def test_research_brief_refuses_items_without_source_links():
         raise AssertionError("brief must not be created without linked sources")
 
 
+def test_iran_relevance_accepts_english_and_persian_but_rejects_unrelated_news():
+    assert is_iran_related({"title": "Iran and EU discuss nuclear deal"})
+    assert is_iran_related({"title": "خبر تازه دربارهٔ تهران"})
+    assert is_iran_related({"title": "Shipping disrupted in the Strait of Hormuz"})
+    assert not is_iran_related({"title": "Hurricane Simon hits Mexico"})
+
 
 def test_pick_topic_uses_prefetched_news_without_network(tmp_path, monkeypatch):
     import json
     import app.research as research
 
     stories = [
-        {"id": "1", "title": "World story", "url": "https://example.com/world", "publisher": "World News", "category": "world", "category_fa": "جهان", "published_at": "2026-10-10T12:00:00+00:00", "description": "A world report."},
-        {"id": "2", "title": "Technology story", "url": "https://example.com/tech", "publisher": "Tech News", "category": "technology", "category_fa": "فناوری", "published_at": "2026-10-10T11:00:00+00:00", "description": "A technology report."},
-        {"id": "3", "title": "Business story", "url": "https://example.com/business", "publisher": "Business News", "category": "business", "category_fa": "اقتصاد", "published_at": "2026-10-10T10:00:00+00:00", "description": "A business report."},
+        {"id": "1", "title": "Iran and EU discuss nuclear deal", "url": "https://example.com/iran", "publisher": "World News", "category": "iran_world", "category_fa": "ایران و جهان", "published_at": "2026-10-10T12:00:00+00:00", "description": "A report on Iran."},
+        {"id": "2", "title": "خبر تازه درباره تهران", "url": "https://example.com/tehran", "publisher": "Tech News", "category": "iran_fa", "category_fa": "ایران", "published_at": "2026-10-10T11:00:00+00:00", "description": "گزارش درباره ایران."},
+        {"id": "3", "title": "Shipping disrupted in Strait of Hormuz", "url": "https://example.com/hormuz", "publisher": "Business News", "category": "iran_world", "category_fa": "ایران و جهان", "published_at": "2026-10-10T10:00:00+00:00", "description": "A shipping report."},
+        {"id": "4", "title": "Hurricane Simon hits Mexico", "url": "https://example.com/mexico", "publisher": "World News", "category": "world", "category_fa": "جهان", "published_at": "2026-10-10T09:00:00+00:00", "description": "Unrelated news."},
     ]
     path = tmp_path / "news.json"
     path.write_text(json.dumps({"stories": stories}), encoding="utf-8")
@@ -55,3 +62,4 @@ def test_pick_topic_uses_prefetched_news_without_network(tmp_path, monkeypatch):
     topic = pick_topic("long")
     assert len(topic["stories"]) == 3
     assert topic["source_type"] == "current_news_rss"
+    assert all(is_iran_related(story) for story in topic["stories"])
