@@ -9,6 +9,12 @@ from urllib.request import Request, urlopen
 
 from PIL import Image, ImageDraw, ImageFont
 
+# MoviePy 1.x still calls PIL.Image.ANTIALIAS, removed in Pillow 10.
+# Map the legacy name to the equivalent high-quality resampler so the
+# existing MoviePy 1.x renderer remains compatible with current Pillow.
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
+
 from app.utils import OUTPUT_DIR, split_sentences
 
 W, H = 1080, 1920
