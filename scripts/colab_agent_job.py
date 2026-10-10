@@ -163,6 +163,21 @@ def main():
     print("[agent] Ensuring local language model is available:", model)
     run(["ollama", "pull", model])
 
+    piper_dir = Path("/content/models/piper")
+    piper_dir.mkdir(parents=True, exist_ok=True)
+    piper_model = piper_dir / "fa_IR-amir-medium.onnx"
+    piper_json = piper_dir / "fa_IR-amir-medium.onnx.json"
+    if not piper_model.exists() or not piper_json.exists():
+        print("[agent] Preparing local Persian Piper fallback.")
+        model_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx"
+        json_url = "https://huggingface.co/rhasspy/piper-voices/resolve/main/fa/fa_IR/amir/medium/fa_IR-amir-medium.onnx.json"
+        model_result = subprocess.run(["curl", "-fL", "--retry", "2", "-o", str(piper_model), model_url], check=False)
+        json_result = subprocess.run(["curl", "-fL", "--retry", "2", "-o", str(piper_json), json_url], check=False)
+        if model_result.returncode or json_result.returncode:
+            print("[agent] Piper model unavailable; cloud TTS fallbacks remain enabled.")
+            piper_model.unlink(missing_ok=True)
+            piper_json.unlink(missing_ok=True)
+
     env = os.environ.copy()
     env.update({
         "AI_ENGINE": "local",
@@ -170,13 +185,18 @@ def main():
         "OLLAMA_BASE_URL": base,
         "VIDEO_ENGINE": "cogvideox",
         "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
-        "TTS_PROVIDER": "edge",
+        "TTS_PROVIDER": "auto",
         "TTS_VOICE": "fa-IR-FaridNeural",
+        "PIPER_MODEL": str(piper_model) if piper_model.exists() and piper_json.exists() else "",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "PIPELINE_RUN_ID": rid,
         "YOUTUBE_CLIENT_ID": str(secrets["YOUTUBE_CLIENT_ID"]),
         "YOUTUBE_CLIENT_SECRET": str(secrets["YOUTUBE_CLIENT_SECRET"]),
         "YOUTUBE_REFRESH_TOKEN": str(secrets["YOUTUBE_REFRESH_TOKEN"]),
+        "ELEVENLABS_API_KEY": str(secrets.get("ELEVENLABS_API_KEY") or ""),
+        "ELEVENLABS_VOICE_ID": str(secrets.get("ELEVENLABS_VOICE_ID") or ""),
+        "AZURE_SPEECH_KEY": str(secrets.get("AZURE_SPEECH_KEY") or ""),
+        "AZURE_SPEECH_REGION": str(secrets.get("AZURE_SPEECH_REGION") or ""),
         "YOUTUBE_PUBLISH_AT": str(secrets.get("YOUTUBE_PUBLISH_AT") or ""),
         # T4-safe defaults (secrets can override)
         "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
