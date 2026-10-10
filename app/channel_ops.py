@@ -152,6 +152,55 @@ def reply_to_comments(video_id: str, max_comments: int = 10) -> dict[str, Any]:
     return {"ok": True, "replied": replied, "skipped_duplicate_or_self": skipped, "pending": len(pending_by_id)}
 
 
+
+def reply_to_recent_comments(max_videos: int = 5, max_comments_per_video: int = 10) -> dict[str, Any]:
+    """Moderate recent non-private uploads; uncertain or spam-like comments remain pending."""
+    try:
+        youtube = _youtube()
+        channels = youtube.channels().list(part="contentDetails", mine=True).execute().get("items", [])
+        if not channels:
+            return {"ok": False, "error": "No authenticated YouTube channel returned"}
+        uploads_playlist = (
+            channels[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
+        )
+        if not uploads_playlist:
+            return {"ok": False, "error": "Could not resolve the channel uploads playlist"}
+        limit = max(1, min(int(max_videos), 20))
+        playlist_items = youtube.playlistItems().list(
+            part="contentDetails", playlistId=uploads_playlist, maxResults=limit
+        ).execute().get("items", [])
+        video_ids = [
+            str(item.get("contentDetails", {}).get("videoId") or "")
+            for item in playlist_items
+            if item.get("contentDetails", {}).get("videoId")
+        ]
+        if not video_ids:
+            return {"ok": True, "videos_checked": 0, "videos_skipped_private": 0, "results": []}
+        videos = youtube.videos().list(part="status", id=",".join(video_ids)).execute().get("items", [])
+        statuses = {str(item.get("id")): item.get("status", {}) for item in videos}
+        results = []
+        skipped_private = 0
+        for video_id in video_ids:
+            privacy = str(statuses.get(video_id, {}).get("privacyStatus") or "unknown")
+            if privacy not in {"public", "unlisted"}:
+                skipped_private += 1
+                continue
+            try:
+                results.append({
+                    "video_id": video_id,
+                    **reply_to_comments(video_id, max_comments=max_comments_per_video),
+                })
+            except Exception as exc:
+                results.append({"video_id": video_id, "ok": False, "error": str(exc)})
+        return {
+            "ok": all(item.get("ok", False) for item in results) if results else True,
+            "videos_checked": len(results),
+            "videos_skipped_private": skipped_private,
+            "results": results,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
 def channel_health() -> dict[str, Any]:
     cfg = load_channel_config()
     checks: dict[str, Any] = {
