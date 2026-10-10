@@ -35,7 +35,7 @@
 - YOUTUBE_CLIENT_ID
 - YOUTUBE_CLIENT_SECRET
 - YOUTUBE_REFRESH_TOKEN
-- COLAB_CLI_TOKEN_JSON (احراز هویت Colab CLI)
+- COLAB_CLI_TOKEN_JSON (احراز هویت Colab CLI)\n- ELEVENLABS_API_KEY و ELEVENLABS_VOICE_ID (اختیاری؛ اولویت گویندگی)\n- AZURE_SPEECH_KEY و AZURE_SPEECH_REGION (اختیاری؛ fallback)\n\nاگر کلیدهای TTS پولی موجود نباشند، Edge TTS و در صورت دانلود موفق Piper محلی استفاده می‌شوند.
 
 راهنمای بازیابی OAuth: scripts/README_TOKEN.md
 
