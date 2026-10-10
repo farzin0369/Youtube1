@@ -21,7 +21,7 @@ Set `PIPELINE_RUN_ID` to a stable safe identifier (letters, digits, underscore, 
 
 1. Run CPU-safe tests and syntax checks before a pull request can be merged.
 2. Run a GPU smoke test in Colab with `VIDEO_ENGINE=cogvideox`; verify `scene_plan.json`, all clip files, final MP4 duration, audio, SRT, and thumbnail.
-3. Production workflow uses YouTube scheduled publishing (`publishAt`); a run is considered successful only when the upload API confirms the video ID. Public publication must still obey the channel's source and media QA gates.
+3. Production workflow uses YouTube scheduled publishing (`publishAt`); a run is considered successful only when the upload API confirms the video ID. If rendering misses the target by 15 minutes or less, the upload fails visibly instead of being silently moved to the next day. Public publication must still obey the channel's source and media QA gates.
 4. Never put OAuth tokens, model keys, or personal credentials in source files or notebook output.
 5. Sensitive comment categories stay pending; automated replies must not be treated as a substitute for moderation.
 6. Do not deploy self-modifying code automatically. A repair can create a patch and run tests, but production deployment requires a passing test suite and a reviewed change.
