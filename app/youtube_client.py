@@ -7,6 +7,13 @@ from typing import Any
 from app.utils import env, has_youtube_creds
 
 
+def _contains_synthetic_media() -> bool:
+    setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
+    if setting is None:
+        return (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
+    return setting.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _build_credentials():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
@@ -42,11 +49,7 @@ def upload_video(
     if not video_path or not Path(video_path).exists():
         return {"ok": False, "error": "No video file."}
 
-    synthetic_setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
-    if synthetic_setting is None:
-        contains_synthetic_media = (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
-    else:
-        contains_synthetic_media = synthetic_setting.strip().lower() in {"1", "true", "yes", "on"}
+    contains_synthetic_media = _contains_synthetic_media()
 
     try:
         from googleapiclient.discovery import build
