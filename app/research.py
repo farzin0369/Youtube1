@@ -1,4 +1,4 @@
-"""Collect, deduplicate, and rank current global-news headlines from RSS feeds."""
+"""Collect, deduplicate, and rank current Iran-related news headlines from RSS feeds."""
 from __future__ import annotations
 
 import hashlib
@@ -17,28 +17,28 @@ from urllib.parse import urlparse
 
 from app.utils import env, load_channel_config, utc_now_iso
 
-# Google News RSS category feeds aggregate reporting from multiple publishers.
-# Every selected story retains its feed URL, publisher, publication time and source link.
+# Google News RSS searches aggregate reporting from multiple publishers. Keep only
+# stories whose headline/summary explicitly connects them to Iran or Iran-related affairs.
 NEWS_FEEDS: tuple[tuple[str, str], ...] = (
-    ("world", "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en"),
-    ("politics", "https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en"),
-    ("technology", "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en"),
-    ("business", "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en"),
-    ("science", "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=en-US&gl=US&ceid=US:en"),
-    ("sports", "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=en-US&gl=US&ceid=US:en"),
-    ("entertainment", "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=en-US&gl=US&ceid=US:en"),
-    ("health", "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=en-US&gl=US&ceid=US:en"),
+    ("iran_world", "https://news.google.com/rss/search?q=Iran+OR+Iranian+OR+Tehran+OR+IRGC+OR+%22Islamic+Republic%22+OR+%22Persian+Gulf%22+OR+Hormuz&hl=en-US&gl=US&ceid=US:en"),
+    ("iran_fa", "https://news.google.com/rss/search?q=%D8%A7%DB%8C%D8%B1%D8%A7%D9%86+OR+%D8%A7%DB%8C%D8%B1%D8%A7%D9%86%DB%8C+OR+%D8%AA%D9%87%D8%B1%D8%A7%D9%86+OR+%D8%B3%D9%BE%D8%A7%D9%87+OR+%D8%AA%D9%86%DA%AF%D9%87+%D9%87%D8%B1%D9%85%D8%B2+OR+%D8%AE%D9%84%DB%8C%D8%AC+%D9%81%D8%A7%D8%B1%D8%B3&hl=fa&gl=IR&ceid=IR:fa"),
 )
 CATEGORY_FA = {
-    "world": "جهان",
-    "politics": "سیاست",
-    "technology": "فناوری",
-    "business": "اقتصاد",
-    "science": "علم",
-    "sports": "ورزش",
-    "entertainment": "فرهنگ و سرگرمی",
-    "health": "سلامت",
+    "iran_world": "ایران و جهان",
+    "iran_fa": "ایران",
 }
+IRAN_RELEVANCE = re.compile(
+    r"\b(?:iran(?:ian)?|tehran|irgc|qods force|islamic republic|persian gulf|"
+    r"strait of hormuz|hormuz|iranian nuclear|iran deal|iran sanctions)\b|"
+    r"ایران|ایرانی|تهران|سپاه|قدس|جمهوری اسلامی|خلیج فارس|تنگه هرمز|برجام|هسته.?ای",
+    re.IGNORECASE,
+)
+
+
+def is_iran_related(story: dict[str, Any]) -> bool:
+    """Conservative relevance gate: title or description must name Iran-related terms."""
+    text = f"{story.get('title', '')} {story.get('description', '')}"
+    return bool(IRAN_RELEVANCE.search(text))
 
 
 def _text(parent: ET.Element, path: str) -> str:
@@ -112,7 +112,7 @@ def fetch_news(timeout: int = 12, per_feed: int = 12) -> list[dict[str, Any]]:
         key = normalized or story["id"]
         if key not in unique:
             unique[key] = story
-    stories = list(unique.values())
+    stories = [story for story in unique.values() if is_iran_related(story)]
     # Prefer recent stories, but keep unknown timestamps eligible and preserve category diversity.
     now = datetime.now(timezone.utc)
     def freshness(story: dict[str, Any]) -> float:
@@ -174,7 +174,7 @@ def pick_topic(kind: str, seed: str | None = None) -> dict[str, Any]:
             prefetched = payload.get("stories") if isinstance(payload, dict) else None
             if not isinstance(prefetched, list):
                 raise ValueError("news JSON must contain a stories array")
-            stories = rank_stories(prefetched, limit=limit)
+            stories = rank_stories([story for story in prefetched if isinstance(story, dict) and is_iran_related(story)], limit=limit)
         except (OSError, ValueError, TypeError) as exc:
             raise RuntimeError(f"Prefetched news input is invalid; refusing to fetch untracked replacement stories: {type(exc).__name__}") from exc
     else:
@@ -188,7 +188,7 @@ def pick_topic(kind: str, seed: str | None = None) -> dict[str, Any]:
         "id": "news_" + digest,
         "pillar": ", ".join(item["category_fa"] for item in stories),
         "title_hint": stories[0]["title"],
-        "focus": "جمع‌بندی فارسی ۳ تا ۵ خبر روز با تفکیک واقعیت، ادعا و تحلیل",
+        "focus": "جمع‌بندی فارسی ۳ تا ۵ خبر روز درباره ایران و رویدادهای جهانی مرتبط با ایران؛ با تفکیک واقعیت، ادعا و تحلیل",
         "source_hint": "منابع خبری پیوندخورده در فهرست خبرها",
         "source_type": "current_news_rss",
         "source_ref": ", ".join(item["publisher"] for item in stories),
@@ -206,7 +206,7 @@ def build_research_brief(topic: dict[str, Any]) -> str:
     if not stories:
         raise RuntimeError("Research brief has no source-linked stories; refusing unsupported content.")
     lines = [
-        "ماموریت: یک بولتن خبری فارسی دقیق، متوازن و قابل‌فهم بساز.",
+        "ماموریت: یک بولتن خبری فارسی دقیق، متوازن و قابل‌فهم فقط درباره ایران و رویدادهای جهانی مرتبط با ایران بساز.",
         "محدودیت حیاتی: فقط از تیتر، خلاصه و لینک‌های زیر استفاده کن. هیچ عدد، نقل‌قول، علت، نتیجه یا جزئیاتی را که در داده نیست اختراع نکن.",
         "خبر، ادعا و تحلیل را از هم جدا کن. در صورت کمبود اطلاعات بگو جزئیات مستقل هنوز روشن نیست.",
         "۳ تا ۵ خبر با تنوع موضوعی انتخاب شده‌اند؛ برای هر مورد نام ناشر، تاریخ انتشار و URL را در توضیحات بیاور.",
