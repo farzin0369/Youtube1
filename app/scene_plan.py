@@ -96,7 +96,7 @@ def build_scene_plan_from_scenes(
     for index, item in enumerate(scene_items):
         if not isinstance(item, dict):
             raise ValueError(f"scene {index} must be an object")
-        spoken = re.sub(r"\\s+", " ", str(item.get("spoken_text") or "")).strip()
+        spoken = re.sub(r"\s+", " ", str(item.get("spoken_text") or "")).strip()
         visual = str(item.get("visual_prompt") or "").strip()
         on_screen = str(item.get("on_screen_text") or "").strip()
         duration = float(item.get("duration_hint_seconds") or 0)
@@ -114,7 +114,7 @@ def build_scene_plan_from_scenes(
             "error": None,
         })
     normalized_script = " ".join(item["spoken_text"] for item in normalized)
-    expected_script = re.sub(r"\\s+", " ", str(script or "")).strip()
+    expected_script = re.sub(r"\s+", " ", str(script or "")).strip()
     if normalized_script != expected_script:
         raise ValueError("script must exactly equal joined scene spoken_text")
     total = float(duration_hint_seconds or sum(s["duration_hint_seconds"] for s in normalized))
