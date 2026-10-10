@@ -4,6 +4,7 @@ This module deliberately has no model/API dependency so it can be tested on CPU.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -62,8 +63,10 @@ def build_scene_plan(
             "clip_path": None,
             "error": None,
         })
+    normalized_script = re.sub(r"\s+", " ", str(script or "")).strip()
     plan = {
         "schema_version": 1,
+        "source_sha256": hashlib.sha256(normalized_script.encode("utf-8")).hexdigest(),
         "title": str(title or "").strip(),
         "kind": kind,
         "language": "fa",
@@ -122,7 +125,16 @@ def load_or_create_plan(path: Path, script: str, title: str, **kwargs: Any) -> d
         try:
             existing = json.loads(path.read_text(encoding="utf-8"))
             validate_scene_plan(existing)
-            return existing
+            fingerprint = hashlib.sha256(re.sub(r"\s+", " ", str(script or "")).strip().encode("utf-8")).hexdigest()
+            if (existing.get("source_sha256") == fingerprint
+                    and existing.get("title") == str(title or "").strip()
+                    and existing.get("kind") == kwargs.get("kind", "short")):
+                return existing
+            stale = path.with_suffix(path.suffix + ".stale")
+            if not stale.exists():
+                path.replace(stale)
+            else:
+                path.unlink()
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # Preserve the broken file for diagnosis before replacing it.
             backup = path.with_suffix(path.suffix + ".invalid")
