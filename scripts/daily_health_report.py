@@ -8,7 +8,7 @@ import platform
 import subprocess
 from pathlib import Path
 
-from app.channel_ops import channel_health
+from app.channel_ops import channel_health, reply_to_recent_comments
 from app.utils import utc_now_iso
 
 
@@ -37,12 +37,16 @@ def main() -> int:
     report_dir = Path("output")
     report_dir.mkdir(parents=True, exist_ok=True)
     health = channel_health()
+    moderation = None
+    if os.environ.get("ENABLE_AUTO_COMMENT_REPLIES", "false").strip().lower() in {"1", "true", "yes", "on"}:
+        moderation = reply_to_recent_comments(max_videos=3, max_comments_per_video=10)
     data = {
         "created_at": utc_now_iso(),
         "git_sha": _git_sha(),
         "python": platform.python_version(),
         "test_status": args.test_status,
         "channel_health": health,
+        "comment_moderation": moderation,
         "recent_changes": _recent_changes(),
         "secrets_present": {
             "youtube_oauth": all(os.environ.get(k) for k in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")),
@@ -61,6 +65,8 @@ def main() -> int:
         f"- YouTube OAuth/API: **{'OK' if health.get('youtube') else 'FAILED'}**",
         f"- Qwen configured: **{'yes' if health.get('qwen_configured') else 'no'}**",
         f"- OpenAI configured: **{'yes' if health.get('openai_configured') else 'no'}**",
+        "",
+        f"- Auto comment moderation: **{'enabled' if moderation is not None else 'disabled'}**",
         "",
         "## Channel status",
         "",
@@ -83,6 +89,8 @@ def main() -> int:
         for key in ("viewCount", "subscriberCount", "videoCount"):
             if key in stats:
                 lines.append(f"- {key}: {stats[key]}")
+    if moderation is not None:
+        lines += ["", "## Comment moderation", "", f"`{json.dumps(moderation, ensure_ascii=False)}`"]
     if health.get("youtube_error"):
         lines += ["", "## Error", "", f"`{health['youtube_error']}`"]
     (report_dir / "daily_health_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
