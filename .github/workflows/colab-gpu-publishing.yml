@@ -107,7 +107,8 @@ jobs:
           GIT_SHA: ${{ github.sha }}
           VIDEO_FRAMES: "17"
           VIDEO_STEPS: "8"
-          VIDEO_CLIPS_LONG: "12"\n          PIPELINE_KIND: "long"
+          VIDEO_CLIPS_LONG: "12"
+          PIPELINE_KIND: "long"
         run: |
           python - <<'PY'
           import json, os
