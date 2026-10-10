@@ -27,7 +27,16 @@ def run(cmd, *, cwd=None, env=None, check=True, capture_output=False):
 
 
 def install_ollama():
-    """Install Ollama while preserving actionable diagnostics without exposing env secrets."""
+    """Install Ollama and its required extractor while preserving safe diagnostics."""
+    print("[agent] Installing zstd, required by the current Ollama installer.")
+    update = subprocess.run(["apt-get", "update", "-qq"], text=True, capture_output=True, check=False, timeout=180)
+    if update.returncode:
+        print("[zstd apt update stderr tail]\\n" + (update.stderr or "")[-3000:])
+        raise RuntimeError(f"apt-get update failed before Ollama installation (exit {update.returncode}).")
+    install_zstd = subprocess.run(["apt-get", "install", "-y", "-qq", "zstd"], text=True, capture_output=True, check=False, timeout=180)
+    if install_zstd.returncode:
+        print("[zstd apt install stderr tail]\\n" + (install_zstd.stderr or "")[-3000:])
+        raise RuntimeError(f"Could not install zstd (exit {install_zstd.returncode}).")
     script = Path("/tmp/ollama-install.sh")
     log = Path("/tmp/ollama-install.log")
     with log.open("w", encoding="utf-8") as output:
