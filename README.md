@@ -4,19 +4,18 @@
 
 ## معماری فعلی
 
-**مسیر GPU سینمایی:** موضوع/منبع → فیلمنامهٔ صحنه‌محور → گویندگی فارسی → برنامهٔ صحنه‌ای مشترک → کلیپ‌های CogVideoX روی GPU در Google Colab → تدوین/صدا/زیرنویس → Quality Gate → آپلود خصوصی در YouTube.
+**مسیر GPU سینمایی:** مدل زبانی محلی Ollama → فیلمنامهٔ صحنه‌محور → گویندگی فارسی → کلیپ‌های CogVideoX روی GPU در Google Colab → تدوین/صدا/زیرنویس → Quality Gate → انتشار عمومی در YouTube.
 
 **مسیر جایگزین CPU:** برای آزمون ساختار، تولید پیش‌نمایش و اجرای smoke test در GitHub Actions؛ این مسیر جایگزین کیفیت تصویری CogVideoX نیست.
 
-زمان‌بندی GitHub Actions روی runner معمولی CPU اجرا می‌شود؛ تولید واقعی CogVideoX باید در نشست Colab دارای GPU اجرا شود. رایگان بودن Colab به معنی دسترسی دائمی یا اجرای تضمین‌شدهٔ زمان‌بندی‌شده نیست.
+گردش‌کار `colab-gpu-publishing.yml` از Colab CLI برای درخواست GPU استفاده می‌کند و روزانه ساعت ۰۶:۰۰، ۰۹:۰۰ و ۱۸:۰۰ به وقت تهران اجرا می‌شود. دسترسی GPU تابع احراز هویت و سهمیه‌های Google Colab است.
 
 GitHub می‌گوید standard runner برای repository عمومی رایگان و نامحدود است؛ runner استاندارد GPU ندارد، بنابراین موتور ویدئو در این مسیر از رندر سینمایی procedural/animated روی CPU استفاده می‌کند.
 
 ## زمان‌بندی تهران
 
-- **05:35 Tehran — one scheduled private CPU fallback preview per day**
-- Long-form production remains manual until a persistent, authorized GPU execution mechanism is available.
-- The daily GitHub runner has no CUDA GPU; run `colab/ImamAli110_Cinematic_Production.ipynb` for CogVideoX generation on a Colab GPU.
+- **۰۶:۰۰، ۰۹:۰۰ و ۱۸:۰۰ تهران — تولید سینمایی و انتشار عمومی از طریق Colab GPU**
+- مسیر CPU فقط برای آزمون دستی است و به‌عنوان تولید سینمایی زمان‌بندی نمی‌شود.
 
 ## موتور محتوا
 
@@ -47,13 +46,13 @@ GitHub می‌گوید standard runner برای repository عمومی رایگا
 
 ## اجرای دستی
 
-از GitHub: Actions → ImamAli110 daily private preview (CPU fallback) → Run workflow
+برای انتشار زمان‌بندی‌شده، workflow با نام `ImamAli110 autonomous Colab GPU publishing` فعال است. پیش‌نمایش CPU فقط برای عیب‌یابی دستی باقی می‌ماند.
 
 می‌توانی short یا long و همچنین dry_run را انتخاب کنی.
 
 ## مسیر GPU اختیاری
 
-برای تولید سینمایی واقعی، دفترچهٔ `colab/ImamAli110_Cinematic_Production.ipynb` از GPU در دسترس Google Colab استفاده می‌کند. اجرای زمان‌بندی‌شدهٔ GitHub Actions همچنان فقط یک پیش‌نمایش خصوصی CPU است؛ رایگان بودن Colab اجرای خودکار و دائمی را تضمین نمی‌کند.
+تولید اصلی از `google-colab-cli` برای درخواست GPU استفاده می‌کند. کلید API مدل زبانی لازم نیست؛ مدل `llama3.2:3b` روی محیط Colab اجرا می‌شود. احراز هویت Colab CLI باید به‌صورت امن در GitHub Secret با نام `COLAB_CLI_TOKEN_JSON` قرار گیرد. Google همچنان سهمیه و دسترسی GPU را کنترل می‌کند.
 
 ## اصل طراحی
 
