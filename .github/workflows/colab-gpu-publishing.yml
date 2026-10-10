@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: imamali110-colab-gpu-\${{ github.event.schedule || github.run_id }}
+  group: imamali110-colab-gpu-${{ github.event.schedule || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: state/agent_memory.json
-          key: imamali110-agent-memory-\${{ github.run_id }}
+          key: imamali110-agent-memory-${{ github.run_id }}
           restore-keys: |
             imamali110-agent-memory-
 
@@ -42,7 +42,7 @@ jobs:
 
       - name: Configure Colab CLI account session
         env:
-          COLAB_CLI_TOKEN_JSON: \${{ secrets.COLAB_CLI_TOKEN_JSON }}
+          COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
         run: |
           if [ -z "$COLAB_CLI_TOKEN_JSON" ]; then
             echo "::error::Colab CLI OAuth is not configured. Add COLAB_CLI_TOKEN_JSON containing the authenticated Colab CLI token.json; the runner will not bypass Google sign-in."
@@ -55,9 +55,9 @@ jobs:
 
       - name: Validate YouTube publishing credentials
         env:
-          YOUTUBE_CLIENT_ID: \${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: \${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: \${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           if [ -z "$YOUTUBE_CLIENT_ID" ] || [ -z "$YOUTUBE_CLIENT_SECRET" ] || [ -z "$YOUTUBE_REFRESH_TOKEN" ]; then
             echo "::error::The existing YouTube OAuth secrets are incomplete. No video will be generated or published."
@@ -67,7 +67,7 @@ jobs:
       - name: Calculate the YouTube publication timestamp
         id: publish_time
         env:
-          SCHEDULE: \${{ github.event.schedule || '' }}
+          SCHEDULE: ${{ github.event.schedule || '' }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           from datetime import datetime, time, timedelta, timezone
@@ -89,16 +89,16 @@ jobs:
           print(f"publish_at={utc_target}")
           print(f"publish_local={target.strftime('%Y-%m-%d %H:%M %Z')}")
           PY
-          echo "YouTube scheduled publication: \${{ steps.publish_time.outputs.publish_local }}"
+          echo "YouTube scheduled publication: ${{ steps.publish_time.outputs.publish_local }}"
 
       - name: Create a temporary protected credential payload
         env:
-          YOUTUBE_CLIENT_ID: \${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: \${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: \${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          PIPELINE_RUN_ID: short_\${{ github.run_id }}_\${{ github.run_attempt }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          PIPELINE_RUN_ID: short_${{ github.run_id }}_${{ github.run_attempt }}
           LOCAL_LLM_MODEL: llama3.2:3b
-          YOUTUBE_PUBLISH_AT: \${{ steps.publish_time.outputs.publish_at }}
+          YOUTUBE_PUBLISH_AT: ${{ steps.publish_time.outputs.publish_at }}
         run: |
           python - <<'PY'
           import json, os
@@ -115,25 +115,25 @@ jobs:
 
       - name: Provision Colab T4 GPU runtime
         env:
-          SESSION: imamali-\${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: colab --auth oauth2 new --gpu T4 -s "$SESSION"
 
       - name: Transfer protected job inputs to the private runtime
         env:
-          SESSION: imamali-\${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: |
           colab --auth oauth2 upload -s "$SESSION" "$RUNNER_TEMP/imamali-secrets.json" /content/.imamali110-secrets.json
           colab --auth oauth2 upload -s "$SESSION" state/agent_memory.json /content/.imamali110-agent-memory.json
 
       - name: Run local-model self-review and cinematic video pipeline on Colab GPU
         env:
-          SESSION: imamali-\${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: colab --auth oauth2 exec -s "$SESSION" -f scripts/colab_agent_job.py
 
       - name: Retrieve result and updated agent memory
         if: always()
         env:
-          SESSION: imamali-\${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: |
           colab --auth oauth2 download -s "$SESSION" /tmp/colab-result.json "$RUNNER_TEMP/colab-result.json" || true
           colab --auth oauth2 download -s "$SESSION" /tmp/agent-memory.json state/agent_memory.json || true
@@ -145,9 +145,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: imamali110-colab-run-\${{ github.run_id }}
+          name: imamali110-colab-run-${{ github.run_id }}
           path: |
-            \${{ runner.temp }}/colab-result.json
+            ${{ runner.temp }}/colab-result.json
             state/agent_memory.json
           if-no-files-found: warn
           retention-days: 30
@@ -155,5 +155,5 @@ jobs:
       - name: Stop Colab GPU runtime
         if: always()
         env:
-          SESSION: imamali-\${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: colab --auth oauth2 stop -s "$SESSION" || true
