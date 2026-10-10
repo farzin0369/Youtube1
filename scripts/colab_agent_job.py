@@ -188,8 +188,12 @@ def main():
         "TOKENIZERS_PARALLELISM": "false",
     })
 
+    kind = str(secrets.get("PIPELINE_KIND") or "long")
+    if kind not in {"short", "long"}:
+        raise RuntimeError("Unsupported pipeline kind; refusing to publish.")
+
     # Stream logs to a file to avoid pipe-buffer deadlock on long CogVideoX runs.
-    print("[agent] Starting production pipeline (logs -> /tmp/pipeline.log).")
+    print(f"[agent] Starting TT Khabar {kind} news pipeline (logs -> /tmp/pipeline.log).")
     with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
         pipeline = subprocess.run(
             [sys.executable, "-m", "app.pipeline", "--kind", kind, "--publish-mode", "public"],
