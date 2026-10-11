@@ -22,20 +22,32 @@ def ollama_available() -> bool:
     except Exception:
         return False
 
-def ollama_generate(prompt: str, system: str = "", model: str | None = None) -> str:
+def ollama_generate(prompt: str, system: str = "", model: str | None = None, *, format_json: bool = False) -> str:
     if not ollama_available():
         raise RuntimeError("Local Ollama is not running on 127.0.0.1:11434")
     try:
         timeout = max(30, min(600, int(env("OLLAMA_TIMEOUT_SECONDS") or "300")))
-        num_predict = max(256, min(4096, int(env("OLLAMA_NUM_PREDICT") or "2200")))
+        default_predict = "4096" if format_json else "2200"
+        num_predict = max(256, min(4096, int(env("OLLAMA_NUM_PREDICT") or default_predict)))
+        num_ctx = max(2048, min(8192, int(env("OLLAMA_NUM_CTX") or "4096")))
     except ValueError:
-        timeout, num_predict = 300, 2200
+        timeout, num_predict, num_ctx = 300, 4096 if format_json else 2200, 4096
     raw_keep_alive = env("OLLAMA_KEEP_ALIVE")
     try:
         keep_alive = 0 if raw_keep_alive is None else int(raw_keep_alive)
     except ValueError:
         keep_alive = 0
-    payload = json.dumps({"model": model or env("LOCAL_LLM_MODEL") or "llama3.2:1b","prompt": prompt,"system": system,"stream": False,"keep_alive": keep_alive,"options": {"temperature": 0.55,"num_predict": num_predict}}).encode()
+    payload = {
+        "model": model or env("LOCAL_LLM_MODEL") or "llama3.2:1b",
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "keep_alive": keep_alive,
+        "options": {"temperature": 0.35 if format_json else 0.55, "num_predict": num_predict, "num_ctx": num_ctx},
+    }
+    if format_json:
+        payload["format"] = "json"
+    payload = json.dumps(payload).encode()
     req = urllib.request.Request((env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/") + "/api/generate", data=payload, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode())

@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
-from pathlib import Path
+import json
 import subprocess
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 import yaml
@@ -118,3 +119,35 @@ def test_pexels_rate_limit_retries_before_falling_back(monkeypatch):
     result = _get_with_backoff(request)
     assert result.status_code == 200
     assert len(responses) == 2 and responses[0].closed
+
+
+def test_local_ollama_uses_constrained_json_mode(monkeypatch):
+    from app import local_ai
+
+    captured = {}
+    monkeypatch.setattr(local_ai, "ollama_available", lambda: True)
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b'{"response":"{\\"ok\\":true}"}'
+
+    def fake_urlopen(request, timeout):
+        captured["timeout"] = timeout
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return Response()
+
+    monkeypatch.setattr(local_ai.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("OLLAMA_NUM_PREDICT", "4096")
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "4096")
+    result = local_ai.ollama_generate("make JSON", system="JSON only", model="llama3.2:1b", format_json=True)
+
+    assert result == '{"ok":true}'
+    assert captured["payload"]["format"] == "json"
+    assert captured["payload"]["options"]["num_predict"] == 4096
+    assert captured["payload"]["options"]["num_ctx"] == 4096

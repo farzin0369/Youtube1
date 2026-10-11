@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 import urllib.error
@@ -42,8 +43,10 @@ def _parse_json(text: str) -> dict[str, Any]:
 def complete_json(system: str, prompt: str, *, max_tokens: int = 2600) -> dict[str, Any]:
     """Call Groq when configured, else local Ollama; never log credentials."""
     key = (env("GROQ_API_KEY") or "").strip()
+    logger = logging.getLogger(__name__)
     groq_error: Exception | None = None
     if key:
+        logger.info("using Groq model=%s for structured content", env("GROQ_MODEL") or DEFAULT_GROQ_MODEL)
         body = json.dumps({
             "model": env("GROQ_MODEL") or DEFAULT_GROQ_MODEL,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
@@ -80,12 +83,19 @@ def complete_json(system: str, prompt: str, *, max_tokens: int = 2600) -> dict[s
                 groq_error = exc
                 break
 
+    local_model = env("LOCAL_LLM_MODEL") or DEFAULT_LOCAL_MODEL
+    if groq_error:
+        logger.warning("Groq failed (%s); falling back to local Ollama.", type(groq_error).__name__)
+    elif not key:
+        logger.info("GROQ_API_KEY not configured; using local Ollama model=%s", local_model)
     try:
         from app.local_ai import ollama_available, ollama_generate
         if ollama_available():
+            logger.info("requesting constrained JSON output from Ollama model=%s", local_model)
             raw = ollama_generate(
                 prompt, system=system,
-                model=env("LOCAL_LLM_MODEL") or DEFAULT_LOCAL_MODEL,
+                model=local_model,
+                format_json=True,
             )
             return _parse_json(raw)
     except Exception as local_exc:
