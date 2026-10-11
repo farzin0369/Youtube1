@@ -15,12 +15,15 @@ from app.spiritual_video import _get_with_backoff
 
 
 def _content(words=720):
-    tokens = ["تأمل" for _ in range(words)]
-    chunk_size = max(1, (words + 5) // 6)
-    chunks = [" ".join(tokens[i:i + chunk_size]) for i in range(0, words, chunk_size)]
-    while len(chunks) < 6:
-        chunks.append("تأمل")
-    chunks = chunks[:6]
+    base, remainder = divmod(words, 6)
+    chunks = []
+    for section in range(6):
+        count = base + (1 if section < remainder else 0)
+        hook = "آیا امروز می‌توانی یک قدم کوچک برداری؟" if section == 0 else ""
+        tokens = [f"واژه{section}نشان{index}" for index in range(max(0, count - len(hook.split())))]
+        sentences = [hook] if hook else []
+        sentences.extend(" ".join(tokens[i:i + 8]) + "." for i in range(0, len(tokens), 8))
+        chunks.append(" ".join(sentence for sentence in sentences if sentence))
     return {
         "title": "چگونه آرام‌تر و آگاهانه‌تر پیش برویم",
         "thumbnail_text": "قدم آرام امروز",
@@ -42,6 +45,27 @@ def test_content_gate_rejects_short_or_repeated_content():
         validate_content(_content(100))
     with pytest.raises(ValueError, match="duplicates"):
         validate_content(_content(), ["چگونه آرام‌تر و آگاهانه‌تر پیش برویم"])
+
+
+def test_content_gate_rejects_a_weak_opening_hook():
+    item = _content()
+    item["sections"][0]["text"] = "در زندگی ما، گاهی انتخاب‌های مهم دیده می‌شوند. " + item["sections"][0]["text"].split("؟", 1)[1]
+    with pytest.raises(ValueError, match="opening has no immediate"):
+        validate_content(item)
+
+
+def test_content_gate_rejects_duplicate_spoken_sections():
+    item = _content()
+    item["sections"][1]["text"] = item["sections"][0]["text"]
+    with pytest.raises(ValueError, match="repeated or near-duplicate"):
+        validate_content(item)
+
+
+def test_content_gate_rejects_prompt_directions_in_spoken_text():
+    item = _content()
+    item["sections"][0]["text"] = "سه پاراگراف کوتاه برای بخش تمرین کوچک 2: " + item["sections"][0]["text"]
+    with pytest.raises(ValueError, match="prompt or draft instruction"):
+        validate_content(item)
 
 
 def test_word_count_treats_persian_zwnj_as_part_of_one_word():

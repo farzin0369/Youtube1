@@ -277,7 +277,7 @@ def _make_segment(source: Path | None, image_path: Path | None, duration: float,
 
 def render_video(
     *, title: str, thumbnail_text: str, keywords: list[str], audio_path: Path,
-    captions_path: Path, out_dir: Path, run_id: str,
+    captions_path: Path, out_dir: Path, run_id: str, scene_stills: list[Path] | None = None,
 ) -> dict[str, Any]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -285,6 +285,7 @@ def render_video(
     # Change visuals every ~18 seconds; stock searches are bounded to five API calls.
     count = max(1, min(24, int(math.ceil(duration / 18.0))))
     stock, credits = fetch_stock(keywords, out_dir / "stock", count=count)
+    scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     local_fallbacks = _local_fallback_videos() if not stock else []
     scene_dir = out_dir / "scenes"
     scene_dir.mkdir(exist_ok=True)
@@ -295,6 +296,8 @@ def render_video(
         if stock:
             source = stock[index % len(stock)]
             _make_segment(source, None, segment_duration, part, index)
+        elif scene_stills:
+            _make_segment(None, scene_stills[index % len(scene_stills)], segment_duration, part, index)
         elif local_fallbacks:
             source = local_fallbacks[(index + sum(map(ord, run_id))) % len(local_fallbacks)]
             _make_segment(source, None, segment_duration, part, index)
@@ -325,7 +328,7 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "ok": True,
