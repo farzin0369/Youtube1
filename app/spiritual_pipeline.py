@@ -58,7 +58,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
     credits = render.get("pexels_credits") or []
     if credits:
         parts += ["", "تصاویر:", *credits]
-    parts += ["", "#رشد_فردی #معنویت #توکل #عادت_های_سالم"]
+    parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل #برکت #سواد_مالی"]
     return "\n".join(x for x in parts if x is not None).strip()[:4900]
 
 
