@@ -1,39 +1,35 @@
-# TT خبر — Production architecture and rollout
+# TT رشد — معماری تولید و انتشار روزانه
 
-## Production pipeline
+## مسیر تولید
 
-1. app/research.py fetches public RSS headlines and summaries across world, politics, technology, business, science, sports, entertainment and health.
-2. Stories are deduplicated and selected with category diversity. The original publisher, story URL and publication time are retained.
-3. app/script_gen.py uses the local Ollama model to write a 3–5 minute Persian bulletin grounded only in fetched source data. The quality gate rejects missing source URLs and undersized/oversized scripts.
-4. app/tts.py generates Persian narration; Edge TTS is primary and local Piper can be configured as fallback.
-5. app/local_video_engine.py uses CogVideoX on a CUDA GPU and category-specific illustrative news B-roll prompts. AI-generated scenes must never be presented as authentic footage of a specific real event.
-6. FFmpeg muxes narration and subtitles, then app/media_qa.py verifies the media package before YouTube upload.
-7. YouTube upload must confirm a video ID. Scheduled publication is rejected when the requested publish time is too close or past.
-8. Comment automation is bounded and idempotent. Sensitive or uncertain cases remain pending for human review.
+1. `app/spiritual_content.py` با Groq در صورت تنظیم کلید، وگرنه با Ollama محلی، متن فارسی حدود شش‌دقیقه‌ای می‌سازد. طول، تعداد بخش‌ها، تکرار عنوان، citationهای منتسب و وعده‌های قطعی کنترل می‌شوند.
+2. `app/spiritual_tts.py` فقط از صدای ثابت `fa-IR-FaridNeural` استفاده می‌کند. رویدادهای WordBoundary Edge TTS به cueهای SRT کوتاه تبدیل می‌شوند؛ اگر metadata یا فایل صوتی ناقص باشد چرخه متوقف می‌شود.
+3. `app/spiritual_video.py` تا پنج جست‌وجوی Pexels انجام می‌دهد، کلیپ‌های متنوع را هر حدود ۱۸ ثانیه عوض می‌کند، موسیقی محیطی اصیل می‌سازد و زیرنویس فارسی را با FFmpeg روی تصویر می‌سوزاند. درخواست‌های Pexels با exponential backoff محدود retry می‌شوند؛ پس از خطای نهایی، کلیپ‌های مجاز `assets/fallback_videos/` استفاده می‌شوند و اگر پوشه خالی باشد، background انتزاعی تولید می‌شود، نه ادعای تصویر واقعی.
+4. `app/spiritual_pipeline.py` thumbnail، توضیحات و فصل‌های ویدئو را می‌سازد؛ سپس با OAuth موجود و YouTube Data API برای slot امن بعدیِ ساعت ۱۸:۰۰ `Asia/Tehran` بارگذاری زمان‌بندی‌شده می‌کند.
+5. تاریخچهٔ ۹۰ ویدئوی اخیر و شناسه‌های پاسخ‌گرفته در `state/` قرار می‌گیرند و با GitHub Actions cache بین اجراهای روزانه نگه‌داری می‌شوند. گزارش stage-by-stage با redaction اسرار در `logs/daily-<run-id>.log` و خروجی‌ها به‌مدت سه روز به‌عنوان artifact ذخیره می‌شوند.
+6. پس از آپلود حداکثر سه نظر روشن و کم‌خطر پاسخ می‌گیرند. حداکثر ۵ ویدئوی اخیر بررسی می‌شود؛ نظرات مشکوک، حساس یا نامطمئن بی‌پاسخ می‌مانند.
 
-## Schedules
+## ساعت اجرا و انتشار
 
-- Global-news production workflow: scheduled every four hours (UTC) with a six-hour publish buffer.
-- Health, analytics and comment review: every six hours.
-- OAuth preflight: manual only; it validates authentication and the channel without publishing.
-- CPU smoke tests validate structure and media assembly only. They do not prove CogVideoX GPU production or a real YouTube upload.
+GitHub Actions روزانه برای ساعت ۱۴:۳۰ UTC (۱۸:۰۰ تهران) تنظیم شده است. هر اجرا پس از انتشار slot امروز، ویدئوی نوبت بعد را می‌سازد و برای ۱۸:۰۰ روز بعد زمان‌بندی می‌کند؛ اجرای نخست، یک روز warm-up دارد. کد slot را نزدیک پایان محاسبه می‌کند: اگر بیش از ۳۰ دقیقه تا slot همان روز مانده باشد همان slot، وگرنه slot روز بعد انتخاب می‌شود. GitHub schedule تضمین real-time ندارد؛ اگر شروع delayed شود، انتشار فوری اتفاق نمی‌افتد.
 
-## Failure handling
+اجرای دستی `workflow_dispatch` به‌طور پیش‌فرض فقط پیش‌نمایش می‌سازد. انتشار دستی فقط با انتخاب صریح `publish=true` انجام می‌شود. اجرای زمان‌بندی‌شده پس از عبور از preflight OAuth، به‌صورت خودکار منتشر/زمان‌بندی می‌کند.
 
-- No usable RSS sources: fail closed; do not invent a bulletin.
-- Local model unavailable or malformed output: stop publication rather than publish unsupported fallback news.
-- Fewer than three source URLs, URLs absent from the description, or script length outside the 300–750-word guard: stop publication.
-- Missing GPU, model download failure, media QA failure, or rejected YouTube OAuth: report the failure and preserve run artifacts when available.
-- OAuth credentials must never be printed, even as prefixes or lengths.
+## پیش‌نیازها و fallback
 
-## Known external dependencies
+**اجباری برای انتشار:** `YOUTUBE_CLIENT_ID`، `YOUTUBE_CLIENT_SECRET` و `YOUTUBE_REFRESH_TOKEN` در GitHub Actions Secrets. OAuth پیش از رندر بررسی می‌شود. هر خطای auth مانع ساخت یا آپلود می‌شود.
 
-- Google News RSS endpoints and publisher links are external and can be unavailable or rate-limited.
-- Google Colab controls GPU allocation and quotas.
-- Google OAuth consent settings and the three YouTube OAuth secrets must remain valid.
-- A free T4 can be too slow or memory-constrained for 3–5 minutes of generated video every four hours. The schedule is configured, but throughput and queue behavior must be measured from real runs before claiming the target cadence is met.
-- config/channel.yaml holds the current channel URL. After the owner changes the YouTube channel handle to TT خبر, update this URL to the new handle.
+**اختیاری:** `GROQ_API_KEY` برای inference طرح رایگان و `PEXELS_API_KEY` برای stock footage. workflow حتی با Groq key مدل Ollama 1B را آماده نگه می‌دارد تا هنگام rate limit یا outage fallback داشته باشد. بدون Pexels، تصاویر انتزاعی تولید می‌شوند. هیچ سرویس پولی لازم نیست، اما نرخ/دسترسی طرح‌های رایگان و GitHub Actions تضمین دائمی ندارند.
 
-## Safety and rollout
+## حواجز الجودة
 
-No self-modifying code is deployed automatically. Repairs must be isolated, tested, reviewed, and merged. Public uploads and comment replies are external side effects; only a run with confirmed upload metadata counts as a successful production run.
+- متن زیر ۶۵۰ یا بالای ۹۰۰ واژه، خروجی JSON معیوب، عنوان تکراری یا محتوای دارای وعدهٔ درمان/ثروت قطعی رد می‌شود.
+- نقل‌قول/آیه/حدیث منسوب به منبع ناشناخته تولید نمی‌شود؛ خطاهای LLM یک‌بار برای اصلاح ساختار بازتولید می‌شوند و سپس fail-closed است.
+- صدای fallback به گویندهٔ دیگری تغییر نمی‌کند؛ اگر Edge TTS در دسترس نباشد، این اجرای تولید متوقف می‌شود.
+- اگر FFmpeg، کپشن، thumbnail یا فایل MP4 ناقص باشد، هیچ uploadی شروع نمی‌شود.
+- ویدئو فقط وقتی موفق محسوب می‌شود که API شناسهٔ ویدئو و زمان انتشار را بازگرداند. OAuth، API key، توکن یا محتوای Secret در log نوشته نمی‌شود.
+- تاریخچهٔ تکرار بر GitHub Actions cache متکی است؛ پاک‌شدن cache می‌تواند تکرار موضوع را ممکن کند، هرچند بقیهٔ quality gates فعال می‌مانند.
+
+## وضعیت فایل‌های قبلی
+
+Workflowهای قدیمی خبر، Colab/Kaggle و پایش شش‌ساعته از شاخهٔ فعال حذف شده‌اند. برخی ماژول‌ها و تست‌های اخبار فقط برای سازگاری تاریخی باقی مانده‌اند؛ workflow جدید هیچ‌یک از آن‌ها را اجرا نمی‌کند. workflow دستی OAuth بدون انتشار حفظ شده است.

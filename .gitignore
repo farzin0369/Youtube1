@@ -7,3 +7,6 @@ venv/
 *.mp4
 *.mp3
 *.wav
+logs/*.log
+state/history.json
+state/comment_replies.json
