@@ -138,6 +138,7 @@ def upload_video(
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
             scheduled_at = _validate_publish_at(scheduled_at)
+        captions_required = privacy in ("public", "unlisted") or bool(scheduled_at)
         # Stage uploads as private; expose/schedule them only after captions and thumbnail finish.
         body = {
             "snippet": {
@@ -180,6 +181,12 @@ def upload_video(
                 result["captions_set"] = True
             except Exception as ce:
                 result["captions_error"] = str(ce)
+                if captions_required:
+                    result.update({"ok": False, "error": "Caption upload failed; video was left private."})
+                    return result
+        elif captions_required:
+            result.update({"ok": False, "error": "Captions are missing; video was left private."})
+            return result
         if thumbnail_path and Path(thumbnail_path).exists() and video_id:
             try:
                 youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumbnail_path))).execute()

@@ -285,6 +285,61 @@ def _script_quality_issues(script: str) -> list[str]:
     return issues
 
 
+def _repeated_sentence_locations(sections: list[dict[str, str]]) -> dict[int, list[str]]:
+    """Locate later-section sentences that repeat an earlier spoken sentence."""
+    seen: list[str] = []
+    repeats: dict[int, list[str]] = {}
+    for index, section in enumerate(sections):
+        for sentence in _sentences(section.get("text", "")):
+            if word_count(sentence) < 8:
+                continue
+            if any(_similarity(sentence, earlier) >= 0.98 for earlier in seen):
+                repeats.setdefault(index, []).append(sentence)
+            else:
+                seen.append(sentence)
+    return repeats
+
+
+def _repair_quality_issues(
+    system: str,
+    sections: list[dict[str, str]],
+    *,
+    target: int,
+    issues: list[str],
+) -> list[dict[str, str]]:
+    """Regenerate only sections implicated by hook/repetition QA failures."""
+    repeats = _repeated_sentence_locations(sections)
+    needs_hook = any("opening has no immediate question" in issue for issue in issues)
+    repair_indices = set(repeats)
+    if needs_hook and sections:
+        repair_indices.add(0)
+
+    repaired = [dict(section) for section in sections]
+    for index in sorted(repair_indices):
+        section = repaired[index]
+        instructions = [
+            f"بخش «{section['heading']}» را با حدود {target} واژه، در سه پاراگراف کوتاه بازنویسی کن.",
+            "فقط متن گفتاری فارسی را برگردان و مثال روزمرهٔ تازه بیاور.",
+        ]
+        if index == 0 and needs_hook:
+            instructions.append(
+                "جملهٔ اول حتماً با پرسش واقعی دربارهٔ یک دغدغهٔ روزمره آغاز شود و پیش از واژهٔ بیستم "
+                "پرسش‌علامت داشته باشد؛ بدون مقدمهٔ کلی."
+            )
+        if repeats.get(index):
+            quoted = "\n- ".join(repeats[index][:5])
+            instructions.append(
+                "هیچ‌یک از جمله‌های زیر یا بازنویسی نزدیک آن‌ها را تکرار نکن؛ برای هر ایده جمله‌ای تازه بساز:\n- "
+                + quoted
+            )
+        instructions.append("متن فعلی برای بازنویسی:\n" + section["text"])
+        replacement = _rewrite(system, "\n".join(instructions), max_tokens=900)
+        replacement = _drop_leaks(_clean_prose(replacement, heading=section["heading"]))
+        if replacement:
+            repaired[index] = {"heading": section["heading"], "text": replacement}
+    return repaired
+
+
 def validate_content(item: dict[str, Any], recent_titles: list[str] | None = None) -> dict[str, Any]:
     title = str(item.get("title") or "").strip()
     title_prefix = TITLE_PREFIX
@@ -456,11 +511,17 @@ def _section_prompt(
     avoid_block = ""
     if avoid:
         avoid_block = "این جمله‌ها قبلاً استفاده شده‌اند؛ هیچ‌یک را تکرار نکن:\n- " + "\n- ".join(avoid[:6])
-    return SECTION_PROMPT.format(
+    rendered = SECTION_PROMPT.format(
         index=index, total=total, title=title, heading=heading,
         target=target, minimum=max(90, int(target * 0.85)),
         previous=previous, avoid=avoid_block,
     )
+    if index == 1:
+        rendered += (
+            "\nالزام ویژهٔ بخش اول: جملهٔ اول باید فوراً با یک پرسش واقعی دربارهٔ یک دغدغهٔ روزمره "
+            "یا یک صحنهٔ ملموس شروع شود و پیش از واژهٔ بیستم پرسش‌علامت داشته باشد؛ مقدمهٔ کلی یا شعار ننویس."
+        )
+    return rendered
 
 
 def _rewrite(system: str, instruction: str, max_tokens: int = 900) -> str:
@@ -640,6 +701,10 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
         return validate_content(item, titles)
     except ValueError as exc:
         LOGGER.warning("assembled script failed a quality gate (%s); attempting one repair pass", exc)
-        repaired = _rebalance(system, sections, target + 30)
+        quality_issues = _script_quality_issues("\n\n".join(s["text"] for s in sections))
+        repaired_sections = _repair_quality_issues(
+            section_system, sections, target=target, issues=quality_issues,
+        ) if quality_issues else sections
+        repaired = _rebalance(system, repaired_sections, target + 30)
         item["sections"] = repaired
         return validate_content(item, titles)
