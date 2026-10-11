@@ -17,9 +17,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Daily Persian spiritual video pipeline")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--publish", action="store_true", help="upload and schedule for the next safe 18:00 Tehran slot")
+    mode.add_argument("--upload-private", action="store_true", help="upload as a private YouTube draft; do not schedule or publish")
     mode.add_argument("--dry-run", action="store_true", help="render the video but do not upload (default)")
     args = parser.parse_args()
-    run(dry_run=not args.publish)
+    run(dry_run=not (args.publish or args.upload_private), upload_private=args.upload_private)
 
 
 if __name__ == "__main__":
