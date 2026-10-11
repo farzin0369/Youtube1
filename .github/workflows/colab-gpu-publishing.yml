@@ -136,7 +136,7 @@ jobs:
 
       - name: Provision Colab T4 GPU runtime
         env:
-          SESSION: tt-khabar-${{ github.run_id }}
+          SESSION: imamali-${{ github.run_id }}
         run: |
           if colab --auth oauth2 new --gpu T4 --high-mem -s "$SESSION"; then
             echo "Provisioned a high-RAM T4."
