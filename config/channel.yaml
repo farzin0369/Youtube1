@@ -1,11 +1,12 @@
 channel:
-  brand: "TT رشد"
-  display_name: "TT رشد"
+  brand: "ImamAli110"
+  display_name: "ImamAli110"
+  secondary_brand: "#The110Path"
   url: "https://www.youtube.com/@imamali.110"
   language: fa-IR
   timezone: Asia/Tehran
-  audience: مخاطب فارسی‌زبان علاقه‌مند به معنویت روزمره و رشد فردی
-  objective: ویدئوهای اصیل و آرام دربارهٔ ارتباط با خدا، توکل، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
+  audience: مخاطب فارسی‌زبان علاقه‌مند به ارتباط معنوی با خدا، حکمت، رشد فردی و عادت‌های سالم مالی
+  objective: ویدئوهای اصیل دربارهٔ معنویت روزمره، توکل، امید، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge-tts
