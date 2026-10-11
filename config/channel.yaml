@@ -13,7 +13,7 @@ channel:
   visual_style: ویدئوی عمودی سینمایی از نماهای آرام طبیعت و زندگی روزمره؛ برش بصری هر ۱۸ ثانیه؛ زیرنویس فارسی زمان‌بندی‌شده
   ai_engine: groq-optional-local-ollama
   llm_model: openai/gpt-oss-20b
-  local_llm_model: llama3.2:1b
+  local_llm_model: qwen2.5:3b
 
 schedule:
   timezone: Asia/Tehran

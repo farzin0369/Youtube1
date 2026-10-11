@@ -5,6 +5,9 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: youtube-oauth-preflight
+  cancel-in-progress: false
 
 jobs:
   oauth-check:

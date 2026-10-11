@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import random
+import re
 import subprocess
 import textwrap
 import time
@@ -142,12 +143,25 @@ def fetch_stock(keywords: list[str], out_dir: Path, count: int = 18) -> tuple[li
     return paths, credits
 
 
-def _font(size: int):
-    for candidate in (
-        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ):
+def _font(size: int, *, persian: bool = True):
+    """Pick a font that actually covers the script being drawn.
+
+    The Noto Arabic faces ship without Latin glyphs, so a Latin brand name
+    drawn with them renders as empty boxes.
+    """
+    if persian:
+        candidates = (
+            "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        )
+    else:
+        candidates = (
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        )
+    for candidate in candidates:
         if Path(candidate).exists():
             try:
                 return ImageFont.truetype(candidate, size)
@@ -171,10 +185,14 @@ def make_thumbnail(title: str, text: str, out_path: Path) -> Path:
     draw.ellipse((850, -170, 1420, 400), outline=(207, 179, 112), width=5)
     draw.ellipse((905, -115, 1365, 345), outline=(207, 179, 112), width=2)
     draw.rounded_rectangle((70, 64, 330, 124), radius=20, fill=(193, 157, 91))
-    brand_font = _font(30)
     brand = str(env("CHANNEL_BRAND") or "ImamAli110")[:24]
+    brand_persian = bool(re.search(r"[\u0600-\u06FF]", brand))
+    brand_font = _font(30, persian=brand_persian)
     try:
-        draw.text((200, 94), brand, font=brand_font, fill=(20, 28, 43), anchor="mm", direction="rtl", language="fa")
+        if brand_persian:
+            draw.text((200, 94), brand, font=brand_font, fill=(20, 28, 43), anchor="mm", direction="rtl", language="fa")
+        else:
+            draw.text((200, 94), brand, font=brand_font, fill=(20, 28, 43), anchor="mm")
     except TypeError:
         draw.text((100, 78), brand, font=brand_font, fill=(20, 28, 43))
     headline = textwrap.fill(text or title, width=20)

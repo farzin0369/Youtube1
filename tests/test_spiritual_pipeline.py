@@ -165,3 +165,15 @@ def test_title_is_prefixed_with_imam_ali_brand():
     value = validate_content(_content())
     assert value["title"].startswith("Imam Ali ✨ ")
     assert len(value["title"]) <= 90
+
+
+def test_thumbnail_brand_uses_a_latin_capable_font():
+    from app.spiritual_video import _font
+
+    arabic = ("NotoNaskhArabic-Regular.ttf", "NotoSansArabic-Regular.ttf")
+    if not any((Path("/usr/share/fonts/truetype/noto") / name).exists() for name in arabic):
+        pytest.skip("Noto Arabic fonts are not installed")
+    # The Noto Arabic faces carry no Latin glyphs, so the Latin brand name
+    # must never be drawn with them.
+    assert Path(_font(30, persian=True).path).name in arabic
+    assert Path(_font(30, persian=False).path).name not in arabic

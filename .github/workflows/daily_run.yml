@@ -26,13 +26,17 @@ jobs:
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       TTS_VOICE: fa-IR-FaridNeural
       CHANNEL_BRAND: ImamAli110
-      LOCAL_LLM_MODEL: llama3.2:1b
+      LOCAL_LLM_MODEL: qwen2.5:3b
       OLLAMA_BASE_URL: http://127.0.0.1:11434
       OLLAMA_TIMEOUT_SECONDS: "600"
       OLLAMA_NUM_PREDICT: "4096"

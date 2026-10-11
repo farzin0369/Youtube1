@@ -27,11 +27,13 @@ jobs:
         run: python -m pytest -q
       - name: Verify automation files
         run: |
+          test -f app/llm_provider.py
           test -f app/spiritual_content.py
           test -f app/spiritual_tts.py
           test -f app/spiritual_video.py
           test -f app/spiritual_pipeline.py
           test -f app/spiritual_comments.py
+          test -f tests/test_content_generation.py
           test -f tests/test_spiritual_pipeline.py
           test -f app/youtube_client.py
           test -f scripts/daily_run.py
