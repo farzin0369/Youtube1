@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import sys
+import types
 
 import pytest
 
@@ -45,3 +47,69 @@ def test_public_upload_requires_a_custom_thumbnail_before_api_upload(tmp_path, m
     result = youtube_client.upload_video(video, "title", "description", [], privacy="public")
     assert not result["ok"]
     assert "thumbnail" in result["error"].lower()
+
+
+def test_scheduled_upload_stays_private_when_caption_upload_fails(tmp_path, monkeypatch):
+    video = tmp_path / "video.mp4"
+    thumbnail = tmp_path / "thumbnail.jpg"
+    captions = tmp_path / "captions.srt"
+    video.write_bytes(b"video")
+    thumbnail.write_bytes(b"thumbnail")
+    captions.write_text("1\n00:00:00,000 --> 00:00:01,000\nسلام\n", encoding="utf-8")
+
+    class VideoInsert:
+        def next_chunk(self):
+            return None, {"id": "video-id"}
+
+    class FailedCaptionInsert:
+        def execute(self):
+            raise RuntimeError("caption API unavailable")
+
+    class Videos:
+        def __init__(self):
+            self.updated = False
+
+        def insert(self, **kwargs):
+            return VideoInsert()
+
+        def update(self, **kwargs):
+            self.updated = True
+            return self
+
+        def execute(self):
+            return {}
+
+    class FakeYouTube:
+        def __init__(self):
+            self.video_api = Videos()
+
+        def videos(self):
+            return self.video_api
+
+        def captions(self):
+            return types.SimpleNamespace(insert=lambda **kwargs: FailedCaptionInsert())
+
+        def thumbnails(self):
+            return types.SimpleNamespace(set=lambda **kwargs: types.SimpleNamespace(execute=lambda: {}))
+
+    fake_youtube = FakeYouTube()
+    discovery = types.ModuleType("googleapiclient.discovery")
+    discovery.build = lambda *args, **kwargs: fake_youtube
+    http = types.ModuleType("googleapiclient.http")
+    http.MediaFileUpload = lambda *args, **kwargs: object()
+    monkeypatch.setitem(sys.modules, "googleapiclient.discovery", discovery)
+    monkeypatch.setitem(sys.modules, "googleapiclient.http", http)
+    monkeypatch.setattr(youtube_client, "has_youtube_creds", lambda: True)
+    monkeypatch.setattr(youtube_client, "_build_credentials", lambda: object())
+    monkeypatch.setattr(youtube_client, "_contains_synthetic_media", lambda: False)
+    monkeypatch.setattr(youtube_client, "_validate_publish_at", lambda value: value)
+
+    result = youtube_client.upload_video(
+        video, "title", "description", [], privacy="public",
+        thumbnail_path=thumbnail, publish_at="2026-10-12T14:30:00Z",
+    )
+
+    assert not result["ok"]
+    assert result["privacy"] == "private"
+    assert "caption" in result["error"].lower()
+    assert not fake_youtube.video_api.updated

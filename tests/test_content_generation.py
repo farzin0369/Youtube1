@@ -95,6 +95,48 @@ def test_section_prompt_carries_repetition_guard():
     assert "سرفصل یک" in prompt
 
 
+def test_first_section_prompt_requires_an_immediate_question_or_scene_hook():
+    first = spiritual_content._section_prompt(
+        title="عنوان", heading="شروع", index=1, total=6, target=130,
+        previous_headings=[], previous_tail="", avoid=[],
+    )
+    later = spiritual_content._section_prompt(
+        title="عنوان", heading="بخش دوم", index=2, total=6, target=130,
+        previous_headings=["شروع"], previous_tail="جملهٔ پایانی.", avoid=[],
+    )
+    assert "جملهٔ اول باید فوراً" in first
+    assert "پیش از واژهٔ بیستم" in first
+    assert "جملهٔ اول باید فوراً" not in later
+
+
+def test_quality_repair_targets_opening_hook_and_repeated_sentence(monkeypatch):
+    repeated = "هر روز چند دقیقه برای تصمیم‌های مهم زندگی‌ات با آرامش مکث کن."
+    sections = [
+        {"heading": "شروع", "text": "مقدمهٔ کلی دربارهٔ این موضوع. " + repeated},
+        {"heading": "تمرین", "text": repeated + " سپس یک قدم کوچک بردار."},
+    ]
+    prompts = []
+
+    def fake_rewrite(system, instruction, max_tokens=900):
+        prompts.append(instruction)
+        return _persian_text(130, str(len(prompts)))
+
+    monkeypatch.setattr(spiritual_content, "_rewrite", fake_rewrite)
+    repaired = spiritual_content._repair_quality_issues(
+        "system", sections, target=130,
+        issues=[
+            "opening has no immediate question or concrete scene hook",
+            "repeated or near-duplicate spoken sentence",
+        ],
+    )
+
+    assert len(prompts) == 2
+    assert "جملهٔ اول حتماً با پرسش واقعی" in prompts[0]
+    assert repeated in prompts[1]
+    assert repaired[0]["text"] != sections[0]["text"]
+    assert repaired[1]["text"] != sections[1]["text"]
+
+
 def test_prompt_echo_is_detected_and_dropped():
     leaked = (
         "قواعد: فقط متن گفتاری بده. "
