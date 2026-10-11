@@ -145,9 +145,11 @@ def test_local_ollama_uses_constrained_json_mode(monkeypatch):
     monkeypatch.setattr(local_ai.urllib.request, "urlopen", fake_urlopen)
     monkeypatch.setenv("OLLAMA_NUM_PREDICT", "4096")
     monkeypatch.setenv("OLLAMA_NUM_CTX", "4096")
+    monkeypatch.setenv("OLLAMA_TIMEOUT_SECONDS", "600")
     result = local_ai.ollama_generate("make JSON", system="JSON only", model="llama3.2:1b", format_json=True)
 
     assert result == '{"ok":true}'
     assert captured["payload"]["format"] == "json"
     assert captured["payload"]["options"]["num_predict"] == 4096
     assert captured["payload"]["options"]["num_ctx"] == 4096
+    assert captured["timeout"] == 600
