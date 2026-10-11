@@ -172,10 +172,11 @@ def make_thumbnail(title: str, text: str, out_path: Path) -> Path:
     draw.ellipse((905, -115, 1365, 345), outline=(207, 179, 112), width=2)
     draw.rounded_rectangle((70, 64, 330, 124), radius=20, fill=(193, 157, 91))
     brand_font = _font(30)
+    brand = str(env("CHANNEL_BRAND") or "ImamAli110")[:24]
     try:
-        draw.text((200, 94), "TT رشد", font=brand_font, fill=(20, 28, 43), anchor="mm", direction="rtl", language="fa")
+        draw.text((200, 94), brand, font=brand_font, fill=(20, 28, 43), anchor="mm", direction="rtl", language="fa")
     except TypeError:
-        draw.text((100, 78), "TT رشد", font=brand_font, fill=(20, 28, 43))
+        draw.text((100, 78), brand, font=brand_font, fill=(20, 28, 43))
     headline = textwrap.fill(text or title, width=20)
     font = _font(86)
     lines = headline.splitlines()[:3]
