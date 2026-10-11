@@ -114,6 +114,11 @@ def word_count(text: str) -> int:
 
 def validate_content(item: dict[str, Any], recent_titles: list[str] | None = None) -> dict[str, Any]:
     title = str(item.get("title") or "").strip()
+    title_prefix = "Imam Ali ✨ "
+    if title and not title.startswith(title_prefix):
+        title = title_prefix + title
+    if len(title) > 90:
+        title = title_prefix + title[len(title_prefix):][:90 - len(title_prefix)]
     sections = item.get("sections")
     if not title or len(title) > 90:
         raise ValueError("Generated title is empty or exceeds 90 characters")
@@ -142,9 +147,13 @@ def validate_content(item: dict[str, Any], recent_titles: list[str] | None = Non
         raise ValueError("Unverified sacred-text or attributed quotation must be removed")
     if re.search(r"(?:به شما تضمین می‌دهم|سود تضمینی|درمان قطعی|پولدار شدن قطعی|حتماً ثروتمند می‌شوید)", script):
         raise ValueError("Guaranteed financial or medical outcomes are not allowed")
-    lower_title = re.sub(r"\W+", "", title.casefold())
+    comparison_title = title[len(title_prefix):] if title.startswith(title_prefix) else title
+    lower_title = re.sub(r"\W+", "", comparison_title.casefold())
     for previous in recent_titles or []:
-        previous_key = re.sub(r"\W+", "", str(previous).casefold())
+        previous_title = str(previous).strip()
+        if previous_title.startswith(title_prefix):
+            previous_title = previous_title[len(title_prefix):]
+        previous_key = re.sub(r"\W+", "", previous_title.casefold())
         similarity = SequenceMatcher(None, lower_title, previous_key).ratio() if lower_title and previous_key else 0
         if lower_title and (lower_title == previous_key or similarity >= 0.88):
             raise ValueError("Generated title duplicates a recent upload")
