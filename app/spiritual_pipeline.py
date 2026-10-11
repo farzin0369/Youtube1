@@ -88,7 +88,7 @@ def _safe_error(message: str) -> str:
     return message[:400]
 
 
-def run(*, dry_run: bool = False) -> dict[str, Any]:
+def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any]:
     started_at = utc_now_iso()
     run_id = re.sub(r"[^A-Za-z0-9_-]", "_", os.getenv("GITHUB_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"))
     logger = _configure_logging(run_id)
@@ -135,19 +135,19 @@ def run(*, dry_run: bool = False) -> dict[str, Any]:
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
             stage = "YouTube upload and scheduling"
-            scheduled_at = next_publish_at()
+            scheduled_at = None if upload_private else next_publish_at()
             cfg = load_channel_config()
             category_id = str((cfg.get("publishing") or {}).get("category_id") or "22")
-            logger.info("uploading video for scheduled slot=%s", scheduled_at)
+            logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
-                description=description, tags=content["tags"], privacy="public",
+                description=description, tags=content["tags"], privacy="private" if upload_private else "public",
                 thumbnail_path=Path(render["thumbnail_path"]), category_id=category_id,
                 publish_at=scheduled_at,
             )
             if not upload.get("ok"):
                 raise RuntimeError(str(upload.get("error") or "YouTube upload/scheduling failed"))
-            logger.info("YouTube video scheduled video_id=%s slot=%s", upload.get("video_id"), upload.get("scheduled_for"))
+            logger.info("YouTube upload complete mode=%s video_id=%s slot=%s", "private-draft" if upload_private else "scheduled-public", upload.get("video_id"), upload.get("scheduled_for"))
             recent = history.get("recent") if isinstance(history.get("recent"), list) else []
             recent.append({
                 "title": content["title"], "topic": content["sections"][1]["heading"],
