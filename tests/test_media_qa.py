@@ -4,12 +4,15 @@ from app.media_qa import validate_render_package
 
 
 def _package(tmp_path: Path):
+    from PIL import Image
+
     video = tmp_path / "video.mp4"
     thumb = tmp_path / "thumbnail.jpg"
     captions = tmp_path / "captions.srt"
     audio = tmp_path / "audio.wav"
-    for path in (video, thumb, audio):
+    for path in (video, audio):
         path.write_bytes(b"test-media")
+    Image.new("RGB", (1280, 720), color=(20, 30, 40)).save(thumb, format="JPEG")
     captions.write_text(
         "1\n00:00:00,000 --> 00:00:02,000\nسلام\n\n"
         "2\n00:00:02,000 --> 00:00:04,000\nمهربانی\n",
@@ -47,3 +50,13 @@ def test_captions_outside_video_duration_fail(tmp_path: Path):
     result = validate_render_package(meta, audio)
     assert not result["ok"]
     assert "captions_exceed_video_duration" in result["errors"]
+
+
+def test_low_resolution_thumbnail_fails_qa(tmp_path: Path):
+    from PIL import Image
+
+    meta, audio = _package(tmp_path)
+    Image.new("RGB", (320, 180), color=(20, 30, 40)).save(meta["thumbnail_path"], format="JPEG")
+    result = validate_render_package(meta, audio)
+    assert not result["ok"]
+    assert "thumbnail_invalid_dimensions_or_aspect_ratio" in result["errors"]

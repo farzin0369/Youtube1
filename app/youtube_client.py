@@ -125,6 +125,8 @@ def upload_video(
         return {"ok": False, "skipped": True, "error": "Missing YouTube secrets."}
     if not video_path or not Path(video_path).exists():
         return {"ok": False, "error": "No video file."}
+    if privacy in ("public", "unlisted") and (not thumbnail_path or not Path(thumbnail_path).is_file()):
+        return {"ok": False, "error": "A valid custom thumbnail is required before a public or unlisted upload."}
 
     contains_synthetic_media = _contains_synthetic_media()
 
@@ -136,8 +138,7 @@ def upload_video(
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
             scheduled_at = _validate_publish_at(scheduled_at)
-        # YouTube requires scheduled videos to be uploaded as private with publishAt set.
-        effective_privacy = "private" if scheduled_at and privacy == "public" else privacy
+        # Stage uploads as private; expose/schedule them only after captions and thumbnail finish.
         body = {
             "snippet": {
                 "title": title[:100],
@@ -148,10 +149,9 @@ def upload_video(
                 "defaultAudioLanguage": "fa",
             },
             "status": {
-                "privacyStatus": effective_privacy,
+                "privacyStatus": "private",
                 "selfDeclaredMadeForKids": False,
                 "containsSyntheticMedia": contains_synthetic_media,
-                **({"publishAt": scheduled_at} if scheduled_at and effective_privacy == "private" else {}),
             },
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
@@ -166,8 +166,8 @@ def upload_video(
             "ok": True,
             "video_id": video_id,
             "url": f"https://www.youtube.com/watch?v={video_id}",
-            "privacy": "scheduled" if scheduled_at and effective_privacy == "private" else privacy,
-            "scheduled_for": scheduled_at if scheduled_at and effective_privacy == "private" else None,
+            "privacy": "private",
+            "scheduled_for": None,
         }
         captions_path = Path(video_path).with_name("captions.srt") if video_path else None
         if captions_path and captions_path.exists() and video_id:
@@ -186,6 +186,23 @@ def upload_video(
                 result["thumbnail_set"] = True
             except Exception as te:
                 result["thumbnail_error"] = str(te)
+                result.update({"ok": False, "error": "Custom thumbnail upload failed; video was left private."})
+                return result
+        elif privacy in ("public", "unlisted"):
+            result.update({"ok": False, "error": "Custom thumbnail missing; video was left private."})
+            return result
+
+        release_status = {
+            "privacyStatus": "private" if scheduled_at else privacy,
+            "selfDeclaredMadeForKids": False,
+            "containsSyntheticMedia": contains_synthetic_media,
+        }
+        if scheduled_at:
+            release_status["publishAt"] = scheduled_at
+        if release_status["privacyStatus"] != "private" or scheduled_at:
+            youtube.videos().update(part="status", body={"id": video_id, "status": release_status}).execute()
+        result["privacy"] = "scheduled" if scheduled_at else privacy
+        result["scheduled_for"] = scheduled_at
         return result
     except Exception as e:
         return {"ok": False, "error": str(e)}

@@ -32,6 +32,22 @@ def validate_render_package(render_meta: dict[str, Any], audio_path: Path | None
         checks[field] = {"path": str(path) if path else None, "ok": valid, "bytes": path.stat().st_size if valid else 0}
         if not valid:
             errors.append(error_name)
+    thumbnail_raw = render_meta.get("thumbnail_path")
+    thumbnail_path = Path(str(thumbnail_raw)) if thumbnail_raw else None
+    if thumbnail_path and thumbnail_path.is_file() and thumbnail_path.stat().st_size > 0:
+        try:
+            from PIL import Image
+
+            with Image.open(thumbnail_path) as image:
+                image.verify()
+            with Image.open(thumbnail_path) as image:
+                width, height = image.size
+            ratio = width / height if height else 0
+            checks["thumbnail_dimensions"] = {"width": width, "height": height, "aspect_ratio": round(ratio, 4)}
+            if width < 640 or height < 360 or abs(ratio - 16 / 9) > 0.04:
+                errors.append("thumbnail_invalid_dimensions_or_aspect_ratio")
+        except Exception as exc:
+            errors.append("invalid_thumbnail_image: " + type(exc).__name__)
     if audio_path is not None:
         valid_audio = Path(audio_path).is_file() and Path(audio_path).stat().st_size > 0
         checks["audio_path"] = {"path": str(audio_path), "ok": valid_audio}

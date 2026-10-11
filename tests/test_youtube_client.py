@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from app import youtube_client
 from app.youtube_client import _contains_synthetic_media, _validate_publish_at
 
 
@@ -35,3 +36,12 @@ def test_publish_at_does_not_move_a_late_run_to_the_next_day():
     now = datetime(2026, 10, 10, 2, 20, tzinfo=timezone.utc)
     with pytest.raises(ValueError, match="wrong day|another day|too close"):
         _validate_publish_at("2026-10-10T02:30:00Z", now=now)
+
+
+def test_public_upload_requires_a_custom_thumbnail_before_api_upload(tmp_path, monkeypatch):
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"video")
+    monkeypatch.setattr(youtube_client, "has_youtube_creds", lambda: True)
+    result = youtube_client.upload_video(video, "title", "description", [], privacy="public")
+    assert not result["ok"]
+    assert "thumbnail" in result["error"].lower()

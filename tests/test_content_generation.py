@@ -14,8 +14,14 @@ from app.spiritual_content import (
 
 def _persian_text(words: int, marker: str) -> str:
     """Build distinct Persian filler whose word count is exactly ``words``."""
-    tokens = [f"واژه{marker}{index}" for index in range(max(0, words - 1))]
-    return " ".join(tokens + ["پایان"]) if words else ""
+    if not words:
+        return ""
+    marker = str(marker)
+    hook = "فرض کن آخرِ ماه است؛ آیا می‌شود امروز یک قدم برداشت؟" if marker == "0" else ""
+    tokens = [f"واژه{marker}نشان{index}" for index in range(max(0, words - len(hook.split())))]
+    sentences = [hook] if hook else []
+    sentences.extend(" ".join(tokens[index:index + 8]) + "." for index in range(0, len(tokens), 8))
+    return " ".join(sentence for sentence in sentences if sentence)
 
 
 def test_extract_json_object_tolerates_fences_prose_and_truncation():

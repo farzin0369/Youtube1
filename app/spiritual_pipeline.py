@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from typing import Any
 
 from app.spiritual_content import generate_content
+from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
@@ -116,6 +117,20 @@ def run(*, dry_run: bool = False) -> dict[str, Any]:
             captions_path=captions_path, out_dir=out_dir, run_id=run_id,
         )
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
+        media_quality = validate_render_package(
+            {
+                "ok": render.get("ok"),
+                "video_path": render.get("video_path"),
+                "thumbnail_path": render.get("thumbnail_path"),
+                "captions_path": render.get("captions_path"),
+                "duration": render.get("duration_seconds"),
+                "on_screen_captions": render.get("on_screen_captions"),
+            },
+            audio_path,
+        )
+        if not media_quality.get("ok"):
+            raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
+        logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -158,7 +173,7 @@ def run(*, dry_run: bool = False) -> dict[str, Any]:
         result = {
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
-            "tts": {key: value for key, value in tts.items() if key != "path"},
+            "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
         }
         save_json(out_dir / "result.json", result)
