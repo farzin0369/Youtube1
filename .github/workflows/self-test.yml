@@ -27,21 +27,15 @@ jobs:
         run: python -m pytest -q
       - name: Verify automation files
         run: |
-          test -f app/pipeline.py
-          test -f tests/test_news_research.py
-          test -f tests/test_agent_guard.py
-          test -f app/scene_plan.py
-          test -f app/media_qa.py
-          test -f app/video_render.py
+          test -f app/spiritual_content.py
+          test -f app/spiritual_tts.py
+          test -f app/spiritual_video.py
+          test -f app/spiritual_pipeline.py
+          test -f app/spiritual_comments.py
+          test -f tests/test_spiritual_pipeline.py
           test -f app/youtube_client.py
-          test -f app/channel_ops.py
-          test -f scripts/daily_health_report.py
-          test -f scripts/smoke_render.py
-          test -f scripts/collect_news.py
-          test -f .github/workflows/news-research-check.yml
-          test -f scripts/repair_colab_cogvideox.py
-          test -f .github/workflows/daily-youtube.yml
-          test -f .github/workflows/channel-health.yml
+          test -f scripts/daily_run.py
+          test -f .github/workflows/daily_run.yml
           test -f .github/workflows/youtube-oauth-check.yml
           test -f config/channel.yaml
-          echo "TT Khabar news automation structure OK"
+          echo "Persian spiritual daily automation structure OK"

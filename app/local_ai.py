@@ -25,20 +25,25 @@ def ollama_available() -> bool:
 def ollama_generate(prompt: str, system: str = "", model: str | None = None) -> str:
     if not ollama_available():
         raise RuntimeError("Local Ollama is not running on 127.0.0.1:11434")
+    try:
+        timeout = max(30, min(600, int(env("OLLAMA_TIMEOUT_SECONDS") or "300")))
+        num_predict = max(256, min(4096, int(env("OLLAMA_NUM_PREDICT") or "2200")))
+    except ValueError:
+        timeout, num_predict = 300, 2200
     raw_keep_alive = env("OLLAMA_KEEP_ALIVE")
     try:
         keep_alive = 0 if raw_keep_alive is None else int(raw_keep_alive)
     except ValueError:
         keep_alive = 0
-    payload = json.dumps({"model": model or env("LOCAL_LLM_MODEL") or "llama3.2:3b","prompt": prompt,"system": system,"stream": False,"keep_alive": keep_alive,"options": {"temperature": 0.35}}).encode()
+    payload = json.dumps({"model": model or env("LOCAL_LLM_MODEL") or "llama3.2:1b","prompt": prompt,"system": system,"stream": False,"keep_alive": keep_alive,"options": {"temperature": 0.55,"num_predict": num_predict}}).encode()
     req = urllib.request.Request((env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/") + "/api/generate", data=payload, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode())
     return str(data.get("response") or "").strip()
 
 def release_ollama_model(model: str | None = None) -> None:
     """Unload Ollama weights so CogVideoX can use RAM and the T4."""
-    model = model or env("LOCAL_LLM_MODEL") or "llama3.2:3b"
+    model = model or env("LOCAL_LLM_MODEL") or "llama3.2:1b"
     try:
         subprocess.run(["ollama", "stop", model], check=False, capture_output=True, text=True, timeout=30)
     except Exception:

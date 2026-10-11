@@ -1,53 +1,50 @@
 channel:
-  brand: "TT خبر"
-  display_name: "TT خبر"
+  brand: "TT رشد"
+  display_name: "TT رشد"
   url: "https://www.youtube.com/@imamali.110"
   language: fa-IR
   timezone: Asia/Tehran
-  audience: مخاطب عمومی فارسی‌زبان
-  objective: ارائه خبرهای جهانی دقیق، سریع، متوازن و قابل‌فهم به زبان فارسی
+  audience: مخاطب فارسی‌زبان علاقه‌مند به معنویت روزمره و رشد فردی
+  objective: ویدئوهای اصیل و آرام دربارهٔ ارتباط با خدا، توکل، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
-  tts_model: edge
-  visual_style: مستند خبری سینمایی؛ تصاویر متحرک مرتبط با خبر؛ بدون اسلایدشو خشک؛ بدون جعل تصویر واقعی رویداد
-  ai_engine: local
-  llm_model: llama3.2:3b
-  logo: generate-once-and-cache
+  tts_model: edge-tts
+  visual_style: ویدئوی عمودی سینمایی از نماهای آرام طبیعت و زندگی روزمره؛ برش بصری هر ۱۸ ثانیه؛ زیرنویس فارسی زمان‌بندی‌شده
+  ai_engine: groq-optional-local-ollama
+  llm_model: openai/gpt-oss-20b
+  local_llm_model: llama3.2:1b
 
 schedule:
-  news_cycle_hours: 4
-  short: "manual"
-  long: "0 */4 * * *"
-  short_duration_seconds: 45
-  long_duration_minutes: "3-5"
+  timezone: Asia/Tehran
+  production_start_local: "18:00"
+  publication_local: "18:00"
+  production_cron_utc: "30 14 * * *"
+  cadence: daily
 
 publishing:
-  mode: public
-  public_publish_enabled: true
-  category: "News & Politics"
+  mode: scheduled-public
+  category_id: "22"
   default_language: fa
-  require_review_for_sensitive_comments: true
-  require_sources_in_description: true
-  disclose_synthetic_media_when_required: true
+  minimum_schedule_lead_minutes: 30
+  require_successful_render: true
+  comments_max_replies_per_run: 3
 
 content:
   pillars:
-    - سیاست و روابط بین‌الملل
-    - فناوری و هوش مصنوعی
-    - اقتصاد و کسب‌وکار
-    - جهان و بحران‌های انسانی
-    - علم و فضا
-    - ورزش
-    - سرگرمی و فرهنگ
-    - سلامت عمومی بر پایه منابع معتبر
+    - معنویت روزمره و تأمل دربارهٔ معنا
+    - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی
+    - نیت و امید و تأمل نقادانه دربارهٔ مفهوم جذب، بدون انتساب حکم قطعی به اسلام
+    - عادت‌های کوچک و رشد فردی
+    - مدیریت زمان، نظم و تمرکز
+    - سواد مالی عمومی و عادت‌های سالم مالی
   forbidden:
-    - خبر بدون منبع قابل بررسی
-    - ادعای تأییدنشده به‌عنوان واقعیت
-    - عنوان گمراه‌کننده یا اغراق‌آمیز
-    - نقل قول ساختگی
-    - محتوای نفرت‌پراکن یا آزار هدفمند
-    - توصیه پزشکی شخصی یا ادعای درمان قطعی
-    - تصاویر ساختگی که به‌عنوان تصویر واقعی رویداد معرفی شوند
-  source_policy: استفاده از خبرهای دارای لینک و زمان انتشار؛ تفکیک واقعیت، ادعا و تحلیل؛ ذکر منابع در توضیحات ویدئو
-  target_stories_per_video: 3-5
-  approved_source_books: []
+    - وعدهٔ قطعی پولدارشدن، موفقیت یا درمان
+    - توصیهٔ مالی، سرمایه‌گذاری یا پزشکی شخصی
+    - نقل‌قول، آیه یا حدیث ساختگی یا بدون منبع معتبر
+    - کلیک‌بیت، ترساندن، شرمنده‌کردن یا لحن سرزنش‌گر
+    - تقلید از سبک اختصاصی کانال‌ها یا نویسندگان دیگر
+    - پاسخ خودکار به بحران، خودآسیبی، تهدید، نفرت یا درخواست فتوا
+  target_duration_minutes: 6
+  target_word_count: "720-820"
+  source_policy: محتوای تأملی و آموزشی عمومی؛ ادعای دینیِ قابل‌راستی‌آزمایی فقط با منبع معتبر؛ عدم اختلاق نقل‌قول
+  comment_policy: پاسخ کوتاه فقط به نظرهای روشن و بی‌خطر؛ مورد حساس یا نامطمئن بدون پاسخ خودکار
