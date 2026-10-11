@@ -7,10 +7,11 @@ from typing import Any
 
 from app.utils import clean_persian, env, load_content_policy
 from app.local_ai import ollama_generate, ollama_available
+from app.research import is_iran_related
 
 SYSTEM_PROMPT = """تو نویسنده و دبیر تحریریهٔ فارسی «TT خبر» هستی.
 خروجی فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan باشد.
-هدف بولتن ۳ تا ۵ دقیقه‌ای با ۳ تا ۵ خبر جهانی از ورودی است؛ خبرها را کوتاه، روشن و متوازن روایت کن.
+هدف بولتن ۳ تا ۵ دقیقه‌ای با ۳ تا ۵ خبر مرتبط با ایران از ورودی است؛ خبرها را کوتاه، روشن و متوازن روایت کن.
 فقط از تیترها، خلاصه‌ها، ناشر، تاریخ و URLهایی استفاده کن که در دادهٔ ورودی آمده‌اند. هیچ واقعیت، عدد، نقل‌قول، علت، نتیجه یا جزئیات زمینه‌ای را از خودت اضافه نکن.
 اگر اطلاعات برای نتیجه‌گیری کافی نیست، صریح بگو جزئیات هنوز روشن نیست یا این مورد فقط بر اساس گزارش منبع بیان می‌شود.
 بین واقعیت تأییدشده، ادعای یک طرف و تحلیل تفاوت بگذار. تحلیل باید محدود، شفاف و مبتنی بر اطلاعات موجود باشد.
@@ -67,7 +68,10 @@ def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
     stories = topic.get("stories") or []
     if not stories:
         raise RuntimeError("No source-linked stories available for a news script.")
-    parts = ["سلام. این گزارش «TT خبر» است؛ مرور چند خبر جهانی بر پایهٔ منابع پیوندخورده."]
+    parts = [
+        "سلام. این گزارش «TT خبر» است؛ مرور خبرهای مرتبط با ایران بر پایهٔ منابع پیوندخورده.",
+        "از متن‌های در دسترس، تنها همین موارد قابل‌گزارش است؛ جزئیات تکمیلی و زمینهٔ بیشتر را باید در پیوند مستقیم هر ناشر دید.",
+    ]
     for item in stories:
         title = str(item.get("title") or "").strip()
         description = str(item.get("description") or "").strip()
@@ -75,7 +79,7 @@ def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
         published = str(item.get("published_at") or "زمان انتشار در خوراک اعلام نشده")
         if not title:
             continue
-        parts.append(f"خبر بعدی از دستهٔ {item.get('category_fa') or item.get('category') or 'جهان'}: {title}.")
+        parts.append(f"خبر بعدی از دستهٔ {item.get('category_fa') or item.get('category') or 'ایران و جهان'}: {title}.")
         if description:
             parts.append(f"خلاصهٔ موجود در خوراک منبع چنین است: {description}.")
         else:
@@ -84,12 +88,12 @@ def _fallback_script(topic: dict[str, Any], kind: str) -> dict[str, Any]:
     parts.append("این مرور بر اساس اطلاعات قابل‌دسترسی در منابع پیوندخورده تهیه شده است؛ برای جزئیات بیشتر، متن کامل گزارش‌های اصلی را بخوانید.")
     body = " ".join(parts)
     sources = [str(item.get("url")) for item in stories if item.get("url")]
-    description = "مرور خبرهای جهانی به فارسی.\n\nمنابع:\n" + "\n".join(
+    description = "مرور خبرهای مرتبط با ایران به فارسی.\n\nمنابع:\n" + "\n".join(
         f"- {item.get('publisher')}: {item.get('title')} — {item.get('url')}"
         for item in stories if item.get("url")
-    ) + "\n\n#TTخبر #اخبار #اخبار_جهان"
+    ) + "\n\n#TTخبر #اخبار_ایران #ایران_و_جهان"
     return {
-        "title": ("TT خبر | " + str(stories[0].get("title") or "مرور اخبار جهان"))[:100],
+        "title": ("TT خبر | " + str(stories[0].get("title") or "مرور خبرهای مرتبط با ایران"))[:100],
         "description": description,
         "script": body,
         "sources": sources,
@@ -114,7 +118,7 @@ def _normalize(data: dict[str, Any], topic: dict[str, Any], kind: str) -> dict[s
         if missing:
             data["description"] += "\n\nمنابع خبری:\n" + "\n".join(missing)
     if "#TTخبر" not in data["description"]:
-        data["description"] += "\n\n#TTخبر #اخبار #اخبار_جهان"
+        data["description"] += "\n\n#TTخبر #اخبار_ایران #ایران_و_جهان"
     data["tags"] = data.get("tags") or ["TT خبر", "اخبار فارسی", "اخبار جهان"]
     data["duration_hint_seconds"] = int(data.get("duration_hint_seconds") or (45 if kind == "short" else 240))
     raw_scenes = data.get("scene_plan")
@@ -165,23 +169,45 @@ def _call_local(topic: dict[str, Any], kind: str, brief: str) -> dict[str, Any]:
         f"درس‌های ویرایشی قبلی (فقط توصیهٔ محتوایی): {memory_context}\n"
         "فقط JSON معتبر با کلیدهای title, description, script, sources, tags, duration_hint_seconds, scene_plan."
     )
-    raw = ollama_generate(user, system=SYSTEM_PROMPT, model=env("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    raw = ollama_generate(user, system=SYSTEM_PROMPT, model=env("LOCAL_LLM_MODEL") or "llama3.2:1b")
     raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.startswith("json"):
             raw = raw[4:].strip()
     data = json.loads(raw)
-    data["generated_by"] = "local-ollama:" + (env("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    data["generated_by"] = "local-ollama:" + (env("LOCAL_LLM_MODEL") or "llama3.2:1b")
     return _normalize(data, topic, kind)
 
 def generate_script(topic: dict[str, Any], kind: str, research_brief: str) -> dict[str, Any]:
     # Do not silently publish a thin or invented fallback when news inference is unavailable.
     if not topic.get("stories"):
         raise RuntimeError("News topic contains no source-linked stories; publication blocked.")
+    unrelated = [
+        str(story.get("title") or "(untitled)")
+        for story in topic["stories"]
+        if not is_iran_related(story)
+    ]
+    if unrelated:
+        raise RuntimeError(
+            "Stories not related to Iran reached script generation; publication blocked: "
+            + "; ".join(unrelated[:3])
+        )
     if not ollama_available():
         raise RuntimeError("Local Ollama is unavailable; current-news script generation blocked to avoid unsupported claims.")
     try:
         return _call_local(topic, kind, research_brief)
+    except TimeoutError as exc:
+        fallback = _fallback_script(topic, kind)
+        fallback["generated_by"] = "source-only-fallback:ollama-timeout"
+        from app.agent_guard import validate_package
+        gate = validate_package(fallback, kind)
+        if not gate.get("ok"):
+            raise RuntimeError(
+                "Ollama timed out and the source-only fallback failed editorial quality checks: "
+                + ", ".join(gate.get("errors", []))
+            ) from exc
+        print("[script_gen] Ollama timed out; source-only fallback passed editorial quality checks.")
+        return fallback
     except Exception as exc:
         raise RuntimeError(f"News script generation failed; publication blocked: {type(exc).__name__}: {exc}") from exc

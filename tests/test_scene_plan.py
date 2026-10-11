@@ -134,3 +134,58 @@ def test_fallback_news_script_has_scene_contract_and_quality_gate_blocks_short_b
     result = validate_package(data, "long")
     assert not result["ok"]
     assert any(error.startswith("news_script_word_count_outside") for error in result["errors"])
+
+
+def test_ollama_timeout_uses_source_only_fallback_only_when_quality_gate_passes(monkeypatch):
+    import app.script_gen as script_gen
+    from app.agent_guard import validate_package
+
+    stories = [
+        {
+            "title": f"Iran policy update {i}",
+            "description": ("The source reports a verified development concerning Iran and gives this limited summary. " * 3).strip(),
+            "publisher": f"Source {i}",
+            "published_at": "2026-10-10T12:00:00+00:00",
+            "category": "iran_world",
+            "category_fa": "ایران و جهان",
+            "url": f"https://example.com/iran/{i}",
+        }
+        for i in range(1, 6)
+    ]
+    monkeypatch.setattr(script_gen, "ollama_available", lambda: True)
+    monkeypatch.setattr(script_gen, "_call_local", lambda *_args: (_ for _ in ()).throw(TimeoutError("request timed out")))
+
+    result = script_gen.generate_script({"stories": stories}, "long", "source brief")
+
+    assert result["generated_by"] == "source-only-fallback:ollama-timeout"
+    assert result["sources"] == [story["url"] for story in stories]
+    assert validate_package(result, "long")["ok"]
+
+
+def test_ollama_timeout_does_not_publish_short_fallback(monkeypatch):
+    import app.script_gen as script_gen
+
+    stories = [
+        {"title": "Iran policy update", "description": "A short report on Iran.", "publisher": "Example", "url": "https://example.com/iran"},
+        {"title": "Iran diplomacy update", "description": "A short diplomatic report.", "publisher": "Example", "url": "https://example.com/diplomacy"},
+        {"title": "Iran economy update", "description": "A short economic report.", "publisher": "Example", "url": "https://example.com/economy"},
+    ]
+    monkeypatch.setattr(script_gen, "ollama_available", lambda: True)
+    monkeypatch.setattr(script_gen, "_call_local", lambda *_args: (_ for _ in ()).throw(TimeoutError("request timed out")))
+
+    with pytest.raises(RuntimeError, match="fallback failed editorial quality checks"):
+        script_gen.generate_script({"stories": stories}, "long", "source brief")
+
+
+def test_script_generation_rejects_non_iran_stories_before_model_call(monkeypatch):
+    import app.script_gen as script_gen
+
+    monkeypatch.setattr(script_gen, "ollama_available", lambda: True)
+    monkeypatch.setattr(script_gen, "_call_local", lambda *_args: (_ for _ in ()).throw(AssertionError("model must not run")))
+
+    with pytest.raises(RuntimeError, match="not related to Iran"):
+        script_gen.generate_script(
+            {"stories": [{"title": "Hurricane in Mexico", "url": "https://example.com/weather"}]},
+            "long",
+            "source brief",
+        )

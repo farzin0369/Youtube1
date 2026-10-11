@@ -92,7 +92,7 @@ def main():
     memory["editorial_lessons"] = clean_lessons(memory.get("editorial_lessons"))
     memory.setdefault("runs", [])
     rid = str(secrets.get("PIPELINE_RUN_ID") or ("news_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
-    model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:1b")
 
     print("[agent] Checking Colab GPU runtime without holding a CUDA context in this process.")
     probe = subprocess.run(
@@ -221,7 +221,8 @@ def main():
         "invalid_grant", "YouTube OAuth refresh failed", "No source-linked news",
         "News topic contains no source-linked stories", "Production quality gate failed",
         "news_script_word_count_outside", "news_sources_must_be_urls",
-        "all_news_source_urls_must_be_in_description",
+        "all_news_source_urls_must_be_in_description", "TimeoutError", "timed out",
+        "News script generation failed", "Stories not related to Iran",
     )
     pipeline = None
     for attempt in range(1, max_attempts + 1):

@@ -61,7 +61,7 @@ def load_json(path: Path, default):
 def main():
     secrets = load_json(SECRETS_FILE, {})
     rid = str(secrets.get("PIPELINE_RUN_ID") or ("preview_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
-    model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:1b")
 
     print("[preview] Checking GPU.")
     probe = subprocess.run(

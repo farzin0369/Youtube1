@@ -30,15 +30,26 @@ def ollama_generate(prompt: str, system: str = "", model: str | None = None) -> 
         keep_alive = 0 if raw_keep_alive is None else int(raw_keep_alive)
     except ValueError:
         keep_alive = 0
-    payload = json.dumps({"model": model or env("LOCAL_LLM_MODEL") or "llama3.2:3b","prompt": prompt,"system": system,"stream": False,"keep_alive": keep_alive,"options": {"temperature": 0.35}}).encode()
+    payload = json.dumps({
+        "model": model or env("LOCAL_LLM_MODEL") or "llama3.2:1b",
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "keep_alive": keep_alive,
+        "options": {"temperature": 0.35, "num_predict": 2000},
+    }).encode()
     req = urllib.request.Request((env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").rstrip("/") + "/api/generate", data=payload, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=600) as r:
+    try:
+        timeout = max(30, int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS") or "300"))
+    except ValueError:
+        timeout = 300
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.loads(r.read().decode())
     return str(data.get("response") or "").strip()
 
 def release_ollama_model(model: str | None = None) -> None:
     """Unload Ollama weights so CogVideoX can use RAM and the T4."""
-    model = model or env("LOCAL_LLM_MODEL") or "llama3.2:3b"
+    model = model or env("LOCAL_LLM_MODEL") or "llama3.2:1b"
     try:
         subprocess.run(["ollama", "stop", model], check=False, capture_output=True, text=True, timeout=30)
     except Exception:
