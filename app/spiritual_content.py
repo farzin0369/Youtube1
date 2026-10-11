@@ -160,7 +160,7 @@ def validate_content(item: dict[str, Any], recent_titles: list[str] | None = Non
     ]
     tags: list[str] = []
     seen_tags: set[str] = set()
-    for candidate in proposed_tags + mandatory_tags:
+    for candidate in mandatory_tags + proposed_tags:
         normalized_tag = candidate.casefold()
         if candidate and normalized_tag not in seen_tags:
             tags.append(candidate)
