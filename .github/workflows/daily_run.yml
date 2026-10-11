@@ -7,7 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Upload and schedule publicly (manual runs default to preview only)
+        description: Upload and schedule publicly for 18:00 Tehran
+        required: true
+        type: boolean
+        default: false
+      upload_private:
+        description: Upload a private draft now (never publish publicly)
         required: true
         type: boolean
         default: false
@@ -84,7 +89,7 @@ jobs:
           curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
           ollama pull "$LOCAL_LLM_MODEL"
       - name: Verify YouTube credentials before any production work
-        if: github.event_name == 'schedule' || inputs.publish == true
+        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
         run: |
           python - <<'PY'
           from app.youtube_client import probe_youtube_auth
@@ -101,6 +106,8 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
             python scripts/daily_run.py --publish
+          elif [ "${{ inputs.upload_private }}" = "true" ]; then
+            python scripts/daily_run.py --upload-private
           else
             python scripts/daily_run.py --dry-run
           fi
