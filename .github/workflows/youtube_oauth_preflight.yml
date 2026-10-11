@@ -1,0 +1,63 @@
+name: YouTube OAuth preflight (no publishing)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: youtube-oauth-preflight
+  cancel-in-progress: false
+
+jobs:
+  verify-oauth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install YouTube API dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install google-api-python-client google-auth google-auth-httplib2
+
+      - name: Verify OAuth and channel access without uploading
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from app.youtube_client import probe_youtube_auth
+
+          required = (
+              "YOUTUBE_CLIENT_ID",
+              "YOUTUBE_CLIENT_SECRET",
+              "YOUTUBE_REFRESH_TOKEN",
+          )
+          missing = [name for name in required if not (os.getenv(name) or "").strip()]
+          if missing:
+              print("OAuth preflight failed: required GitHub Actions secrets are missing: " + ", ".join(missing))
+              sys.exit(1)
+
+          result = probe_youtube_auth()
+          if not result.get("ok"):
+              # Do not print provider exception text: it may contain sensitive request details.
+              print("OAuth preflight failed: refresh token or YouTube channel access was rejected.")
+              print("Check that all three secrets came from the same OAuth client and channel account.")
+              sys.exit(1)
+
+          print("OAuth preflight passed.")
+          print("Authenticated YouTube channel: " + str(result.get("title") or "(title unavailable)"))
+          print("No video was uploaded or published.")
+          PY
