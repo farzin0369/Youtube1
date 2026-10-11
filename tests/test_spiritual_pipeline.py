@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 import yaml
@@ -62,6 +64,12 @@ def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
 def test_github_schedule_triggers_at_18_tehran():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"
+
+
+def test_daily_cli_imports_from_outside_repository(tmp_path):
+    cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
+    result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
+    assert "Daily Persian spiritual video pipeline" in result.stdout
 
 
 def test_word_boundaries_are_grouped_into_phrase_captions():
