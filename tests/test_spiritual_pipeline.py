@@ -153,3 +153,10 @@ def test_local_ollama_uses_constrained_json_mode(monkeypatch):
     assert captured["payload"]["options"]["num_predict"] == 4096
     assert captured["payload"]["options"]["num_ctx"] == 4096
     assert captured["timeout"] == 600
+
+def test_brand_and_niche_seo_tags_are_mandatory():
+    value = validate_content(_content())
+    assert {
+        "ImamAli110", "The110Path", "امام علی", "معنویت اسلامی",
+        "توکل", "برکت", "رشد فردی", "سواد مالی", "مدیریت مالی شخصی",
+    }.issubset(set(value["tags"]))
