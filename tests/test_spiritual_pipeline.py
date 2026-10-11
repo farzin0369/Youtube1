@@ -160,3 +160,8 @@ def test_brand_and_niche_seo_tags_are_mandatory():
         "ImamAli110", "The110Path", "امام علی", "معنویت اسلامی",
         "توکل", "برکت", "رشد فردی", "سواد مالی", "مدیریت مالی شخصی",
     }.issubset(set(value["tags"]))
+
+def test_title_is_prefixed_with_imam_ali_brand():
+    value = validate_content(_content())
+    assert value["title"].startswith("Imam Ali ✨ ")
+    assert len(value["title"]) <= 90
