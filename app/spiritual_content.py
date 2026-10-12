@@ -509,7 +509,7 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
         },
         {
             "title": "Imam Ali ✨ چگونه در اختلاف‌ها آرام بمانیم و محترمانه پاسخ دهیم",
-            "thumbnail_text": "پاسخ آرام"},
+            "thumbnail_text": "پاسخ آرام",
             "description": "چند راهکار عملی برای مکث، شنیدن و پاسخ محترمانه هنگام اختلاف؛ بدون انکار احساسات و بدون وعدهٔ تغییر فوری.",
             "tags": ["ImamAli110", "The110Path", "اخلاق", "آرامش", "رشد فردی", "روابط سالم"],
             "visual_keywords": ["two people talking calmly at a table", "quiet public park bench conversation", "hands resting beside a cup of tea"],
