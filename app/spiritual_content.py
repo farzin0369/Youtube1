@@ -451,6 +451,7 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
           "از استفادهٔ پیش‌فرض و تکراری از sunrise، journaling و forest مگر در صورت ارتباط واقعی خودداری کن."
     )
     last_error: Exception | None = None
+    fallback_allowed = False
     for attempt in range(3):
         prompt = base
         if attempt:
@@ -465,6 +466,7 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
                 raise ValueError("outline did not contain a title")
             if not _title_is_usable(title):
                 raise ValueError("outline title carried no Persian topic")
+            fallback_allowed = True
             modelled = _headings_from(outline, pad=False)
             if len(modelled) < 4:
                 raise ValueError("outline did not contain enough distinct headings")
@@ -475,6 +477,8 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
         except ValueError as exc:
             last_error = exc
             LOGGER.warning("outline attempt %s failed (%s)", attempt + 1, exc)
+    if not fallback_allowed:
+        raise ValueError(f"outline generation failed after retries: {last_error}")
     LOGGER.warning("all model outline attempts failed (%s); using deterministic safe outline", last_error)
     fallback_topics = [
         {
