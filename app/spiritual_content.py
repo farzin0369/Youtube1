@@ -136,7 +136,7 @@ def _drop_leaks(text: str) -> str:
 def _remove_duplicate_sentences(text: str) -> str:
     """Remove near-identical repeated sentences while preserving paragraph breaks."""
     paragraphs: list[str] = []
-    for paragraph in re.split(r"\\n\\s*\\n", text.strip()):
+    for paragraph in re.split(r"\n\s*\n", text.strip()):
         seen: list[str] = []
         kept: list[str] = []
         for sentence in _sentences(paragraph):
@@ -149,7 +149,7 @@ def _remove_duplicate_sentences(text: str) -> str:
                 seen.append(sentence)
         if kept:
             paragraphs.append(" ".join(kept))
-    return "\\n\\n".join(paragraphs).strip()
+    return "\n\n".join(paragraphs).strip()
 
 
 def _last_sentence(text: str, limit: int = 24) -> str:
@@ -217,8 +217,7 @@ def _close_truncated(fragment: str) -> str:
     if in_string:
         repaired += '"'
     repaired = re.sub(r"[,:]\s*$", "", repaired.rstrip())
-    for opener in reversed(stack):
-        repaired += "}" if opener == "{" else "]"
+    for opener in reversed(stack):        repaired += "}" if opener == "{" else "]"
     return repaired
 
 
@@ -437,8 +436,7 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
     base = OUTLINE_PROMPT + "\nعنوان‌ها/موضوعات اخیر که نباید تکرار شوند:\n" + json.dumps(topics[-30:], ensure_ascii=False)
     last_error: Exception | None = None
     for attempt in range(3):
-        prompt = base
-        if attempt:
+        prompt = base        if attempt:
             prompt += (
                 "\nنکته: خروجی قبلی معتبر نبود. دقیقاً یک JSON با فیلدهای خواسته‌شده و دقیقاً شش سرفصل بده. "
                 "مقدار title باید بعد از «Imam Ali ✨ » یک عبارت فارسیِ روشن و کامل داشته باشد، نه فقط نام برند."
@@ -637,8 +635,7 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
             avoid=used_sentences,
         )
         sections.append({"heading": heading, "text": text})
-        used_sentences.extend(sentence for sentence in _sentences(text) if len(sentence.split()) >= 6)
-        LOGGER.info("section %s/%s ready words=%s", index, len(headings), word_count(text))
+        used_sentences.extend(sentence for sentence in _sentences(text) if len(sentence.split()) >= 6)        LOGGER.info("section %s/%s ready words=%s", index, len(headings), word_count(text))
 
     sections = _deduplicate(section_system, sections)
     sections = _rebalance(section_system, sections, target)
@@ -658,4 +655,3 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
         repaired = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
         repaired = _rebalance(system, repaired, target)
         item["sections"] = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in repaired]
-        return validate_content(item, titles)
