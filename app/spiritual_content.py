@@ -475,7 +475,79 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
         except ValueError as exc:
             last_error = exc
             LOGGER.warning("outline attempt %s failed (%s)", attempt + 1, exc)
-    raise ValueError(f"outline generation failed after retries: {last_error}")
+    LOGGER.warning("all model outline attempts failed (%s); using deterministic safe outline", last_error)
+    fallback_topics = [
+        {
+            "title": "Imam Ali ✨ چگونه در روزهای سخت دوباره از نو شروع کنیم",
+            "thumbnail_text": "شروع دوباره",
+            "description": "وقتی برنامه‌ها به‌هم می‌ریزند، چگونه با یک قدم کوچک و نگاهی معنوی مسیر را از نو بسازیم. چند تمرین ساده برای بازگشت به نظم، امید و مسئولیت‌پذیری.",
+            "tags": ["ImamAli110", "The110Path", "رشد فردی", "امید", "شروع دوباره", "عادت‌های سالم"],
+            "visual_keywords": ["person restarting a daily routine", "morning commute city street", "hands organizing a simple workspace"],
+            "sections": [
+                {"heading": "وقتی همه‌چیز از برنامه خارج می‌شود"},
+                {"heading": "به‌جای سرزنش، واقعیت را ببین"},
+                {"heading": "امید همراه با مسئولیت"},
+                {"heading": "تمرین اول: کوچک‌ترین قدم ممکن"},
+                {"heading": "تمرین دوم: مانع را از مسیر بردار"},
+                {"heading": "یک برنامهٔ ساده برای فردا"},
+            ],
+        },
+        {
+            "title": "Imam Ali ✨ چطور با خرج‌های کوچک آرامش مالی بیشتری بسازیم",
+            "thumbnail_text": "خرج‌های کوچک",
+            "description": "نگاهی واقع‌بینانه به تصمیم‌های روزمرهٔ مالی و راه‌هایی ساده برای خرج‌کردن آگاهانه، بدون ترس یا وعدهٔ ثروت سریع.",
+            "tags": ["ImamAli110", "The110Path", "سواد مالی", "مدیریت مالی شخصی", "رشد فردی"],
+            "visual_keywords": ["person reviewing household expenses", "cash and notebook on kitchen table", "shopping list beside reusable bag"],
+            "sections": [
+                {"heading": "پول کجا بی‌صدا خرج می‌شود"},
+                {"heading": "نیاز واقعی را از عادت جدا کن"},
+                {"heading": "آگاهی بدون شرم"},
+                {"heading": "تمرین اول: ثبت خرج‌های روزانه"},
+                {"heading": "تمرین دوم: مکث پیش از خرید"},
+                {"heading": "مرور هفتگی و تصمیم بهتر"},
+            ],
+        },
+        {
+            "title": "Imam Ali ✨ چگونه در اختلاف‌ها آرام بمانیم و محترمانه پاسخ دهیم",
+            "thumbnail_text": "پاسخ آرام"},
+            "description": "چند راهکار عملی برای مکث، شنیدن و پاسخ محترمانه هنگام اختلاف؛ بدون انکار احساسات و بدون وعدهٔ تغییر فوری.",
+            "tags": ["ImamAli110", "The110Path", "اخلاق", "آرامش", "رشد فردی", "روابط سالم"],
+            "visual_keywords": ["two people talking calmly at a table", "quiet public park bench conversation", "hands resting beside a cup of tea"],
+            "sections": [
+                {"heading": "لحظه‌ای که تنش بالا می‌رود"},
+                {"heading": "احساس را بشناس، نه اینکه انکار کنی"},
+                {"heading": "مکث کوتاه چه فایده‌ای دارد"},
+                {"heading": "تمرین اول: یک نفس و یک سؤال"},
+                {"heading": "تمرین دوم: مرز محترمانه"},
+                {"heading": "بعد از گفتگو چه چیزی را مرور کنیم"},
+            ],
+        },
+    ]
+    recent = [str(topic).casefold() for topic in topics[-30:]]
+    for candidate in fallback_topics:
+        body = _title_body(candidate["title"]).casefold()
+        if not any(body in topic or topic in body for topic in recent if topic.strip()):
+            candidate["headings"] = [section["heading"] for section in candidate["sections"]]
+            LOGGER.info("using deterministic outline fallback: %s", candidate["title"])
+            return candidate
+    # Even if all fallback titles appear in history, rotate to a distinct angle
+    # rather than aborting before script generation. Keep all six section headings.
+    candidate = dict(fallback_topics[0])
+    candidate["title"] = "Imam Ali ✨ چگونه میان امید و عمل تعادل برقرار کنیم"
+    candidate["thumbnail_text"] = "امید و عمل"
+    candidate["description"] = "چگونه امید معنوی را با اقدام روزمره همراه کنیم؛ شش بخش برای انتخاب قدم‌های کوچک و واقع‌بینانه."
+    candidate["visual_keywords"] = ["person planning a realistic daily task", "hands checking a simple checklist", "walking through a busy neighborhood"]
+    candidate["sections"] = [
+        {"heading": "امید بدون اقدام چه کم دارد"},
+        {"heading": "واقعیت امروز را روشن ببین"},
+        {"heading": "قدم کوچک از انتظار بهتر است"},
+        {"heading": "تمرین اول: انتخاب یک کار"},
+        {"heading": "تمرین دوم: زمان مشخص"},
+        {"heading": "بازبینی بدون سرزنش"},
+    ]
+    candidate["headings"] = [section["heading"] for section in candidate["sections"]]
+    LOGGER.warning("using final deterministic outline fallback")
+    return candidate
 
 
 def _section_prompt(
