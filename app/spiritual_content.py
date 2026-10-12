@@ -750,5 +750,28 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
         LOGGER.warning("assembled script failed a quality gate (%s); attempting one bounded repair pass", exc)
         repaired = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
         repaired = _rebalance(system, repaired, target)
+
+        # Repair the specific production failure without weakening the quality gate.
+        # Small local models often begin with a general statement even when the outline
+        # requests a hook. Rewrite the first section once, then use a topic-grounded
+        # question as a deterministic fallback if the rewrite still misses the gate.
+        if "opening has no immediate question or concrete scene hook" in str(exc) and repaired:
+            first = repaired[0]
+            topic = _title_body(str(outline.get("title") or "")).strip().rstrip("؟?!.، ")
+            try:
+                rewritten = _rewrite(
+                    section_system,
+                    f"بازنویسی فقط آغاز بخش اول برای ویدئوی «{topic}». نخستین جمله باید پرسشی طبیعی، مشخص و مرتبط با همین موضوع باشد و در پنج ثانیهٔ اول کنجکاوی سالم ایجاد کند. سپس متن را با حفظ ایده‌ها و جزئیات ادامه بده. وعدهٔ قطعی، کلیک‌بیت یا نقل‌قول ساختگی نیاور. فقط متن گفتاری فارسی را بنویس.\\n\\nمتن فعلی:\\n{first['text']}",
+                    max_tokens=850,
+                )
+                if rewritten and not INSTRUCTION_LEAK.search(rewritten):
+                    first["text"] = rewritten
+            except Exception as repair_exc:
+                LOGGER.warning("opening rewrite unavailable (%s); applying safe deterministic hook", type(repair_exc).__name__)
+            if not _script_quality_issues("\\n\\n".join(s["text"] for s in repaired)) or "opening has no immediate question or concrete scene hook" not in _script_quality_issues("\\n\\n".join(s["text"] for s in repaired)):
+                pass
+            else:
+                hook = f"تا حالا به این فکر کرده‌ای که {topic}؟"
+                first["text"] = hook + "\\n\\n" + first["text"].lstrip()
         item["sections"] = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in repaired]
         return validate_content(item, titles)
