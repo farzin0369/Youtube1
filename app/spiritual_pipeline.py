@@ -124,6 +124,8 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
                 "thumbnail_path": render.get("thumbnail_path"),
                 "captions_path": render.get("captions_path"),
                 "duration": render.get("duration_seconds"),
+                "video_width": render.get("video_width"),
+                "video_height": render.get("video_height"),
                 "on_screen_captions": render.get("on_screen_captions"),
             },
             audio_path,
