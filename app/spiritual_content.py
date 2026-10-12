@@ -109,7 +109,7 @@ def _clean_prose(text: str, *, heading: str | None = None) -> str:
     text = re.sub(r"^\s*(?:بخش|قسمت|سرفصل|متن|تمرین)\s*[۰-۹0-9]*\s*[:：\-–]\s*", "", text)
     text = re.sub(r"^\s*(?:heading|section|text)\s*\d*\s*[:：\-–]\s*", "", text, flags=re.I)
     text = re.sub(r"^[\"'“”]+|[\"'“”]+$", "", text.strip())
-    text = re.sub(r"\s+", " ", text).strip()
+    text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()).strip()
     if heading:
         marker = re.sub(r"\s+", " ", heading.strip())
         candidates = [marker]
@@ -129,26 +129,45 @@ def _clean_prose(text: str, *, heading: str | None = None) -> str:
 
 
 def _drop_leaks(text: str) -> str:
-    """Remove sentences that echo the prompt instead of speaking to the viewer."""
-    kept = [sentence for sentence in _sentences(text) if not INSTRUCTION_LEAK.search(sentence)]
-    return " ".join(kept).strip()
+    """Remove prompt-echo sentences while preserving paragraph boundaries."""
+    paragraphs: list[str] = []
+    for paragraph in re.split(r"\n\s*\n", text.strip()):
+        kept = [sentence for sentence in _sentences(paragraph) if not INSTRUCTION_LEAK.search(sentence)]
+        if kept:
+            paragraphs.append(" ".join(kept).strip())
+    return "\n\n".join(paragraphs).strip()
+
 
 def _remove_duplicate_sentences(text: str, threshold: float = 0.90) -> str:
-    """Remove near-identical repeated sentences across the entire script."""
+    """Remove near-identical sentences globally without flattening paragraphs."""
     seen: list[str] = []
-    kept: list[str] = []
-    for sentence in _sentences(text):
-        if not sentence:
-            continue
-        if word_count(sentence) >= 8 and any(
-            _similarity(sentence, previous) >= threshold for previous in seen
-        ):
-            continue
-        kept.append(sentence)
-        if word_count(sentence) >= 8:
-            seen.append(sentence)
-    # Keep paragraph boundaries normalized after global sentence deduplication.
-    return " ".join(kept).strip()
+    paragraphs: list[str] = []
+    for paragraph in re.split(r"\n\s*\n", text.strip()):
+        kept: list[str] = []
+        for sentence in _sentences(paragraph):
+            if not sentence:
+                continue
+            if word_count(sentence) >= 8 and any(
+                _similarity(sentence, previous) >= threshold
+                and _token_overlap(sentence, previous) >= 0.80
+                for previous in seen
+            ):
+                continue
+            kept.append(sentence)
+            if word_count(sentence) >= 8:
+                seen.append(sentence)
+        if kept:
+            paragraphs.append(" ".join(kept).strip())
+    return "\n\n".join(paragraphs).strip()
+
+
+def _token_overlap(left: str, right: str) -> float:
+    """Return token-set Jaccard similarity to guard against character-only false positives."""
+    left_tokens = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", left.casefold()))
+    right_tokens = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", right.casefold()))
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
 
 
 
@@ -322,7 +341,7 @@ def validate_content(item: dict[str, Any], recent_titles: list[str] | None = Non
         if not isinstance(section, dict):
             raise ValueError("Malformed script section")
         heading = str(section.get("heading") or "").strip()[:60]
-        text = re.sub(r"\s+", " ", str(section.get("text") or "")).strip()
+        text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", str(section.get("text") or "")) if paragraph.strip()).strip()
         if not heading or not text:
             raise ValueError("Every section requires a heading and spoken text")
         normalized.append({"heading": heading, "text": text})
