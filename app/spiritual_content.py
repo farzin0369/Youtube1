@@ -144,7 +144,7 @@ def _remove_duplicate_sentences(text: str) -> str:
                 continue
             # Short rhetorical phrases can legitimately recur in Persian narration.
             if word_count(sentence) >= 8 and any(
-                _similarity(sentence, previous) >= 0.985 for previous in seen
+                _similarity(sentence, previous) >= 0.96 for previous in seen
             ):
                 continue
             kept.append(sentence)
@@ -376,10 +376,8 @@ def validate_content(item: dict[str, Any], recent_titles: list[str] | None = Non
         if len(tags) >= 15:
             break
     keywords = [str(x).strip()[:50] for x in raw_keywords if str(x).strip()][:8]
-    for keyword in ("calm nature sunrise", "journaling at desk", "quiet walking forest"):
-        if len(keywords) >= 3:
-            break
-        keywords.append(keyword)
+    # Do not silently inject the same stock-scene trio into every episode.
+    # The renderer may use its own safe fallback if the model supplies too few relevant keywords.
     return {
         "title": title,
         "thumbnail_text": thumbnail,
@@ -440,7 +438,18 @@ def _title_is_usable(title: str) -> bool:
 
 def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
     """Small structured call: title, description, tags, keywords and headings."""
-    base = OUTLINE_PROMPT + "\nعنوان‌ها/موضوعات اخیر که نباید تکرار شوند:\n" + json.dumps(topics[-30:], ensure_ascii=False)
+    base = (
+        OUTLINE_PROMPT
+        + "\nعنوان‌ها و موضوعات اخیر که نباید تکرار شوند:\n"
+        + json.dumps(topics[-30:], ensure_ascii=False)
+        + "\n\nقانون تنوع روزانه: موضوع امروز باید از نظر مسئلهٔ اصلی، زاویهٔ روایت، مثال‌ها و راهکارها "
+          "به‌وضوح با موارد اخیر متفاوت باشد؛ فقط تغییر عنوان یا چند واژه کافی نیست. "
+          "از چرخش متنوع میان توکل و آرامش، عادت‌سازی و انضباط، روابط و اخلاق، امید و عبور از سختی، "
+          "رشد فردی و مدیریت مسئولانهٔ پول استفاده کن؛ موضوعات اخیر را تکرار نکن. "
+          "برای امروز یک مسئلهٔ مشخص و یک وعدهٔ آموزشی واقع‌بینانه انتخاب کن. "
+          "هر بار مثال‌های روزمرهٔ تازه و کلیدواژه‌های تصویری متناسب با همین موضوع بده؛ "
+          "از استفادهٔ پیش‌فرض و تکراری از sunrise، journaling و forest مگر در صورت ارتباط واقعی خودداری کن."
+    )
     last_error: Exception | None = None
     for attempt in range(3):
         prompt = base
