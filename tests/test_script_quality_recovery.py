@@ -18,3 +18,14 @@ def test_remove_duplicate_sentences_keeps_distinct_paragraphs():
     assert "\n\n" in result
     assert first in result
     assert second in result
+
+
+def test_remove_duplicate_sentences_does_not_drop_distinct_persian_sentences():
+    from app.spiritual_content import _remove_duplicate_sentences
+
+    first = "وقتی در پایان ماه دخل‌وخرج را بررسی می‌کنی، هزینه‌های رفت‌وآمد را جداگانه یادداشت کن."
+    second = "وقتی در پایان ماه دخل‌وخرج را بررسی می‌کنی، هزینه‌های درمان و دارو را جداگانه یادداشت کن."
+    result = _remove_duplicate_sentences(f"{first}\n\n{second}")
+    assert first in result
+    assert second in result
+    assert result.count("\n\n") == 1
