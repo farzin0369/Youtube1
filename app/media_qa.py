@@ -48,6 +48,15 @@ def validate_render_package(render_meta: dict[str, Any], audio_path: Path | None
                 errors.append("thumbnail_invalid_dimensions_or_aspect_ratio")
         except Exception as exc:
             errors.append("invalid_thumbnail_image: " + type(exc).__name__)
+    try:
+        video_width = int(render_meta.get("video_width") or 0)
+        video_height = int(render_meta.get("video_height") or 0)
+        checks["video_dimensions"] = {"width": video_width, "height": video_height}
+        if video_width < 640 or video_height < 360 or video_width <= video_height:
+            errors.append("video_must_be_landscape_at_least_640x360")
+    except (TypeError, ValueError):
+        errors.append("video_dimensions_missing_or_invalid")
+
     if audio_path is not None:
         valid_audio = Path(audio_path).is_file() and Path(audio_path).stat().st_size > 0
         checks["audio_path"] = {"path": str(audio_path), "ok": valid_audio}

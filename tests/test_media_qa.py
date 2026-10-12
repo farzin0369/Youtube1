@@ -25,6 +25,8 @@ def _package(tmp_path: Path):
         "captions_path": str(captions),
         "duration": 4.0,
         "on_screen_captions": True,
+        "video_width": 1280,
+        "video_height": 720,
     }
     return meta, audio
 
@@ -60,3 +62,11 @@ def test_low_resolution_thumbnail_fails_qa(tmp_path: Path):
     result = validate_render_package(meta, audio)
     assert not result["ok"]
     assert "thumbnail_invalid_dimensions_or_aspect_ratio" in result["errors"]
+
+
+def test_portrait_video_is_rejected_for_long_form(tmp_path: Path):
+    meta, audio = _package(tmp_path)
+    meta["video_width"], meta["video_height"] = 720, 1280
+    result = validate_render_package(meta, audio)
+    assert not result["ok"]
+    assert "video_must_be_landscape_at_least_640x360" in result["errors"]

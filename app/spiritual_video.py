@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 from PIL import Image, ImageDraw, ImageFont
 from app.utils import env
 
-WIDTH, HEIGHT, FPS = 720, 1280, 24
+WIDTH, HEIGHT, FPS = 1280, 720, 24
 
 
 def _get_with_backoff(request_factory, *, attempts: int = 3):
@@ -67,7 +67,7 @@ def _pexels_results(keyword: str, api_key: str, per_page: int = 20) -> list[dict
     import requests
     response = _get_with_backoff(lambda: requests.get(
         "https://api.pexels.com/v1/videos/search",
-        params={"query": keyword, "orientation": "portrait", "per_page": per_page, "size": "medium"},
+        params={"query": keyword, "orientation": "landscape", "per_page": per_page, "size": "medium"},
         headers={"Authorization": api_key}, timeout=(10, 35),
     ))
     try:
@@ -80,8 +80,8 @@ def _choose_file(video: dict[str, Any]) -> dict[str, Any] | None:
     files = [f for f in video.get("video_files", []) if f.get("file_type") == "video/mp4" and f.get("link")]
     if not files:
         return None
-    portrait = [f for f in files if (f.get("height") or 0) >= (f.get("width") or 1)]
-    pool = portrait or files
+    landscape = [f for f in files if (f.get("width") or 0) >= (f.get("height") or 1)]
+    pool = landscape or files
     # Prefer a source large enough for 720x1280, but avoid downloading unnecessarily huge masters.
     sufficient = [f for f in pool if (f.get("height") or 0) >= 960]
     pool = sufficient or pool
@@ -331,5 +331,5 @@ def render_video(
         "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
-        "on_screen_captions": True, "ok": True,
+        "on_screen_captions": True, "video_width": WIDTH, "video_height": HEIGHT, "ok": True,
     }
