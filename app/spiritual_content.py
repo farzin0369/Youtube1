@@ -133,6 +133,29 @@ def _drop_leaks(text: str) -> str:
     kept = [sentence for sentence in _sentences(text) if not INSTRUCTION_LEAK.search(sentence)]
     return " ".join(kept).strip()
 
+def _remove_duplicate_sentences(text: str) -> str:
+    """Remove near-identical repeated sentences while preserving paragraph breaks."""
+    paragraphs: list[str] = []
+    for paragraph in re.split(r"\n\s*\n", text.strip()):
+        seen: list[str] = []
+        kept: list[str] = []
+        for sentence in _sentences(paragraph):
+            if not sentence:
+                continue
+            # Short rhetorical phrases can legitimately recur in Persian narration.
+            if word_count(sentence) >= 8 and any(
+                _similarity(sentence, previous) >= 0.985 for previous in seen
+            ):
+                continue
+            kept.append(sentence)
+            if word_count(sentence) >= 8:
+                seen.append(sentence)
+        if kept:
+            paragraphs.append(" ".join(kept))
+    return "\n\n".join(paragraphs).strip()
+
+
+
 
 def _last_sentence(text: str, limit: int = 24) -> str:
     sentences = _sentences(text)
@@ -626,7 +649,7 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
 
     sections = _deduplicate(section_system, sections)
     sections = _rebalance(section_system, sections, target)
-    sections = [{"heading": s["heading"], "text": _drop_leaks(s["text"]) or s["text"]} for s in sections]
+    sections = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
 
     item = {
         "title": outline["title"],
@@ -639,7 +662,8 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
     try:
         return validate_content(item, titles)
     except ValueError as exc:
-        LOGGER.warning("assembled script failed a quality gate (%s); attempting one repair pass", exc)
-        repaired = _rebalance(system, sections, target + 30)
-        item["sections"] = repaired
+        LOGGER.warning("assembled script failed a quality gate (%s); attempting one bounded repair pass", exc)
+        repaired = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
+        repaired = _rebalance(system, repaired, target)
+        item["sections"] = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in repaired]
         return validate_content(item, titles)
