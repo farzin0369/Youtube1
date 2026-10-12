@@ -142,7 +142,10 @@ def _remove_duplicate_sentences(text: str) -> str:
         for sentence in _sentences(paragraph):
             if not sentence:
                 continue
-            if word_count(sentence) >= 8 and any(_similarity(sentence, previous) >= 0.985 for previous in seen):
+            # Short rhetorical phrases can legitimately recur in Persian narration.
+            if word_count(sentence) >= 8 and any(
+                _similarity(sentence, previous) >= 0.985 for previous in seen
+            ):
                 continue
             kept.append(sentence)
             if word_count(sentence) >= 8:
@@ -150,6 +153,8 @@ def _remove_duplicate_sentences(text: str) -> str:
         if kept:
             paragraphs.append(" ".join(kept))
     return "\n\n".join(paragraphs).strip()
+
+
 
 
 def _last_sentence(text: str, limit: int = 24) -> str:
@@ -217,7 +222,8 @@ def _close_truncated(fragment: str) -> str:
     if in_string:
         repaired += '"'
     repaired = re.sub(r"[,:]\s*$", "", repaired.rstrip())
-    for opener in reversed(stack):        repaired += "}" if opener == "{" else "]"
+    for opener in reversed(stack):
+        repaired += "}" if opener == "{" else "]"
     return repaired
 
 
@@ -234,7 +240,8 @@ def extract_json_object(text: str) -> dict[str, Any]:
     for candidate in candidates:
         try:
             value = json.loads(candidate)
-        except ValueError:            continue
+        except ValueError:
+            continue
         if isinstance(value, dict):
             return value
     raise ValueError("LLM response did not contain a JSON object")
@@ -436,7 +443,8 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
     base = OUTLINE_PROMPT + "\nعنوان‌ها/موضوعات اخیر که نباید تکرار شوند:\n" + json.dumps(topics[-30:], ensure_ascii=False)
     last_error: Exception | None = None
     for attempt in range(3):
-        prompt = base        if attempt:
+        prompt = base
+        if attempt:
             prompt += (
                 "\nنکته: خروجی قبلی معتبر نبود. دقیقاً یک JSON با فیلدهای خواسته‌شده و دقیقاً شش سرفصل بده. "
                 "مقدار title باید بعد از «Imam Ali ✨ » یک عبارت فارسیِ روشن و کامل داشته باشد، نه فقط نام برند."
@@ -452,7 +460,8 @@ def plan_outline(system: str, topics: list[str]) -> dict[str, Any]:
             if len(modelled) < 4:
                 raise ValueError("outline did not contain enough distinct headings")
             headings = _headings_from(outline)
-            outline["title"] = title            outline["headings"] = headings
+            outline["title"] = title
+            outline["headings"] = headings
             return outline
         except ValueError as exc:
             last_error = exc
@@ -635,7 +644,8 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
             avoid=used_sentences,
         )
         sections.append({"heading": heading, "text": text})
-        used_sentences.extend(sentence for sentence in _sentences(text) if len(sentence.split()) >= 6)        LOGGER.info("section %s/%s ready words=%s", index, len(headings), word_count(text))
+        used_sentences.extend(sentence for sentence in _sentences(text) if len(sentence.split()) >= 6)
+        LOGGER.info("section %s/%s ready words=%s", index, len(headings), word_count(text))
 
     sections = _deduplicate(section_system, sections)
     sections = _rebalance(section_system, sections, target)
@@ -650,8 +660,10 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
         "sections": sections,
     }
     try:
-        return validate_content(item, titles)    except ValueError as exc:
+        return validate_content(item, titles)
+    except ValueError as exc:
         LOGGER.warning("assembled script failed a quality gate (%s); attempting one bounded repair pass", exc)
         repaired = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
         repaired = _rebalance(system, repaired, target)
         item["sections"] = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in repaired]
+        return validate_content(item, titles)
