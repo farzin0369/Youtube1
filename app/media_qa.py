@@ -106,6 +106,19 @@ def validate_render_package(
         }
         if not checks["burned_captions_path"]["ok"]:
             errors.append("shorts_burned_caption_track_missing")
+        else:
+            try:
+                ass_text = burned_path.read_text(encoding="utf-8-sig")
+                animation_ok = "\\fad(" in ass_text and "\\fscx" in ass_text and "WrapStyle: 0" in ass_text
+                shaping_ok = "Kerning: yes" in ass_text and "Noto Naskh Arabic" in ass_text
+                checks["caption_animation"] = {"profile": render_meta.get("caption_animation_profile"), "ok": animation_ok}
+                checks["persian_text_shaping"] = {"mode": render_meta.get("persian_text_shaping"), "ok": shaping_ok}
+                if not animation_ok or render_meta.get("caption_animation_profile") != "phrase-pop-fade-v1":
+                    errors.append("shorts_caption_animation_missing_or_invalid")
+                if not shaping_ok or render_meta.get("persian_text_shaping") != "noto-naskh-unicode-rtl":
+                    errors.append("shorts_persian_text_shaping_not_configured")
+            except (OSError, UnicodeError) as exc:
+                errors.append("shorts_ass_read_failed: " + type(exc).__name__)
         if render_meta.get("scene_query_match") is not True:
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
