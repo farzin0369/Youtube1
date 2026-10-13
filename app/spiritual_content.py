@@ -112,18 +112,17 @@ def _clean_prose(text: str, *, heading: str | None = None) -> str:
     text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()).strip()
     if heading:
         marker = re.sub(r"\s+", " ", heading.strip())
-        candidates = [marker]
         bare = re.sub(r"^\s*(?:بخش|قسمت|سرفصل|متن|تمرین)\s*[۰-۹0-9]*\s*[:：\-–]\s*", "", marker)
+        candidates = [marker]
         if bare and bare != marker:
             candidates.append(bare)
-        # A small model may echo the heading once or twice before the real text.
-        for _ in range(2):
-            for candidate in candidates:
-                if candidate and text.startswith(candidate):
-                    text = text[len(candidate):].lstrip(" :：-–،.")
-                    break
-            else:
-                break
+        # Remove standalone heading echoes, including markdown headings on their own line.
+        for candidate in candidates:
+            if candidate:
+                text = re.sub(r"^\s*" + re.escape(candidate) + r"\s*(?:\n+|$)", "", text, count=1)
+        # A small model may repeat the bare heading inline before the actual prose.
+        if bare and bare != marker:
+            text = re.sub(r"^\s*" + re.escape(bare) + r"\s*[:：\-–،.]\s*", "", text, count=1)
         text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()).strip()
     return text.strip()
 
