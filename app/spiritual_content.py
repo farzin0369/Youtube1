@@ -820,3 +820,31 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
         repaired = _rebalance(system, repaired, target)
         item["sections"] = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in repaired]
         return validate_content(item, titles)
+
+
+
+def generate_short_script(content: dict[str, Any]) -> str:
+    """Create a standalone, concise Persian short from today's long-form topic."""
+    prompt = (
+        "برای YouTube Shorts یک متن گفتاری مستقل فارسی از موضوع ویدئوی بلند زیر بنویس. "
+        "حدود ۸۰ تا ۱۱۰ واژه، مناسب گفتار ۴۰ تا ۶۰ ثانیه. با یک پرسش یا مشاهدهٔ انسانی شروع شود؛ "
+        "یک نکتهٔ روشن و تمرین کوچکِ عملی بدهد و با جمع‌بندی کامل تمام شود، نه جملهٔ ناتمام یا تبلیغ. "
+        "فقط متن گفتاری؛ بدون عنوان، هشتگ، توضیح صحنه یا اشاره به ویدئوی بلند. فارسی روان و اصیل باشد. "
+        "هیچ آیه/حدیث/نقل‌قول منسوب، وعدهٔ قطعی پول یا درمان، یا توصیهٔ پزشکی/سرمایه‌گذاری شخصی نساز.\n\n"
+        f"عنوان موضوع: {content.get('title', '')}\nمتن مرجع:\n{str(content.get('script', ''))[:9000]}"
+    )
+    text, provider = generate_text(SYSTEM_PROMPT, prompt, max_tokens=480, temperature=0.45)
+    script = _remove_duplicate_sentences(_drop_leaks(_clean_prose(text)))
+    words = word_count(script)
+    if not 65 <= words <= 125:
+        raise ValueError(f"Short script length outside safe range: {words} words")
+    if not re.search(r"[\u0600-\u06FF]", script):
+        raise ValueError("Short script is not Persian")
+    if re.search(r"(?:قرآن|آیه|حدیث|پیامبر|امام)\s*(?:می‌فرماید|می‌گوید|فرمود|گفته است|روایت می‌کند)", script):
+        raise ValueError("Unverified attributed quotation in short script")
+    if re.search(r"(?:تضمین|درمان قطعی|حتماً ثروتمند|سود تضمینی)", script):
+        raise ValueError("Prohibited guaranteed outcome in short script")
+    if _script_quality_issues(script):
+        raise ValueError("Short script failed spoken-content quality gates")
+    LOGGER.info("short script passed quality gates words=%s provider=%s", words, provider)
+    return script

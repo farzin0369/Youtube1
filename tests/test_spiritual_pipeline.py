@@ -86,6 +86,13 @@ def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
     assert next_publish_at(late) == "2026-10-12T14:30:00Z"
 
 
+def test_short_publication_slot_is_21_tehran_and_moves_to_tomorrow_if_too_late():
+    before = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)
+    late = datetime(2026, 10, 11, 18, 30, tzinfo=timezone.utc)
+    assert next_publish_at(before, hour=21) == "2026-10-11T17:30:00Z"
+    assert next_publish_at(late, hour=21) == "2026-10-12T17:30:00Z"
+
+
 def test_github_schedule_triggers_at_18_tehran():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"

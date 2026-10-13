@@ -278,7 +278,10 @@ def _make_segment(source: Path | None, image_path: Path | None, duration: float,
 def render_video(
     *, title: str, thumbnail_text: str, keywords: list[str], audio_path: Path,
     captions_path: Path, out_dir: Path, run_id: str, scene_stills: list[Path] | None = None,
+    orientation: str = "landscape",
 ) -> dict[str, Any]:
+    if orientation not in {"landscape", "portrait"}:
+        raise ValueError("orientation must be landscape or portrait")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     duration = probe_duration(Path(audio_path))
@@ -314,10 +317,16 @@ def render_video(
     escaped_srt = str(Path(captions_path).resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
     subtitles = f"subtitles='{escaped_srt}':force_style='FontName=Noto Naskh Arabic,FontSize=36,Outline=3,Shadow=1,MarginV=150,Alignment=2,PrimaryColour=&H00FFFFFF,OutlineColour=&H99000000'"
     mix = "[1:a]volume=1.0[voice];[2:a]volume=0.075[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+    if orientation == "portrait":
+        video_filter = f"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,{subtitles}"
+        output_width, output_height = 720, 1280
+    else:
+        video_filter = subtitles
+        output_width, output_height = WIDTH, HEIGHT
     command = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
         "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music), "-filter_complex", mix,
-        "-map", "0:v:0", "-map", "[aout]", "-vf", subtitles,
+        "-map", "0:v:0", "-map", "[aout]", "-vf", video_filter,
         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "160k",
         "-movflags", "+faststart", str(final_path),
@@ -331,5 +340,5 @@ def render_video(
         "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
-        "on_screen_captions": True, "video_width": WIDTH, "video_height": HEIGHT, "ok": True,
+        "on_screen_captions": True, "video_width": output_width, "video_height": output_height, "ok": True,
     }

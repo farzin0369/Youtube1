@@ -14,7 +14,9 @@ def _srt_timestamp(value: str) -> float:
     return hours * 3600 + minutes * 60 + seconds + millis / 1000
 
 
-def validate_render_package(render_meta: dict[str, Any], audio_path: Path | None = None) -> dict[str, Any]:
+def validate_render_package(
+    render_meta: dict[str, Any], audio_path: Path | None = None, *, allow_portrait: bool = False,
+) -> dict[str, Any]:
     errors: list[str] = []
     checks: dict[str, Any] = {}
     if not render_meta.get("ok"):
@@ -52,8 +54,10 @@ def validate_render_package(render_meta: dict[str, Any], audio_path: Path | None
         video_width = int(render_meta.get("video_width") or 0)
         video_height = int(render_meta.get("video_height") or 0)
         checks["video_dimensions"] = {"width": video_width, "height": video_height}
-        if video_width < 640 or video_height < 360 or video_width <= video_height:
-            errors.append("video_must_be_landscape_at_least_640x360")
+        landscape = video_width > video_height and video_width >= 640 and video_height >= 360
+        portrait = allow_portrait and video_height > video_width and video_width >= 360 and video_height >= 640
+        if not (landscape or portrait):
+            errors.append("video_dimensions_do_not_match_allowed_orientation")
     except (TypeError, ValueError):
         errors.append("video_dimensions_missing_or_invalid")
 

@@ -16,6 +16,11 @@ on:
         required: true
         type: boolean
         default: false
+      tts_only:
+        description: Test Persian TTS and captions only; do not render or upload a video
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -39,6 +44,9 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      EDGE_TTS_PROXY: ${{ secrets.EDGE_TTS_PROXY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
       TTS_VOICE: fa-IR-FaridNeural
       CHANNEL_BRAND: ImamAli110
       LOCAL_LLM_MODEL: qwen2.5:7b
@@ -58,6 +66,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
+          python -m pip install --upgrade --quiet 'edge-tts>=7.2.8'
       - name: Run automated regression tests before production
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -65,8 +74,9 @@ jobs:
       - name: Install FFmpeg and Persian fonts
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core espeak-ng
       - name: Restore bounded channel history and reply ledger
+        if: inputs.tts_only != true
         uses: actions/cache@v4
         with:
           path: state/
@@ -74,11 +84,13 @@ jobs:
           restore-keys: |
             persian-growth-state-
       - name: Initialize state files
+        if: inputs.tts_only != true
         run: |
           mkdir -p state output logs
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
       - name: Install and warm local free LLM fallback for API limits/outages
+        if: inputs.tts_only != true
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           (ollama serve > "${RUNNER_TEMP}/ollama.log" 2>&1 &)
@@ -100,6 +112,7 @@ jobs:
           print("YouTube OAuth preflight passed.")
           PY
       - name: Run Persian spiritual video pipeline
+        if: inputs.tts_only != true
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_INPUT: ${{ inputs.publish }}
@@ -111,6 +124,29 @@ jobs:
           else
             python scripts/daily_run.py --dry-run
           fi
+      - name: Run Persian TTS-only preflight (no video upload)
+        if: inputs.tts_only == true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from app.spiritual_tts import synthesize_with_captions
+
+          output = Path("${{ runner.temp }}/tts-smoke")
+          output.mkdir(parents=True, exist_ok=True)
+          result = synthesize_with_captions(
+              "سلام. این فقط یک آزمایش کوتاه برای بررسی صدای فارسی و زیرنویس است.",
+              output / "sample.mp3", output / "sample.srt",
+          )
+          if not result.get("ok") or result.get("duration_seconds", 0) <= 0:
+              raise SystemExit("TTS preflight failed quality checks")
+          if not (output / "sample.mp3").is_file() or not (output / "sample.srt").is_file():
+              raise SystemExit("TTS preflight did not create both expected artifacts")
+          print(json.dumps({key: value for key, value in result.items() if key not in {"path", "captions_path"}}, ensure_ascii=False))
+          print("TTS preflight passed. No YouTube video was uploaded.")
+          PY
       - name: Upload production evidence
         if: always()
         uses: actions/upload-artifact@v4

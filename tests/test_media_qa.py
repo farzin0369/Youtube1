@@ -69,4 +69,11 @@ def test_portrait_video_is_rejected_for_long_form(tmp_path: Path):
     meta["video_width"], meta["video_height"] = 720, 1280
     result = validate_render_package(meta, audio)
     assert not result["ok"]
-    assert "video_must_be_landscape_at_least_640x360" in result["errors"]
+    assert "video_dimensions_do_not_match_allowed_orientation" in result["errors"]
+
+
+def test_portrait_video_is_accepted_for_shorts(tmp_path: Path):
+    meta, audio = _package(tmp_path)
+    meta["video_width"], meta["video_height"] = 720, 1280
+    result = validate_render_package(meta, audio, allow_portrait=True)
+    assert result["ok"]
