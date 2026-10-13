@@ -95,8 +95,8 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
     content = config["content"]
     assert content["production_format"] == "shorts"
-    assert content["target_duration_seconds"] == "20-32"
-    assert content["target_word_count"] == "36-48"
+    assert content["target_duration_seconds"] == "18-30"
+    assert content["target_word_count"] == "28-44"
 
 
 def test_daily_cli_imports_from_outside_repository(tmp_path):

@@ -44,7 +44,7 @@ def _first_sentence(text: str) -> str:
 
 def validate_short_content(
     item: dict[str, Any], recent_titles: list[str] | None = None, *,
-    min_words: int = 36, max_words: int = 48,
+    min_words: int = 28, max_words: int = 44,
 ) -> dict[str, Any]:
     """Validate copy, hook, pacing, narration/scene identity and scene-specific visuals."""
     if not isinstance(item, dict):
@@ -137,13 +137,13 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     topics = [str(row.get("topic") or row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
     policy = load_content_policy()
     config = load_channel_config().get("content") or {}
-    duration_target = str(config.get("target_duration_seconds") or "20-32")
-    word_match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", str(config.get("target_word_count") or "36-48"))
+    duration_target = str(config.get("target_duration_seconds") or "18-30")
+    word_match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", str(config.get("target_word_count") or "28-44"))
     if not word_match:
         raise ValueError("config content.target_word_count must be a range such as '36-48'")
     min_words, max_words = (int(value) for value in word_match.groups())
-    if min_words < 30 or max_words > 60 or min_words >= max_words:
-        raise ValueError("Shorts target word range must satisfy 30 <= min < max <= 60")
+    if min_words < 24 or max_words > 52 or min_words >= max_words:
+        raise ValueError("Shorts target word range must satisfy 24 <= min < max <= 52")
     prompt = USER_TEMPLATE.format(
         recent="؛ ".join(topics)[:1200] or "هنوز موضوع قبلی ثبت نشده است",
         policy=json.dumps(policy, ensure_ascii=False),
