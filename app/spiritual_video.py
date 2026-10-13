@@ -63,6 +63,18 @@ def probe_duration(path: Path) -> float:
     return value
 
 
+def probe_stream_duration(path: Path, selector: str) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", selector, "-show_entries", "stream=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True, check=True, timeout=30,
+    )
+    value = float(result.stdout.strip())
+    if value <= 0:
+        raise RuntimeError(f"{selector} stream duration is not positive")
+    return value
+
+
 def _pexels_results(keyword: str, api_key: str, per_page: int = 20, *, orientation: str = "landscape") -> list[dict[str, Any]]:
     import requests
     response = _get_with_backoff(lambda: requests.get(
@@ -460,10 +472,17 @@ def render_video(
     else:
         escaped_subs = str(subtitle_path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
         subtitles = f"subtitles='{escaped_subs}':force_style='FontName=Noto Naskh Arabic,FontSize=36,Outline=3,Shadow=1,MarginV=150,Alignment=2,PrimaryColour=&H00FFFFFF,OutlineColour=&H99000000'"
+    fade_duration = min(1.8, max(0.6, duration * 0.12))
+    fade_start = max(0.0, duration - fade_duration)
     mix = (
-        "[1:a]highpass=f=70,acompressor=threshold=0.16:ratio=2:attack=12:release=220,loudnorm=I=-16:TP=-2:LRA=8,asplit=2[voice][voice_key];"
-        "[2:a]volume=0.16[bed];[bed][voice_key]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280[ducked];"
-        "[voice][ducked]amix=inputs=2:duration=first:dropout_transition=3,alimiter=limit=0.96[aout]"
+        "[1:a]highpass=f=70,acompressor=threshold=0.16:ratio=2:attack=12:release=220,"
+        "loudnorm=I=-16:TP=-2:LRA=8,asetpts=PTS-STARTPTS,asplit=2[voice][voice_key];"
+        "[2:a]volume=0.16,asetpts=PTS-STARTPTS[bed];"
+        "[bed][voice_key]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280,"
+        f"apad=whole_dur={duration:.3f},atrim=duration={duration:.3f},asetpts=PTS-STARTPTS,"
+        f"afade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}[ducked];"
+        "[voice][ducked]amix=inputs=2:duration=longest:dropout_transition=0,"
+        f"alimiter=limit=0.96,apad=pad_dur=0.25,atrim=duration={duration:.3f}[aout]"
     )
     command = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
@@ -484,6 +503,7 @@ def render_video(
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
         "video_format": video_format, "caption_font_size": 42 if video_format == "shorts" else 36,
+        "audio_duration_seconds": probe_stream_duration(final_path, "a:0"),
         "hook_overlay": str(hook_overlay or "") if video_format == "shorts" else "",
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
         "scene_query_match": bool(

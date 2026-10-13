@@ -76,6 +76,19 @@ def validate_render_package(
         errors.append("invalid_video_duration")
         duration = 0.0
 
+    audio_duration_raw = render_meta.get("audio_duration_seconds")
+    if audio_duration_raw is None:
+        if mode == "shorts":
+            errors.append("shorts_audio_duration_missing")
+    else:
+        try:
+            audio_duration = float(audio_duration_raw)
+            checks["audio_duration_seconds"] = audio_duration
+            if audio_duration <= 0 or (duration and abs(audio_duration - duration) > 0.25):
+                errors.append("audio_video_duration_mismatch")
+        except (TypeError, ValueError):
+            errors.append("audio_duration_invalid")
+
     if mode == "shorts":
         try:
             font_size = int(render_meta.get("caption_font_size") or 0)

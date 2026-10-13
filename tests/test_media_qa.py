@@ -76,6 +76,7 @@ def _short_package(tmp_path: Path):
     meta, audio = _package(tmp_path)
     meta.update({
         "video_format": "shorts", "duration": 24.0,
+        "audio_duration_seconds": 24.0,
         "video_width": 720, "video_height": 1280,
         "caption_font_size": 42, "hook_overlay": "یک قدم واقعی",
         "scene_query_match": True, "visual_source": "pexels",
@@ -141,3 +142,19 @@ def test_provided_stills_cannot_pass_publish_qa_without_preview_only_marker(tmp_
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
+
+
+def test_shorts_audio_shorter_than_video_fails_qa(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["audio_duration_seconds"] = 15.3
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "audio_video_duration_mismatch" in result["errors"]
+
+
+def test_shorts_audio_duration_is_required(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta.pop("audio_duration_seconds")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_audio_duration_missing" in result["errors"]
