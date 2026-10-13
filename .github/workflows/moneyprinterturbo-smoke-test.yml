@@ -18,15 +18,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: harry0703/MoneyPrinterTurbo
-          path: /tmp/MoneyPrinterTurbo
+          path: MoneyPrinterTurbo
       - name: Install upstream requirements
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r /tmp/MoneyPrinterTurbo/requirements.txt
+          python -m pip install -r MoneyPrinterTurbo/requirements.txt
       - name: Verify CLI and example config
         run: |
-          test -f /tmp/MoneyPrinterTurbo/config.example.toml
-          cd /tmp/MoneyPrinterTurbo
+          test -f MoneyPrinterTurbo/config.example.toml
+          cd MoneyPrinterTurbo
           python cli.py --help
       - name: Report smoke-test scope
         run: |
