@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import unicodedata
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -35,6 +36,15 @@ def _word_count(text: str) -> int:
 
 def _normalize(text: str) -> str:
     return re.sub(r"[^\w\u0600-\u06FF]", "", str(text).casefold())
+
+
+def _normalize_narration(text: str) -> str:
+    """Ignore punctuation drift while preserving exact word order and boundaries."""
+    normalized = "".join(
+        " " if unicodedata.category(char).startswith("P") else char
+        for char in str(text).casefold()
+    )
+    return " ".join(normalized.split())
 
 
 def _first_sentence(text: str) -> str:
@@ -77,8 +87,10 @@ def validate_short_content(
     if [scene["mood"] for scene in scenes] != ["hook", "calm", "reassuring", "motivational"]:
         raise ValueError("shorts_emotional_arc_must_be_hook_calm_reassuring_motivational")
     expected = " ".join(scene["spoken_text"] for scene in scenes)
-    if script != expected:
+    if _normalize_narration(script) != _normalize_narration(expected):
         raise ValueError("script_must_match_scene_narration_exactly")
+    # Scene narration is canonical: retain its precise Persian punctuation for speech and captions.
+    script = expected
     words = _word_count(script)
     if not min_words <= words <= max_words:
         raise ValueError(f"short_script_word_count_outside_{min_words}_{max_words}:{words}")
@@ -94,8 +106,9 @@ def validate_short_content(
     if len(set(normalized_queries)) != len(normalized_queries):
         raise ValueError("scene_visual_queries_must_be_distinct")
     hook = re.sub(r"\s+", " ", str(item.get("hook") or "")).strip()
-    if hook != scenes[0]["spoken_text"]:
+    if _normalize_narration(hook) != _normalize_narration(scenes[0]["spoken_text"]):
         raise ValueError("hook_must_match_the_first_narration_scene")
+    hook = scenes[0]["spoken_text"]
     if not title.removeprefix(BRAND_PREFIX).strip() or len(title) > 80:
         raise ValueError("title_missing_or_too_long")
     for previous in (recent_titles or [])[-30:]:

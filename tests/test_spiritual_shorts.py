@@ -106,6 +106,15 @@ def test_short_gate_accepts_28_word_retention_focused_script(short_package):
     assert result["word_count"] == 28
 
 
+def test_short_gate_canonicalizes_script_punctuation_to_scene_voice(short_package):
+    package = copy.deepcopy(short_package)
+    package["script"] = " ".join(scene["spoken_text"] for scene in package["scenes"]).replace("،", " ").replace(".", "")
+    package["hook"] = package["scenes"][0]["spoken_text"].replace("،", "؛")
+    result = validate_short_content(package)
+    assert result["script"] == " ".join(scene["spoken_text"] for scene in package["scenes"])
+    assert result["hook"] == package["scenes"][0]["spoken_text"]
+
+
 def test_short_hook_must_not_start_with_generic_intro(short_package):
     package = copy.deepcopy(short_package)
     package["scenes"][0]["spoken_text"] = "سلام، " + package["scenes"][0]["spoken_text"]
