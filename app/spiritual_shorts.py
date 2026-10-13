@@ -1,0 +1,189 @@
+"""Retention-minded, fail-closed Persian YouTube Shorts script generation."""
+from __future__ import annotations
+
+import json
+import logging
+import re
+from difflib import SequenceMatcher
+from typing import Any
+
+from app.llm_provider import generate_text
+from app.utils import load_channel_config, load_content_policy
+
+LOGGER = logging.getLogger(__name__)
+BRAND_PREFIX = "Imam Ali ✨ "
+BRAND_TAGS = ["ImamAli110", "The110Path", "امام علی", "معنویت اسلامی", "رشد فردی", "توکل"]
+ALLOWED_MOODS = {"hook", "calm", "reassuring", "motivational"}
+
+SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌زبانِ معنوی و رشد فردی هستی. برای YouTube Shorts متنی اصیل، شنیدنی و دقیق بنویس؛ از وعدهٔ قطعی، کلیک‌بیت، ترساندن، شرمنده‌کردن، شعار کلی و تقلید از نویسنده یا کانال دیگر دوری کن. هیچ آیه، حدیث یا نقل‌قولی را جعل یا بدون منبع معتبر به کسی نسبت نده؛ توصیهٔ پزشکی یا مالی شخصی نده.
+قلاب باید در اولین جمله باشد: پرسشی مشخص و قابل‌باور یا صحنه‌ای ملموس که مخاطب را به ادامه‌دادن ترغیب کند، نه اغراق یا فریب. سلام و مقدمهٔ کلی ممنوع. یک ایدهٔ اصلی و فقط یک اقدام ساده و عملی بده؛ پایان کوتاه، امیدوارکننده و غیرموعظه‌ای باشد. متن را با صدای بلند تصور کن: جمله‌های کوتاه، فارسی طبیعی، نشانه‌گذاری واقعی برای مکث (ویرگول، نقطه، پرسش‌علامت) و بدون متنِ دستور اجرا.
+پاسخ فقط یک شیء JSON معتبر باشد؛ هیچ Markdown یا توضیحی بیرون JSON نده."""
+
+USER_TEMPLATE = """برای کانال ImamAli110 یک Short فارسی بساز. هدف خوانش {target_duration_seconds} ثانیه و حدود {min_words} تا {max_words} واژهٔ گفتاری است؛ کم‌گویی را با تکرار و شعار جبران نکن.
+روایت دقیقاً چهار صحنه داشته باشد: ۱) hook کنجکاوی‌برانگیز و مشخص، ۲) همدلی/آرام‌شدن، ۳) یک اقدام کوچک برای همین امروز، ۴) پایان امیدوارکننده و انگیزشی. حالت احساسی هر صحنه به‌ترتیب hook، calm، reassuring، motivational باشد. جمله‌ها با علائم نگارشی طبیعی مکث بسازند.
+برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک جست‌وجوی کوتاه و مشخصِ انگلیسی برای فیلم عمودیِ واقعیِ مرتبط با همان جمله باشد (نه استعارهٔ نامربوط یا عبارت کلی)؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
+عنوان روشن، دقیق و بدون کلیک‌بیت باشد؛ توضیح کوتاه و ۳ تا ۶ برچسب مرتبط بده. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
+سیاست محتوا: {policy}
+خروجی فقط این قالب را داشته باشد:
+{{"topic":"...","title":"...","hook":"عین متن گفتاری صحنهٔ اول","description":"...","thumbnail_text":"۲ تا ۴ واژهٔ کوتاه","tags":["..."],"scenes":[{{"spoken_text":"...","mood":"hook","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"calm","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"reassuring","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"motivational","visual_query":"...","on_screen_text":"..."}}],"script":"اتصال عین spoken_text چهار صحنه با یک فاصله"}}
+"""
+
+
+def _word_count(text: str) -> int:
+    return sum(bool(re.search(r"[\u0600-\u06FFA-Za-z0-9]", token)) for token in str(text).split())
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"[^\w\u0600-\u06FF]", "", str(text).casefold())
+
+
+def _first_sentence(text: str) -> str:
+    parts = re.split(r"(?<=[.!?؟۔])\s+", str(text).strip())
+    return parts[0].strip() if parts else ""
+
+
+def validate_short_content(
+    item: dict[str, Any], recent_titles: list[str] | None = None, *,
+    min_words: int = 36, max_words: int = 48,
+) -> dict[str, Any]:
+    """Validate copy, hook, pacing, narration/scene identity and scene-specific visuals."""
+    if not isinstance(item, dict):
+        raise ValueError("short content must be a JSON object")
+    title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
+    if not title.startswith(BRAND_PREFIX):
+        title = BRAND_PREFIX + title
+    title = title[:80].rstrip()
+    script = re.sub(r"\s+", " ", str(item.get("script") or "")).strip()
+    scenes_in = item.get("scenes")
+    if not isinstance(scenes_in, list) or len(scenes_in) != 4:
+        raise ValueError("shorts require exactly four authored scenes")
+    scenes: list[dict[str, str]] = []
+    for index, raw in enumerate(scenes_in):
+        if not isinstance(raw, dict):
+            raise ValueError(f"scene_{index + 1}_must_be_an_object")
+        text = re.sub(r"\s+", " ", str(raw.get("spoken_text") or "")).strip()
+        mood = str(raw.get("mood") or "").strip().lower()
+        query = re.sub(r"\s+", " ", str(raw.get("visual_query") or "")).strip()
+        overlay = re.sub(r"\s+", " ", str(raw.get("on_screen_text") or "")).strip()
+        if not text or mood not in ALLOWED_MOODS or not query or not overlay:
+            raise ValueError(f"scene_{index + 1}_is_incomplete")
+        if len(overlay.split()) > 5 or len(overlay) > 36:
+            raise ValueError(f"scene_{index + 1}_overlay_too_long")
+        if len(query.split()) < 3 or len(query) > 100:
+            raise ValueError(f"scene_{index + 1}_visual_query_not_specific")
+        scenes.append({"spoken_text": text, "mood": mood, "visual_query": query, "on_screen_text": overlay})
+    if [scene["mood"] for scene in scenes] != ["hook", "calm", "reassuring", "motivational"]:
+        raise ValueError("shorts_emotional_arc_must_be_hook_calm_reassuring_motivational")
+    expected = " ".join(scene["spoken_text"] for scene in scenes)
+    if script != expected:
+        raise ValueError("script_must_match_scene_narration_exactly")
+    words = _word_count(script)
+    if not min_words <= words <= max_words:
+        raise ValueError(f"short_script_word_count_outside_{min_words}_{max_words}:{words}")
+    first = _first_sentence(scenes[0]["spoken_text"])
+    first_words = _word_count(first)
+    if not 4 <= first_words <= 13 or "؟" not in first:
+        raise ValueError("opening_hook_must_be_a_specific_short_question")
+    if re.match(r"^(سلام|در این ویدئو|امروز می‌خواهیم|دوستان|خب)", first):
+        raise ValueError("opening_has_a_slow_generic_intro")
+    if len(scenes[0]["spoken_text"]) > 115:
+        raise ValueError("opening_hook_is_too_long")
+    normalized_queries = [_normalize(scene["visual_query"]) for scene in scenes]
+    if len(set(normalized_queries)) != len(normalized_queries):
+        raise ValueError("scene_visual_queries_must_be_distinct")
+    hook = re.sub(r"\s+", " ", str(item.get("hook") or "")).strip()
+    if hook != scenes[0]["spoken_text"]:
+        raise ValueError("hook_must_match_the_first_narration_scene")
+    if not title.removeprefix(BRAND_PREFIX).strip() or len(title) > 80:
+        raise ValueError("title_missing_or_too_long")
+    for previous in (recent_titles or [])[-30:]:
+        prior = _normalize(previous)
+        current = _normalize(title)
+        if prior and (prior == current or SequenceMatcher(None, prior, current).ratio() >= 0.84):
+            raise ValueError("recent_title_repetition")
+    thumbnail = re.sub(r"\s+", " ", str(item.get("thumbnail_text") or "")).strip()
+    if not 2 <= len(thumbnail.split()) <= 4 or len(thumbnail) > 28:
+        raise ValueError("thumbnail_text_must_be_two_to_four_short_words")
+    description = re.sub(r"\s+", " ", str(item.get("description") or "")).strip()
+    if not description or len(description) > 800:
+        raise ValueError("description_missing_or_too_long")
+    topic = re.sub(r"\s+", " ", str(item.get("topic") or "")).strip()
+    if not 1 <= len(topic.split()) <= 6 or len(topic) > 60:
+        raise ValueError("topic_missing_or_too_long")
+    raw_tags = item.get("tags") if isinstance(item.get("tags"), list) else []
+    tags = list(dict.fromkeys([str(tag).strip() for tag in raw_tags if str(tag).strip()] + BRAND_TAGS))[:15]
+    return {
+        "format": "shorts",
+        "topic": topic,
+        "title": title,
+        "hook": hook,
+        "thumbnail_text": thumbnail,
+        "description": description,
+        "tags": tags,
+        "visual_keywords": [scene["visual_query"] for scene in scenes],
+        "scenes": scenes,
+        "sections": [{"heading": scene["mood"], "text": scene["spoken_text"]} for scene in scenes],
+        "script": script,
+        "word_count": words,
+    }
+
+
+def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
+    """Generate one short and reject weak, generic, duplicated or mismatched drafts."""
+    recent = history.get("recent", []) if isinstance(history, dict) else []
+    titles = [str(row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
+    topics = [str(row.get("topic") or row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
+    policy = load_content_policy()
+    config = load_channel_config().get("content") or {}
+    duration_target = str(config.get("target_duration_seconds") or "20-32")
+    word_match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", str(config.get("target_word_count") or "36-48"))
+    if not word_match:
+        raise ValueError("config content.target_word_count must be a range such as '36-48'")
+    min_words, max_words = (int(value) for value in word_match.groups())
+    if min_words < 30 or max_words > 60 or min_words >= max_words:
+        raise ValueError("Shorts target word range must satisfy 30 <= min < max <= 60")
+    prompt = USER_TEMPLATE.format(
+        recent="؛ ".join(topics)[:1200] or "هنوز موضوع قبلی ثبت نشده است",
+        policy=json.dumps(policy, ensure_ascii=False),
+        target_duration_seconds=duration_target,
+        min_words=min_words,
+        max_words=max_words,
+    )
+    result = None
+    provider = "unknown"
+    draft = ""
+    last_error = ""
+    for attempt in range(2):
+        if attempt == 0:
+            request_prompt = prompt
+            temperature = 0.75
+        else:
+            request_prompt = (
+                prompt
+                + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
+                + last_error
+                + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
+                + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
+                + draft[:5000]
+            )
+            temperature = 0.45
+        draft, provider = generate_text(
+            SYSTEM_PROMPT, request_prompt, max_tokens=1400, temperature=temperature, json_mode=True,
+        )
+        try:
+            try:
+                item = json.loads(draft)
+            except json.JSONDecodeError:
+                cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", draft.strip(), flags=re.I)
+                item = json.loads(cleaned)
+            result = validate_short_content(item, titles, min_words=min_words, max_words=max_words)
+            break
+        except (ValueError, TypeError) as exc:
+            last_error = str(exc)
+            if attempt == 0:
+                LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
+    if result is None:
+        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
+    result["generated_by"] = provider
+    LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
+    return result

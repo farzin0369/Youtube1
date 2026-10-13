@@ -91,6 +91,14 @@ def test_github_schedule_triggers_at_18_tehran():
     assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"
 
 
+def test_daily_channel_defaults_to_retention_gated_shorts():
+    config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
+    content = config["content"]
+    assert content["production_format"] == "shorts"
+    assert content["target_duration_seconds"] == "20-32"
+    assert content["target_word_count"] == "36-48"
+
+
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)

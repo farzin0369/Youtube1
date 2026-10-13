@@ -10,7 +10,7 @@ channel:
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge-tts
-  visual_style: ویدئوی عمودی سینمایی از نماهای آرام طبیعت و زندگی روزمره؛ برش بصری هر ۱۸ ثانیه؛ زیرنویس فارسی زمان‌بندی‌شده
+  visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
   ai_engine: groq-optional-local-ollama
   llm_model: openai/gpt-oss-20b
   local_llm_model: qwen2.5:3b
@@ -31,6 +31,9 @@ publishing:
   comments_max_replies_per_run: 3
 
 content:
+  production_format: shorts
+  target_duration_seconds: "20-32"
+  target_word_count: "36-48"
   pillars:
     - معنویت روزمره و تأمل دربارهٔ معنا
     - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی
@@ -45,7 +48,5 @@ content:
     - کلیک‌بیت، ترساندن، شرمنده‌کردن یا لحن سرزنش‌گر
     - تقلید از سبک اختصاصی کانال‌ها یا نویسندگان دیگر
     - پاسخ خودکار به بحران، خودآسیبی، تهدید، نفرت یا درخواست فتوا
-  target_duration_minutes: 6
-  target_word_count: "720-820"
   source_policy: محتوای تأملی و آموزشی عمومی؛ ادعای دینیِ قابل‌راستی‌آزمایی فقط با منبع معتبر؛ عدم اختلاق نقل‌قول
   comment_policy: پاسخ کوتاه فقط به نظرهای روشن و بی‌خطر؛ مورد حساس یا نامطمئن بدون پاسخ خودکار
