@@ -19,6 +19,7 @@ schedule:
   timezone: Asia/Tehran
   production_start_local: "18:00"
   publication_local: "18:00"
+  shorts_publication_local: "21:00"
   production_cron_utc: "30 14 * * *"
   cadence: daily
 

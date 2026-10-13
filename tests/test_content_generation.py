@@ -72,6 +72,22 @@ def test_generate_content_fails_closed_without_a_title(monkeypatch):
         generate_content({"recent": []})
 
 
+def test_short_script_is_validated_as_standalone_persian(monkeypatch):
+    monkeypatch.setattr(
+        spiritual_content, "generate_text",
+        lambda *args, **kwargs: (_persian_text(90, "0"), "stub"),
+    )
+    result = spiritual_content.generate_short_script({"title": "موضوع آزمون", "script": "مرجع"})
+    assert 65 <= word_count(result) <= 125
+    assert "؟" in result
+
+
+def test_short_script_rejects_too_short_model_output(monkeypatch):
+    monkeypatch.setattr(spiritual_content, "generate_text", lambda *args, **kwargs: ("یک متن خیلی کوتاه است.", "stub"))
+    with pytest.raises(ValueError, match="length"):
+        spiritual_content.generate_short_script({"title": "موضوع", "script": "مرجع"})
+
+
 def test_word_budget_expands_a_section_that_is_too_short(monkeypatch):
     calls = {"count": 0}
 

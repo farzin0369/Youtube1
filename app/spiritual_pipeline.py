@@ -10,7 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Any
 
-from app.spiritual_content import generate_content
+from app.spiritual_content import generate_content, generate_short_script
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
@@ -20,13 +20,15 @@ from app.youtube_client import upload_video
 TEHRAN = ZoneInfo("Asia/Tehran")
 
 
-def next_publish_at(now: datetime | None = None, *, lead_minutes: int = 30) -> str:
-    """Return the next safe 18:00 Tehran slot, at least lead_minutes ahead."""
+def next_publish_at(now: datetime | None = None, *, lead_minutes: int = 30, hour: int = 18) -> str:
+    """Return the next safe daily Tehran slot, at least lead_minutes ahead."""
+    if not 0 <= hour <= 23:
+        raise ValueError("hour must be between 0 and 23")
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
     local = current.astimezone(TEHRAN)
-    candidate = local.replace(hour=18, minute=0, second=0, microsecond=0)
+    candidate = local.replace(hour=hour, minute=0, second=0, microsecond=0)
     if candidate <= local + timedelta(minutes=lead_minutes):
         candidate += timedelta(days=1)
     return candidate.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -134,13 +136,44 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
         description = _description(content, render, float(tts["duration_seconds"]))
+
+        stage = "short script, narration, vertical render and QA"
+        short_script = generate_short_script(content)
+        (out_dir / "short_script.txt").write_text(short_script, encoding="utf-8")
+        short_audio, short_captions = out_dir / "short_narration.mp3", out_dir / "short_captions.srt"
+        short_tts = synthesize_with_captions(short_script, short_audio, short_captions)
+        short_render = render_video(
+            title=content["title"], thumbnail_text=content["thumbnail_text"],
+            keywords=content["visual_keywords"], audio_path=short_audio,
+            captions_path=short_captions, out_dir=out_dir / "short", run_id=f"{run_id}_short",
+            orientation="portrait",
+        )
+        short_quality = validate_render_package(
+            {
+                "ok": short_render.get("ok"), "video_path": short_render.get("video_path"),
+                "thumbnail_path": short_render.get("thumbnail_path"), "captions_path": short_render.get("captions_path"),
+                "duration": short_render.get("duration_seconds"), "video_width": short_render.get("video_width"),
+                "video_height": short_render.get("video_height"), "on_screen_captions": short_render.get("on_screen_captions"),
+            },
+            short_audio, allow_portrait=True,
+        )
+        if not short_quality.get("ok"):
+            raise RuntimeError("short media QA failed: " + ", ".join(short_quality.get("errors") or []))
+        short_title = ("#Shorts | " + content["title"])[:100]
+        short_description = (
+            f"یک تأمل کوتاه از کانال ImamAli110 دربارهٔ {content['title']}\n"
+            "گویندگی فارسی با صدای هوش مصنوعی تولید شده است. این محتوا توصیهٔ شخصی مالی یا پزشکی نیست.\n"
+            "#Shorts #ImamAli110 #The110Path #رشد_فردی #معنویت"
+        )
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
+        short_upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
-            stage = "YouTube upload and scheduling"
-            scheduled_at = None if upload_private else next_publish_at()
+            stage = "YouTube long and short uploads and scheduling"
+            scheduled_at = None if upload_private else next_publish_at(hour=18)
+            short_scheduled_at = None if upload_private else next_publish_at(hour=21)
             cfg = load_channel_config()
             category_id = str((cfg.get("publishing") or {}).get("category_id") or "22")
-            logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
+            logger.info("uploading long and short mode=%s slots=%s,%s", "private-draft" if upload_private else "scheduled-public", scheduled_at, short_scheduled_at)
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
                 description=description, tags=content["tags"], privacy="private" if upload_private else "public",
@@ -149,12 +182,25 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             )
             if not upload.get("ok"):
                 raise RuntimeError(str(upload.get("error") or "YouTube upload/scheduling failed"))
-            logger.info("YouTube upload complete mode=%s video_id=%s slot=%s", "private-draft" if upload_private else "scheduled-public", upload.get("video_id"), upload.get("scheduled_for"))
+            short_upload = upload_video(
+                video_path=Path(short_render["video_path"]), title=short_title,
+                description=short_description, tags=content["tags"], privacy="private" if upload_private else "public",
+                thumbnail_path=Path(short_render["thumbnail_path"]), category_id=category_id, publish_at=short_scheduled_at,
+            )
+            if not short_upload.get("ok"):
+                raise RuntimeError(str(short_upload.get("error") or "YouTube short upload/scheduling failed"))
+            logger.info("YouTube uploads complete long_id=%s long_slot=%s short_id=%s short_slot=%s", upload.get("video_id"), upload.get("scheduled_for"), short_upload.get("video_id"), short_upload.get("scheduled_for"))
             recent = history.get("recent") if isinstance(history.get("recent"), list) else []
             recent.append({
                 "title": content["title"], "topic": content["sections"][1]["heading"],
                 "video_id": upload.get("video_id"), "url": upload.get("url"),
                 "scheduled_for": upload.get("scheduled_for"), "uploaded_at": utc_now_iso(),
+            })
+            history["recent"] = recent[-90:]
+            recent.append({
+                "title": short_title, "topic": content["sections"][1]["heading"],
+                "video_id": short_upload.get("video_id"), "url": short_upload.get("url"),
+                "scheduled_for": short_upload.get("scheduled_for"), "uploaded_at": utc_now_iso(), "format": "short",
             })
             history["recent"] = recent[-90:]
             history["updated_at"] = utc_now_iso()
@@ -177,11 +223,16 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             "title": content["title"], "word_count": content["word_count"],
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
+            "short": {"script": short_script, "tts": {key: value for key, value in short_tts.items() if key != "path"},
+                      "render": short_render, "media_qa": short_quality, "upload": short_upload},
         }
         save_json(out_dir / "result.json", result)
         logger.info("pipeline completed upload_ok=%s comment_replies=%s", upload.get("ok", False), comments.get("replied", 0))
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return result
     except Exception as exc:
-        logger.error("pipeline failed stage=%s error_type=%s detail=%s", stage, type(exc).__name__, _safe_error(str(exc)))
+        # Provider exceptions can embed signed websocket URLs or transient tokens.
+        # Keep user-facing Actions logs non-sensitive: the stage and exception type
+        # are sufficient to diagnose without serializing remote error payloads.
+        logger.error("pipeline failed stage=%s error_type=%s", stage, type(exc).__name__)
         raise RuntimeError(f"pipeline failed during {stage} ({type(exc).__name__})") from None
