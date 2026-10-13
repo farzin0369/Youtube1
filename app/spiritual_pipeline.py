@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from typing import Any
 
 from app.spiritual_content import generate_content
+from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
@@ -46,6 +47,16 @@ def _chapter_timestamp(seconds: float) -> str:
 
 
 def _description(content: dict[str, Any], render: dict[str, Any], audio_duration: float) -> str:
+    if content.get("format") == "shorts":
+        parts = [
+            content.get("description", "").strip(),
+            "گویندگی فارسی با صدای هوش مصنوعی تولید شده است.",
+        ]
+        credits = render.get("pexels_credits") or []
+        if credits:
+            parts += ["", "تصاویر:", *credits]
+        parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل"]
+        return "\n".join(x for x in parts if x is not None).strip()[:4900]
     section_words = [max(1, len(section["text"].split())) for section in content["sections"]]
     total = sum(section_words) or 1
     cursor = 0.0
@@ -99,7 +110,11 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     stage = "history and script generation"
     try:
         history = _load_state(state_path)
-        content = generate_content(history)
+        channel_config = load_channel_config()
+        content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
+        if content_format not in {"shorts", "long"}:
+            raise ValueError("config content.production_format must be 'shorts' or 'long'")
+        content = generate_shorts_content(history) if content_format == "shorts" else generate_content(history)
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
         logger.info("script passed quality gates title=%r words=%s sections=%s", content["title"], content["word_count"], len(content["sections"]))
@@ -107,7 +122,10 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         stage = "fixed-voice TTS and captions"
         audio_path = out_dir / "narration.mp3"
         captions_path = out_dir / "captions.srt"
-        tts = synthesize_with_captions(content["script"], audio_path, captions_path)
+        tts = synthesize_with_captions(
+            content["script"], audio_path, captions_path,
+            scenes=content.get("scenes") if content_format == "shorts" else None,
+        )
         logger.info("TTS ready voice=%s duration_seconds=%.2f caption_count=%s", tts["voice"], tts["duration_seconds"], tts["caption_count"])
 
         stage = "video render and QA"
@@ -115,21 +133,13 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             title=content["title"], thumbnail_text=content["thumbnail_text"],
             keywords=content["visual_keywords"], audio_path=audio_path,
             captions_path=captions_path, out_dir=out_dir, run_id=run_id,
+            video_format=content_format,
+            scene_queries=[scene["visual_query"] for scene in content.get("scenes", [])] if content_format == "shorts" else None,
+            scene_timings=tts.get("scene_timings") if content_format == "shorts" else None,
+            hook_overlay=content["scenes"][0]["on_screen_text"] if content_format == "shorts" else "",
         )
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
-        media_quality = validate_render_package(
-            {
-                "ok": render.get("ok"),
-                "video_path": render.get("video_path"),
-                "thumbnail_path": render.get("thumbnail_path"),
-                "captions_path": render.get("captions_path"),
-                "duration": render.get("duration_seconds"),
-                "video_width": render.get("video_width"),
-                "video_height": render.get("video_height"),
-                "on_screen_captions": render.get("on_screen_captions"),
-            },
-            audio_path,
-        )
+        media_quality = validate_render_package(render, audio_path, video_format=content_format)
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
@@ -152,7 +162,8 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             logger.info("YouTube upload complete mode=%s video_id=%s slot=%s", "private-draft" if upload_private else "scheduled-public", upload.get("video_id"), upload.get("scheduled_for"))
             recent = history.get("recent") if isinstance(history.get("recent"), list) else []
             recent.append({
-                "title": content["title"], "topic": content["sections"][1]["heading"],
+                "title": content["title"],
+                "topic": content.get("topic") or (content["sections"][1]["heading"] if len(content.get("sections") or []) > 1 else content["title"]),
                 "video_id": upload.get("video_id"), "url": upload.get("url"),
                 "scheduled_for": upload.get("scheduled_for"), "uploaded_at": utc_now_iso(),
             })

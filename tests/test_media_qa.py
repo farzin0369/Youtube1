@@ -70,3 +70,54 @@ def test_portrait_video_is_rejected_for_long_form(tmp_path: Path):
     result = validate_render_package(meta, audio)
     assert not result["ok"]
     assert "video_must_be_landscape_at_least_640x360" in result["errors"]
+
+
+def _short_package(tmp_path: Path):
+    meta, audio = _package(tmp_path)
+    meta.update({
+        "video_format": "shorts", "duration": 24.0,
+        "video_width": 720, "video_height": 1280,
+        "caption_font_size": 42, "hook_overlay": "یک قدم واقعی",
+        "scene_query_match": True, "visual_source": "pexels",
+        "music_ducking": True, "visual_scene_count": 4,
+    })
+    srt = []
+    for index in range(6):
+        start, end = index * 2, index * 2 + 1.6
+        srt.append(f"{index+1}\n00:00:{start:02d},000 --> 00:00:{end:02.0f},000\nزیرنویس خوانا\n")
+    Path(meta["captions_path"]).write_text("\n".join(srt), encoding="utf-8")
+    burned = tmp_path / "captions.ass"
+    burned.write_text("[Script Info]\n", encoding="utf-8")
+    meta["burned_captions_path"] = str(burned)
+    return meta, audio
+
+
+def test_good_shorts_package_passes_all_vertical_mobile_gates(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["duration_seconds"] = meta.pop("duration")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    assert result["checks"]["video_dimensions"]["aspect_ratio"] == 0.5625
+    assert result["checks"]["caption_cues"] == 6
+
+
+def test_shorts_quality_gate_blocks_landscape_frame_and_abstract_fallback(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["video_width"], meta["video_height"] = 1280, 720
+    meta["visual_source"] = "generated abstract fallback"
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_must_be_vertical_9_16_at_least_720x1280" in result["errors"]
+    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
+
+
+def test_shorts_quality_gate_blocks_too_short_or_unreadable_package(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["duration"] = 12.0
+    meta["caption_font_size"] = 28
+    meta["music_ducking"] = False
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_duration_outside_15_40_seconds" in result["errors"]
+    assert "shorts_caption_font_too_small" in result["errors"]
+    assert "shorts_background_music_not_ducked_under_voice" in result["errors"]

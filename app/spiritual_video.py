@@ -63,11 +63,11 @@ def probe_duration(path: Path) -> float:
     return value
 
 
-def _pexels_results(keyword: str, api_key: str, per_page: int = 20) -> list[dict[str, Any]]:
+def _pexels_results(keyword: str, api_key: str, per_page: int = 20, *, orientation: str = "landscape") -> list[dict[str, Any]]:
     import requests
     response = _get_with_backoff(lambda: requests.get(
         "https://api.pexels.com/v1/videos/search",
-        params={"query": keyword, "orientation": "landscape", "per_page": per_page, "size": "medium"},
+        params={"query": keyword, "orientation": orientation, "per_page": per_page, "size": "medium"},
         headers={"Authorization": api_key}, timeout=(10, 35),
     ))
     try:
@@ -76,33 +76,44 @@ def _pexels_results(keyword: str, api_key: str, per_page: int = 20) -> list[dict
         response.close()
 
 
-def _choose_file(video: dict[str, Any]) -> dict[str, Any] | None:
+def _choose_file(video: dict[str, Any], *, orientation: str = "landscape") -> dict[str, Any] | None:
     files = [f for f in video.get("video_files", []) if f.get("file_type") == "video/mp4" and f.get("link")]
     if not files:
         return None
-    landscape = [f for f in files if (f.get("width") or 0) >= (f.get("height") or 1)]
-    pool = landscape or files
-    # Prefer a source large enough for 720x1280, but avoid downloading unnecessarily huge masters.
+    if orientation == "portrait":
+        pool = [f for f in files if (f.get("height") or 0) > (f.get("width") or 0)]
+    else:
+        pool = [f for f in files if (f.get("width") or 0) >= (f.get("height") or 1)]
+    if not pool:
+        return None
+    # Prefer source footage with enough pixels for the target render, without huge masters.
     sufficient = [f for f in pool if (f.get("height") or 0) >= 960]
     pool = sufficient or pool
     return min(pool, key=lambda f: (f.get("width") or 10_000) * (f.get("height") or 10_000))
 
 
-def fetch_stock(keywords: list[str], out_dir: Path, count: int = 18) -> tuple[list[Path], list[str]]:
+def fetch_stock(
+    keywords: list[str], out_dir: Path, count: int = 18, *,
+    orientation: str = "landscape", one_per_keyword: bool = False,
+) -> tuple[list[Path], list[str]]:
     """Fetch a bounded set of distinct Pexels clips and keep courtesy credits."""
     api_key = (env("PEXELS_API_KEY") or "").strip()
     if not api_key:
         return [], []
     videos: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for keyword in keywords[:5]:
+    queries = keywords[:min(5, count)] if one_per_keyword else keywords[:5]
+    for keyword in queries:
         try:
-            for video in _pexels_results(keyword, api_key):
+            results = _pexels_results(keyword, api_key, orientation=orientation)
+            for video in results:
                 video_id = str(video.get("id") or "")
-                if not video_id or video_id in seen or not _choose_file(video):
+                if not video_id or video_id in seen or not _choose_file(video, orientation=orientation):
                     continue
                 seen.add(video_id)
                 videos.append(video)
+                if one_per_keyword:
+                    break
                 if len(videos) >= count:
                     break
         except Exception as exc:
@@ -114,7 +125,7 @@ def fetch_stock(keywords: list[str], out_dir: Path, count: int = 18) -> tuple[li
     credits: list[str] = []
     import requests
     for video in videos[:count]:
-        chosen = _choose_file(video)
+        chosen = _choose_file(video, orientation=orientation)
         if not chosen:
             continue
         target = out_dir / f"pexels_{video['id']}.mp4"
@@ -214,18 +225,18 @@ def make_thumbnail(title: str, text: str, out_path: Path) -> Path:
     return out_path
 
 
-def _fallback_still(path: Path, seed: int) -> None:
+def _fallback_still(path: Path, seed: int, *, width: int = WIDTH, height: int = HEIGHT) -> None:
     rng = random.Random(seed)
     colors = [(14, 27, 45), (31, 47, 66), (44, 38, 57), (21, 44, 49), (42, 45, 65)]
     a, b = colors[seed % len(colors)], colors[(seed + 2) % len(colors)]
-    image = Image.new("RGB", (WIDTH, HEIGHT))
+    image = Image.new("RGB", (width, height))
     draw = ImageDraw.Draw(image)
-    for y in range(HEIGHT):
-        t = y / (HEIGHT - 1)
+    for y in range(height):
+        t = y / (height - 1)
         c = tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
-        draw.line((0, y, WIDTH, y), fill=c)
+        draw.line((0, y, width, y), fill=c)
     for _ in range(16):
-        x, y = rng.randint(-100, WIDTH + 100), rng.randint(-100, HEIGHT + 100)
+        x, y = rng.randint(-100, width + 100), rng.randint(-100, height + 100)
         radius = rng.randint(20, 130)
         tone = rng.choice([(95, 110, 113), (119, 99, 79), (65, 99, 104)])
         draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=tone, width=rng.randint(1, 4))
@@ -237,11 +248,50 @@ def _local_fallback_videos() -> list[Path]:
     return sorted(p for p in folder.glob("*") if p.suffix.lower() in {".mp4", ".mov", ".m4v"})
 
 
-def _ambient_track(out_path: Path, duration: float, seed: int) -> Path:
+def _ambient_track(
+    out_path: Path, duration: float, seed: int, *, profile: str = "long",
+    scene_durations: list[float] | None = None,
+) -> Path:
     """Use creator-owned, synthesized soft pads; no stock music is redistributed."""
     user_tracks = sorted(Path("assets/music").glob("*.wav")) + sorted(Path("assets/music").glob("*.mp3"))
     if user_tracks:
         return user_tracks[seed % len(user_tracks)]
+    if profile == "shorts":
+        # A restrained four-chord arc changes with the authored scene cuts:
+        # minor tension -> release -> warmth -> resolved major finish.
+        durations = scene_durations if scene_durations and len(scene_durations) == 4 else [duration / 4] * 4
+        durations = [max(0.5, float(value)) for value in durations]
+        chords = [
+            (110.00, 130.81, 164.81),
+            (87.31, 110.00, 130.81),
+            (123.47, 155.56, 185.00),
+            (130.81, 164.81, 196.00),
+        ]
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        source_index = 0
+        filters: list[str] = []
+        chord_labels: list[str] = []
+        for scene_index, (chord, length) in enumerate(zip(chords, durations)):
+            tone_labels: list[str] = []
+            fade_out_start = max(0.05, length - min(0.28, length / 3))
+            for tone_index, frequency in enumerate(chord):
+                cmd += ["-f", "lavfi", "-i", f"sine=frequency={frequency}:sample_rate=44100:duration={length:.3f}"]
+                label = f"tone{source_index}"
+                level = (0.13, 0.065, 0.032)[tone_index]
+                filters.append(
+                    f"[{source_index}:a]volume={level:.3f},lowpass=f=1700,tremolo=f=0.12:d=0.18,"
+                    f"afade=t=in:st=0:d=0.18,afade=t=out:st={fade_out_start:.3f}:d={min(0.28, length / 3):.3f}[{label}]"
+                )
+                tone_labels.append(f"[{label}]")
+                source_index += 1
+            chord_label = f"chord{scene_index}"
+            filters.append("".join(tone_labels) + f"amix=inputs=3:duration=longest:normalize=0[{chord_label}]")
+            chord_labels.append(f"[{chord_label}]")
+        total = sum(durations)
+        filters.append("".join(chord_labels) + f"concat=n=4:v=0:a=1,afade=t=in:st=0:d=0.30,afade=t=out:st={max(0.0, total-1.1):.3f}:d={min(1.1,total):.3f}[aout]")
+        cmd += ["-filter_complex", ";".join(filters), "-map", "[aout]", "-ac", "2", "-c:a", "pcm_s16le", str(out_path)]
+        subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(duration * 3)))
+        return out_path
     chord_sets = [
         (130.81, 164.81, 196.00), (110.00, 146.83, 174.61),
         (123.47, 155.56, 185.00), (98.00, 130.81, 164.81),
@@ -265,55 +315,155 @@ def _ambient_track(out_path: Path, duration: float, seed: int) -> Path:
     return out_path
 
 
-def _make_segment(source: Path | None, image_path: Path | None, duration: float, out_path: Path, seed: int) -> None:
-    vf = f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT},setsar=1,fps={FPS},eq=brightness=-0.06:saturation=0.88"
+def _make_segment(
+    source: Path | None, image_path: Path | None, duration: float, out_path: Path, seed: int,
+    *, width: int = WIDTH, height: int = HEIGHT,
+) -> None:
+    vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,fps={FPS},eq=brightness=-0.02:saturation=1.02:contrast=1.04"
     if source:
         cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-pix_fmt", "yuv420p", str(out_path)]
     else:
         zoom = "1+0.0005*on" if seed % 2 == 0 else "1.08-0.0005*on"
-        cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}", "-vf", f"zoompan=z='{zoom}':d=1:s={WIDTH}x{HEIGHT}:fps={FPS},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", str(out_path)]
+        cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}", "-vf", f"zoompan=z='{zoom}':d=1:s={width}x{height}:fps={FPS},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", str(out_path)]
     subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(duration * 4)))
+
+
+def _ass_time(seconds: float) -> str:
+    centiseconds = max(0, int(round(seconds * 100)))
+    hours, rem = divmod(centiseconds, 360_000)
+    minutes, rem = divmod(rem, 6_000)
+    whole, cs = divmod(rem, 100)
+    return f"{hours}:{minutes:02d}:{whole:02d}.{cs:02d}"
+
+
+def _write_shorts_ass(captions_path: Path, out_path: Path, *, hook: str, duration: float) -> Path:
+    """Burn time-coded captions plus a readable hook overlay inside Shorts safe zones."""
+    entries: list[str] = []
+    raw = Path(captions_path).read_text(encoding="utf-8-sig").strip()
+    for block in re.split(r"\n\s*\n", raw):
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        timing = next((line for line in lines if "-->" in line), None)
+        if not timing:
+            continue
+        start_text, end_text = [part.strip() for part in timing.split("-->", 1)]
+
+        def parse(value: str) -> float:
+            match = re.fullmatch(r"(\d+):(\d{2}):(\d{2}),(\d{3})", value)
+            if not match:
+                raise ValueError("invalid SRT timestamp for ASS conversion")
+            h, m, s, ms = (int(part) for part in match.groups())
+            return h * 3600 + m * 60 + s + ms / 1000
+
+        spoken = "\\N".join(line.replace("{", "\\{").replace("}", "\\}") for line in lines[lines.index(timing) + 1:])
+        if spoken:
+            entries.append(f"Dialogue: 0,{_ass_time(parse(start_text))},{_ass_time(parse(end_text))},Default,,0,0,0,,{spoken}")
+    hook_text = re.sub(r"\s+", " ", str(hook or "")).strip().replace("{", "\\{").replace("}", "\\}")
+    if hook_text:
+        entries.insert(0, f"Dialogue: 1,0:00:00.00,{_ass_time(min(2.8, duration))},Hook,,0,0,0,,{hook_text}")
+    header = """[Script Info]
+ScriptType: v4.00+
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Default,Noto Sans Arabic,42,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,2,50,50,220,1
+Style: Hook,Noto Sans Arabic,54,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,8,46,46,300,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+"""
+    Path(out_path).write_text(header + "\n".join(entries) + "\n", encoding="utf-8")
+    return Path(out_path)
 
 
 def render_video(
     *, title: str, thumbnail_text: str, keywords: list[str], audio_path: Path,
     captions_path: Path, out_dir: Path, run_id: str, scene_stills: list[Path] | None = None,
+    video_format: str = "long", scene_queries: list[str] | None = None,
+    scene_timings: list[dict[str, float]] | None = None, hook_overlay: str = "",
 ) -> dict[str, Any]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    if video_format not in {"long", "shorts"}:
+        raise ValueError("video_format must be 'long' or 'shorts'")
+    width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
-    # Change visuals every ~18 seconds; stock searches are bounded to five API calls.
-    count = max(1, min(24, int(math.ceil(duration / 18.0))))
-    stock, credits = fetch_stock(keywords, out_dir / "stock", count=count)
+    if video_format == "shorts":
+        queries = [str(query).strip() for query in (scene_queries or []) if str(query).strip()]
+        if len(queries) != 4:
+            raise RuntimeError("Shorts require four specific, narration-matched visual searches")
+        count = len(queries)
+        stock, credits = fetch_stock(
+            queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
+        )
+        if len(stock) != count:
+            raise RuntimeError(
+                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
+                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or add approved scene footage."
+            )
+        if scene_timings and len(scene_timings) == count:
+            durations = [
+                float(scene_timings[index + 1]["start_seconds"]) - float(row["start_seconds"])
+                if index < count - 1 else duration - float(row["start_seconds"])
+                for index, row in enumerate(scene_timings)
+            ]
+        else:
+            durations = [duration / count] * count
+    else:
+        # Long-form legacy mode keeps its landscape behavior and broad scene cadence.
+        count = max(1, min(24, int(math.ceil(duration / 18.0))))
+        stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
+        durations = [duration / count] * count
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     local_fallbacks = _local_fallback_videos() if not stock else []
     scene_dir = out_dir / "scenes"
     scene_dir.mkdir(exist_ok=True)
-    segment_duration = duration / count
     parts: list[Path] = []
     for index in range(count):
         part = scene_dir / f"scene_{index:03d}.mp4"
         if stock:
             source = stock[index % len(stock)]
-            _make_segment(source, None, segment_duration, part, index)
+            _make_segment(source, None, durations[index], part, index, width=width, height=height)
         elif scene_stills:
-            _make_segment(None, scene_stills[index % len(scene_stills)], segment_duration, part, index)
+            _make_segment(None, scene_stills[index % len(scene_stills)], durations[index], part, index, width=width, height=height)
         elif local_fallbacks:
+            if video_format == "shorts":
+                raise RuntimeError("Shorts visual-quality gate blocked generic fallback footage")
             source = local_fallbacks[(index + sum(map(ord, run_id))) % len(local_fallbacks)]
-            _make_segment(source, None, segment_duration, part, index)
+            _make_segment(source, None, durations[index], part, index, width=width, height=height)
         else:
+            if video_format == "shorts":
+                raise RuntimeError("Shorts visual-quality gate blocked abstract fallback frames")
             still = scene_dir / f"abstract_{index:03d}.jpg"
-            _fallback_still(still, index + sum(map(ord, run_id)))
-            _make_segment(None, still, segment_duration, part, index)
+            _fallback_still(still, index + sum(map(ord, run_id)), width=width, height=height)
+            _make_segment(None, still, durations[index], part, index, width=width, height=height)
         parts.append(part)
     concat_file = out_dir / "scenes.txt"
     concat_file.write_text("".join(f"file '{p.resolve().as_posix()}'\n" for p in parts), encoding="utf-8")
-    music = _ambient_track(out_dir / "ambient.wav", duration, sum(map(ord, run_id)))
+    music = _ambient_track(
+        out_dir / "ambient.wav", duration, sum(map(ord, run_id)), profile=video_format,
+        scene_durations=durations if video_format == "shorts" else None,
+    )
     thumbnail = make_thumbnail(title, thumbnail_text, out_dir / "thumbnail.jpg")
     final_path = out_dir / "video.mp4"
-    escaped_srt = str(Path(captions_path).resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
-    subtitles = f"subtitles='{escaped_srt}':force_style='FontName=Noto Naskh Arabic,FontSize=36,Outline=3,Shadow=1,MarginV=150,Alignment=2,PrimaryColour=&H00FFFFFF,OutlineColour=&H99000000'"
-    mix = "[1:a]volume=1.0[voice];[2:a]volume=0.075[bed];[voice][bed]amix=inputs=2:duration=first:dropout_transition=3[aout]"
+    subtitle_path = Path(captions_path)
+    if video_format == "shorts":
+        subtitle_path = _write_shorts_ass(
+            captions_path, out_dir / "captions-burned.ass", hook=hook_overlay, duration=duration,
+        )
+        escaped_subs = str(subtitle_path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+        subtitles = f"subtitles='{escaped_subs}'"
+    else:
+        escaped_subs = str(subtitle_path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+        subtitles = f"subtitles='{escaped_subs}':force_style='FontName=Noto Naskh Arabic,FontSize=36,Outline=3,Shadow=1,MarginV=150,Alignment=2,PrimaryColour=&H00FFFFFF,OutlineColour=&H99000000'"
+    mix = (
+        "[1:a]highpass=f=70,acompressor=threshold=0.16:ratio=2:attack=12:release=220,loudnorm=I=-16:TP=-2:LRA=8,asplit=2[voice][voice_key];"
+        "[2:a]volume=0.16[bed];[bed][voice_key]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280[ducked];"
+        "[voice][ducked]amix=inputs=2:duration=first:dropout_transition=3,alimiter=limit=0.96[aout]"
+    )
     command = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
         "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music), "-filter_complex", mix,
@@ -331,5 +481,11 @@ def render_video(
         "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
-        "on_screen_captions": True, "video_width": WIDTH, "video_height": HEIGHT, "ok": True,
+        "on_screen_captions": True, "video_width": width, "video_height": height,
+        "video_format": video_format, "caption_font_size": 42 if video_format == "shorts" else 36,
+        "hook_overlay": str(hook_overlay or "") if video_format == "shorts" else "",
+        "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
+        "scene_query_match": bool(video_format == "shorts" and len(stock) == count and len(queries) == count),
+        "music_ducking": True,
+        "ok": True,
     }
