@@ -121,3 +121,23 @@ def test_shorts_quality_gate_blocks_too_short_or_unreadable_package(tmp_path: Pa
     assert "shorts_duration_outside_15_40_seconds" in result["errors"]
     assert "shorts_caption_font_too_small" in result["errors"]
     assert "shorts_background_music_not_ducked_under_voice" in result["errors"]
+
+
+def test_explicit_scene_stills_pass_only_as_non_uploadable_preview_media(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "provided stills"
+    meta["test_visuals_only"] = True
+    meta["duration_seconds"] = meta.pop("duration")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    assert "not eligible for upload" in result["checks"]["visual_source_note"]
+
+
+def test_provided_stills_cannot_pass_publish_qa_without_preview_only_marker(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "provided stills"
+    meta.pop("duration", None)
+    meta["duration_seconds"] = 24.0
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]

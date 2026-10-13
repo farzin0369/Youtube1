@@ -95,8 +95,12 @@ def validate_render_package(
             errors.append("shorts_burned_caption_track_missing")
         if render_meta.get("scene_query_match") is not True:
             errors.append("shorts_scene_visual_queries_not_verified")
-        if str(render_meta.get("visual_source") or "") != "pexels":
+        visual_source = str(render_meta.get("visual_source") or "")
+        test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
+        if visual_source != "pexels" and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
+        if test_stills_are_allowed:
+            checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
         if render_meta.get("music_ducking") is not True:
             errors.append("shorts_background_music_not_ducked_under_voice")
         if int(render_meta.get("visual_scene_count") or 0) != 4:
