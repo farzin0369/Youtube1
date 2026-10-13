@@ -121,7 +121,7 @@ def _clean_prose(text: str, *, heading: str | None = None) -> str:
             if candidate:
                 text = re.sub(r"^\s*" + re.escape(candidate) + r"\s*(?:\n+|$)", "", text, count=1)
         # A small model may repeat the bare heading inline before the actual prose.
-        if bare and bare != marker:
+        if bare:
             text = re.sub(r"^\s*" + re.escape(bare) + r"\s*[:：\-–،.]\s*", "", text, count=1)
         text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()).strip()
     return text.strip()
