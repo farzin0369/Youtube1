@@ -179,16 +179,28 @@ def generate_text(
             timeout = max(30.0, min(900.0, float(env("LLM_TIMEOUT_SECONDS") or "180")))
         except (TypeError, ValueError):
             timeout = 180.0
+    chain = provider_chain()
+    # Report provider names only; never log keys, URLs containing credentials, or tokens.
+    logger.info("LLM providers configured: %s", ", ".join(name for name, _ in chain))
     failures: list[str] = []
-    for name, call in provider_chain():
+    for name, call in chain:
         try:
+            provider_timeout = timeout
+            if name.startswith("ollama:"):
+                try:
+                    provider_timeout = max(
+                        30.0,
+                        min(900.0, float(env("OLLAMA_TIMEOUT_SECONDS") or str(timeout))),
+                    )
+                except (TypeError, ValueError):
+                    provider_timeout = timeout
             text = call(
                 system,
                 prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 json_mode=json_mode,
-                timeout=timeout,
+                timeout=provider_timeout,
             )
             if failures:
                 logger.warning("fell back to %s after %s", name, ", ".join(failures))
