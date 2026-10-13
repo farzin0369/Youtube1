@@ -41,7 +41,7 @@ jobs:
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       TTS_VOICE: fa-IR-FaridNeural
       CHANNEL_BRAND: ImamAli110
-      LOCAL_LLM_MODEL: qwen2.5:3b
+      LOCAL_LLM_MODEL: qwen2.5:7b
       OLLAMA_BASE_URL: http://127.0.0.1:11434
       OLLAMA_TIMEOUT_SECONDS: "600"
       OLLAMA_NUM_PREDICT: "4096"
