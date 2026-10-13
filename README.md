@@ -39,6 +39,7 @@
 - `GROQ_API_KEY`: کلید طرح رایگان Groq؛ `GROQ_MODEL` را می‌توان به‌صورت Repository Variable تنظیم کرد. بدون آن، workflow مدل محلی `qwen2.5:3b` را روی runner آماده می‌کند و از آن استفاده می‌کند.
 - `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL`: هر درگاه سازگار با OpenAI (OpenRouter، Together، DeepInfra، vLLM محلی). اگر Groq تنظیم نشده باشد یا شکست بخورد، این درگاه پیش از مدل محلی امتحان می‌شود.
 - `PEXELS_API_KEY`: برای شورتس انتشارمحور لازم است. بدون کلیپ عمودی برای هر چهار صحنه، pipeline عمداً متوقف می‌شود و ویدئوی انتزاعی/نامرتبط آپلود نمی‌کند.
+- برای انتخاب آزمایشی ElevenLabs: Repository Secret `ELEVENLABS_API_KEY` و Variables `TTS_PROVIDER=elevenlabs` و `ELEVENLABS_VOICE_ID` را تنظیم کنید؛ `ELEVENLABS_MODEL_ID` به‌طور پیش‌فرض `eleven_v4` است. تا وقتی `TTS_PROVIDER` تغییر نکرده، Edge TTS پیش‌فرض باقی می‌ماند. کلید API را هرگز در Variables، فایل YAML یا commit قرار ندهید.
 
 > کیفیت متن با Groq رایگان به‌طور محسوسی از مدل محلی ۳ میلیاردی بهتر است. برای انتشار روزانه، ساخت یک کلید رایگان در [console.groq.com](https://console.groq.com/keys) و افزودن آن به‌عنوان `GROQ_API_KEY` توصیه می‌شود؛ بدون آن هم خط تولید کار می‌کند، اما کندتر و با متن ساده‌تر.
 
