@@ -99,11 +99,14 @@ def _duration(path: Path) -> float:
     return duration
 
 
-def _merge_segments(parts: list[Path], output: Path, pause_seconds: float = 0.28) -> None:
+def _merge_segments(
+    parts: list[Path], output: Path, pause_seconds: float | list[float] = 0.28,
+) -> None:
     filters: list[str] = []
     inputs: list[str] = []
     for index in range(len(parts)):
-        pad = f",apad=pad_dur={pause_seconds:.3f}" if index < len(parts) - 1 else ""
+        pause = pause_seconds[index] if isinstance(pause_seconds, list) and index < len(pause_seconds) else pause_seconds
+        pad = f",apad=pad_dur={max(0.0, float(pause)):.3f}" if index < len(parts) - 1 else ""
         filters.append(f"[{index}:a]asetpts=PTS-STARTPTS{pad}[a{index}]")
         inputs.append(f"[a{index}]")
     filters.append("".join(inputs) + f"concat=n={len(parts)}:v=0:a=1[aout]")
@@ -117,14 +120,35 @@ def _merge_segments(parts: list[Path], output: Path, pause_seconds: float = 0.28
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(120, 30 * len(parts)))
 
 
-def _delivery(mood: str) -> tuple[str, str]:
-    """Small prosody differences retain one narrator while marking the emotional arc."""
-    return {
+def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
+    """Map scene mood and auto-tag to conservative Edge TTS rate/pitch controls.
+
+    Edge TTS does not expose native emotion styles; these small changes are only
+    prosody hints, not a claim that anger/joy/etc. can be faithfully synthesized.
+    """
+    base_rate, base_pitch = {
         "hook": ("+5%", "+3Hz"),
         "calm": ("-8%", "-2Hz"),
         "reassuring": ("-3%", "+0Hz"),
         "motivational": ("+6%", "+2Hz"),
     }.get(str(mood or "").lower(), ("-4%", "+0Hz"))
+    hint = hint if isinstance(hint, dict) else {}
+    emotion = str(hint.get("emotion") or "neutral").lower()
+    intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
+    # Use conservative offsets so automatic labels do not create exaggerated or
+    # potentially harsh delivery on a TTS engine without emotion-style controls.
+    rate_delta, pitch_delta = {
+        "angry": (3.0, 1.0), "motivational": (4.0, 1.0), "joyful": (3.0, 1.0),
+        "calm": (-3.0, -1.0), "reassuring": (-2.0, 0.0), "sad": (-3.0, -1.0),
+        "neutral": (0.0, 0.0),
+    }.get(emotion, (0.0, 0.0))
+    confidence = max(0.0, min(1.0, float(hint.get("confidence") or 0.0)))
+    scale = intensity * confidence * 0.5
+    base_rate_value = float(base_rate.rstrip("%"))
+    base_pitch_value = float(base_pitch.rstrip("Hz"))
+    rate = max(-10.0, min(10.0, base_rate_value + rate_delta * scale))
+    pitch = max(-3.0, min(3.0, base_pitch_value + pitch_delta * scale))
+    return f"{rate:+.1f}%", f"{pitch:+.1f}Hz"
 
 
 def synthesize_with_captions(
@@ -149,9 +173,11 @@ def synthesize_with_captions(
         with tempfile.TemporaryDirectory(prefix="persian-tts-", dir=str(audio_path.parent)) as temp_dir:
             temp = Path(temp_dir)
             parts: list[Path] = []
+            scene_pauses: list[float] = []
             cursor = 0.0
             for index, (scene, scene_text) in enumerate(zip(scenes, scene_texts)):
-                rate, pitch = _delivery(str(scene.get("mood") or ""))
+                hint = scene.get("delivery_hint") if isinstance(scene.get("delivery_hint"), dict) else {}
+                rate, pitch = _delivery(str(scene.get("mood") or ""), hint)
                 part = temp / f"scene-{index:02d}.mp3"
                 events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)
@@ -164,10 +190,20 @@ def synthesize_with_captions(
                     shifted_events.append(shifted)
                 all_events.extend(shifted_events)
                 scene_timings.append({"start_seconds": start, "end_seconds": start + duration})
-                delivery_log.append({"mood": str(scene.get("mood") or ""), "rate": rate, "pitch": pitch})
-                cursor += duration + (0.28 if index < len(scenes) - 1 else 0.0)
+                pause = max(0.18, min(0.70, float(hint.get("pause_after_ms", 280)) / 1000.0))
+                scene_pauses.append(pause)
+                delivery_log.append({
+                    "mood": str(scene.get("mood") or ""),
+                    "emotion": str(hint.get("emotion") or "neutral"),
+                    "intensity": str(hint.get("intensity", 0.0)),
+                    "confidence": str(hint.get("confidence", 0.0)),
+                    "pace": str(hint.get("pace") or "steady"),
+                    "pause_after_ms": str(round(pause * 1000)),
+                    "rate": rate, "pitch": pitch,
+                })
+                cursor += duration + (pause if index < len(scenes) - 1 else 0.0)
                 parts.append(part)
-            _merge_segments(parts, audio_path)
+            _merge_segments(parts, audio_path, pause_seconds=scene_pauses)
     else:
         all_events = asyncio.run(_render(normalized_script, audio_path))
 
