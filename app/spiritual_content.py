@@ -310,10 +310,12 @@ def _script_quality_issues(script: str) -> list[str]:
         issues.append("opening has no immediate question or concrete scene hook")
 
     sentences = [sentence for sentence in _sentences(script) if word_count(sentence) >= 8]
-    for index, sentence in enumerate(sentences):
-        if any(_similarity(sentence, earlier) >= 0.92 and _token_overlap(sentence, earlier) >= 0.80 for earlier in sentences[:index]):
-            issues.append("repeated or near-duplicate spoken sentence")
-            break
+    # Character-level similarity is too aggressive for Persian scripts with recurring
+    # sentence frames. Only an effectively identical spoken sentence is a hard failure;
+    # generation cleanup separately removes near-duplicates with strong token overlap.
+    normalized_sentences = [_normalized(sentence) for sentence in sentences]
+    if any(value and value in normalized_sentences[:index] for index, value in enumerate(normalized_sentences)):
+        issues.append("repeated or near-duplicate spoken sentence")
 
     punctuation = sum(script.count(mark) for mark in "،؛.!؟?")
     if punctuation < max(8, word_count(script) // 55):
