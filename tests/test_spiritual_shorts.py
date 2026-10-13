@@ -84,6 +84,12 @@ def test_short_gate_rejects_recently_used_title(short_package):
         validate_short_content(short_package, [short_package["title"]])
 
 
+def test_short_gate_accepts_concise_two_word_visual_searches(short_package):
+    short_package["scenes"][1]["visual_query"] = "warm sunrise"
+    result = validate_short_content(short_package)
+    assert result["visual_keywords"][1] == "warm sunrise"
+
+
 def test_short_hook_must_not_start_with_generic_intro(short_package):
     package = copy.deepcopy(short_package)
     package["scenes"][0]["spoken_text"] = "سلام، " + package["scenes"][0]["spoken_text"]

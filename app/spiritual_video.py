@@ -391,6 +391,7 @@ def render_video(
         raise ValueError("video_format must be 'long' or 'shorts'")
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
+    scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     if video_format == "shorts":
         queries = [str(query).strip() for query in (scene_queries or []) if str(query).strip()]
         if len(queries) != 4:
@@ -399,10 +400,11 @@ def render_video(
         stock, credits = fetch_stock(
             queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
         )
-        if len(stock) != count:
+        if len(stock) != count and len(scene_stills) != count:
             raise RuntimeError(
                 "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
-                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or add approved scene footage."
+                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or provide four "
+                "explicitly scene-matched portrait stills for a dry-run preview."
             )
         if scene_timings and len(scene_timings) == count:
             durations = [
@@ -417,7 +419,6 @@ def render_video(
         count = max(1, min(24, int(math.ceil(duration / 18.0))))
         stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
         durations = [duration / count] * count
-    scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     local_fallbacks = _local_fallback_videos() if not stock else []
     scene_dir = out_dir / "scenes"
     scene_dir.mkdir(exist_ok=True)
@@ -485,7 +486,11 @@ def render_video(
         "video_format": video_format, "caption_font_size": 42 if video_format == "shorts" else 36,
         "hook_overlay": str(hook_overlay or "") if video_format == "shorts" else "",
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
-        "scene_query_match": bool(video_format == "shorts" and len(stock) == count and len(queries) == count),
+        "scene_query_match": bool(
+            video_format == "shorts" and len(queries) == count
+            and (len(stock) == count or len(scene_stills) == count)
+        ),
+        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
         "music_ducking": True,
         "ok": True,
     }
