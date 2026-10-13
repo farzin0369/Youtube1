@@ -124,7 +124,7 @@ def _clean_prose(text: str, *, heading: str | None = None) -> str:
                     break
             else:
                 break
-        text = re.sub(r"\s+", " ", text).strip()
+        text = "\n\n".join(re.sub(r"[ \t]+", " ", paragraph).strip() for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()).strip()
     return text.strip()
 
 
@@ -312,7 +312,7 @@ def _script_quality_issues(script: str) -> list[str]:
 
     sentences = [sentence for sentence in _sentences(script) if word_count(sentence) >= 8]
     for index, sentence in enumerate(sentences):
-        if any(_similarity(sentence, earlier) >= 0.92 for earlier in sentences[:index]):
+        if any(_similarity(sentence, earlier) >= 0.92 and _token_overlap(sentence, earlier) >= 0.80 for earlier in sentences[:index]):
             issues.append("repeated or near-duplicate spoken sentence")
             break
 
@@ -349,6 +349,10 @@ def validate_content(item: dict[str, Any], recent_titles: list[str] | None = Non
     words = word_count(script)
     if not 650 <= words <= 900:
         raise ValueError(f"Script length outside 6-minute range: {words} words (expected 650-900)")
+    if re.search(r"(?:قرآن|آیه|حدیث|پیامبر|امام)\\s*(?:می‌فرماید|می‌گوید|فرمود|گفته است|روایت می‌کند)", script):
+        raise ValueError("Unverified sacred-text or attributed quotation must be removed")
+    if re.search(r"(?:به شما تضمین می‌دهم|سود تضمینی|درمان قطعی|پولدار شدن قطعی|حتماً ثروتمند می‌شوید)", script):
+        raise ValueError("Guaranteed financial or medical outcomes are not allowed")
     quality_issues = _script_quality_issues(script)
     if quality_issues:
         raise ValueError("Script quality gate failed: " + "; ".join(quality_issues))
