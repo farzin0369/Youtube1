@@ -75,6 +75,18 @@ def validate_short_content(
         text = re.sub(r"\s+", " ", str(raw.get("spoken_text") or "")).strip()
         mood = str(raw.get("mood") or "").strip().lower()
         query = re.sub(r"\s+", " ", str(raw.get("visual_query") or "")).strip()
+        # Repair underspecified stock-search queries before the strict QA gate.
+        # Preserve valid model-authored queries; only append concrete visual terms when needed.
+        if query and len(query.split()) < 2:
+            scene_terms = [
+                "cinematic vertical video",
+                "person quiet reflection",
+                "hands writing journal",
+                "sunrise mountain landscape",
+            ]
+            query = f"{query} {scene_terms[index]}"
+        elif query and len(query) > 100:
+            query = " ".join(query.split()[:10])
         overlay = re.sub(r"\s+", " ", str(raw.get("on_screen_text") or "")).strip()
         if not text or mood not in ALLOWED_MOODS or not query or not overlay:
             raise ValueError(f"scene_{index + 1}_is_incomplete")
