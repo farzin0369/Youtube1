@@ -160,6 +160,31 @@ def _remove_duplicate_sentences(text: str, threshold: float = 0.90) -> str:
     return "\n\n".join(paragraphs).strip()
 
 
+def _deduplicate_sections_globally(sections: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Remove repeated spoken sentences across section boundaries, preserving paragraphs."""
+    seen: list[str] = []
+    result: list[dict[str, str]] = []
+    for section in sections:
+        paragraphs: list[str] = []
+        for paragraph in re.split(r"\n\s*\n", str(section.get("text") or "").strip()):
+            kept: list[str] = []
+            for sentence in _sentences(paragraph):
+                duplicate = word_count(sentence) >= 8 and any(
+                    _similarity(sentence, prior) >= 0.90
+                    and _token_overlap(sentence, prior) >= 0.80
+                    for prior in seen
+                )
+                if duplicate:
+                    continue
+                kept.append(sentence)
+                if word_count(sentence) >= 8:
+                    seen.append(sentence)
+            if kept:
+                paragraphs.append(" ".join(kept).strip())
+        result.append({"heading": str(section.get("heading") or ""), "text": "\n\n".join(paragraphs).strip()})
+    return result
+
+
 def _token_overlap(left: str, right: str) -> float:
     """Return token-set Jaccard similarity to guard against character-only false positives."""
     left_tokens = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", left.casefold()))
@@ -754,6 +779,7 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
     sections = _deduplicate(section_system, sections)
     sections = _rebalance(section_system, sections, target)
     sections = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
+    sections = _deduplicate_sections_globally(sections)
 
     item = {
         "title": outline["title"],
@@ -768,6 +794,7 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
     except ValueError as exc:
         LOGGER.warning("assembled script failed a quality gate (%s); attempting one bounded repair pass", exc)
         repaired = [{"heading": s["heading"], "text": _remove_duplicate_sentences(_drop_leaks(s["text"])) or s["text"]} for s in sections]
+        repaired = _deduplicate_sections_globally(repaired)
         repaired = _rebalance(system, repaired, target)
 
         # Repair the specific production failure without weakening the quality gate.
