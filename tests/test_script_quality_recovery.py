@@ -29,3 +29,21 @@ def test_remove_duplicate_sentences_does_not_drop_distinct_persian_sentences():
     assert first in result
     assert second in result
     assert result.count("\n\n") == 1
+
+
+
+def test_global_deduplication_removes_repeated_sentences_across_sections():
+    from app.spiritual_content import _deduplicate_sections_globally
+
+    repeated = "وقتی روز سختی داری، چند لحظه مکث کن و آرام نفس بکش تا بتوانی تصمیم بهتری بگیری."
+    unique = "بعد از آن، یک کار کوچک را انتخاب کن و با حوصله انجام بده تا دوباره مسیرت را پیدا کنی."
+    sections = [
+        {"heading": "اول", "text": repeated + "\\n\\n" + unique},
+        {"heading": "دوم", "text": repeated + "\\n\\n" + "برای فردا، یک برنامه ساده بنویس و زمان شروع آن را مشخص کن."},
+    ]
+    result = _deduplicate_sections_globally(sections)
+
+    assert result[0]["text"].count(repeated) == 1
+    assert repeated not in result[1]["text"]
+    assert unique in result[0]["text"]
+    assert "برنامه ساده" in result[1]["text"]
