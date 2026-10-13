@@ -90,6 +90,22 @@ def test_short_gate_accepts_concise_two_word_visual_searches(short_package):
     assert result["visual_keywords"][1] == "warm sunrise"
 
 
+def test_short_gate_accepts_28_word_retention_focused_script(short_package):
+    package = copy.deepcopy(short_package)
+    lines = [
+        "آخر شب، ذهنت می‌گوید باید همه‌چیز را درست کنی؟",
+        "خستگی، کارها را بزرگ‌تر نشان می‌دهد.",
+        "امشب یک کار کوچک را کامل کن.",
+        "فردا آرام ادامه بده، همین کافیست.",
+    ]
+    for scene, line in zip(package["scenes"], lines):
+        scene["spoken_text"] = line
+    package["hook"] = lines[0]
+    package["script"] = " ".join(lines)
+    result = validate_short_content(package)
+    assert result["word_count"] == 28
+
+
 def test_short_hook_must_not_start_with_generic_intro(short_package):
     package = copy.deepcopy(short_package)
     package["scenes"][0]["spoken_text"] = "سلام، " + package["scenes"][0]["spoken_text"]

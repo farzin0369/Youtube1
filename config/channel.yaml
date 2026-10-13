@@ -32,8 +32,8 @@ publishing:
 
 content:
   production_format: shorts
-  target_duration_seconds: "20-32"
-  target_word_count: "36-48"
+  target_duration_seconds: "18-30"
+  target_word_count: "28-44"
   pillars:
     - معنویت روزمره و تأمل دربارهٔ معنا
     - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی
