@@ -348,8 +348,13 @@ def _ass_time(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{whole:02d}.{cs:02d}"
 
 
+def _escape_ass_text(value: str) -> str:
+    """Escape user text without reversing or rewriting Unicode/RTL characters."""
+    return str(value).replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+
 def _write_shorts_ass(captions_path: Path, out_path: Path, *, hook: str, duration: float) -> Path:
-    """Burn time-coded captions plus a readable hook overlay inside Shorts safe zones."""
+    """Write RTL-safe ASS text with gentle phrase-level motion, never per-letter transforms."""
     entries: list[str] = []
     raw = Path(captions_path).read_text(encoding="utf-8-sig").strip()
     for block in re.split(r"\n\s*\n", raw):
@@ -366,23 +371,33 @@ def _write_shorts_ass(captions_path: Path, out_path: Path, *, hook: str, duratio
             h, m, s, ms = (int(part) for part in match.groups())
             return h * 3600 + m * 60 + s + ms / 1000
 
-        spoken = "\\N".join(line.replace("{", "\\{").replace("}", "\\}") for line in lines[lines.index(timing) + 1:])
+        spoken = "\\N".join(_escape_ass_text(line) for line in lines[lines.index(timing) + 1:])
         if spoken:
-            entries.append(f"Dialogue: 0,{_ass_time(parse(start_text))},{_ass_time(parse(end_text))},Default,,0,0,0,,{spoken}")
-    hook_text = re.sub(r"\s+", " ", str(hook or "")).strip().replace("{", "\\{").replace("}", "\\}")
+            # Shape Persian as an intact Unicode run via libass/HarfBuzz/FriBidi.
+            # Animate the whole phrase subtly; splitting or reversing glyphs breaks joining.
+            anim = r"{\q2\fad(90,70)\t(0,100,\fscx104\fscy104)\t(100,220,\fscx100\fscy100)}"
+            entries.append(
+                f"Dialogue: 0,{_ass_time(parse(start_text))},{_ass_time(parse(end_text))},Default,,0,0,0,,{anim}{spoken}"
+            )
+    hook_text = _escape_ass_text(re.sub(r"\s+", " ", str(hook or "")).strip())
     if hook_text:
-        entries.insert(0, f"Dialogue: 1,0:00:00.00,{_ass_time(min(2.8, duration))},Hook,,0,0,0,,{hook_text}")
+        hook_anim = r"{\q2\fad(100,130)\t(0,150,\fscx108\fscy108)\t(150,310,\fscx100\fscy100)}"
+        entries.insert(
+            0,
+            f"Dialogue: 1,0:00:00.00,{_ass_time(min(2.8, duration))},Hook,,0,0,0,,{hook_anim}{hook_text}",
+        )
     header = """[Script Info]
 ScriptType: v4.00+
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
+Kerning: yes
 PlayResX: 720
 PlayResY: 1280
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Default,Noto Sans Arabic,42,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,2,50,50,220,1
-Style: Hook,Noto Sans Arabic,54,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,8,46,46,300,1
+Style: Default,Noto Naskh Arabic,48,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,2,50,50,220,1
+Style: Hook,Noto Naskh Arabic,56,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,8,46,46,300,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
@@ -502,7 +517,9 @@ def render_video(
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
-        "video_format": video_format, "caption_font_size": 42 if video_format == "shorts" else 36,
+        "video_format": video_format, "caption_font_size": 48 if video_format == "shorts" else 36,
+        "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",
+        "persian_text_shaping": "noto-naskh-unicode-rtl" if video_format == "shorts" else "default",
         "audio_duration_seconds": probe_stream_duration(final_path, "a:0"),
         "hook_overlay": str(hook_overlay or "") if video_format == "shorts" else "",
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),

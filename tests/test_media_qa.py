@@ -78,7 +78,9 @@ def _short_package(tmp_path: Path):
         "video_format": "shorts", "duration": 24.0,
         "audio_duration_seconds": 24.0,
         "video_width": 720, "video_height": 1280,
-        "caption_font_size": 42, "hook_overlay": "یک قدم واقعی",
+        "caption_font_size": 48, "hook_overlay": "یک قدم واقعی",
+        "caption_animation_profile": "phrase-pop-fade-v1",
+        "persian_text_shaping": "noto-naskh-unicode-rtl",
         "scene_query_match": True, "visual_source": "pexels",
         "music_ducking": True, "visual_scene_count": 4,
     })
@@ -88,7 +90,11 @@ def _short_package(tmp_path: Path):
         srt.append(f"{index+1}\n00:00:{start:02d},000 --> 00:00:{end:02.0f},000\nزیرنویس خوانا\n")
     Path(meta["captions_path"]).write_text("\n".join(srt), encoding="utf-8")
     burned = tmp_path / "captions.ass"
-    burned.write_text("[Script Info]\n", encoding="utf-8")
+    burned.write_text(
+        "[Script Info]\nWrapStyle: 0\nKerning: yes\n"
+        "Style: Default,Noto Naskh Arabic,48\nDialogue: 0,,,{\\fad(90,70)\\fscx100}سلام\n",
+        encoding="utf-8",
+    )
     meta["burned_captions_path"] = str(burned)
     return meta, audio
 
@@ -158,3 +164,14 @@ def test_shorts_audio_duration_is_required(tmp_path: Path):
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_audio_duration_missing" in result["errors"]
+
+
+def test_shorts_quality_gate_rejects_missing_caption_animation_or_shaping(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["caption_animation_profile"] = "static"
+    meta["persian_text_shaping"] = "reversed-or-unknown"
+    Path(meta["burned_captions_path"]).write_text("[Script Info]\n", encoding="utf-8")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_caption_animation_missing_or_invalid" in result["errors"]
+    assert "shorts_persian_text_shaping_not_configured" in result["errors"]

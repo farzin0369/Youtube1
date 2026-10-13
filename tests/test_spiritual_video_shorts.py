@@ -24,10 +24,17 @@ def test_short_caption_ass_includes_a_separate_large_hook(tmp_path: Path):
     )
     ass = video._write_shorts_ass(srt, tmp_path / "captions.ass", hook="یک قدم کافیست", duration=20)
     text = ass.read_text(encoding="utf-8")
-    assert "Style: Hook,Noto Sans Arabic,54" in text
+    assert "Style: Hook,Noto Naskh Arabic,56" in text
+    assert "Style: Default,Noto Naskh Arabic,48" in text
     assert "Dialogue: 1,0:00:00.00,0:00:02.80,Hook" in text
     assert "یک قدم کافیست" in text
     assert "Dialogue: 0,0:00:00.15,0:00:01.40,Default" in text
+    assert "WrapStyle: 0" in text and "Kerning: yes" in text
+    assert r"\fad(100,130)" in text and r"\fscx108\fscy108" in text
+    assert r"\fad(90,70)" in text and r"\fscx104\fscy104" in text
+    # Keep source order and codepoints intact; libass shapes Arabic/Persian as a run.
+    assert "تا حالا شده؟" in text and "فقط یک قدم" in text
+    assert "؟ شده حالا تا" not in text
 
 
 def test_scene_moods_have_audibly_distinct_tts_profiles():
