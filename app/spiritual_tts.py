@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import re
 import subprocess
 import tempfile
@@ -13,7 +14,29 @@ from app.utils import env, load_channel_config
 TICKS_PER_SECOND = 10_000_000
 
 
-def _voice() -> str:
+def _provider() -> str:
+    configured = env("TTS_PROVIDER")
+    if configured:
+        provider = str(configured).strip().lower()
+    else:
+        try:
+            provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "edge-tts").strip().lower()
+        except Exception:
+            provider = "edge-tts"
+    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
+    provider = aliases.get(provider, provider)
+    if provider not in {"edge-tts", "elevenlabs"}:
+        raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
+    return provider
+
+
+def _voice(provider: str | None = None) -> str:
+    provider = provider or _provider()
+    if provider == "elevenlabs":
+        value = env("ELEVENLABS_VOICE_ID")
+        if not value:
+            raise RuntimeError("ELEVENLABS_VOICE_ID is required when TTS_PROVIDER=elevenlabs")
+        return str(value).strip()
     if env("TTS_VOICE"):
         return str(env("TTS_VOICE"))
     try:
@@ -68,7 +91,7 @@ async def _render(
 
     communicate = edge_tts.Communicate(
         text,
-        voice=_voice(),
+        voice=_voice("edge-tts"),
         rate=rate,
         pitch=pitch,
         boundary="WordBoundary",
@@ -86,6 +109,98 @@ async def _render(
     if not events:
         raise RuntimeError("Edge TTS returned no word-boundary metadata; timed captions are required")
     return events
+
+
+def _elevenlabs_tagged_text(text: str, hint: dict[str, Any] | None) -> tuple[str, str]:
+    """Add one v4 audio tag when the detected label is sufficiently confident."""
+    hint = hint if isinstance(hint, dict) else {}
+    emotion = str(hint.get("emotion") or "neutral").lower()
+    try:
+        intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
+        confidence = max(0.0, min(1.0, float(hint.get("confidence") or 0.0)))
+    except (TypeError, ValueError):
+        intensity, confidence = 0.0, 0.0
+    tags = {
+        "angry": "[angry]", "motivational": "[encouraging]", "calm": "[calm]",
+        "reassuring": "[reassuring]", "sad": "[sad]", "joyful": "[excited]",
+    }
+    tag = tags.get(emotion, "") if confidence >= 0.55 and intensity >= 0.35 else ""
+    return (f"{tag} {text}" if tag else text), tag
+
+
+def _alignment_word_events(alignment: dict[str, Any], expected_text: str) -> list[dict[str, Any]]:
+    """Convert ElevenLabs character-level alignment into this module's word events."""
+    chars = alignment.get("characters") or []
+    starts = alignment.get("character_start_times_seconds") or []
+    ends = alignment.get("character_end_times_seconds") or []
+    aligned_text = "".join(str(char) for char in chars)
+    start_at = aligned_text.find(expected_text)
+    if start_at < 0 or len(starts) < start_at + len(expected_text) or len(ends) < start_at + len(expected_text):
+        raise RuntimeError("ElevenLabs alignment did not contain the original narration text")
+    events: list[dict[str, Any]] = []
+    for match in re.finditer(r"\S+", expected_text):
+        left, right = start_at + match.start(), start_at + match.end()
+        word_start = min(float(value) for value in starts[left:right])
+        word_end = max(float(value) for value in ends[left:right])
+        events.append({
+            "type": "WordBoundary", "text": match.group(),
+            "offset": max(0, int(round(word_start * TICKS_PER_SECOND))),
+            "duration": max(1, int(round((word_end - word_start) * TICKS_PER_SECOND))),
+        })
+    if not events:
+        raise RuntimeError("ElevenLabs returned no word timings")
+    return events
+
+
+def _render_elevenlabs(
+    text: str, audio_path: Path, *, hint: dict[str, Any] | None = None,
+    previous_text: str = "", next_text: str = "",
+) -> list[dict[str, Any]]:
+    """Call ElevenLabs v4 timing endpoint and persist audio for normal FFmpeg flow."""
+    import requests
+
+    api_key = str(env("ELEVENLABS_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY is required when TTS_PROVIDER=elevenlabs")
+    voice_id = _voice("elevenlabs")
+    tagged_text, _tag = _elevenlabs_tagged_text(text, hint)
+    model_id = str(env("ELEVENLABS_MODEL_ID") or "eleven_v4").strip()
+    payload: dict[str, Any] = {
+        "text": tagged_text,
+        "model_id": model_id,
+        "language_code": "fa",
+        "voice_settings": {
+            "stability": float(env("ELEVENLABS_STABILITY") or 0.5),
+            "similarity_boost": float(env("ELEVENLABS_SIMILARITY") or 0.75),
+        },
+    }
+    if previous_text:
+        payload["previous_text"] = previous_text[-1000:]
+    if next_text:
+        payload["next_text"] = next_text[:1000]
+    try:
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            params={"output_format": "mp3_44100_128"}, json=payload, timeout=(15, 120),
+        )
+        response.raise_for_status()
+        result = response.json()
+    except requests.RequestException as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        suffix = f" status={status}" if status else ""
+        raise RuntimeError(f"ElevenLabs TTS request failed{suffix} ({type(exc).__name__})") from None
+    try:
+        audio = base64.b64decode(result["audio_base64"], validate=True)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"ElevenLabs returned invalid audio payload ({type(exc).__name__})") from None
+    if len(audio) < 1024:
+        raise RuntimeError("ElevenLabs returned no usable audio")
+    audio_path.write_bytes(audio)
+    alignment = result.get("alignment") or result.get("normalized_alignment")
+    if not isinstance(alignment, dict):
+        raise RuntimeError("ElevenLabs returned no character alignment; timed captions are required")
+    return _alignment_word_events(alignment, text)
 
 
 def _duration(path: Path) -> float:
@@ -165,6 +280,7 @@ def synthesize_with_captions(
     all_events: list[dict[str, Any]] = []
     scene_timings: list[dict[str, float]] = []
     delivery_log: list[dict[str, str]] = []
+    provider = _provider()
 
     if scenes:
         scene_texts = [re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip() for scene in scenes]
@@ -179,7 +295,14 @@ def synthesize_with_captions(
                 hint = scene.get("delivery_hint") if isinstance(scene.get("delivery_hint"), dict) else {}
                 rate, pitch = _delivery(str(scene.get("mood") or ""), hint)
                 part = temp / f"scene-{index:02d}.mp3"
-                events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
+                if provider == "elevenlabs":
+                    events = _render_elevenlabs(
+                        scene_text, part, hint=hint,
+                        previous_text=scene_texts[index - 1] if index > 0 else "",
+                        next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
+                    )
+                else:
+                    events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)
                 start = cursor
                 shifted_events = []
@@ -199,13 +322,17 @@ def synthesize_with_captions(
                     "confidence": str(hint.get("confidence", 0.0)),
                     "pace": str(hint.get("pace") or "steady"),
                     "pause_after_ms": str(round(pause * 1000)),
-                    "rate": rate, "pitch": pitch,
+                    "rate": rate if provider == "edge-tts" else "provider-managed",
+                    "pitch": pitch if provider == "edge-tts" else "provider-managed",
                 })
                 cursor += duration + (pause if index < len(scenes) - 1 else 0.0)
                 parts.append(part)
             _merge_segments(parts, audio_path, pause_seconds=scene_pauses)
     else:
-        all_events = asyncio.run(_render(normalized_script, audio_path))
+        if provider == "elevenlabs":
+            all_events = _render_elevenlabs(normalized_script, audio_path)
+        else:
+            all_events = asyncio.run(_render(normalized_script, audio_path))
 
     cues: list[tuple[float, float, str]] = []
     if scenes:
@@ -232,8 +359,9 @@ def synthesize_with_captions(
     return {
         "path": str(audio_path),
         "captions_path": str(captions_path),
-        "provider": "edge-tts",
-        "voice": _voice(),
+        "provider": provider,
+        "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
+        "voice": _voice(provider),
         "narrator_locked": True,
         "caption_mode": "word-boundary phrase captions",
         "duration_seconds": _duration(audio_path),
