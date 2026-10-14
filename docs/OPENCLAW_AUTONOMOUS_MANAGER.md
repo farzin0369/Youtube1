@@ -9,12 +9,12 @@ Make OpenClaw the supervisory AI for the ImamAli110 Persian channel. OpenClaw sh
 - `.github/workflows/openclaw-smoke-test.yml` originally installed the CLI and ran `openclaw --help` only. That proves CLI startup, not an authenticated model completion, a live Gateway, agent orchestration, or YouTube publishing.
 - `.github/workflows/daily_run.yml` is scheduled for 14:30 UTC (18:00 Tehran), but GitHub-hosted runners are ephemeral. A workflow run cannot truthfully be described as a persistent, always-on Gateway.
 - The content pipeline already generates Persian Shorts, uses four scene-specific vertical Pexels clips, runs pre-upload media QA, and schedules YouTube through the existing OAuth client.
-- The previous LLM provider chain silently fell back to local Ollama. This conflicts with the owner's explicit no-local-model requirement and is being removed.
+- The Python LLM provider chain is cloud-only: Groq first, then an explicitly configured OpenAI-compatible cloud endpoint. It has no local Ollama fallback.
 - MoneyPrinterTurbo is an optional rendering engine, not a guarantee of cinematic footage. The current MPT test creates abstract animations and must not be described as high-quality live-action footage.
 
 ## Target architecture
 
-1. **OpenClaw supervisor**: use an authenticated cloud model to inspect a run plan, delegate bounded specialist tasks, review their structured outputs, and produce a sanitized run report.
+1. **OpenClaw supervisor**: on each production run, use an authenticated cloud model to create a temporary coordinated team (coordinator, researcher, writer, reviewer), validate structured outputs, and pass a sanitized editorial brief to the Shorts pipeline.
 2. **Research/idea specialist**: choose one original, audience-relevant topic and a specific first-three-second hook; do not imitate any creator's distinctive style.
 3. **Script specialist**: create natural Persian narration and title/description candidates consistent with the channel's source and safety policy.
 4. **Production specialist**: select the configured production engine (current Python/FFmpeg/Pexels pipeline or MoneyPrinterTurbo when its dependencies and media sources are available). Do not silently substitute abstract clips for real footage.
@@ -24,7 +24,8 @@ Make OpenClaw the supervisory AI for the ImamAli110 Persian channel. OpenClaw sh
 
 ## Cloud model policy
 
-- Primary provider: Groq via `GROQ_API_KEY`.
+- Primary provider: Groq via `GROQ_API_KEY` when configured.
+- OpenClaw-native fallback: OpenAI via `OPENAI_API_KEY` and `openai/gpt-4.1-mini`; this fallback can incur API charges.
 - Optional cloud fallback: `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL` together.
 - Never start Ollama or another local model.
 - If no cloud provider is configured or all cloud providers fail, fail closed before upload and explain the missing configuration without printing secret values.
@@ -58,14 +59,12 @@ A change is not complete merely because `openclaw --help` succeeds. Required evi
 7. A scheduled release is verified by its actual YouTube video ID/status; workflow success alone is insufficient.
 8. Recovery tests demonstrate that a simulated provider outage fails safely and does not invoke a local model.
 
-## Delivery sequence
+## Delivery status
 
-- Phase 1: cloud-only LLM behavior, tests, architecture documentation, and secret-safe preflight.
-- Phase 2: OpenClaw cloud authentication and a real headless model-completion test.
-- Phase 3: run specialist agent tasks with validated JSON handoffs and a central supervisor report.
-- Phase 4: connect the supervisor to the existing video pipeline and MPT as a selectable engine, preserving QA gates.
-- Phase 5: private upload test, then verify YouTube IDs and only then enable public scheduled release.
-- Phase 6: bounded self-healing with branch-only repairs and regression tests.
+- Implemented in the feature branch: cloud-only Python provider chain, Groq/OpenAI model selection, temporary OpenClaw specialist team, validated editorial brief handoff into Shorts generation, bounded cloud-based comment moderation, secret-safe health reporting, and a self-healing job that can propose a draft PR after a regression-tested source-only repair.
+- Verified so far: the full repository self-test completed successfully on an earlier revision of this branch. The cloud integration job intentionally fails closed when neither `GROQ_API_KEY` nor `OPENAI_API_KEY` is available; no live model completion, video upload, or public release has been proven by that failure.
+- Still required before production activation: a successful cloud-model smoke test, a successful private YouTube upload with a real video ID, and a review of the generated video quality. Keep the branch separate until those checks pass.
+- MoneyPrinterTurbo remains optional. The existing MPT workflow currently makes abstract test visuals, so it must not be selected as the production engine until it can produce scene-matched real footage and pass the same QA gates.
 
 ## Reporting rule
 
