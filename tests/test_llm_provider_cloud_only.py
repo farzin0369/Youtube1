@@ -53,7 +53,7 @@ def test_cloudflare_uses_max_tokens_parameter() -> None:
         answer = _chat_completions(
             "https://api.cloudflare.com/client/v4/accounts/test-account/ai/v1",
             "not-a-real-secret",
-            "@cf/meta/llama-3.1-8b-instruct-fast",
+            "@cf/meta/llama-3.1-8b-instruct",
             "system",
             "prompt",
             max_tokens=128,
