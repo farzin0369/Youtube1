@@ -1,6 +1,8 @@
 name: MoneyPrinterTurbo Persian private video test
 
 on:
+  push:
+    branches: ["mpt-openclaw-run"]
   workflow_dispatch:
     inputs:
       upload_private:
@@ -35,14 +37,17 @@ jobs:
       - name: Check required secrets without revealing them
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
           import os, sys
-          required = ["PEXELS_API_KEY"]
-          if "${{ inputs.upload_private }}" == "true":
+          required = []
+          if not os.getenv("PEXELS_API_KEY", "").strip() and not os.getenv("PIXABAY_API_KEY", "").strip():
+              required += ["PEXELS_API_KEY or PIXABAY_API_KEY"]
+          if "${{ github.event_name == 'push' || inputs.upload_private }}" == "true":
               required += ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
           missing = [key for key in required if not os.getenv(key, "").strip()]
           if missing:
@@ -66,6 +71,7 @@ jobs:
         working-directory: MoneyPrinterTurbo
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
         run: |
           cp config.example.toml config.toml
           python - <<'PY'
@@ -73,12 +79,27 @@ jobs:
           from pathlib import Path
           p = Path("config.toml")
           s = p.read_text(encoding="utf-8")
-          key = os.environ["PEXELS_API_KEY"].strip()
-          s, n = re.subn(r'(?m)^pexels_api_keys\s*=\s*\[\s*\]', 'pexels_api_keys = ["' + key.replace('\\', '\\\\').replace('"', '\\"') + '"]', s, count=1)
-          if n != 1:
-              raise SystemExit("Could not safely configure Pexels in MoneyPrinterTurbo config")
+          pexels = os.getenv("PEXELS_API_KEY", "").strip()
+          pixabay = os.getenv("PIXABAY_API_KEY", "").strip()
+          def quote(value):
+              return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+          if pexels:
+              s, n = re.subn(r'(?m)^pexels_api_keys\s*=\s*\[\s*\]', 'pexels_api_keys = [' + quote(pexels) + ']', s, count=1)
+              if n != 1:
+                  raise SystemExit("Could not safely configure Pexels in MoneyPrinterTurbo config")
+              s = re.sub(r'(?m)^video_source\s*=\s*"[^"]+"', 'video_source = "pexels"', s, count=1)
+              source = "pexels"
+          elif pixabay:
+              s, n = re.subn(r'(?m)^pixabay_api_keys\s*=\s*\[\s*\]', 'pixabay_api_keys = [' + quote(pixabay) + ']', s, count=1)
+              if n != 1:
+                  raise SystemExit("Could not safely configure Pixabay in MoneyPrinterTurbo config")
+              s = re.sub(r'(?m)^video_source\s*=\s*"[^"]+"', 'video_source = "pixabay"', s, count=1)
+              source = "pixabay"
+          else:
+              raise SystemExit("Set PEXELS_API_KEY or PIXABAY_API_KEY in GitHub Actions secrets")
           p.write_text(s, encoding="utf-8")
-          print("Runtime config prepared; secret value not printed.")
+          Path("../mpt-video-source.txt").write_text(source, encoding="utf-8")
+          print("Runtime config prepared using " + source + "; secret value not printed.")
           PY
       - name: Generate Persian video using MoneyPrinterTurbo
         working-directory: MoneyPrinterTurbo
@@ -107,7 +128,7 @@ jobs:
           find "$TASK_DIR" -maxdepth 2 -type f \( -iname '*.srt' -o -iname '*.ass' \) -print -quit | while read -r SUB; do cp "$SUB" output/captions.srt; done
           echo "VIDEO_PATH=output/imamali110-private-test.mp4" >> "$GITHUB_ENV"
       - name: Upload as private YouTube draft
-        if: ${{ inputs.upload_private }}
+        if: ${{ github.event_name == 'push' || inputs.upload_private }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
