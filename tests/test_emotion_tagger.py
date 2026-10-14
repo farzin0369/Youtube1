@@ -1,31 +1,30 @@
-from app.emotion_tagger import classify_emotion, scene_delivery_hint, segment_and_tag
+from app.emotion_tagger import classify_emotion, segment_and_tag
 from app.spiritual_tts import _delivery
 
 
-def test_segment_and_tag_splits_on_punctuation():
-    segments = segment_and_tag("آرام باش. امید داشته باش!")
-    assert len(segments) >= 2
-    assert all("emotion" in row and "text" in row for row in segments)
-
-
-def test_classify_emotion_detects_calm_language():
-    result = classify_emotion("آرام باش و نفس عمیق بکش.")
-    assert result["emotion"] in {"calm", "reassuring", "neutral"}
-
-
-def test_classify_emotion_detects_motivational_language():
-    result = classify_emotion("با اراده جلو برو و امیدت را نگه دار.")
-    assert result["emotion"] in {"motivational", "joyful", "neutral"}
-
-
-def test_scene_delivery_hint_aggregates_segments():
-    segments = [
-        {"text": "آرام باش.", "emotion": "calm", "intensity": 0.6, "confidence": 0.8, "pace": "steady"},
-        {"text": "امید داشته باش.", "emotion": "motivational", "intensity": 0.7, "confidence": 0.7, "pace": "up"},
+def test_sentence_segmentation_preserves_source_and_offsets():
+    text = "خسته‌ای؟ امشب فقط یک کار کوچک انجام بده. فردا ادامه بده!"
+    segments = segment_and_tag(text)
+    assert [row["text"] for row in segments] == [
+        "خسته‌ای؟", "امشب فقط یک کار کوچک انجام بده.", "فردا ادامه بده!",
     ]
-    hint = scene_delivery_hint(segments)
-    assert "emotion" in hint
-    assert "pause_after_ms" in hint
+    assert all(text[row["start_char"]:row["end_char"]] == row["text"] for row in segments)
+
+
+def test_classifier_detects_motivational_language_and_intensity():
+    result = classify_emotion("تسلیم نشو، بلند شو و ادامه بده!")
+    assert result["emotion"] == "motivational"
+    assert 0.0 <= result["intensity"] <= 1.0
+    assert result["confidence"] > 0.5
+    assert result["pace"] == "brisk"
+
+
+def test_classifier_detects_reassuring_and_calm_language():
+    reassuring = classify_emotion("نگران نباش، لازم نیست کامل باشی.")
+    calm = classify_emotion("آرام نفس بکش و کمی مکث کن.")
+    assert reassuring["emotion"] == "reassuring"
+    assert calm["emotion"] == "calm"
+    assert reassuring["pause_after_ms"] >= 300
 
 
 def test_ambiguous_text_defaults_to_neutral():
