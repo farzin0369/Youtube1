@@ -65,11 +65,12 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, re, urllib.error, urllib.request
+          from scripts.openclaw_manager import BRIEF_RESPONSE_FORMAT, STRATEGY_PROMPT, _redact_secrets, validate_brief
           account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
           token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
           url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions"
-          schema = {"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":False}
-          body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":"Return a JSON object with ok set to true."}],"response_format":{"type":"json_schema","json_schema":schema}}).encode()
+          prompt = STRATEGY_PROMPT.replace("{recent}", "[]")
+          body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":prompt}],"response_format":BRIEF_RESPONSE_FORMAT}).encode()
           req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
           try:
               with urllib.request.urlopen(req, timeout=60) as response:
@@ -97,13 +98,12 @@ jobs:
           try:
               content = payload["choices"][0]["message"]["content"]
               result = json.loads(content) if isinstance(content, str) else content
-          except (KeyError, IndexError, TypeError, json.JSONDecodeError):
-              print("Cloudflare Workers AI did not return the expected structured response.")
+              brief = validate_brief(result)
+          except Exception as exc:
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(locals().get("content", "")))).strip()[:220]
+              print(f"Cloudflare Workers AI did not return a valid Persian JSON brief ({type(exc).__name__}); preview={preview!r}")
               raise SystemExit(1)
-          if not isinstance(result, dict) or result.get("ok") is not True:
-              print("Cloudflare Workers AI returned an invalid JSON-schema result.")
-              raise SystemExit(1)
-          print("PASS: Cloudflare Workers AI accepted the secrets and enforced the JSON schema.")
+          print("PASS: Cloudflare Workers AI returned a valid Persian five-field JSON brief under the project schema.")
           PY
 
       - name: Set up Node.js 24
