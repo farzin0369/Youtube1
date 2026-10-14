@@ -224,6 +224,11 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
                     f"هر صحنه حدود {max(5, min_words // 4)} تا {max(8, max_words // 4)} واژه. "
                     "متن طولانی را کوتاه کن؛ تکرار و توضیح اضافه ممنوع. قبل از پاسخ، واژه‌ها را بشمار."
                 )
+            if "opening_hook" in last_error or "hook_must" in last_error:
+                word_focus += (
+                    "\nقلاب: جملهٔ اول spoken_text صحنهٔ hook باید یک سؤال کوتاه فارسی با علامت ؟ باشد، "
+                    "بین ۴ تا ۱۳ واژه، بدون سلام و مقدمهٔ کلی. مثال: «چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟»"
+                )
             request_prompt = (
                 prompt
                 + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
