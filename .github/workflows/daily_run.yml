@@ -31,10 +31,12 @@ jobs:
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
-      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4.1-mini' }}
+      LLM_BASE_URL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && format('https://api.cloudflare.com/client/v4/accounts/{0}/ai/v1', secrets.CLOUDFLARE_ACCOUNT_ID) || vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_API_KEY: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.LLM_API_KEY || secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+      LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct-fast' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
       LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -85,8 +87,9 @@ jobs:
           import os, sys
           groq = bool(os.getenv("GROQ_API_KEY", "").strip())
           openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
-          if not (groq or openai):
-              print("No cloud model key found. Add GROQ_API_KEY (preferred) or OPENAI_API_KEY. No local model will be started.")
+          cloudflare = bool(os.getenv("CLOUDFLARE_API_TOKEN", "").strip() and os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip())
+          if not (groq or openai or cloudflare):
+              print("No cloud model credentials found. Configure Cloudflare Workers AI, GROQ_API_KEY, or OPENAI_API_KEY. No local model will be started.")
               sys.exit(1)
           print("Cloud model credential presence check passed; secret values were not printed.")
           PY
@@ -110,10 +113,16 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -n "${GROQ_API_KEY:-}" ]; then
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
+            echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_ENV"
+          elif [ -n "${GROQ_API_KEY:-}" ]; then
             echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
             echo "provider=groq" >> "$GITHUB_OUTPUT"
             echo "OPENCLAW_MODEL=groq/openai/gpt-oss-20b" >> "$GITHUB_ENV"
@@ -128,17 +137,44 @@ jobs:
       - name: Install OpenClaw and selected cloud provider
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          set -euo pipefail
           npm install --global openclaw@2026.10.3
           if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
             openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          elif [ "${{ steps.model.outputs.provider }}" = "cloudflare" ]; then
+            provider_json="$(python - <<'PY'
+          import json, os
+          account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
+          print(json.dumps({
+            "baseUrl": f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1",
+            "apiKey": os.environ["CLOUDFLARE_API_TOKEN"].strip(),
+            "api": "openai-completions",
+            "models": [{
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
+              "name": "Cloudflare Workers AI Llama 3.1 8B",
+              "reasoning": False,
+              "input": ["text"],
+              "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+              "contextWindow": 131072,
+              "maxTokens": 4096,
+              "compat": {"requiresStringContent": True, "supportsTools": False}
+            }]
+          }))
+          PY
+          )"
+            openclaw config set models.providers.cloudflare "$provider_json" --strict-json --merge
           fi
           openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
           openclaw config validate
       - name: Run OpenClaw editorial manager and specialist agents
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           OPENCLAW_MODEL: ${{ steps.model.outputs.model }}
         run: python scripts/openclaw_manager.py
       - name: Run Persian spiritual video pipeline
