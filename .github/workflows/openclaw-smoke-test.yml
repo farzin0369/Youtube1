@@ -1,0 +1,43 @@
+name: OpenClaw CLI Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "vendor/openclaw/package.json"
+      - ".github/workflows/openclaw-smoke-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cli-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Verify imported OpenClaw source
+        shell: bash
+        run: |
+          test -f vendor/openclaw/package.json
+          node -e "const p=require('./vendor/openclaw/package.json'); if(p.name!=='openclaw') process.exit(1); console.log('OpenClaw package:', p.name, p.version)"
+          test -f vendor/openclaw/openclaw.mjs
+
+      - name: Install published OpenClaw CLI
+        run: npm install --global openclaw@latest
+
+      - name: Verify CLI starts
+        run: openclaw --help
+
+      - name: Report deployment boundary
+        run: |
+          echo "PASS: OpenClaw CLI can start in GitHub Actions."
+          echo "This smoke test does not configure a model, start a persistent Gateway, connect YouTube, or publish videos."
