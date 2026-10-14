@@ -32,24 +32,37 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
-      - name: Check required secrets without revealing them
+      - name: Check YouTube secrets without revealing values
+        if: ${{ inputs.upload_private }}
         env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
           import os, sys
-          required = ["PEXELS_API_KEY"]
-          if "${{ inputs.upload_private }}" == "true":
-              required += ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
+          required = ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
           missing = [key for key in required if not os.getenv(key, "").strip()]
           if missing:
-              print("Missing required GitHub Actions secrets: " + ", ".join(missing))
+              print("Missing required YouTube OAuth secrets: " + ", ".join(missing))
               sys.exit(1)
-          print("Required secret presence check passed; values were not printed.")
+          print("YouTube OAuth secret presence check passed; values were not printed.")
           PY
+      - name: Create original cinematic visual clips (no stock API key required)
+        run: |
+          set -euo pipefail
+          mkdir -p MoneyPrinterTurbo/storage/local_videos
+          for spec in "0x071426:0x0f766e" "0x10172f:0x6d28d9" "0x111827:0xb45309" "0x071a2b:0x1d4ed8"; do
+            bg="${spec%%:*}"
+            glow="${spec##*:}"
+            out="MoneyPrinterTurbo/storage/local_videos/scene-${bg#0x}.mp4"
+            ffmpeg -hide_banner -loglevel error -y \
+              -f lavfi -i "color=c=${bg}:s=720x1280:r=24:d=6" \
+              -vf "drawbox=x='W/2-180+110*sin(t*0.45)':y='H/2-300+90*cos(t*0.35)':w=360:h=600:color=${glow}@0.40:t=fill,gblur=sigma=65,drawbox=x='W/2-2':y=0:w=4:h=H:color=white@0.04:t=fill,format=yuv420p" \
+              -an -c:v libx264 -preset ultrafast -crf 25 -movflags +faststart "$out"
+          done
+          test "$(find MoneyPrinterTurbo/storage/local_videos -maxdepth 1 -name '*.mp4' | wc -l)" -ge 4
+          echo "Created four original animated abstract visual clips locally; no external stock provider or paid video API was called."
       - name: Checkout MoneyPrinterTurbo
         uses: actions/checkout@v4
         with:
@@ -62,23 +75,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-      - name: Configure MoneyPrinterTurbo at runtime (no credentials committed)
+      - name: Configure MoneyPrinterTurbo for local materials
         working-directory: MoneyPrinterTurbo
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           cp config.example.toml config.toml
           python - <<'PY'
-          import os, re
           from pathlib import Path
           p = Path("config.toml")
           s = p.read_text(encoding="utf-8")
-          key = os.environ["PEXELS_API_KEY"].strip()
-          s, n = re.subn(r'(?m)^pexels_api_keys\s*=\s*\[\s*\]', 'pexels_api_keys = ["' + key.replace('\\', '\\\\').replace('"', '\\"') + '"]', s, count=1)
-          if n != 1:
-              raise SystemExit("Could not safely configure Pexels in MoneyPrinterTurbo config")
+          s = s.replace('video_source = "pexels"', 'video_source = "local"', 1)
           p.write_text(s, encoding="utf-8")
-          print("Runtime config prepared; secret value not printed.")
+          print("Runtime config set to local materials; no provider credentials required.")
           PY
       - name: Generate Persian video using MoneyPrinterTurbo
         working-directory: MoneyPrinterTurbo
