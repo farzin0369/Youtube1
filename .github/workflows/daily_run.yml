@@ -126,6 +126,13 @@ jobs:
           else
             python scripts/daily_run.py --dry-run
           fi
+      - name: Run bounded comment moderation and daily health report
+        if: success() && (github.event_name == 'schedule' || inputs.publish == true)
+        env:
+          ENABLE_AUTO_COMMENT_REPLIES: "true"
+          MAX_COMMENT_VIDEOS: "1"
+          MAX_COMMENTS_PER_VIDEO: "3"
+        run: python scripts/daily_health_report.py --test-status passed
       - name: Upload production evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -135,5 +142,9 @@ jobs:
             output/spiritual/
             state/
             logs/
+            output/daily_health_report.json
+            output/daily_health_report.md
+            output/pending_replies.json
+            output/comment_reply_ledger.json
           retention-days: 3
           if-no-files-found: warn
