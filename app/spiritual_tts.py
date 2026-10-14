@@ -263,7 +263,7 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     base_pitch_value = float(base_pitch.rstrip("Hz"))
     rate = max(-10.0, min(10.0, base_rate_value + rate_delta * scale))
     pitch = max(-3.0, min(3.0, base_pitch_value + pitch_delta * scale))
-    return f"{rate:+.1f}%", f"{pitch:+.1f}Hz"
+    return f"{int(round(rate)):+d}%", f"{int(round(pitch)):+d}Hz"
 
 
 def synthesize_with_captions(
