@@ -3,7 +3,7 @@ name: OpenClaw cloud model smoke test
 on:
   workflow_dispatch:
   push:
-    branches: ["feat/openclaw-autonomous-manager"]
+    branches: ["feat/**", "fix/**"]
     paths:
       - "vendor/openclaw/package.json"
       - ".github/workflows/openclaw-smoke-test.yml"
