@@ -16,7 +16,7 @@ def test_wan_rejects_empty_scene_prompt_before_loading_models(tmp_path):
 
 
 def test_wan_rejects_invalid_frame_count_before_loading_models(tmp_path):
-    with pytest.raises(ValueError, match="4n\+1"):
+    with pytest.raises(ValueError, match=r"4n\+1"):
         generate_wan_clips(["mountains at sunrise"], tmp_path, num_frames=80)
 
 
