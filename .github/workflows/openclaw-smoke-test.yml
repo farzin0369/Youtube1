@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          openclaw agent exec --auth-env-only --model "${{ steps.model.outputs.model }}" --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
+          openclaw agent exec --model "${{ steps.model.outputs.model }}" --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
           if ! grep -q "OPENCLAW_CLOUD_MODEL_OK" "${RUNNER_TEMP}/openclaw-result.json"; then
             echo "::error::OpenClaw exited without the expected cloud completion marker."
             head -c 3000 "${RUNNER_TEMP}/openclaw-result.json"
