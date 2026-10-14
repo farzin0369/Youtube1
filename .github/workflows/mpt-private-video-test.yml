@@ -48,6 +48,12 @@ jobs:
               sys.exit(1)
           print("YouTube OAuth secret presence check passed; values were not printed.")
           PY
+      - name: Checkout MoneyPrinterTurbo
+        uses: actions/checkout@v4
+        with:
+          repository: harry0703/MoneyPrinterTurbo
+          ref: main
+          path: MoneyPrinterTurbo
       - name: Create original cinematic visual clips (no stock API key required)
         run: |
           set -euo pipefail
@@ -63,12 +69,6 @@ jobs:
           done
           test "$(find MoneyPrinterTurbo/storage/local_videos -maxdepth 1 -name '*.mp4' | wc -l)" -ge 4
           echo "Created four original animated abstract visual clips locally; no external stock provider or paid video API was called."
-      - name: Checkout MoneyPrinterTurbo
-        uses: actions/checkout@v4
-        with:
-          repository: harry0703/MoneyPrinterTurbo
-          ref: main
-          path: MoneyPrinterTurbo
       - name: Install MoneyPrinterTurbo dependencies
         working-directory: MoneyPrinterTurbo
         run: |
