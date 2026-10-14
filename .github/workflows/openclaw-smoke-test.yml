@@ -1,22 +1,56 @@
-name: OpenClaw CLI Smoke Test
+name: OpenClaw cloud model smoke test
 
 on:
   workflow_dispatch:
   push:
+    branches: ["feat/openclaw-autonomous-manager"]
     paths:
       - "vendor/openclaw/package.json"
       - ".github/workflows/openclaw-smoke-test.yml"
+      - ".github/workflows/daily_run.yml"
+      - "docs/OPENCLAW_AUTONOMOUS_MANAGER.md"
+      - "app/llm_provider.py"
+      - "app/spiritual_shorts.py"
+      - "scripts/openclaw_manager.py"
+      - "tests/test_llm_provider_cloud_only.py"
+      - "tests/test_openclaw_manager.py"
+      - "config/channel.yaml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: openclaw-cloud-smoke
+  cancel-in-progress: false
+
 jobs:
-  cli-smoke-test:
+  cloud-model-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run cloud-only and manager unit tests
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest -q tests/test_llm_provider_cloud_only.py tests/test_openclaw_manager.py
+
+      - name: Require cloud credentials without revealing them
+        run: |
+          if [ -z "${GROQ_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Add GROQ_API_KEY or OPENAI_API_KEY in repository Actions secrets."
+            exit 1
+          fi
+          echo "Cloud credential presence check passed."
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
@@ -26,17 +60,53 @@ jobs:
       - name: Verify imported OpenClaw source
         shell: bash
         run: |
+          set -euo pipefail
           test -f vendor/openclaw/package.json
           node -e "const p=require('./vendor/openclaw/package.json'); if(p.name!=='openclaw') process.exit(1); console.log('OpenClaw package:', p.name, p.version)"
           test -f vendor/openclaw/openclaw.mjs
 
-      - name: Install published OpenClaw CLI
-        run: npm install --global openclaw@latest
-
-      - name: Verify CLI starts
-        run: openclaw --help
-
-      - name: Report deployment boundary
+      - name: Select cloud provider and model
+        id: model
+        shell: bash
         run: |
-          echo "PASS: OpenClaw CLI can start in GitHub Actions."
-          echo "This smoke test does not configure a model, start a persistent Gateway, connect YouTube, or publish videos."
+          if [ -n "${GROQ_API_KEY:-}" ]; then
+            echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
+            echo "provider=groq" >> "$GITHUB_OUTPUT"
+          else
+            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "provider=openai" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OpenClaw CLI and selected provider
+        run: |
+          npm install --global openclaw@2026.10.3
+          openclaw --help >/dev/null
+          if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
+            openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          fi
+
+      - name: Configure and validate cloud model
+        run: |
+          openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
+          openclaw config validate
+
+      - name: Run a real OpenClaw cloud completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          openclaw agent exec --model "${{ steps.model.outputs.model }}" --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
+          if ! grep -q "OPENCLAW_CLOUD_MODEL_OK" "${RUNNER_TEMP}/openclaw-result.json"; then
+            echo "::error::OpenClaw exited without the expected cloud completion marker."
+            head -c 3000 "${RUNNER_TEMP}/openclaw-result.json"
+            exit 1
+          fi
+          echo "PASS: OpenClaw returned the expected cloud completion marker."
+
+      - name: Upload sanitized OpenClaw result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-cloud-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/openclaw-result.json
+          if-no-files-found: ignore
+          retention-days: 3
