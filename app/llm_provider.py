@@ -66,8 +66,13 @@ def _chat_completions(
             {"role": "user", "content": prompt},
         ],
         "temperature": temperature,
-        "max_completion_tokens": max_tokens,
     }
+    # Cloudflare's OpenAI-compatible endpoint expects max_tokens; OpenAI's
+    # newer API also accepts max_completion_tokens. Keep each provider's schema.
+    if "api.cloudflare.com/client/v4/accounts/" in base_url:
+        body["max_tokens"] = max_tokens
+    else:
+        body["max_completion_tokens"] = max_tokens
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
