@@ -31,9 +31,9 @@ jobs:
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.OPENAI_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4.1-mini' }}
       LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -83,10 +83,11 @@ jobs:
           python - <<'PY'
           import os, sys
           groq = bool(os.getenv("GROQ_API_KEY", "").strip())
-          if not groq:
-              print("OpenClaw supervisor requires GROQ_API_KEY. Add the repository secret; no local model will be started.")
+          openai = bool(os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("LLM_API_KEY", "").strip())
+          if not (groq or openai):
+              print("No cloud model key found. Add GROQ_API_KEY (preferred) or OPENAI_API_KEY. No local model will be started.")
               sys.exit(1)
-          print("OpenClaw cloud model credential presence check passed; secret values were not printed.")
+          print("Cloud model credential presence check passed; secret values were not printed.")
           PY
       - name: Verify YouTube credentials before any production work
         if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
@@ -103,15 +104,41 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Install OpenClaw and its cloud provider
+      - name: Select cloud model for OpenClaw
+        id: model
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${GROQ_API_KEY:-}" ]; then
+            echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
+            echo "provider=groq" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=groq/openai/gpt-oss-20b" >> "$GITHUB_ENV"
+          elif [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "provider=openai" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=openai/gpt-4.1-mini" >> "$GITHUB_ENV"
+          else
+            echo "::error::No Groq or OpenAI cloud key configured."
+            exit 1
+          fi
+      - name: Install OpenClaw and selected cloud provider
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           npm install --global openclaw@2026.10.3
-          openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
-          openclaw config set agents.defaults.model.primary "groq/openai/gpt-oss-20b"
+          if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
+            openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          fi
+          openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
           openclaw config validate
       - name: Run OpenClaw editorial manager and specialist agents
         env:
-          OPENCLAW_MODEL: groq/openai/gpt-oss-20b
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENCLAW_MODEL: ${{ steps.model.outputs.model }}
         run: python scripts/openclaw_manager.py
       - name: Run Persian spiritual video pipeline
         env:
