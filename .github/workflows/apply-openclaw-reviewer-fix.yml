@@ -8,6 +8,9 @@ on:
       - "scripts/patch_spiritual_shorts.py"
       - "scripts/patch_shorts_hook_recovery.py"
       - "scripts/patch_shorts_qa_tolerance.py"
+      - "scripts/patch_use_idea_bank.py"
+      - "scripts/build_shorts_idea_bank.py"
+      - "app/idea_bank.py"
       - "config/channel.yaml"
       - ".github/workflows/apply-openclaw-reviewer-fix.yml"
 permissions:
@@ -26,23 +29,30 @@ jobs:
             curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/a5f7d8e819b381ae64710f285565cdb3d85fb866/app/spiritual_shorts.py" \
               -o app/spiritual_shorts.py
           fi
-      - name: Apply recovery patches
+      - name: Build curated Shorts idea bank
+        run: |
+          set -euo pipefail
+          python3 scripts/build_shorts_idea_bank.py
+          test -f data/shorts_idea_bank.json
+          python3 -c "import json; d=json.load(open('data/shorts_idea_bank.json')); assert d['count']>=10"
+      - name: Apply recovery and idea-bank patches
         run: |
           set -euo pipefail
           [ -f scripts/patch_openclaw_reviewer.py ] && python3 scripts/patch_openclaw_reviewer.py || true
           [ -f scripts/patch_spiritual_shorts.py ] && python3 scripts/patch_spiritual_shorts.py || true
           [ -f scripts/patch_shorts_hook_recovery.py ] && python3 scripts/patch_shorts_hook_recovery.py || true
-          [ -f scripts/patch_shorts_qa_tolerance.py ] && python3 scripts/patch_shorts_qa_tolerance.py
-          grep -q "def generate_shorts_content" app/spiritual_shorts.py
+          [ -f scripts/patch_shorts_qa_tolerance.py ] && python3 scripts/patch_shorts_qa_tolerance.py || true
+          python3 scripts/patch_use_idea_bank.py
+          grep -q "next_bank_idea" app/spiritual_shorts.py
       - name: Commit if changed
         run: |
           set -euo pipefail
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
-          git add app/spiritual_shorts.py scripts/openclaw_manager.py config/channel.yaml || true
+          git add app/spiritual_shorts.py app/idea_bank.py data/shorts_idea_bank.json scripts/openclaw_manager.py config/channel.yaml || true
           if git diff --cached --quiet; then
             echo "No source changes to commit"
           else
-            git commit -m "fix: apply Shorts QA tolerance for weak cloud models"
+            git commit -m "feat: seed idea bank and prefer curated Shorts scripts"
             git push
           fi
