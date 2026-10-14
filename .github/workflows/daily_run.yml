@@ -84,11 +84,10 @@ jobs:
           python - <<'PY'
           import os, sys
           groq = bool(os.getenv("GROQ_API_KEY", "").strip())
-          generic = all(os.getenv(key, "").strip() for key in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"))
-          if not (groq or generic):
-              print("No cloud LLM configured. Set GROQ_API_KEY or all of LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL. No local model will be started.")
+          if not groq:
+              print("OpenClaw supervisor requires GROQ_API_KEY. Add the repository secret; no local model will be started.")
               sys.exit(1)
-          print("Cloud LLM configuration presence check passed; secret values were not printed.")
+          print("OpenClaw cloud model credential presence check passed; secret values were not printed.")
           PY
       - name: Verify YouTube credentials before any production work
         if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
@@ -101,6 +100,20 @@ jobs:
               raise SystemExit(1)
           print("YouTube OAuth preflight passed.")
           PY
+      - name: Set up Node.js for OpenClaw
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install OpenClaw and its cloud provider
+        run: |
+          npm install --global openclaw@latest
+          openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          openclaw config set agents.defaults.model.primary "groq/openai/gpt-oss-20b"
+          openclaw config validate
+      - name: Run OpenClaw editorial manager and specialist agents
+        env:
+          OPENCLAW_MODEL: groq/openai/gpt-oss-20b
+        run: python scripts/openclaw_manager.py
       - name: Run Persian spiritual video pipeline
         env:
           EVENT_NAME: ${{ github.event_name }}
