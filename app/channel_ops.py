@@ -8,7 +8,7 @@ from typing import Any
 
 from app.llm_provider import LLMUnavailable, generate_text, provider_chain
 from app.utils import (
-    env, load_content_policy, load_channel_config,
+    load_content_policy, load_channel_config,
     save_json, utc_now_iso,
 )
 
