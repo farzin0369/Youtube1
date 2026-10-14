@@ -145,7 +145,12 @@ def _run_command(command: list[str], *, role: str, timeout: int = 150) -> str:
 
 def _configure_local_gateway() -> None:
     """Use an unexposed, same-job Gateway and do not mint a new auth token."""
-    config = {"mode": "local", "bind": "loopback", "auth": {"mode": "none"}}
+    config = {
+        "mode": "local",
+        "bind": "loopback",
+        "auth": {"mode": "none"},
+        "http": {"endpoints": {"chatCompletions": {"enabled": True}}},
+    }
     _run_command(
         ["openclaw", "config", "set", "gateway", json.dumps(config), "--strict-json", "--merge"],
         role="local Gateway configuration", timeout=30,

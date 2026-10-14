@@ -31,7 +31,12 @@ def test_local_gateway_is_loopback_only_and_does_not_create_a_token(monkeypatch)
     monkeypatch.setattr("scripts.openclaw_manager._run_command", fake_run)
     _configure_local_gateway()
     config = json.loads(captured["command"][4])
-    assert config == {"mode": "local", "bind": "loopback", "auth": {"mode": "none"}}
+    assert config == {
+        "mode": "local",
+        "bind": "loopback",
+        "auth": {"mode": "none"},
+        "http": {"endpoints": {"chatCompletions": {"enabled": True}}},
+    }
     assert "token" not in config["auth"]
 
 
