@@ -16,16 +16,25 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Force-restore spiritual_shorts from known-good commit
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/a5f7d8e819b381ae64710f285565cdb3d85fb866/app/spiritual_shorts.py" \
+            -o app/spiritual_shorts.py
+          grep -q "def generate_shorts_content" app/spiritual_shorts.py
+          echo "Restored spiritual_shorts.py from a5f7d8e"
       - name: Apply OpenClaw reviewer patch if present
         run: |
+          set -euo pipefail
           if [ -f scripts/patch_openclaw_reviewer.py ]; then
             python3 scripts/patch_openclaw_reviewer.py
           fi
-      - name: Restore and patch spiritual_shorts word-count recovery
+      - name: Apply spiritual_shorts word-count recovery
         run: |
-          if [ -f scripts/patch_spiritual_shorts.py ]; then
-            python3 scripts/patch_spiritual_shorts.py
-          fi
+          set -euo pipefail
+          python3 scripts/patch_spiritual_shorts.py
+          grep -q "for attempt in range(3)" app/spiritual_shorts.py
+          grep -vq "PLACEHOLDER" app/spiritual_shorts.py
       - name: Commit if changed
         run: |
           set -euo pipefail
@@ -35,6 +44,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No source changes to commit"
           else
-            git commit -m "fix: apply bounded recovery patches (reviewer + shorts word-count)"
+            git commit -m "fix: restore spiritual_shorts and apply word-count recovery"
             git push
           fi
