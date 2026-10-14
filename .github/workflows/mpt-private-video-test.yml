@@ -141,7 +141,7 @@ jobs:
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "true"
         run: |
           set -euo pipefail
-          python -m pip install -r requirements-local.txt
+          python -m pip install -r requirements.txt -r requirements-local.txt
           python - <<'PY'
           import json, os
           from pathlib import Path
