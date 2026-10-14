@@ -279,6 +279,6 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     if result is None:
         LOGGER.error("LLM short generation failed QA twice; switching to reviewed fallback (%s)", last_error[:180])
         result = _fallback_short_content(titles, min_words=min_words, max_words=max_words)
-    result["generated_by"] = provider
+    result.setdefault("generated_by", provider)
     LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
     return result
