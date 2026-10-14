@@ -7,6 +7,8 @@ on:
       - "scripts/patch_openclaw_reviewer.py"
       - "scripts/patch_spiritual_shorts.py"
       - "scripts/patch_shorts_hook_recovery.py"
+      - "scripts/patch_shorts_qa_tolerance.py"
+      - "config/channel.yaml"
       - ".github/workflows/apply-openclaw-reviewer-fix.yml"
 permissions:
   contents: write
@@ -29,18 +31,18 @@ jobs:
           set -euo pipefail
           [ -f scripts/patch_openclaw_reviewer.py ] && python3 scripts/patch_openclaw_reviewer.py || true
           [ -f scripts/patch_spiritual_shorts.py ] && python3 scripts/patch_spiritual_shorts.py || true
-          [ -f scripts/patch_shorts_hook_recovery.py ] && python3 scripts/patch_shorts_hook_recovery.py
+          [ -f scripts/patch_shorts_hook_recovery.py ] && python3 scripts/patch_shorts_hook_recovery.py || true
+          [ -f scripts/patch_shorts_qa_tolerance.py ] && python3 scripts/patch_shorts_qa_tolerance.py
           grep -q "def generate_shorts_content" app/spiritual_shorts.py
-          grep -vq "^PLACEHOLDER$" app/spiritual_shorts.py || true
       - name: Commit if changed
         run: |
           set -euo pipefail
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
-          git add app/spiritual_shorts.py scripts/openclaw_manager.py || true
+          git add app/spiritual_shorts.py scripts/openclaw_manager.py config/channel.yaml || true
           if git diff --cached --quiet; then
             echo "No source changes to commit"
           else
-            git commit -m "fix: apply Shorts hook recovery guidance"
+            git commit -m "fix: apply Shorts QA tolerance for weak cloud models"
             git push
           fi
