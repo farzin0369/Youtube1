@@ -79,7 +79,6 @@ jobs:
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
       - name: Verify cloud LLM configuration before production
-        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
         run: |
           python - <<'PY'
           import os, sys
