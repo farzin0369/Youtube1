@@ -118,9 +118,9 @@ jobs:
             echo "provider=groq" >> "$GITHUB_OUTPUT"
             echo "OPENCLAW_MODEL=groq/openai/gpt-oss-20b" >> "$GITHUB_ENV"
           elif [ -n "${OPENAI_API_KEY:-}" ]; then
-            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "model=openai/gpt-5.5" >> "$GITHUB_OUTPUT"
             echo "provider=openai" >> "$GITHUB_OUTPUT"
-            echo "OPENCLAW_MODEL=openai/gpt-4.1-mini" >> "$GITHUB_ENV"
+            echo "OPENCLAW_MODEL=openai/gpt-5.5" >> "$GITHUB_ENV"
           else
             echo "::error::No Groq or OpenAI cloud key configured."
             exit 1
@@ -209,7 +209,7 @@ jobs:
             echo "provider=groq" >> "$GITHUB_OUTPUT"
           elif [ -n "${OPENAI_API_KEY:-}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "model=openai/gpt-5.5" >> "$GITHUB_OUTPUT"
             echo "provider=openai" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
