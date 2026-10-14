@@ -64,7 +64,7 @@ jobs:
         run: |
           npm install --global openclaw@latest
           openclaw --help >/dev/null
-          openclaw plugins install @openclaw/groq-provider
+          openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
 
       - name: Configure and validate cloud model
         run: |
