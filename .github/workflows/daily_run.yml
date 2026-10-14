@@ -109,7 +109,7 @@ jobs:
         id: model
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
         shell: bash
         run: |
           set -euo pipefail
