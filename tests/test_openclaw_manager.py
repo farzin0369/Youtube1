@@ -5,8 +5,8 @@ import json
 import pytest
 
 from scripts.openclaw_manager import (
-    ManagerError, _configure_local_gateway, _has_cloud_model_credentials, _redact_secrets,
-    parse_json_object, validate_brief,
+    ManagerError, _agent_json, _configure_local_gateway, _has_cloud_model_credentials,
+    _redact_secrets, _validated_agent_brief, parse_json_object, validate_brief,
 )
 
 
@@ -47,6 +47,32 @@ def test_parse_json_object_extracts_object_from_model_preamble_and_trailer() -> 
     assert parse_json_object('پاسخ پیشنهادی:\n{"topic":"توکل آرام"}\nموفق باشید.') == {"topic": "توکل آرام"}
 
 
+def test_agent_json_retries_once_after_non_json_response(monkeypatch):
+    outputs = iter(["متن بدون JSON", '{"topic":"توکل آرام"}'])
+    roles = []
+
+    def fake_run_agent(_agent_id, _prompt, *, role, timeout=150):
+        roles.append(role)
+        return next(outputs)
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_agent", fake_run_agent)
+    assert _agent_json("editorial-writer", "return JSON", role="writer") == {"topic": "توکل آرام"}
+    assert roles == ["writer", "writer JSON retry"]
+
+
+def test_invalid_brief_gets_one_repair_without_weakening_validation(monkeypatch):
+    invalid = {
+        "topic": "این یک موضوع فارسی با تعداد واژه‌های بسیار زیاد است",
+        "hook_angle": "یک پرسش کوتاه؟",
+        "visual_direction": "تصویر عمودی از نوشتن برنامهٔ روز",
+        "emotional_arc": "کنجکاوی؛ همدلی؛ اقدام؛ امید",
+        "audience_value": "یک تمرین کوتاه",
+    }
+    repaired = {**invalid, "topic": "آرامش در کار روزانه"}
+    monkeypatch.setattr("scripts.openclaw_manager._agent_json", lambda *_args, **_kwargs: repaired)
+    assert _validated_agent_brief("editorial-writer", invalid, role="writer")["topic"] == "آرامش در کار روزانه"
+
+
 def test_validate_brief_requires_all_short_fields() -> None:
     valid = {
         "topic": "توکل در کار روزانه",
@@ -56,6 +82,18 @@ def test_validate_brief_requires_all_short_fields() -> None:
         "audience_value": "یک تمرین کوتاه برای شروع روز",
     }
     assert validate_brief(valid) == valid
+
+
+def test_validate_brief_rejects_non_persian_topic():
+    valid = {
+        "topic": "Daily Calm",
+        "hook_angle": "A short question?",
+        "visual_direction": "Vertical footage",
+        "emotional_arc": "curiosity; empathy; action; hope",
+        "audience_value": "One practical step",
+    }
+    with pytest.raises(ManagerError, match="written in Persian"):
+        validate_brief(valid)
 
 
 def test_validate_brief_rejects_missing_or_oversized_fields() -> None:
