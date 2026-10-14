@@ -1,0 +1,71 @@
+name: Import official MoneyPrinterTurbo source
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Official MoneyPrinterTurbo git ref (branch, tag, or commit)"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-moneyprinterturbo
+  cancel-in-progress: false
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout YouTube repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download official source
+        env:
+          SOURCE_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mpt
+          git clone --depth 1 --branch "$SOURCE_REF" https://github.com/harry0703/MoneyPrinterTurbo.git /tmp/mpt/source || {
+            rm -rf /tmp/mpt/source
+            git clone https://github.com/harry0703/MoneyPrinterTurbo.git /tmp/mpt/source
+            git -C /tmp/mpt/source checkout "$SOURCE_REF"
+          }
+          test -f /tmp/mpt/source/pyproject.toml
+          test -f /tmp/mpt/source/README.md
+
+      - name: Copy source into isolated vendor directory
+        run: |
+          set -euo pipefail
+          mkdir -p vendor/MoneyPrinterTurbo
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='config.toml' \
+            --exclude='.env' \
+            --exclude='*.log' \
+            /tmp/mpt/source/ vendor/MoneyPrinterTurbo/
+          printf '%s\n' \
+            'Upstream: https://github.com/harry0703/MoneyPrinterTurbo' \
+            "Imported ref: ${{ inputs.ref }}" \
+            "Imported at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            > vendor/MoneyPrinterTurbo/UPSTREAM_IMPORT.txt
+          test -f vendor/MoneyPrinterTurbo/pyproject.toml
+          test -f vendor/MoneyPrinterTurbo/README.md
+
+      - name: Commit imported source
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- vendor/MoneyPrinterTurbo; then
+            echo "Official source already matches this ref; no commit needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/MoneyPrinterTurbo
+          git commit -m "Import official MoneyPrinterTurbo source (${{ inputs.ref }})"
+          git push origin HEAD:main
