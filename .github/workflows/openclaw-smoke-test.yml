@@ -65,7 +65,7 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, re, urllib.error, urllib.request
-          from scripts.openclaw_manager import BRIEF_RESPONSE_FORMAT, STRATEGY_PROMPT, _redact_secrets, validate_brief
+          from scripts.openclaw_manager import BRIEF_RESPONSE_FORMAT, REVIEW_PROMPT, REVIEW_RESPONSE_FORMAT, STRATEGY_PROMPT, _redact_secrets, parse_json_object, validate_brief
           account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
           token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
           url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions"
@@ -113,6 +113,22 @@ jobs:
               print("PASS: first draft passed the project content validator.")
           except Exception as exc:
               print(f"NOTE: first draft needs the manager's bounded content repair ({type(exc).__name__}: {exc}).")
+          review_prompt = REVIEW_PROMPT.replace("{candidate}", json.dumps(result, ensure_ascii=False))
+          review_body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":review_prompt}],"response_format":REVIEW_RESPONSE_FORMAT}).encode()
+          review_req = urllib.request.Request(url, data=review_body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
+          try:
+              with urllib.request.urlopen(review_req, timeout=60) as response:
+                  review_payload = json.loads(response.read().decode())
+              review_content = review_payload["choices"][0]["message"]["content"]
+              review_result = parse_json_object(review_content if isinstance(review_content, str) else json.dumps(review_content))
+          except Exception as exc:
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(locals().get("review_content", "")))).strip()[:180]
+              print(f"Cloudflare direct reviewer probe failed ({type(exc).__name__}); preview={preview!r}")
+              raise SystemExit(1)
+          if type(review_result.get("approved")) is not bool:
+              print("Cloudflare direct reviewer probe did not return a boolean approval field.")
+              raise SystemExit(1)
+          print("PASS: Cloudflare direct reviewer probe returned a boolean approval value.")
           PY
 
       - name: Set up Node.js 24
