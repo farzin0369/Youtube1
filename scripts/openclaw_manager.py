@@ -49,6 +49,17 @@ class ManagerError(RuntimeError):
     """Raised when OpenClaw cannot produce a valid editorial handoff."""
 
 
+def _redact_secrets(text: str) -> str:
+    for name in (
+        "GROQ_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY", "CLOUDFLARE_API_TOKEN",
+        "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
+    ):
+        secret = os.getenv(name, "").strip()
+        if secret:
+            text = text.replace(secret, "[REDACTED]")
+    return text
+
+
 def parse_json_object(text: str) -> dict[str, Any]:
     """Parse a JSON object, tolerating one outer Markdown code fence."""
     value = str(text or "").strip()
@@ -88,13 +99,29 @@ def _run_command(command: list[str], *, role: str, timeout: int = 150) -> str:
     except subprocess.TimeoutExpired as exc:
         raise ManagerError(f"OpenClaw {role} timed out") from exc
     if result.returncode != 0:
-        detail = re.sub(r"\s+", " ", (result.stderr or result.stdout or "")).strip()[-350:]
-        for name in ("GROQ_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY", "CLOUDFLARE_API_TOKEN"):
-            secret = os.getenv(name, "")
-            if secret:
-                detail = detail.replace(secret, "[REDACTED]")
+        detail = _redact_secrets(re.sub(r"\s+", " ", (result.stderr or result.stdout or "")).strip()[-350:])
         raise ManagerError(f"OpenClaw {role} failed (exit={result.returncode}): {detail}")
     return result.stdout.strip()
+
+
+def _configure_local_gateway() -> None:
+    """Use an unexposed, same-job Gateway and do not mint a new auth token."""
+    config = {"mode": "local", "bind": "loopback", "auth": {"mode": "none"}}
+    _run_command(
+        ["openclaw", "config", "set", "gateway", json.dumps(config), "--strict-json", "--merge"],
+        role="local Gateway configuration", timeout=30,
+    )
+
+
+def _gateway_failure(reason: str, log_path: Path) -> ManagerError:
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        lines = []
+    excerpt = " | ".join(re.sub(r"\s+", " ", line).strip() for line in lines[-12:] if line.strip())
+    excerpt = _redact_secrets(excerpt)[-1600:]
+    suffix = f": {excerpt}" if excerpt else ""
+    return ManagerError(f"OpenClaw Gateway {reason}{suffix}")
 
 
 def _run_agent(agent_id: str, prompt: str, *, role: str, timeout: int = 150) -> str:
@@ -115,7 +142,8 @@ def _start_gateway(log_path: Path) -> subprocess.Popen[str]:
     for _ in range(30):
         if process.poll() is not None:
             log_file.flush()
-            raise ManagerError("OpenClaw Gateway exited during startup; see sanitized workflow status")
+            log_file.close()
+            raise _gateway_failure("exited during startup", log_path)
         try:
             probe = subprocess.run(
                 ["openclaw", "gateway", "health", "--port", "18789"],
@@ -127,7 +155,14 @@ def _start_gateway(log_path: Path) -> subprocess.Popen[str]:
             pass
         time.sleep(2)
     process.terminate()
-    raise ManagerError("OpenClaw Gateway did not become healthy within 60 seconds")
+    try:
+        process.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+    log_file.flush()
+    log_file.close()
+    raise _gateway_failure("did not become healthy within 60 seconds", log_path)
 
 
 def _stop_gateway(process: subprocess.Popen[str]) -> None:
@@ -187,6 +222,7 @@ def run_manager() -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="openclaw-editorial-") as temp:
         temp_root = Path(temp)
         _create_team(temp_root / "agents")
+        _configure_local_gateway()
         gateway = _start_gateway(temp_root / "gateway.log")
         try:
             candidate = parse_json_object(_run_agent(

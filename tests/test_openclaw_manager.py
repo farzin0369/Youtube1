@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from scripts.openclaw_manager import (
-    ManagerError, _has_cloud_model_credentials, parse_json_object, validate_brief,
+    ManagerError, _configure_local_gateway, _has_cloud_model_credentials, _redact_secrets,
+    parse_json_object, validate_brief,
 )
 
 
@@ -15,6 +18,25 @@ def test_manager_accepts_cloudflare_credentials_only_when_both_values_are_presen
     assert _has_cloud_model_credentials()
     monkeypatch.delenv("CLOUDFLARE_ACCOUNT_ID")
     assert not _has_cloud_model_credentials()
+
+
+def test_local_gateway_is_loopback_only_and_does_not_create_a_token(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return ""
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_command", fake_run)
+    _configure_local_gateway()
+    config = json.loads(captured["command"][4])
+    assert config == {"mode": "local", "bind": "loopback", "auth": {"mode": "none"}}
+    assert "token" not in config["auth"]
+
+
+def test_gateway_diagnostic_redacts_cloudflare_secret(monkeypatch):
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-cloudflare-secret")
+    assert _redact_secrets("failed token=test-cloudflare-secret") == "failed token=[REDACTED]"
 
 
 def test_parse_json_object_accepts_a_fenced_object() -> None:
