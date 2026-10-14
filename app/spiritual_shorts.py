@@ -162,6 +162,66 @@ def validate_short_content(
     }
 
 
+def _fallback_short_content(
+    titles: list[str], *, min_words: int, max_words: int,
+) -> dict[str, Any]:
+    """Use a reviewed, deterministic Persian short if the configured LLM repeatedly fails QA."""
+    scenes = [
+        {
+            "spoken_text": "آخر شب، ذهنت می‌گوید باید همه‌چیز را همین حالا حل کنی؟",
+            "mood": "hook",
+            "visual_query": "person thinking beside rainy window at night",
+            "on_screen_text": "فشارِ آخر شب",
+        },
+        {
+            "spoken_text": "وقتی خسته‌ای، حتی یک مشکل کوچک هم سنگین‌تر به نظر می‌رسد.",
+            "mood": "calm",
+            "visual_query": "quiet notebook beside warm desk lamp",
+            "on_screen_text": "به خودت فرصت بده",
+        },
+        {
+            "spoken_text": "امشب فقط یک کار ضروری را انتخاب کن و همان را آرام انجام بده.",
+            "mood": "reassuring",
+            "visual_query": "hand writing one task in notebook",
+            "on_screen_text": "فقط یک کار",
+        },
+        {
+            "spoken_text": "فردا دوباره ادامه می‌دهی؛ قدم‌های کوچک هم راه می‌سازند.",
+            "mood": "motivational",
+            "visual_query": "sunrise behind mountain path",
+            "on_screen_text": "قدم‌به‌قدم جلو برو",
+        },
+    ]
+    script = " ".join(scene["spoken_text"] for scene in scenes)
+    candidates = [
+        "Imam Ali ✨ لازم نیست همه‌چیز را امشب حل کنی",
+        "Imam Ali ✨ یک قدم آرام، نه هزار نگرانی",
+        "Imam Ali ✨ وقتی ذهنت از فردا خسته است",
+    ]
+    last_error: Exception | None = None
+    for title in candidates:
+        item = {
+            "topic": "آرامش ذهن و یک اقدام کوچک",
+            "title": title,
+            "hook": scenes[0]["spoken_text"],
+            "description": "یک یادآوری آرام برای کم‌کردن فشار ذهن و شروع از یک قدم کوچک. ImamAli110",
+            "thumbnail_text": "یک قدم آرام",
+            "tags": ["توکل", "آرامش ذهن", "رشد فردی"],
+            "scenes": scenes,
+            "script": script,
+        }
+        try:
+            result = validate_short_content(item, titles, min_words=min_words, max_words=max_words)
+            result["generated_by"] = "reviewed-safe-fallback"
+            LOGGER.warning("LLM drafts failed QA; using reviewed safe fallback script")
+            return result
+        except ValueError as exc:
+            last_error = exc
+            if "recent_title_repetition" not in str(exc):
+                raise
+    raise ValueError("fallback title candidates conflict with recent history") from last_error
+
+
 def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     """Generate one short and reject weak, generic, duplicated or mismatched drafts."""
     recent = history.get("recent", []) if isinstance(history, dict) else []
@@ -217,7 +277,8 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             if attempt == 0:
                 LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
     if result is None:
-        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
+        LOGGER.error("LLM short generation failed QA twice; switching to reviewed fallback (%s)", last_error[:180])
+        result = _fallback_short_content(titles, min_words=min_words, max_words=max_words)
     result["generated_by"] = provider
     LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
     return result
