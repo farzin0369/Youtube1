@@ -43,6 +43,10 @@ def test_parse_json_object_accepts_a_fenced_object() -> None:
     assert parse_json_object('```json\n{"topic":"توکل آرام"}\n```') == {"topic": "توکل آرام"}
 
 
+def test_parse_json_object_extracts_object_from_model_preamble_and_trailer() -> None:
+    assert parse_json_object('پاسخ پیشنهادی:\n{"topic":"توکل آرام"}\nموفق باشید.') == {"topic": "توکل آرام"}
+
+
 def test_validate_brief_requires_all_short_fields() -> None:
     valid = {
         "topic": "توکل در کار روزانه",

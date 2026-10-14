@@ -67,7 +67,20 @@ def parse_json_object(text: str) -> dict[str, Any]:
     try:
         parsed = json.loads(value)
     except json.JSONDecodeError as exc:
-        raise ManagerError("OpenClaw returned invalid JSON") from exc
+        decoder = json.JSONDecoder()
+        parsed = None
+        for index, char in enumerate(value):
+            if char != "{":
+                continue
+            try:
+                candidate, _end = decoder.raw_decode(value[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                parsed = candidate
+                break
+        if parsed is None:
+            raise ManagerError("OpenClaw returned invalid JSON") from exc
     if not isinstance(parsed, dict):
         raise ManagerError("OpenClaw response must be a JSON object")
     return parsed
