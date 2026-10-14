@@ -48,18 +48,13 @@ jobs:
 
       - name: Require cloud credentials without revealing them
         run: |
-          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            if [ -z "${GROQ_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
-              echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, or a working Groq/OpenAI key."
-              exit 1
-            fi
-          fi
-          echo "Cloud credential presence check passed."
-          # Do not print secret values.
-          if false; then
-            echo "::error::unreachable"
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare Workers AI credentials are configured."
+          elif [ -n "${GROQ_API_KEY:-}" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "A cloud credential is configured."
+          else
+            echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, or a working Groq/OpenAI key."
             exit 1
-          fi
           fi
 
       - name: Test Cloudflare Workers AI API directly
