@@ -216,7 +216,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           set -euo pipefail
-          openclaw agent exec --model groq/openai/gpt-oss-20b --timeout 300 --cwd "$GITHUB_WORKSPACE" --message-file state/openclaw-repair-prompt.md > "$RUNNER_TEMP/openclaw-repair-result.txt"
+          openclaw agent exec --auth-env-only --model groq/openai/gpt-oss-20b --timeout 300 --cwd "$GITHUB_WORKSPACE" --message-file state/openclaw-repair-prompt.md > "$RUNNER_TEMP/openclaw-repair-result.txt"
           echo "OpenClaw repair attempt finished; response saved without printing credentials."
 
       - name: Reject unsafe patch scope and detect no-op
