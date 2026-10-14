@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL = "cloudflare/@cf/meta/llama-3.1-8b-instruct"
+DEFAULT_MODEL = "cloudflare/@cf/meta/llama-3.1-8b-instruct-fast"
 BRIEF_PATH = ROOT / "state" / "openclaw_brief.json"
 TEAM_IDS = ("editorial-coordinator", "editorial-researcher", "editorial-writer", "editorial-reviewer")
 

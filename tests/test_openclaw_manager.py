@@ -103,7 +103,7 @@ def test_run_agent_routes_to_loopback_gateway_with_cloudflare_json_schema(monkey
         captured["model_header"] = request.get_header("X-openclaw-model") or request.get_header("x-openclaw-model")
         return FakeResponse()
 
-    monkeypatch.setenv("OPENCLAW_MODEL", "cloudflare/@cf/meta/llama-3.1-8b-instruct")
+    monkeypatch.setenv("OPENCLAW_MODEL", "cloudflare/@cf/meta/llama-3.1-8b-instruct-fast")
     monkeypatch.setattr("scripts.openclaw_manager.urllib.request.urlopen", fake_urlopen)
     raw = _run_agent(
         "editorial-researcher", "prepare a brief", role="researcher",
@@ -113,7 +113,7 @@ def test_run_agent_routes_to_loopback_gateway_with_cloudflare_json_schema(monkey
     assert captured["url"] == "http://127.0.0.1:18789/v1/chat/completions"
     assert captured["body"]["model"] == "openclaw/editorial-researcher"
     assert captured["body"]["response_format"] == BRIEF_RESPONSE_FORMAT
-    assert captured["model_header"] == "cloudflare/@cf/meta/llama-3.1-8b-instruct"
+    assert captured["model_header"] == "cloudflare/@cf/meta/llama-3.1-8b-instruct-fast"
     assert captured["timeout"] == 25
 
 

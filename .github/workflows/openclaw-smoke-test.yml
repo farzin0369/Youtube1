@@ -69,7 +69,7 @@ jobs:
           token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
           url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions"
           schema = {"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":False}
-          body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct","messages":[{"role":"user","content":"Return a JSON object with ok set to true."}],"response_format":{"type":"json_schema","json_schema":schema}}).encode()
+          body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":"Return a JSON object with ok set to true."}],"response_format":{"type":"json_schema","json_schema":schema}}).encode()
           req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
           try:
               with urllib.request.urlopen(req, timeout=60) as response:
@@ -125,7 +125,7 @@ jobs:
         run: |
           if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
             echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
-            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct" >> "$GITHUB_OUTPUT"
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
           elif [ -n "${GROQ_API_KEY:-}" ]; then
             echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
             echo "provider=groq" >> "$GITHUB_OUTPUT"
@@ -158,7 +158,7 @@ jobs:
             "headers": {"cf-aig-gateway-id": "default"},
             "api": "openai-completions",
             "models": [{
-              "id": "@cf/meta/llama-3.1-8b-instruct",
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
               "name": "Cloudflare Workers AI Llama 3.1 8B",
               "reasoning": False,
               "input": ["text"],

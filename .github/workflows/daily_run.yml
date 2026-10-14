@@ -36,7 +36,7 @@ jobs:
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
       LLM_BASE_URL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && format('https://api.cloudflare.com/client/v4/accounts/{0}/ai/v1', secrets.CLOUDFLARE_ACCOUNT_ID) || vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
       LLM_API_KEY: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.LLM_API_KEY || secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
-      LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
+      LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct-fast' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
       LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       # GitHub-hosted runners have no CUDA GPU. Wan/LTX rendering is reserved for the Colab GPU notebook.
@@ -123,9 +123,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct" >> "$GITHUB_OUTPUT"
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
             echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
-            echo "OPENCLAW_MODEL=cloudflare/@cf/meta/llama-3.1-8b-instruct" >> "$GITHUB_ENV"
+            echo "OPENCLAW_MODEL=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_ENV"
           elif [ -n "${GROQ_API_KEY:-}" ]; then
             echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
             echo "provider=groq" >> "$GITHUB_OUTPUT"
@@ -157,7 +157,7 @@ jobs:
             "headers": {"cf-aig-gateway-id": "default"},
             "api": "openai-completions",
             "models": [{
-              "id": "@cf/meta/llama-3.1-8b-instruct",
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
               "name": "Cloudflare Workers AI Llama 3.1 8B",
               "reasoning": False,
               "input": ["text"],
