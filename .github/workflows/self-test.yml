@@ -13,8 +13,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      # Ubuntu's python3-gi package is built for the runner's system Python 3.12.
-      # Expose it to the matching setup-python interpreter for OpenClaw D-Bus tests.
       PYTHONPATH: /usr/lib/python3/dist-packages
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +23,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install compatible build tooling
+        run: python -m pip install "setuptools<70" wheel
       - name: Install dependencies
         run: |
           python -m pip install -r requirements.txt
