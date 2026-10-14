@@ -39,7 +39,8 @@ jobs:
       LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct-fast' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
       LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-      AI_VIDEO_ENGINE: ${{ vars.AI_VIDEO_ENGINE }}
+      # GitHub-hosted runners have no CUDA GPU. Wan/LTX rendering is reserved for the Colab GPU notebook.
+      AI_VIDEO_ENGINE: ""
       WAN_MODEL_ID: ${{ vars.WAN_MODEL_ID }}
       WAN_INFERENCE_STEPS: ${{ vars.WAN_INFERENCE_STEPS }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
