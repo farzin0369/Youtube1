@@ -154,6 +154,7 @@ jobs:
           print(json.dumps({
             "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
             "apiKey": {"source": "env", "provider": "default", "id": "CLOUDFLARE_API_TOKEN"},
+            "headers": {"cf-aig-gateway-id": "default"},
             "api": "openai-completions",
             "models": [{
               "id": "@cf/meta/llama-3.1-8b-instruct",

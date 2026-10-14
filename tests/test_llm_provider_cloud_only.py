@@ -47,6 +47,7 @@ def test_cloudflare_uses_max_tokens_parameter() -> None:
 
     def fake_urlopen(request, timeout):
         captured["body"] = json.loads(request.data.decode())
+        captured["gateway_id"] = request.get_header("Cf-aig-gateway-id")
         return FakeResponse()
 
     with patch("app.llm_provider.urllib.request.urlopen", side_effect=fake_urlopen):
@@ -63,6 +64,7 @@ def test_cloudflare_uses_max_tokens_parameter() -> None:
         )
 
     assert answer == "ok"
+    assert captured["gateway_id"] == "default"
     body = captured["body"]
     assert body["max_tokens"] == 128
     assert "max_completion_tokens" not in body

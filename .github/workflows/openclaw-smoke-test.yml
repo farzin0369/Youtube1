@@ -64,18 +64,32 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           python - <<'PY'
-          import json, os, urllib.error, urllib.request
+          import json, os, re, urllib.error, urllib.request
           account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
           token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
           url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions"
           schema = {"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":False}
           body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct","messages":[{"role":"user","content":"Return a JSON object with ok set to true."}],"response_format":{"type":"json_schema","json_schema":schema}}).encode()
-          req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"}, method="POST")
+          req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
           try:
               with urllib.request.urlopen(req, timeout=60) as response:
                   payload = json.loads(response.read().decode())
           except urllib.error.HTTPError as exc:
-              print(f"Cloudflare Workers AI request failed with HTTP {exc.code}; response body redacted.")
+              try:
+                  error_payload = json.loads(exc.read().decode("utf-8"))
+                  safe_errors = []
+                  for item in error_payload.get("errors", [])[:3]:
+                      if isinstance(item, dict):
+                          message = str(item.get("message", ""))
+                          for secret in (token, account):
+                              if secret:
+                                  message = message.replace(secret, "[REDACTED]")
+                          message = re.sub(r"(?i)(bearer\s+)\S+", r"\1[REDACTED]", message)
+                          safe_errors.append(f"{item.get('code', '?')}: {message[:240]}")
+              except Exception:
+                  safe_errors = []
+              detail = "; ".join(safe_errors) if safe_errors else "details unavailable/redacted"
+              print(f"Cloudflare Workers AI request failed with HTTP {exc.code}; {detail}.")
               raise SystemExit(1)
           except Exception as exc:
               print(f"Cloudflare Workers AI request failed: {type(exc).__name__}; details withheld.")
@@ -141,6 +155,7 @@ jobs:
           print(json.dumps({
             "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
             "apiKey": {"source": "env", "provider": "default", "id": "CLOUDFLARE_API_TOKEN"},
+            "headers": {"cf-aig-gateway-id": "default"},
             "api": "openai-completions",
             "models": [{
               "id": "@cf/meta/llama-3.1-8b-instruct",

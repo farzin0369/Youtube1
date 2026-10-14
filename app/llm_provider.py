@@ -78,11 +78,11 @@ def _chat_completions(
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_error: Exception | None = None
     for attempt in range(3):
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        if "api.cloudflare.com/client/v4/accounts/" in base_url:
+            headers["cf-aig-gateway-id"] = "default"
         request = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=payload,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            method="POST",
+            f"{base_url}/chat/completions", data=payload, headers=headers, method="POST",
         )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
