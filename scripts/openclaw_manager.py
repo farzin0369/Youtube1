@@ -425,7 +425,7 @@ def run_manager() -> dict[str, Any]:
                 # Ask once more with the smallest possible response; never infer approval.
                 review = _agent_json(
                     "editorial-reviewer",
-                    review_prompt + "\nReturn exactly one of these JSON objects: {\\"approved\\":true} or {\\"approved\\":false}. The approved value must be a JSON boolean.",
+                    review_prompt + '\nReturn exactly one of these JSON objects: {"approved":true} or {"approved":false}. The approved value must be a JSON boolean.',
                     role="reviewer final boolean retry",
                     response_format=REVIEW_RESPONSE_FORMAT,
                 )
