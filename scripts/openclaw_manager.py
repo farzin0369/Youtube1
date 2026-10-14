@@ -68,10 +68,8 @@ def validate_brief(value: dict[str, Any]) -> dict[str, str]:
 
 
 def _run_agent(prompt: str, *, role: str, model: str, timeout: int = 150) -> str:
-    if not os.getenv("GROQ_API_KEY", "").strip() and not all(
-        os.getenv(key, "").strip() for key in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL")
-    ):
-        raise ManagerError("no cloud model credentials configured for OpenClaw")
+    if not os.getenv("GROQ_API_KEY", "").strip():
+        raise ManagerError("GROQ_API_KEY is required for the configured OpenClaw Groq model")
     command = [
         "openclaw", "agent", "exec", "--model", model,
         "--timeout", str(timeout), prompt,
@@ -111,13 +109,13 @@ def run_manager() -> dict[str, Any]:
         for row in recent_rows[-20:] if isinstance(row, dict)
     ]
     model = (os.getenv("OPENCLAW_MODEL") or DEFAULT_MODEL).strip()
-    strategy_prompt = STRATEGY_PROMPT.format(
-        recent=json.dumps(recent, ensure_ascii=False)[:1600] or "[]"
+    strategy_prompt = STRATEGY_PROMPT.replace(
+        "{recent}", json.dumps(recent, ensure_ascii=False)[:1600] or "[]"
     )
     candidate = parse_json_object(_run_agent(strategy_prompt, role="strategist", model=model))
     candidate = validate_brief(candidate)
 
-    review_prompt = REVIEW_PROMPT.format(candidate=json.dumps(candidate, ensure_ascii=False))
+    review_prompt = REVIEW_PROMPT.replace("{candidate}", json.dumps(candidate, ensure_ascii=False))
     review = parse_json_object(_run_agent(review_prompt, role="reviewer", model=model))
     if review.get("approved") is not True:
         raise ManagerError("OpenClaw reviewer rejected the editorial brief")
