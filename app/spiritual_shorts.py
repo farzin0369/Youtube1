@@ -174,7 +174,7 @@ def _fallback_short_content(
             "on_screen_text": "فشارِ آخر شب",
         },
         {
-            "spoken_text": "وقتی خسته‌ای، حتی یک مشکل کوچک هم سنگین‌تر به نظر می‌رسد.",
+            "spoken_text": "وقتی خسته‌ای، حتی یک مشکل کوچک سنگین‌تر به نظر می‌رسد.",
             "mood": "calm",
             "visual_query": "quiet notebook beside warm desk lamp",
             "on_screen_text": "به خودت فرصت بده",
