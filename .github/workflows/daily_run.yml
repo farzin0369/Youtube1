@@ -39,6 +39,9 @@ jobs:
       LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct-fast' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
       LLM_TIMEOUT_SECONDS: "180"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      AI_VIDEO_ENGINE: ${{ vars.AI_VIDEO_ENGINE }}
+      LTX_MODEL_ID: ${{ vars.LTX_MODEL_ID }}
+      LTX_INFERENCE_STEPS: ${{ vars.LTX_INFERENCE_STEPS }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
