@@ -115,6 +115,7 @@ jobs:
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "true"
         run: |
           set -euo pipefail
+          python -m pip install 'google-api-python-client>=2.150.0'
           python -m pip install -r requirements-local.txt
           python - <<'PY'
           import json, os
