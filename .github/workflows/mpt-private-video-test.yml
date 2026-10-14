@@ -101,6 +101,7 @@ jobs:
           VIDEO="$(find MoneyPrinterTurbo/storage/tasks -type f -name '*.mp4' -size +100k -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)"
           test -n "$VIDEO" || { echo "MoneyPrinterTurbo did not produce a non-empty MP4"; exit 1; }
           ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 "$VIDEO"
+          python scripts/validate_video_dimensions.py "$VIDEO" --format shorts
           mkdir -p output
           cp "$VIDEO" output/imamali110-private-test.mp4
           TASK_DIR="$(dirname "$VIDEO")"
