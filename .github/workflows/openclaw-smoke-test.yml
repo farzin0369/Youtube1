@@ -139,7 +139,7 @@ jobs:
           account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
           print(json.dumps({
             "baseUrl": f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1",
-            "apiKey": "${CLOUDFLARE_API_TOKEN}",
+            "apiKey": os.environ["CLOUDFLARE_API_TOKEN"].strip(),
             "api": "openai-completions",
             "models": [{
               "id": "@cf/meta/llama-3.1-8b-instruct-fast",
