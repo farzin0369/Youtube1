@@ -1,4 +1,5 @@
 name: MoneyPrinterTurbo Persian private video test
+# Trigger a fresh private YouTube upload attempt after enabling push-triggered upload.
 
 on:
   push:
