@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 25
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,11 +46,11 @@ jobs:
 
       - name: Require cloud credentials without revealing them
         run: |
-          if [ -z "${GROQ_API_KEY:-}" ]; then
-            echo "::error::GROQ_API_KEY repository secret is missing. Add it in Settings > Secrets and variables > Actions. The secret value must not be printed."
+          if [ -z "${GROQ_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Add GROQ_API_KEY or OPENAI_API_KEY in repository Actions secrets."
             exit 1
           fi
-          echo "Groq credential presence check passed."
+          echo "Cloud credential presence check passed."
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
