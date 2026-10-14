@@ -12,15 +12,23 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Ubuntu's python3-gi package is built for the runner's system Python 3.12.
+      # Expose it to the matching setup-python interpreter for OpenClaw D-Bus tests.
+      PYTHONPATH: /usr/lib/python3/dist-packages
     steps:
       - uses: actions/checkout@v4
+      - name: Install Linux D-Bus and GObject introspection runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi gir1.2-glib-2.0 dbus-x11
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest
+          python -m pip install -r requirements.txt
+          python -m pip install pytest
       - name: Python syntax check
         run: python -m compileall -q app scripts
       - name: Run unit tests
