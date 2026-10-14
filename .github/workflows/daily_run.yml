@@ -208,7 +208,7 @@ jobs:
           If the root cause is a missing secret, OAuth authorization, quota, unavailable external service, or any issue that cannot be fixed safely in source code, make no code changes and explain the blocker.
           Make at most one narrowly scoped repair. Do not claim it is fixed until the separate regression suite passes. The result will be reviewed in a draft pull request; never merge anything.
           PROMPT
-          find state/repair-evidence -type f -maxdepth 5 -printf '%p (%s bytes)\n' | head -100
+          find state/repair-evidence -maxdepth 5 -type f -printf '%p (%s bytes)\n' | head -100
 
       - name: Let OpenClaw attempt one bounded source repair
         if: steps.cloud.outputs.enabled == 'true'
@@ -289,6 +289,5 @@ jobs:
           name: openclaw-repair-attempt-${{ github.run_id }}
           path: |
             state/openclaw-repair-prompt.md
-            ${{ runner.temp }}/openclaw-repair-result.txt
           if-no-files-found: ignore
           retention-days: 7
