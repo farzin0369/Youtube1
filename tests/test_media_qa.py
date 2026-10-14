@@ -108,6 +108,14 @@ def test_good_shorts_package_passes_all_vertical_mobile_gates(tmp_path: Path):
     assert result["checks"]["caption_cues"] == 6
 
 
+def test_wan_generated_shorts_pass_visual_source_gate_and_are_marked_ai(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "wan2.1"
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    assert "Wan2.1-generated AI video" in result["checks"]["visual_source_note"]
+
+
 def test_shorts_quality_gate_blocks_landscape_frame_and_abstract_fallback(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
     meta["video_width"], meta["video_height"] = 1280, 720

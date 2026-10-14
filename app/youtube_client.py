@@ -18,7 +18,8 @@ YOUTUBE_SCOPES = [
 def _contains_synthetic_media() -> bool:
     setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
     if setting is None:
-        return (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
+        engine = (env("AI_VIDEO_ENGINE") or env("VIDEO_ENGINE") or "cpu").lower()
+        return engine in {"cogvideox", "wan", "ltx"}
     return setting.strip().lower() in {"1", "true", "yes", "on"}
 
 

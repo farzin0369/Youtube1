@@ -123,8 +123,11 @@ def validate_render_package(
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        if visual_source != "pexels" and not test_stills_are_allowed:
+        approved_visual_source = visual_source in {"pexels", "wan2.1"}
+        if not approved_visual_source and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
+        if visual_source == "wan2.1":
+            checks["visual_source_note"] = "Wan2.1-generated AI video; disclose synthetic media at upload."
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
         if render_meta.get("music_ducking") is not True:

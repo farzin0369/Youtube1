@@ -92,11 +92,15 @@ def _configure_logging(run_id: str) -> logging.Logger:
 
 
 def _safe_error(message: str) -> str:
-    for name in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "GROQ_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY", "PEXELS_API_KEY", "ELEVENLABS_API_KEY"):
+    for name in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "GROQ_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY", "CLOUDFLARE_API_TOKEN", "PEXELS_API_KEY", "ELEVENLABS_API_KEY"):
         secret = (os.getenv(name) or "").strip()
         if secret:
             message = message.replace(secret, "[REDACTED]")
     return message[:400]
+
+
+def _should_run_comment_moderation(*, dry_run: bool, upload_private: bool, upload: dict[str, Any]) -> bool:
+    return not dry_run and not upload_private and bool(upload.get("ok"))
 
 
 def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any]:
@@ -184,8 +188,11 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             state_path.parent.mkdir(parents=True, exist_ok=True)
             save_json(state_path, history)
 
-        comments: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
-        if not dry_run and upload.get("ok"):
+        comments: dict[str, Any] = {
+            "skipped": True,
+            "reason": "private-upload" if upload_private else "dry-run",
+        }
+        if _should_run_comment_moderation(dry_run=dry_run, upload_private=upload_private, upload=upload):
             stage = "bounded comment moderation"
             try:
                 from app.spiritual_comments import reply_to_recent_comments

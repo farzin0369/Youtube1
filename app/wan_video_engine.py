@@ -18,6 +18,7 @@ NEGATIVE = (
     "subtitles, letters, watermark, logo, static image, flicker, jitter, blurry details, "
     "distorted anatomy, duplicate objects, cartoon, overexposed"
 )
+MIN_FREE_VRAM_BYTES = 8_190_000_000
 
 
 def generate_wan_clips(
@@ -40,9 +41,6 @@ def generate_wan_clips(
 
     try:
         import torch
-        from diffusers import AutoencoderKLWan, WanPipeline
-        from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
-        from diffusers.utils import export_to_video
     except ImportError as exc:
         raise RuntimeError(
             "Wan dependencies are missing; install requirements-local.txt on a CUDA GPU"
@@ -52,6 +50,27 @@ def generate_wan_clips(
         raise RuntimeError(
             "AI_VIDEO_ENGINE=wan requires a CUDA GPU. Standard GitHub-hosted runners are CPU-only."
         )
+
+    try:
+        free_vram_bytes, _ = torch.cuda.mem_get_info(0)
+    except Exception as exc:
+        raise RuntimeError("Could not query free CUDA VRAM; refusing to download the Wan model.") from exc
+    if int(free_vram_bytes) < MIN_FREE_VRAM_BYTES:
+        free_gib = int(free_vram_bytes) / (1024 ** 3)
+        required_gib = MIN_FREE_VRAM_BYTES / (1024 ** 3)
+        raise RuntimeError(
+            f"AI_VIDEO_ENGINE=wan needs at least 8.19 GB free CUDA VRAM before model download; "
+            f"available {free_gib:.2f} GiB, required {required_gib:.2f} GiB."
+        )
+
+    try:
+        from diffusers import AutoencoderKLWan, WanPipeline
+        from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
+        from diffusers.utils import export_to_video
+    except ImportError as exc:
+        raise RuntimeError(
+            "Wan dependencies are missing; install requirements-local.txt on a CUDA GPU"
+        ) from exc
 
     model_id = (os.getenv("WAN_MODEL_ID") or "Wan-AI/Wan2.1-T2V-1.3B-Diffusers").strip()
     steps = int(os.getenv("WAN_INFERENCE_STEPS") or "20")

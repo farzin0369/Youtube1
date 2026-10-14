@@ -12,6 +12,13 @@ def test_cogvideox_defaults_to_synthetic_media_disclosure(monkeypatch):
     assert _contains_synthetic_media() is True
 
 
+def test_wan_defaults_to_synthetic_media_disclosure(monkeypatch):
+    monkeypatch.setenv("AI_VIDEO_ENGINE", "wan")
+    monkeypatch.delenv("VIDEO_ENGINE", raising=False)
+    monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)
+    assert _contains_synthetic_media() is True
+
+
 def test_cpu_fallback_does_not_default_to_synthetic_scene_disclosure(monkeypatch):
     monkeypatch.setenv("VIDEO_ENGINE", "cpu")
     monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)

@@ -89,7 +89,7 @@ def _run_command(command: list[str], *, role: str, timeout: int = 150) -> str:
         raise ManagerError(f"OpenClaw {role} timed out") from exc
     if result.returncode != 0:
         detail = re.sub(r"\s+", " ", (result.stderr or result.stdout or "")).strip()[-350:]
-        for name in ("GROQ_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY"):
+        for name in ("GROQ_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY", "CLOUDFLARE_API_TOKEN"):
             secret = os.getenv(name, "")
             if secret:
                 detail = detail.replace(secret, "[REDACTED]")
@@ -143,6 +143,18 @@ def _stop_gateway(process: subprocess.Popen[str]) -> None:
         log_file.close()
 
 
+def _has_cloud_model_credentials() -> bool:
+    cloudflare_ready = bool(
+        os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
+        and os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    )
+    return bool(
+        os.getenv("GROQ_API_KEY", "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+        or cloudflare_ready
+    )
+
+
 def _create_team(workspace_root: Path) -> None:
     _run_command(
         ["openclaw", "agents", "team", "create", "--prefix", "editorial",
@@ -156,8 +168,10 @@ def _create_team(workspace_root: Path) -> None:
 
 
 def run_manager() -> dict[str, Any]:
-    if not (os.getenv("GROQ_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()):
-        raise ManagerError("Configure GROQ_API_KEY or OPENAI_API_KEY for OpenClaw cloud inference")
+    if not _has_cloud_model_credentials():
+        raise ManagerError(
+            "Configure CLOUDFLARE_API_TOKEN plus CLOUDFLARE_ACCOUNT_ID, GROQ_API_KEY, or OPENAI_API_KEY for OpenClaw cloud inference"
+        )
     history_path = ROOT / "state" / "history.json"
     try:
         history_data = json.loads(history_path.read_text(encoding="utf-8"))
