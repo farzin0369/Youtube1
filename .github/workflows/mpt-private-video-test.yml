@@ -1,6 +1,8 @@
 name: MoneyPrinterTurbo Persian private video test
 
 on:
+  push:
+    branches: ["fix/mpt-local-materials-private-test"]
   workflow_dispatch:
     inputs:
       upload_private:
