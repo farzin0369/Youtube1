@@ -105,6 +105,8 @@ jobs:
           cp "$VIDEO" output/imamali110-private-test.mp4
           TASK_DIR="$(dirname "$VIDEO")"
           find "$TASK_DIR" -maxdepth 2 -type f \( -iname '*.srt' -o -iname '*.ass' \) -print -quit | while read -r SUB; do cp "$SUB" output/captions.srt; done
+          test -s output/captions.srt || { echo "MoneyPrinterTurbo did not produce an SRT caption file"; exit 1; }
+          python scripts/validate_srt.py output/captions.srt --video "$VIDEO"
           echo "VIDEO_PATH=output/imamali110-private-test.mp4" >> "$GITHUB_ENV"
       - name: Upload as private YouTube draft
         if: ${{ inputs.upload_private }}
