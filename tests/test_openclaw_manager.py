@@ -5,8 +5,9 @@ import json
 import pytest
 
 from scripts.openclaw_manager import (
-    ManagerError, _agent_json, _configure_local_gateway, _has_cloud_model_credentials,
+    ManagerError, _agent_json, _agent_review_decision, _configure_local_gateway, _has_cloud_model_credentials,
     _redact_secrets, _validated_agent_brief, REVIEW_PROMPT, parse_json_object, validate_brief,
+    _parse_reviewer_decision,
 )
 
 
@@ -73,10 +74,26 @@ def test_invalid_brief_gets_one_repair_without_weakening_validation(monkeypatch)
     assert _validated_agent_brief("editorial-writer", invalid, role="writer")["topic"] == "آرامش در کار روزانه"
 
 
-def test_reviewer_uses_a_single_boolean_output_and_cannot_skip_approval():
-    assert '"approved": true' in REVIEW_PROMPT
-    assert '"brief":' not in REVIEW_PROMPT
+def test_reviewer_uses_a_single_decision_token_and_cannot_skip_approval():
+    assert "APPROVE or REJECT" in REVIEW_PROMPT
     assert "only if every criterion passes" in REVIEW_PROMPT
+    assert _parse_reviewer_decision("APPROVE") is True
+    assert _parse_reviewer_decision("REJECT") is False
+    with pytest.raises(ManagerError, match="exactly APPROVE or REJECT"):
+        _parse_reviewer_decision("APPROVE because the brief is good")
+
+
+def test_reviewer_retries_once_for_non_token_response(monkeypatch):
+    outputs = iter(["The brief looks good.", "APPROVE"])
+    roles = []
+
+    def fake_run_agent(_agent_id, _prompt, *, role, timeout=150):
+        roles.append(role)
+        return next(outputs)
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_agent", fake_run_agent)
+    assert _agent_review_decision("editorial-reviewer", "review", timeout=20) is True
+    assert roles == ["reviewer", "reviewer decision retry"]
 
 
 def test_validate_brief_requires_all_short_fields() -> None:
