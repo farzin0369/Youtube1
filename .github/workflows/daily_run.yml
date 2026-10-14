@@ -55,6 +55,7 @@ jobs:
       ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
       CHANNEL_BRAND: ImamAli110
       CHANNEL_HISTORY_PATH: state/history.json
+      USE_IDEA_BANK: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -68,6 +69,7 @@ jobs:
       - name: Run automated regression tests before production
         env:
           PYTHONPATH: ${{ github.workspace }}
+          USE_IDEA_BANK: "0"
         run: python -m pytest -q
       - name: Install FFmpeg and Persian fonts
         run: |
@@ -185,6 +187,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_INPUT: ${{ inputs.publish }}
+          USE_IDEA_BANK: "1"
         run: |
           if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
             python scripts/daily_run.py --publish
