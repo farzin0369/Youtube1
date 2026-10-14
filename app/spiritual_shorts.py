@@ -166,20 +166,21 @@ def validate_short_content(
 
 def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     """Generate one short and reject weak, generic, duplicated or mismatched drafts."""
-    # Prefer a curated, pre-validated idea when available so daily production
-    # does not depend on non-deterministic cloud model quality.
-    try:
-        from app.idea_bank import next_bank_idea
-        bank_item = next_bank_idea(history if isinstance(history, dict) else {})
-        if bank_item is not None:
-            LOGGER.info(
-                "using curated idea bank id=%s topic=%r",
-                bank_item.get("idea_id"),
-                bank_item.get("topic"),
-            )
-            return bank_item
-    except Exception as exc:  # bank is optional; fall through to live generation
-        LOGGER.warning("idea bank unavailable (%s); falling back to live generation", type(exc).__name__)
+    # Prefer curated idea bank when explicitly enabled (production).
+    # Tests leave USE_IDEA_BANK unset so live generation path stays covered.
+    if (os.getenv("USE_IDEA_BANK") or "").strip().lower() in {"1", "true", "yes"}:
+        try:
+            from app.idea_bank import next_bank_idea
+            bank_item = next_bank_idea(history if isinstance(history, dict) else {})
+            if bank_item is not None:
+                LOGGER.info(
+                    "using curated idea bank id=%s topic=%r",
+                    bank_item.get("idea_id"),
+                    bank_item.get("topic"),
+                )
+                return bank_item
+        except Exception as exc:  # bank is optional; fall through to live generation
+            LOGGER.warning("idea bank unavailable (%s); falling back to live generation", type(exc).__name__)
     recent = history.get("recent", []) if isinstance(history, dict) else []
     titles = [str(row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
     topics = [str(row.get("topic") or row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
