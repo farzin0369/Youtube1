@@ -33,7 +33,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra espeak-ng
       - name: Check YouTube secrets without revealing values
         if: ${{ inputs.upload_private }}
         env:
@@ -90,22 +90,20 @@ jobs:
           p.write_text(s, encoding="utf-8")
           print("Runtime config set to local materials and Whisper subtitles; no stock or Edge TTS credentials required.")
           PY
-      - name: Generate Persian narration with Google Translate TTS fallback
+      - name: Generate Persian narration with free TTS fallback
         working-directory: MoneyPrinterTurbo
         run: |
           set -euo pipefail
-          python -m pip install gTTS
-          python - <<'PY'
-          from gtts import gTTS
-          from pathlib import Path
-          text = """گاهی فکر می‌کنیم برای تغییر زندگی باید منتظر یک معجزه بزرگ بمانیم. اما شاید اولین نشانه لطف خدا، همان فرصت کوچکی باشد که امروز در اختیار توست. اگر می‌خواهی مسیرت عوض شود، از یک تصمیم روشن شروع کن: به جای ترس، توکل؛ به جای بهانه، عمل؛ و به جای مقایسه، رشد. توکل یعنی قدم برداشتن با دل آرام، نه دست روی دست گذاشتن. هر روز یک کار کوچک انجام بده که تو را به انسان بهتر، آگاه‌تر و مسئول‌تری تبدیل کند. رزق فقط پول نیست؛ آرامش، سلامتی، دانایی و آدم‌های درست هم نعمت‌اند. برای رشد مالی، ارزش واقعی خلق کن، مهارت بیاموز، خرجت را بشناس و با صبر ادامه بده. نتیجه همه چیز در اختیار ما نیست، اما نیت و تلاش امروزمان در اختیار ماست. همین امروز شروع کن؛ شاید همان قدم کوچک، آغاز فصل تازه‌ای باشد. اگر این پیام به دلت نشست، کانال ImamAli110 را دنبال کن و این یادآوری را با کسی که به آن نیاز دارد به اشتراک بگذار."""
-          out = Path("storage/narration-fa.mp3")
-          out.parent.mkdir(parents=True, exist_ok=True)
-          gTTS(text=text, lang="fa", slow=False).save(str(out))
-          if not out.exists() or out.stat().st_size < 10000:
-              raise SystemExit("Google TTS did not create a valid Persian narration file")
-          print(f"Persian narration generated: {out.stat().st_size} bytes")
-          PY
+          mkdir -p storage
+          cat > storage/narration-fa.txt <<'TEXT'
+          گاهی فکر می‌کنیم برای تغییر زندگی باید منتظر یک معجزه بزرگ بمانیم. اما شاید اولین نشانه لطف خدا، همان فرصت کوچکی باشد که امروز در اختیار توست. اگر می‌خواهی مسیرت عوض شود، از یک تصمیم روشن شروع کن: به جای ترس، توکل؛ به جای بهانه، عمل؛ و به جای مقایسه، رشد. توکل یعنی قدم برداشتن با دل آرام، نه دست روی دست گذاشتن. هر روز یک کار کوچک انجام بده که تو را به انسان بهتر، آگاه‌تر و مسئول‌تری تبدیل کند. رزق فقط پول نیست؛ آرامش، سلامتی، دانایی و آدم‌های درست هم نعمت‌اند. برای رشد مالی، ارزش واقعی خلق کن، مهارت بیاموز، خرجت را بشناس و با صبر ادامه بده. نتیجه همه چیز در اختیار ما نیست، اما نیت و تلاش امروزمان در اختیار ماست. همین امروز شروع کن؛ شاید همان قدم کوچک، آغاز فصل تازه‌ای باشد. اگر این پیام به دلت نشست، کانال ImamAli110 را دنبال کن و این یادآوری را با کسی که به آن نیاز دارد به اشتراک بگذار.
+          TEXT
+          if ! command -v espeak-ng >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y espeak-ng; fi
+          espeak-ng --voices=fa
+          espeak-ng -v fa -s 145 -f storage/narration-fa.txt -w storage/narration-fa.wav
+          ffmpeg -hide_banner -loglevel error -y -i storage/narration-fa.wav -codec:a libmp3lame -q:a 4 storage/narration-fa.mp3
+          test -s storage/narration-fa.mp3
+          echo "Persian narration generated using the free local Persian speech engine."
       - name: Generate Persian video using MoneyPrinterTurbo
         working-directory: MoneyPrinterTurbo
         run: |
