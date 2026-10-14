@@ -24,7 +24,7 @@ jobs:
       - name: Python syntax check
         run: python -m compileall -q app scripts
       - name: Run unit tests
-        run: python -m pytest -q
+        run: python -m pytest -q tests
       - name: Verify automation files
         run: |
           test -f app/llm_provider.py
