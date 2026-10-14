@@ -1,14 +1,11 @@
-"""Provider-agnostic text generation for the daily pipeline.
+"""Cloud-only text generation for the daily pipeline.
 
-No paid subscription is required. Providers are tried in this order:
+Providers are tried in this order:
+1. GROQ_API_KEY — Groq's OpenAI-compatible API.
+2. LLM_BASE_URL + LLM_API_KEY + LLM_MODEL — another OpenAI-compatible cloud API.
 
-1. ``GROQ_API_KEY`` — free tier of Groq (OpenAI-compatible).
-2. ``LLM_BASE_URL`` + ``LLM_API_KEY`` — any OpenAI-compatible gateway
-   (OpenRouter, Together, DeepInfra, a self-hosted vLLM, ...).
-3. Local Ollama on ``OLLAMA_BASE_URL`` — always available, no key.
-
-Every provider failure is isolated: a rate-limited or unreachable cloud
-provider falls through to the next one instead of killing the run.
+There is deliberately no local-model fallback. If every configured cloud
+provider fails, generation stops safely instead of silently using Ollama.
 Credentials are never logged.
 """
 
