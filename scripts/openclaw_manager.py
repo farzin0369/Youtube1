@@ -414,13 +414,24 @@ def run_manager() -> dict[str, Any]:
                 role="writer",
             ), role="writer")
 
-            review = _agent_json(
-                "editorial-reviewer",
-                REVIEW_PROMPT.replace("{candidate}", json.dumps(candidate, ensure_ascii=False)),
-                role="reviewer",
-                response_format=REVIEW_RESPONSE_FORMAT,
-            )
-            if review.get("approved") is not True:
+            review_prompt = REVIEW_PROMPT.replace("{candidate}", json.dumps(candidate, ensure_ascii=False))
+            try:
+                review = _agent_json(
+                    "editorial-reviewer", review_prompt, role="reviewer",
+                    response_format=REVIEW_RESPONSE_FORMAT,
+                )
+            except ManagerError:
+                # Some cloud models emit an incomplete boolean despite the JSON schema.
+                # Ask once more with the smallest possible response; never infer approval.
+                review = _agent_json(
+                    "editorial-reviewer",
+                    review_prompt + "\nReturn exactly one of these JSON objects: {\\"approved\\":true} or {\\"approved\\":false}. The approved value must be a JSON boolean.",
+                    role="reviewer final boolean retry",
+                    response_format=REVIEW_RESPONSE_FORMAT,
+                )
+            if not isinstance(review.get("approved"), bool):
+                raise ManagerError("OpenClaw reviewer returned no valid boolean approval")
+            if review["approved"] is not True:
                 raise ManagerError("OpenClaw reviewer rejected the editorial brief")
             reviewed = candidate
 
