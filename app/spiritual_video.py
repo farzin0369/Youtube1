@@ -432,7 +432,7 @@ def render_video(
         if ai_engine == "ltx":
             from app.ltx_video_engine import generate_ltx_clips
             ai_clips = generate_ltx_clips(
-                queries, out_dir / "ltx", width=512, height=896, num_frames=49, fps=FPS,
+                queries, out_dir / "ltx", width=512, height=896, num_frames=121, fps=FPS,
             )
             stock, credits = [], []
         else:
