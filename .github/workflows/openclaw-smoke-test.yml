@@ -65,29 +65,42 @@ jobs:
           node -e "const p=require('./vendor/openclaw/package.json'); if(p.name!=='openclaw') process.exit(1); console.log('OpenClaw package:', p.name, p.version)"
           test -f vendor/openclaw/openclaw.mjs
 
-      - name: Install OpenClaw CLI and official Groq provider
+      - name: Select cloud provider and model
+        id: model
+        shell: bash
+        run: |
+          if [ -n "${GROQ_API_KEY:-}" ]; then
+            echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
+            echo "provider=groq" >> "$GITHUB_OUTPUT"
+          else
+            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "provider=openai" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OpenClaw CLI and selected provider
         run: |
           npm install --global openclaw@2026.10.3
           openclaw --help >/dev/null
-          openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
+            openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          fi
 
       - name: Configure and validate cloud model
         run: |
-          openclaw config set agents.defaults.model.primary "groq/openai/gpt-oss-20b"
+          openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
           openclaw config validate
 
       - name: Run a real OpenClaw cloud completion
         shell: bash
         run: |
           set -euo pipefail
-          openclaw agent exec --model groq/openai/gpt-oss-20b --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
+          openclaw agent exec --auth-env-only --model "${{ steps.model.outputs.model }}" --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
           if ! grep -q "OPENCLAW_CLOUD_MODEL_OK" "${RUNNER_TEMP}/openclaw-result.json"; then
             echo "::error::OpenClaw exited without the expected cloud completion marker."
-            echo "Sanitized result follows (no environment or credential values):"
             head -c 3000 "${RUNNER_TEMP}/openclaw-result.json"
             exit 1
           fi
-          echo "PASS: OpenClaw returned the expected marker from the configured Groq cloud model."
+          echo "PASS: OpenClaw returned the expected cloud completion marker."
 
       - name: Upload sanitized OpenClaw result
         if: always()
