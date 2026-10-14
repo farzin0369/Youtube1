@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "source": "curated-templates",
+  "count": 10,
+  "ideas": [
+    {
+      "id": "bank-0001",
+      "topic": "مکث کوتاه",
+      "title": "Imam Ali ✨ یک مکث قبل از پاسخ",
+      "hook": "چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟",
+      "thumbnail_text": "مکث کوتاه",
+      "description": "گاهی یک نفس کوتاه قبل از جواب، هم به خودت احترام می‌گذارد هم به طرف مقابل.",
+      "tags": [
+        "آرامش",
+        "ارتباط"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟",
+          "mood": "hook",
+          "visual_query": "person pausing before speaking",
+          "on_screen_text": "مکث کوتاه؟"
+        },
+        {
+          "spoken_text": "خیلی وقت‌ها عجله در جواب، تنش را بیشتر می‌کند.",
+          "mood": "calm",
+          "visual_query": "stressed hands on table",
+          "on_screen_text": "عجله و تنش"
+        },
+        {
+          "spoken_text": "امروز قبل از پاسخ، یک نفس آرام بگیر و بعد حرف بزن.",
+          "mood": "reassuring",
+          "visual_query": "person taking deep breath",
+          "on_screen_text": "یک نفس"
+        },
+        {
+          "spoken_text": "همین مکث کوچک، می‌تواند احترام و آرامش بسازد.",
+          "mood": "motivational",
+          "visual_query": "calm sunrise window light",
+          "on_screen_text": "احترام و آرامش"
+        }
+      ],
+      "script": "چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟ خیلی وقت‌ها عجله در جواب، تنش را بیشتر می‌کند. امروز قبل از پاسخ، یک نفس آرام بگیر و بعد حرف بزن. همین مکث کوچک، می‌تواند احترام و آرامش بسازد.",
+      "word_count": 38
+    },
+    {
+      "id": "bank-0002",
+      "topic": "شکر ساده",
+      "title": "Imam Ali ✨ یک شکر کوچک امروز",
+      "hook": "اگر امروز فقط یک چیز را شکر کنی، چه می‌شود؟",
+      "thumbnail_text": "شکر امروز",
+      "description": "شکرگزاری لازم نیست بزرگ باشد؛ یک چیز کوچک کافی است.",
+      "tags": [
+        "شکر",
+        "امید"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "اگر امروز فقط یک چیز را شکر کنی، چه می‌شود؟",
+          "mood": "hook",
+          "visual_query": "hand writing gratitude journal",
+          "on_screen_text": "یک شکر؟"
+        },
+        {
+          "spoken_text": "گاهی ذهن فقط کمبودها را می‌بیند و خسته می‌شود.",
+          "mood": "calm",
+          "visual_query": "tired person looking window",
+          "on_screen_text": "ذهن خسته"
+        },
+        {
+          "spoken_text": "امشب یک نعمت کوچک را روی کاغذ بنویس و مرور کن.",
+          "mood": "reassuring",
+          "visual_query": "pencil writing notebook",
+          "on_screen_text": "بنویس"
+        },
+        {
+          "spoken_text": "همین یادآوری ساده، می‌تواند دل را سبک‌تر کند.",
+          "mood": "motivational",
+          "visual_query": "warm evening tea cup",
+          "on_screen_text": "دل سبک"
+        }
+      ],
+      "script": "اگر امروز فقط یک چیز را شکر کنی، چه می‌شود؟ گاهی ذهن فقط کمبودها را می‌بیند و خسته می‌شود. امشب یک نعمت کوچک را روی کاغذ بنویس و مرور کن. همین یادآوری ساده، می‌تواند دل را سبک‌تر کند.",
+      "word_count": 38
+    },
+    {
+      "id": "bank-0003",
+      "topic": "قدم کوچک",
+      "title": "Imam Ali ✨ یک قدم کوچک کافی است",
+      "hook": "چرا منتظر انگیزهِ کامل می‌مانی تا شروع کنی؟",
+      "thumbnail_text": "قدم کوچک",
+      "description": "تغییر بزرگ از یک اقدام کوچک شروع می‌شود، نه از شعار.",
+      "tags": [
+        "عادت",
+        "رشد فردی"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "چرا منتظر انگیزهِ کامل می‌مانی تا شروع کنی؟",
+          "mood": "hook",
+          "visual_query": "person staring blank notebook",
+          "on_screen_text": "شروع؟"
+        },
+        {
+          "spoken_text": "بسیاری از کارها زیر وزن انتظار بزرگ گیر می‌کنند.",
+          "mood": "calm",
+          "visual_query": "heavy backpack on floor",
+          "on_screen_text": "وزن انتظار"
+        },
+        {
+          "spoken_text": "امروز فقط پنج دقیقه برای همان کار کنار بگذار.",
+          "mood": "reassuring",
+          "visual_query": "phone timer five minutes",
+          "on_screen_text": "پنج دقیقه"
+        },
+        {
+          "spoken_text": "قدم کوچک و مداوم، مسیر را واقعی و ممکن می‌کند.",
+          "mood": "motivational",
+          "visual_query": "footsteps on quiet path",
+          "on_screen_text": "مسیر واقعی"
+        }
+      ],
+      "script": "چرا منتظر انگیزهِ کامل می‌مانی تا شروع کنی؟ بسیاری از کارها زیر وزن انتظار بزرگ گیر می‌کنند. امروز فقط پنج دقیقه برای همان کار کنار بگذار. قدم کوچک و مداوم، مسیر را واقعی و ممکن می‌کند.",
+      "word_count": 36
+    },
+    {
+      "id": "bank-0004",
+      "topic": "توکل آرام",
+      "title": "Imam Ali ✨ توکل بدون عجله",
+      "hook": "اگر نتیجه دیر آمد، آیا تلاشت بی‌معنا بوده؟",
+      "thumbnail_text": "توکل آرام",
+      "description": "توکل یعنی تلاش مسئولانه و دل‌سپاری بدون شتاب و وعدهِ قطعی.",
+      "tags": [
+        "توکل",
+        "امید"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "اگر نتیجه دیر آمد، آیا تلاشت بی‌معنا بوده؟",
+          "mood": "hook",
+          "visual_query": "person waiting by window rain",
+          "on_screen_text": "نتیجه دیر؟"
+        },
+        {
+          "spoken_text": "گاهی عجله، آرامش را از کار خوب می‌گیرد.",
+          "mood": "calm",
+          "visual_query": "clock hands close up",
+          "on_screen_text": "عجله"
+        },
+        {
+          "spoken_text": "امروز کارت را درست انجام بده و نتیجه را بسپار.",
+          "mood": "reassuring",
+          "visual_query": "hands finishing simple task",
+          "on_screen_text": "کار درست"
+        },
+        {
+          "spoken_text": "توکل آرام، قلب را سبک و مسیر را پایدار می‌کند.",
+          "mood": "motivational",
+          "visual_query": "peaceful mountain path morning",
+          "on_screen_text": "مسیر پایدار"
+        }
+      ],
+      "script": "اگر نتیجه دیر آمد، آیا تلاشت بی‌معنا بوده؟ گاهی عجله، آرامش را از کار خوب می‌گیرد. امروز کارت را درست انجام بده و نتیجه را بسپار. توکل آرام، قلب را سبک و مسیر را پایدار می‌کند.",
+      "word_count": 36
+    },
+    {
+      "id": "bank-0005",
+      "topic": "صبح آرام",
+      "title": "Imam Ali ✨ ده دقیقهِ اول صبح",
+      "hook": "اولین ده دقیقهِ صبحت مال کیست؟",
+      "thumbnail_text": "صبح آرام",
+      "description": "شروع روز با عجله ذهن را شلوغ می‌کند.",
+      "tags": [
+        "صبح",
+        "عادت"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "اولین ده دقیقهِ صبحت مال کیست؟",
+          "mood": "hook",
+          "visual_query": "phone alarm morning bed",
+          "on_screen_text": "ده دقیقه؟"
+        },
+        {
+          "spoken_text": "اگر با عجله و صفحهِ گوشی شروع کنی، ذهنت پر می‌شود.",
+          "mood": "calm",
+          "visual_query": "scrolling phone in bed",
+          "on_screen_text": "ذهن پر"
+        },
+        {
+          "spoken_text": "فردا صبح سه نفس عمیق و یک نیت ساده بگذار.",
+          "mood": "reassuring",
+          "visual_query": "sunrise through curtains",
+          "on_screen_text": "سه نفس"
+        },
+        {
+          "spoken_text": "همین شروع آرام، می‌تواند روز را روشن‌تر کند.",
+          "mood": "motivational",
+          "visual_query": "coffee cup morning light",
+          "on_screen_text": "روز روشن"
+        }
+      ],
+      "script": "اولین ده دقیقهِ صبحت مال کیست؟ اگر با عجله و صفحهِ گوشی شروع کنی، ذهنت پر می‌شود. فردا صبح سه نفس عمیق و یک نیت ساده بگذار. همین شروع آرام، می‌تواند روز را روشن‌تر کند.",
+      "word_count": 35
+    },
+    {
+      "id": "bank-0006",
+      "topic": "تمرکز کوتاه",
+      "title": "Imam Ali ✨ بیست دقیقه تمرکز",
+      "hook": "آخرین بار چند دقیقه بدون گوشی کار کردی؟",
+      "thumbnail_text": "تمرکز کوتاه",
+      "description": "تمرکز کامل لازم نیست؛ یک بازهِ کوتاه کافی است.",
+      "tags": [
+        "تمرکز",
+        "نظم"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "آخرین بار چند دقیقه بدون گوشی کار کردی؟",
+          "mood": "hook",
+          "visual_query": "phone face down on desk",
+          "on_screen_text": "بدون گوشی؟"
+        },
+        {
+          "spoken_text": "اعلان‌های پی‌درپی ذهن را تکه تکه می‌کنند.",
+          "mood": "calm",
+          "visual_query": "notification lights phone screen",
+          "on_screen_text": "اعلان‌ها"
+        },
+        {
+          "spoken_text": "امروز بیست دقیقه گوشی را کنار بگذار و یک کار را تمام کن.",
+          "mood": "reassuring",
+          "visual_query": "timer twenty minutes desk",
+          "on_screen_text": "بیست دقیقه"
+        },
+        {
+          "spoken_text": "تمرکز کوتاه و مداوم، نتیجهِ واقعی می‌سازد.",
+          "mood": "motivational",
+          "visual_query": "finished notebook page pen",
+          "on_screen_text": "نتیجه"
+        }
+      ],
+      "script": "آخرین بار چند دقیقه بدون گوشی کار کردی؟ اعلان‌های پی‌درپی ذهن را تکه تکه می‌کنند. امروز بیست دقیقه گوشی را کنار بگذار و یک کار را تمام کن. تمرکز کوتاه و مداوم، نتیجهِ واقعی می‌سازد.",
+      "word_count": 35
+    },
+    {
+      "id": "bank-0007",
+      "topic": "امید واقعی",
+      "title": "Imam Ali ✨ امید بدون شعار",
+      "hook": "وقتی خسته‌ای، امید برایت چه شکلی دارد؟",
+      "thumbnail_text": "امید واقعی",
+      "description": "امید شعار نیست؛ قدم بعدی کوچک و صادقانه است.",
+      "tags": [
+        "امید",
+        "توکل"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "وقتی خسته‌ای، امید برایت چه شکلی دارد؟",
+          "mood": "hook",
+          "visual_query": "person sitting alone dusk",
+          "on_screen_text": "امید؟"
+        },
+        {
+          "spoken_text": "شعارهای بزرگ گاهی فاصله با واقعیت می‌سازند.",
+          "mood": "calm",
+          "visual_query": "foggy empty road",
+          "on_screen_text": "شعار بزرگ"
+        },
+        {
+          "spoken_text": "یک کار کوچک و ممکن برای فردا انتخاب کن.",
+          "mood": "reassuring",
+          "visual_query": "checklist one item marked",
+          "on_screen_text": "کار کوچک"
+        },
+        {
+          "spoken_text": "امید واقعی در حرکت آرام و پیوسته زنده می‌ماند.",
+          "mood": "motivational",
+          "visual_query": "sunrise over quiet hills",
+          "on_screen_text": "حرکت آرام"
+        }
+      ],
+      "script": "وقتی خسته‌ای، امید برایت چه شکلی دارد؟ شعارهای بزرگ گاهی فاصله با واقعیت می‌سازند. یک کار کوچک و ممکن برای فردا انتخاب کن. امید واقعی در حرکت آرام و پیوسته زنده می‌ماند.",
+      "word_count": 32
+    },
+    {
+      "id": "bank-0008",
+      "topic": "پول آگاهانه",
+      "title": "Imam Ali ✨ یک خرید آگاهانه",
+      "hook": "قبل از خرید بعدی، چه سؤالی از خودت می‌پرسی؟",
+      "thumbnail_text": "خرید آگاهانه",
+      "description": "سواد مالی با یک سؤال ساده شروع می‌شود.",
+      "tags": [
+        "سواد مالی",
+        "عادت"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "قبل از خرید بعدی، چه سؤالی از خودت می‌پرسی؟",
+          "mood": "hook",
+          "visual_query": "person holding wallet store",
+          "on_screen_text": "قبل خرید؟"
+        },
+        {
+          "spoken_text": "خرید عجول گاهی فقط یک احساس لحظه‌ای را پر می‌کند.",
+          "mood": "calm",
+          "visual_query": "shopping bag on chair",
+          "on_screen_text": "خرید عجول"
+        },
+        {
+          "spoken_text": "بیست‌وچهار ساعت صبر کن، بعد تصمیم بگیر.",
+          "mood": "reassuring",
+          "visual_query": "calendar mark one day",
+          "on_screen_text": "۲۴ ساعت"
+        },
+        {
+          "spoken_text": "آگاهی کوچک در خرج، آرامش بزرگ‌تری می‌آورد.",
+          "mood": "motivational",
+          "visual_query": "coins saved glass jar",
+          "on_screen_text": "آگاهی"
+        }
+      ],
+      "script": "قبل از خرید بعدی، چه سؤالی از خودت می‌پرسی؟ خرید عجول گاهی فقط یک احساس لحظه‌ای را پر می‌کند. بیست‌وچهار ساعت صبر کن، بعد تصمیم بگیر. آگاهی کوچک در خرج، آرامش بزرگ‌تری می‌آورد.",
+      "word_count": 33
+    },
+    {
+      "id": "bank-0009",
+      "topic": "نفس عمیق",
+      "title": "Imam Ali ✨ سه نفس در تنش",
+      "hook": "وقتی عصبانی می‌شوی، اولین حرکتت چیست؟",
+      "thumbnail_text": "سه نفس",
+      "description": "در لحظهِ تنش، بدن به یک توقف کوتاه نیاز دارد.",
+      "tags": [
+        "آرامش",
+        "تنش"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "وقتی عصبانی می‌شوی، اولین حرکتت چیست؟",
+          "mood": "hook",
+          "visual_query": "clenched fists close up",
+          "on_screen_text": "عصبانی؟"
+        },
+        {
+          "spoken_text": "واکنش فوری گاهی حرفی می‌سازد که بعد پشیمان می‌شوی.",
+          "mood": "calm",
+          "visual_query": "argument shadows hallway",
+          "on_screen_text": "واکنش فوری"
+        },
+        {
+          "spoken_text": "قبل از پاسخ، سه نفس عمیق بکش و بعد حرف بزن.",
+          "mood": "reassuring",
+          "visual_query": "person breathing slowly outdoors",
+          "on_screen_text": "سه نفس"
+        },
+        {
+          "spoken_text": "این مکث ساده می‌تواند آسیب را کم کند.",
+          "mood": "motivational",
+          "visual_query": "calm face soft daylight",
+          "on_screen_text": "کمتر آسیب"
+        }
+      ],
+      "script": "وقتی عصبانی می‌شوی، اولین حرکتت چیست؟ واکنش فوری گاهی حرفی می‌سازد که بعد پشیمان می‌شوی. قبل از پاسخ، سه نفس عمیق بکش و بعد حرف بزن. این مکث ساده می‌تواند آسیب را کم کند.",
+      "word_count": 34
+    },
+    {
+      "id": "bank-0010",
+      "topic": "مرز سالم",
+      "title": "Imam Ali ✨ نه گفتن محترمانه",
+      "hook": "آخرین بار کی نه گفتی و دلت آرام ماند؟",
+      "thumbnail_text": "نه محترمانه",
+      "description": "مرز سالم بی‌احترامی نیست؛ مراقبت از توان و وقت است.",
+      "tags": [
+        "مرز",
+        "احترام"
+      ],
+      "scenes": [
+        {
+          "spoken_text": "آخرین بار کی نه گفتی و دلت آرام ماند؟",
+          "mood": "hook",
+          "visual_query": "person politely declining handshake",
+          "on_screen_text": "نه گفتن؟"
+        },
+        {
+          "spoken_text": "قبول همه چیز، گاهی خودت را خالی می‌کند.",
+          "mood": "calm",
+          "visual_query": "overloaded bag spilling items",
+          "on_screen_text": "خالی شدن"
+        },
+        {
+          "spoken_text": "امروز یک درخواست غیرضروری را محترمانه رد کن.",
+          "mood": "reassuring",
+          "visual_query": "calm conversation soft room",
+          "on_screen_text": "محترمانه"
+        },
+        {
+          "spoken_text": "مرز روشن، رابطه را سالم‌تر نگه می‌دارد.",
+          "mood": "motivational",
+          "visual_query": "garden fence flowers sunlight",
+          "on_screen_text": "مرز روشن"
+        }
+      ],
+      "script": "آخرین بار کی نه گفتی و دلت آرام ماند؟ قبول همه چیز، گاهی خودت را خالی می‌کند. امروز یک درخواست غیرضروری را محترمانه رد کن. مرز روشن، رابطه را سالم‌تر نگه می‌دارد.",
+      "word_count": 32
+    }
+  ]
+}
