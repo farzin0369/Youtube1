@@ -235,12 +235,16 @@ def _agent_json(
             + "\n\nYour previous response was not parseable as one JSON object. Retry once; "
             "return exactly one valid JSON object and no preamble, Markdown, or trailing text."
         )
+        retry_response = ""
         try:
-            return parse_json_object(_run_agent(
+            retry_response = _run_agent(
                 agent_id, retry_prompt, role=f"{role} JSON retry", response_format=response_format, timeout=timeout,
-            ))
+            )
+            return parse_json_object(retry_response)
         except ManagerError as exc:
-            raise ManagerError(f"OpenClaw {role} did not return valid JSON after one retry") from exc
+            preview = re.sub(r"\s+", " ", _redact_secrets(retry_response)).strip()[:220]
+            suffix = f"; sanitized response preview={preview!r}" if preview else ""
+            raise ManagerError(f"OpenClaw {role} did not return valid JSON after one retry{suffix}") from exc
 
 
 def _validated_agent_brief(agent_id: str, candidate: dict[str, Any], *, role: str) -> dict[str, str]:

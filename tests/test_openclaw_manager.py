@@ -66,6 +66,20 @@ def test_agent_json_retries_once_after_non_json_response(monkeypatch):
     assert roles == ["writer", "writer JSON retry"]
 
 
+def test_agent_json_failure_preview_redacts_secrets(monkeypatch):
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-cloudflare-secret")
+    outputs = iter(["not JSON", "response echoed test-cloudflare-secret"])
+
+    def fake_run_agent(_agent_id, _prompt, *, role, response_format, timeout=150):
+        return next(outputs)
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_agent", fake_run_agent)
+    with pytest.raises(ManagerError) as exc:
+        _agent_json("editorial-researcher", "return JSON", role="researcher")
+    assert "test-cloudflare-secret" not in str(exc.value)
+    assert "[REDACTED]" in str(exc.value)
+
+
 def test_invalid_brief_gets_one_repair_without_weakening_validation(monkeypatch):
     invalid = {
         "topic": "این یک موضوع فارسی با تعداد واژه‌های بسیار زیاد است",
