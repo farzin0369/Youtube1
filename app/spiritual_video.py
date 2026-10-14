@@ -416,6 +416,9 @@ def render_video(
     out_dir.mkdir(parents=True, exist_ok=True)
     if video_format not in {"long", "shorts"}:
         raise ValueError("video_format must be 'long' or 'shorts'")
+    ai_engine = (os.getenv("AI_VIDEO_ENGINE") or "").strip().lower()
+    if ai_engine == "ltx" and video_format != "shorts":
+        raise RuntimeError("The LTX backend is currently wired for scene-matched Shorts only")
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
@@ -424,14 +427,22 @@ def render_video(
         if len(queries) != 4:
             raise RuntimeError("Shorts require four specific, narration-matched visual searches")
         count = len(queries)
-        stock, credits = fetch_stock(
-            queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
-        )
-        if len(stock) != count and len(scene_stills) != count:
+        ai_clips: list[Path] = []
+        if ai_engine == "ltx":
+            from app.ltx_video_engine import generate_ltx_clips
+            ai_clips = generate_ltx_clips(
+                queries, out_dir / "ltx", width=512, height=896, num_frames=49, fps=FPS,
+            )
+            stock, credits = [], []
+        else:
+            stock, credits = fetch_stock(
+                queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
+            )
+        if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
             raise RuntimeError(
-                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
-                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or provide four "
-                "explicitly scene-matched portrait stills for a dry-run preview."
+                "Shorts visual-quality gate: every authored scene needs portrait stock footage, "
+                "four explicitly supplied preview stills, or a complete LTX-generated scene set. "
+                "Check PEXELS_API_KEY or run AI_VIDEO_ENGINE=ltx on a CUDA GPU."
             )
         if scene_timings and len(scene_timings) == count:
             durations = [
@@ -452,7 +463,10 @@ def render_video(
     parts: list[Path] = []
     for index in range(count):
         part = scene_dir / f"scene_{index:03d}.mp4"
-        if stock:
+        if ai_clips:
+            source = ai_clips[index]
+            _make_segment(source, None, durations[index], part, index, width=width, height=height)
+        elif stock:
             source = stock[index % len(stock)]
             _make_segment(source, None, durations[index], part, index, width=width, height=height)
         elif scene_stills:
@@ -513,7 +527,7 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "ltx-video" if ai_clips else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
@@ -525,9 +539,9 @@ def render_video(
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
         "scene_query_match": bool(
             video_format == "shorts" and len(queries) == count
-            and (len(stock) == count or len(scene_stills) == count)
+            and (len(stock) == count or len(scene_stills) == count or len(ai_clips) == count)
         ),
-        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
+        "test_visuals_only": bool(video_format == "shorts" and not stock and not ai_clips and len(scene_stills) == count),
         "music_ducking": True,
         "ok": True,
     }
