@@ -116,7 +116,7 @@ def validate_short_content(
         raise ValueError(f"short_script_word_count_outside_{min_words}_{max_words}:{words}")
     first = _first_sentence(scenes[0]["spoken_text"])
     first_words = _word_count(first)
-    if not 4 <= first_words <= 13 or "؟" not in first:
+    if not 4 <= first_words <= 16 or "؟" not in first:
         raise ValueError("opening_hook_must_be_a_specific_short_question")
     if re.match(r"^(سلام|در این ویدئو|امروز می‌خواهیم|دوستان|خب)", first):
         raise ValueError("opening_has_a_slow_generic_intro")
@@ -212,7 +212,7 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     provider = "unknown"
     draft = ""
     last_error = ""
-    for attempt in range(3):
+    for attempt in range(4):
         if attempt == 0:
             request_prompt = prompt
             temperature = 0.75
@@ -227,7 +227,12 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             if "opening_hook" in last_error or "hook_must" in last_error:
                 word_focus += (
                     "\nقلاب: جملهٔ اول spoken_text صحنهٔ hook باید یک سؤال کوتاه فارسی با علامت ؟ باشد، "
-                    "بین ۴ تا ۱۳ واژه، بدون سلام و مقدمهٔ کلی. مثال: «چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟»"
+                    "بین ۴ تا ۱۶ واژه، بدون سلام و مقدمهٔ کلی. مثال: «چرا یک مکث کوتاه قبل از پاسخ، آرامش می‌آورد؟»"
+                )
+            if "four authored scenes" in last_error or "scene_" in last_error:
+                word_focus += (
+                    "\nساختار اجباری: دقیقاً چهار شیء در آرایهٔ scenes با moodهای hook, calm, reassuring, motivational. "
+                    "script باید اتصال عین spoken_text همان چهار صحنه با یک فاصله باشد."
                 )
             request_prompt = (
                 prompt
@@ -252,9 +257,9 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             break
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
-            if attempt < 2:
+            if attempt < 3:
                 LOGGER.warning(
-                    "short draft failed a quality gate; corrective rewrite %s/2 will run (%s)",
+                    "short draft failed a quality gate; corrective rewrite %s/3 will run (%s)",
                     attempt + 1,
                     last_error[:180],
                 )
