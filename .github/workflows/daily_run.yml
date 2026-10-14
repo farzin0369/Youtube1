@@ -253,7 +253,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
-          openclaw agent exec --auth-env-only --model "${{ steps.cloud.outputs.model }}" --timeout 300 --cwd "$GITHUB_WORKSPACE" --message-file state/openclaw-repair-prompt.md > "$RUNNER_TEMP/openclaw-repair-result.txt"
+          openclaw agent exec --model "${{ steps.cloud.outputs.model }}" --timeout 300 --cwd "$GITHUB_WORKSPACE" --message-file state/openclaw-repair-prompt.md > "$RUNNER_TEMP/openclaw-repair-result.txt"
           echo "OpenClaw repair attempt finished; response saved without printing credentials."
 
       - name: Reject unsafe patch scope and detect no-op
