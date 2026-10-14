@@ -1,6 +1,9 @@
 name: MoneyPrinterTurbo Persian private video test
+# Trigger a fresh private YouTube upload attempt after enabling push-triggered upload.
 
 on:
+  push:
+    branches: ["fix/mpt-local-materials-private-test"]
   workflow_dispatch:
     inputs:
       upload_private:
@@ -31,24 +34,22 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
-      - name: Check required secrets without revealing them
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra espeak-ng
+      - name: Check YouTube secrets without revealing values
+        if: ${{ github.event_name == 'push' || inputs.upload_private }}
         env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           python - <<'PY'
           import os, sys
-          required = ["PEXELS_API_KEY"]
-          if "${{ inputs.upload_private }}" == "true":
-              required += ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
+          required = ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN"]
           missing = [key for key in required if not os.getenv(key, "").strip()]
           if missing:
-              print("Missing required GitHub Actions secrets: " + ", ".join(missing))
+              print("Missing required YouTube OAuth secrets: " + ", ".join(missing))
               sys.exit(1)
-          print("Required secret presence check passed; values were not printed.")
+          print("YouTube OAuth secret presence check passed; values were not printed.")
           PY
       - name: Checkout MoneyPrinterTurbo
         uses: actions/checkout@v4
@@ -56,41 +57,66 @@ jobs:
           repository: harry0703/MoneyPrinterTurbo
           ref: main
           path: MoneyPrinterTurbo
+      - name: Create original cinematic visual clips (no stock API key required)
+        run: |
+          set -euo pipefail
+          mkdir -p MoneyPrinterTurbo/storage/local_videos
+          for spec in "0x071426:0x0f766e" "0x10172f:0x6d28d9" "0x111827:0xb45309" "0x071a2b:0x1d4ed8"; do
+            bg="${spec%%:*}"
+            glow="${spec##*:}"
+            out="MoneyPrinterTurbo/storage/local_videos/scene-${bg#0x}.mp4"
+            ffmpeg -hide_banner -loglevel error -y \
+              -f lavfi -i "color=c=${bg}:s=720x1280:r=24:d=6" \
+              -vf "drawbox=x=180:y=300:w=360:h=600:color=${glow}@0.40:t=fill,gblur=sigma=65,drawbox=x=358:y=0:w=4:h=ih:color=white@0.04:t=fill,zoompan=z='min(zoom+0.0008,1.08)':d=1:s=720x1280:fps=24,format=yuv420p" \
+              -an -c:v libx264 -preset ultrafast -crf 25 -movflags +faststart "$out"
+          done
+          test "$(find MoneyPrinterTurbo/storage/local_videos -maxdepth 1 -name '*.mp4' | wc -l)" -ge 4
+          echo "Created four original animated abstract visual clips locally; no external stock provider or paid video API was called."
       - name: Install MoneyPrinterTurbo dependencies
         working-directory: MoneyPrinterTurbo
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-      - name: Configure MoneyPrinterTurbo at runtime (no credentials committed)
+      - name: Configure MoneyPrinterTurbo for local materials
         working-directory: MoneyPrinterTurbo
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           cp config.example.toml config.toml
           python - <<'PY'
-          import os, re
           from pathlib import Path
           p = Path("config.toml")
           s = p.read_text(encoding="utf-8")
-          key = os.environ["PEXELS_API_KEY"].strip()
-          s, n = re.subn(r'(?m)^pexels_api_keys\s*=\s*\[\s*\]', 'pexels_api_keys = ["' + key.replace('\\', '\\\\').replace('"', '\\"') + '"]', s, count=1)
-          if n != 1:
-              raise SystemExit("Could not safely configure Pexels in MoneyPrinterTurbo config")
+          s = s.replace('video_source = "pexels"', 'video_source = "local"', 1)
+          s = s.replace('subtitle_provider = "edge"', 'subtitle_provider = "whisper"', 1)
           p.write_text(s, encoding="utf-8")
-          print("Runtime config prepared; secret value not printed.")
+          print("Runtime config set to local materials and Whisper subtitles; no stock or Edge TTS credentials required.")
           PY
+      - name: Generate Persian narration with free TTS fallback
+        working-directory: MoneyPrinterTurbo
+        run: |
+          set -euo pipefail
+          mkdir -p storage
+          cat > storage/narration-fa.txt <<'TEXT'
+          گاهی فکر می‌کنیم برای تغییر زندگی باید منتظر یک معجزه بزرگ بمانیم. اما شاید اولین نشانه لطف خدا، همان فرصت کوچکی باشد که امروز در اختیار توست. اگر می‌خواهی مسیرت عوض شود، از یک تصمیم روشن شروع کن: به جای ترس، توکل؛ به جای بهانه، عمل؛ و به جای مقایسه، رشد. توکل یعنی قدم برداشتن با دل آرام، نه دست روی دست گذاشتن. هر روز یک کار کوچک انجام بده که تو را به انسان بهتر، آگاه‌تر و مسئول‌تری تبدیل کند. رزق فقط پول نیست؛ آرامش، سلامتی، دانایی و آدم‌های درست هم نعمت‌اند. برای رشد مالی، ارزش واقعی خلق کن، مهارت بیاموز، خرجت را بشناس و با صبر ادامه بده. نتیجه همه چیز در اختیار ما نیست، اما نیت و تلاش امروزمان در اختیار ماست. همین امروز شروع کن؛ شاید همان قدم کوچک، آغاز فصل تازه‌ای باشد. اگر این پیام به دلت نشست، کانال ImamAli110 را دنبال کن و این یادآوری را با کسی که به آن نیاز دارد به اشتراک بگذار.
+          TEXT
+          if ! command -v espeak-ng >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y espeak-ng; fi
+          espeak-ng --voices=fa
+          espeak-ng -v fa -s 145 -f storage/narration-fa.txt -w storage/narration-fa.wav
+          ffmpeg -hide_banner -loglevel error -y -i storage/narration-fa.wav -codec:a libmp3lame -q:a 4 storage/narration-fa.mp3
+          test -s storage/narration-fa.mp3
+          echo "Persian narration generated using the free local Persian speech engine."
       - name: Generate Persian video using MoneyPrinterTurbo
         working-directory: MoneyPrinterTurbo
         run: |
           set -o pipefail
           python cli.py \
             --video-script "گاهی فکر می‌کنیم برای تغییر زندگی باید منتظر یک معجزه بزرگ بمانیم. اما شاید اولین نشانه لطف خدا، همان فرصت کوچکی باشد که امروز در اختیار توست. اگر می‌خواهی مسیرت عوض شود، از یک تصمیم روشن شروع کن: به جای ترس، توکل؛ به جای بهانه، عمل؛ و به جای مقایسه، رشد. توکل یعنی قدم برداشتن با دل آرام، نه دست روی دست گذاشتن. هر روز یک کار کوچک انجام بده که تو را به انسان بهتر، آگاه‌تر و مسئول‌تری تبدیل کند. رزق فقط پول نیست؛ آرامش، سلامتی، دانایی و آدم‌های درست هم نعمت‌اند. برای رشد مالی، ارزش واقعی خلق کن، مهارت بیاموز، خرجت را بشناس و با صبر ادامه بده. نتیجه همه چیز در اختیار ما نیست، اما نیت و تلاش امروزمان در اختیار ماست. همین امروز شروع کن؛ شاید همان قدم کوچک، آغاز فصل تازه‌ای باشد. اگر این پیام به دلت نشست، کانال ImamAli110 را دنبال کن و این یادآوری را با کسی که به آن نیاز دارد به اشتراک بگذار." \
-            --video-source pexels \
+            --video-source local \
+            --video-materials "storage/local_videos/scene-071426.mp4,storage/local_videos/scene-10172f.mp4,storage/local_videos/scene-111827.mp4,storage/local_videos/scene-071a2b.mp4" \
             --video-language Persian \
             --video-aspect 9:16 \
             --video-clip-duration 4 \
-            --voice-name fa-IR-FaridNeural \
+            --custom-audio-file storage/narration-fa.mp3 \
             --subtitle-enabled \
             --subtitle-position bottom \
             --bgm-type random \
@@ -107,7 +133,7 @@ jobs:
           find "$TASK_DIR" -maxdepth 2 -type f \( -iname '*.srt' -o -iname '*.ass' \) -print -quit | while read -r SUB; do cp "$SUB" output/captions.srt; done
           echo "VIDEO_PATH=output/imamali110-private-test.mp4" >> "$GITHUB_ENV"
       - name: Upload as private YouTube draft
-        if: ${{ inputs.upload_private }}
+        if: ${{ github.event_name == 'push' || inputs.upload_private }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -115,7 +141,7 @@ jobs:
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "true"
         run: |
           set -euo pipefail
-          python -m pip install -r requirements-local.txt
+          python -m pip install -r requirements.txt -r requirements-local.txt
           python - <<'PY'
           import json, os
           from pathlib import Path
