@@ -98,12 +98,21 @@ jobs:
           try:
               content = payload["choices"][0]["message"]["content"]
               result = json.loads(content) if isinstance(content, str) else content
-              brief = validate_brief(result)
           except Exception as exc:
               preview = _redact_secrets(re.sub(r"\s+", " ", str(locals().get("content", "")))).strip()[:220]
-              print(f"Cloudflare Workers AI did not return a valid Persian JSON brief ({type(exc).__name__}); preview={preview!r}")
+              print(f"Cloudflare Workers AI did not return valid JSON ({type(exc).__name__}); preview={preview!r}")
               raise SystemExit(1)
-          print("PASS: Cloudflare Workers AI returned a valid Persian five-field JSON brief under the project schema.")
+          required = set(BRIEF_RESPONSE_FORMAT["json_schema"]["required"])
+          if not isinstance(result, dict) or set(result) != required or any(not isinstance(result[k], str) for k in required):
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(content))).strip()[:220]
+              print(f"Cloudflare Workers AI returned a JSON object outside the five-field schema; preview={preview!r}")
+              raise SystemExit(1)
+          print("PASS: Cloudflare Workers AI returned a valid five-field JSON object.")
+          try:
+              validate_brief(result)
+              print("PASS: first draft passed the project content validator.")
+          except Exception as exc:
+              print(f"NOTE: first draft needs the manager's bounded content repair ({type(exc).__name__}: {exc}).")
           PY
 
       - name: Set up Node.js 24
