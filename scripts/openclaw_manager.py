@@ -156,8 +156,8 @@ def _create_team(workspace_root: Path) -> None:
 
 
 def run_manager() -> dict[str, Any]:
-    if not os.getenv("GROQ_API_KEY", "").strip():
-        raise ManagerError("GROQ_API_KEY is required for the configured OpenClaw Groq model")
+    if not (os.getenv("GROQ_API_KEY", "").strip() or os.getenv("OPENAI_API_KEY", "").strip()):
+        raise ManagerError("Configure GROQ_API_KEY or OPENAI_API_KEY for OpenClaw cloud inference")
     history_path = ROOT / "state" / "history.json"
     try:
         history_data = json.loads(history_path.read_text(encoding="utf-8"))
