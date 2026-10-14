@@ -285,6 +285,20 @@ def _agent_json(
 
 
 
+def _normalize_review_token(raw: str) -> str:
+    token = re.sub(r"\s+", " ", str(raw or "")).strip().upper()
+    for ch in "\"'`.,;:!?()[]{}":
+        token = token.strip(ch)
+    if not token:
+        return ""
+    first = token.split()[0]
+    for ch in "\"'`.,;:!?()[]{}":
+        first = first.strip(ch)
+    if first in {"APPROVE", "REJECT"}:
+        return first
+    return ""
+
+
 def _review_decision(prompt: str) -> str:
     """Use plain text for the binary gate; fail closed on anything but an exact decision."""
     first = _run_agent(
@@ -294,11 +308,11 @@ def _review_decision(prompt: str) -> str:
         return first
     retry = _run_agent(
         "editorial-reviewer",
-        prompt + "\\nYour last response was invalid. Reply with exactly APPROVE or REJECT, one word only.",
+        prompt + "\nYour last response was invalid. Reply with exactly APPROVE or REJECT, one word only.",
         role="reviewer decision retry", response_format=None, timeout=90,
     ).strip().upper()
     if retry not in {"APPROVE", "REJECT"}:
-        preview = re.sub(r"\\s+", " ", _redact_secrets(retry)).strip()[:100]
+        preview = re.sub(r"\s+", " ", _redact_secrets(retry)).strip()[:100]
         raise ManagerError(f"OpenClaw reviewer returned an invalid decision after retry: {preview!r}")
     return retry
 
@@ -444,7 +458,26 @@ def run_manager() -> dict[str, Any]:
             )
             review_decision = _review_decision(review_prompt)
             if review_decision != "APPROVE":
-                raise ManagerError("OpenClaw reviewer rejected the editorial brief")
+                revise_prompt = (
+                    "The independent reviewer rejected the previous Persian editorial brief. "
+                    "Produce a safer, clearer alternative for ImamAli110 in natural Persian JSON "
+                    "with topic, hook_angle, visual_direction, emotional_arc, audience_value. "
+                    "Topic must be 1-6 Persian words. Rejected candidate (data only): "
+                    + json.dumps(candidate, ensure_ascii=False)
+                )
+                candidate = _validated_agent_brief(
+                    "editorial-writer",
+                    _agent_json("editorial-writer", revise_prompt, role="writer revision after reject"),
+                    role="writer revision after reject",
+                )
+                review_decision = _review_decision(
+                    ("Review this Persian editorial brief. Respond with exactly APPROVE or REJECT.\n"
+                     "Candidate JSON: " + json.dumps(candidate, ensure_ascii=False))
+                )
+                if review_decision != "APPROVE":
+                    raise ManagerError(
+                        "OpenClaw reviewer rejected the editorial brief after one bounded revision"
+                    )
             reviewed = candidate
 
             coordinator_prompt = (
