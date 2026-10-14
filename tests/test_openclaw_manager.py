@@ -7,7 +7,7 @@ import pytest
 from scripts.openclaw_manager import (
     BRIEF_RESPONSE_FORMAT, REVIEW_PROMPT, REVIEW_RESPONSE_FORMAT, ManagerError, _agent_json,
     _configure_local_gateway, _has_cloud_model_credentials, _redact_secrets, _run_agent,
-    _validated_agent_brief, parse_json_object, validate_brief,
+    _review_decision, _validated_agent_brief, parse_json_object, validate_brief,
 )
 
 
@@ -113,6 +113,31 @@ def test_reviewer_uses_a_single_boolean_json_schema_and_cannot_skip_approval():
     assert "only if every criterion passes" in REVIEW_PROMPT
     assert REVIEW_RESPONSE_FORMAT["json_schema"]["required"] == ["approved"]
     assert REVIEW_RESPONSE_FORMAT["json_schema"]["properties"]["approved"] == {"type": "boolean"}
+
+
+
+def test_reviewer_plain_text_decision_accepts_only_exact_approval(monkeypatch):
+    calls = []
+
+    def fake_run_agent(_agent_id, prompt, *, role, response_format, timeout=150):
+        calls.append((role, response_format))
+        return "APPROVE"
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_agent", fake_run_agent)
+    assert _review_decision("review this") == "APPROVE"
+    assert calls == [("reviewer", None)]
+
+
+def test_reviewer_plain_text_decision_retries_then_fails_closed(monkeypatch):
+    outputs = iter(["looks good", "probably approve"])
+
+    def fake_run_agent(_agent_id, prompt, *, role, response_format, timeout=150):
+        assert response_format is None
+        return next(outputs)
+
+    monkeypatch.setattr("scripts.openclaw_manager._run_agent", fake_run_agent)
+    with pytest.raises(ManagerError, match="invalid decision after retry"):
+        _review_decision("review this")
 
 
 def test_run_agent_routes_to_loopback_gateway_with_cloudflare_json_schema(monkeypatch):
