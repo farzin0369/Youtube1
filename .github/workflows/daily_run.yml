@@ -106,7 +106,7 @@ jobs:
           node-version: "24"
       - name: Install OpenClaw and its cloud provider
         run: |
-          npm install --global openclaw@latest
+          npm install --global openclaw@2026.10.3
           openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
           openclaw config set agents.defaults.model.primary "groq/openai/gpt-oss-20b"
           openclaw config validate
