@@ -142,3 +142,21 @@ def test_invalid_model_draft_gets_one_corrective_rewrite(short_package, monkeypa
     assert result["format"] == "shorts"
     assert len(calls) == 2
     assert "اصلاح اجباری" in calls[1]
+
+
+
+def test_two_invalid_llm_drafts_fall_back_to_reviewed_short(monkeypatch):
+    calls = []
+
+    def always_invalid(system, prompt, **kwargs):
+        calls.append(prompt)
+        return "{bad JSON", "test-provider"
+
+    monkeypatch.setattr(spiritual_shorts, "generate_text", always_invalid)
+    result = spiritual_shorts.generate_shorts_content({"recent": []})
+
+    assert len(calls) == 2
+    assert result["generated_by"] == "reviewed-safe-fallback"
+    assert len(result["scenes"]) == 4
+    assert 36 <= result["word_count"] <= 48
+    assert result["script"] == " ".join(scene["spoken_text"] for scene in result["scenes"])
