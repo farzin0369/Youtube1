@@ -25,7 +25,7 @@ Make OpenClaw the supervisory AI for the ImamAli110 Persian channel. OpenClaw sh
 ## Cloud model policy
 
 - Primary provider: Groq via `GROQ_API_KEY` when configured.
-- OpenClaw-native fallback: OpenAI via `OPENAI_API_KEY` and `openai/gpt-4.1-mini`; this fallback can incur API charges.
+- OpenClaw-native fallback: OpenAI via `OPENAI_API_KEY` and `openai/gpt-5.5`; this fallback can incur API charges.
 - Optional cloud fallback: `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL` together.
 - Never start Ollama or another local model.
 - If no cloud provider is configured or all cloud providers fail, fail closed before upload and explain the missing configuration without printing secret values.
