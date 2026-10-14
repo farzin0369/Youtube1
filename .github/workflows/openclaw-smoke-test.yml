@@ -67,7 +67,7 @@ jobs:
           import json, os, urllib.error, urllib.request
           account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
           token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
-          url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/meta/llama-3.1-8b-instruct"
+          url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/meta/llama-3.1-8b-instruct-fast"
           body = json.dumps({"messages":[{"role":"user","content":"Reply with exactly CLOUDFLARE_WORKERS_AI_OK"}]}).encode()
           req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json"}, method="POST")
           try:
@@ -109,7 +109,7 @@ jobs:
         run: |
           if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
             echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
-            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct" >> "$GITHUB_OUTPUT"
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
           elif [ -n "${GROQ_API_KEY:-}" ]; then
             echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
             echo "provider=groq" >> "$GITHUB_OUTPUT"
@@ -142,7 +142,7 @@ jobs:
             "apiKey": "${CLOUDFLARE_API_TOKEN}",
             "api": "openai-completions",
             "models": [{
-              "id": "@cf/meta/llama-3.1-8b-instruct",
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
               "name": "Cloudflare Workers AI Llama 3.1 8B",
               "reasoning": False,
               "input": ["text"],
