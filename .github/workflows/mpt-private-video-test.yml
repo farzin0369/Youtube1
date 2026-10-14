@@ -66,7 +66,7 @@ jobs:
             out="MoneyPrinterTurbo/storage/local_videos/scene-${bg#0x}.mp4"
             ffmpeg -hide_banner -loglevel error -y \
               -f lavfi -i "color=c=${bg}:s=720x1280:r=24:d=6" \
-              -vf "drawbox=x='W/2-180+110*sin(t*0.45)':y='H/2-300+90*cos(t*0.35)':w=360:h=600:color=${glow}@0.40:t=fill,gblur=sigma=65,drawbox=x='W/2-2':y=0:w=4:h=H:color=white@0.04:t=fill,format=yuv420p" \
+              -vf "drawbox=x=180:y=300:w=360:h=600:color=${glow}@0.40:t=fill,gblur=sigma=65,drawbox=x=358:y=0:w=4:h=ih:color=white@0.04:t=fill,zoompan=z='min(zoom+0.0008,1.08)':d=1:s=720x1280:fps=24,format=yuv420p" \
               -an -c:v libx264 -preset ultrafast -crf 25 -movflags +faststart "$out"
           done
           test "$(find MoneyPrinterTurbo/storage/local_videos -maxdepth 1 -name '*.mp4' | wc -l)" -ge 4
