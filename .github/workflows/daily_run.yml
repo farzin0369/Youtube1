@@ -83,7 +83,7 @@ jobs:
           python - <<'PY'
           import os, sys
           groq = bool(os.getenv("GROQ_API_KEY", "").strip())
-          openai = bool(os.getenv("OPENAI_API_KEY", "").strip() or os.getenv("LLM_API_KEY", "").strip())
+          openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
           if not (groq or openai):
               print("No cloud model key found. Add GROQ_API_KEY (preferred) or OPENAI_API_KEY. No local model will be started.")
               sys.exit(1)
