@@ -6,7 +6,7 @@ import pytest
 
 from scripts.openclaw_manager import (
     ManagerError, _agent_json, _configure_local_gateway, _has_cloud_model_credentials,
-    _redact_secrets, _validated_agent_brief, parse_json_object, validate_brief,
+    _redact_secrets, _validated_agent_brief, REVIEW_PROMPT, parse_json_object, validate_brief,
 )
 
 
@@ -71,6 +71,12 @@ def test_invalid_brief_gets_one_repair_without_weakening_validation(monkeypatch)
     repaired = {**invalid, "topic": "آرامش در کار روزانه"}
     monkeypatch.setattr("scripts.openclaw_manager._agent_json", lambda *_args, **_kwargs: repaired)
     assert _validated_agent_brief("editorial-writer", invalid, role="writer")["topic"] == "آرامش در کار روزانه"
+
+
+def test_reviewer_uses_a_single_boolean_output_and_cannot_skip_approval():
+    assert '"approved": true' in REVIEW_PROMPT
+    assert '"brief":' not in REVIEW_PROMPT
+    assert "only if every criterion passes" in REVIEW_PROMPT
 
 
 def test_validate_brief_requires_all_short_fields() -> None:
