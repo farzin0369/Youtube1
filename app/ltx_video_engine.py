@@ -28,7 +28,7 @@ def generate_ltx_clips(
     *,
     width: int = 512,
     height: int = 896,
-    num_frames: int = 49,
+    num_frames: int = 121,
     fps: int = 24,
 ) -> list[Path]:
     """Generate one short clip per prompt using the official LTX Diffusers pipeline."""
