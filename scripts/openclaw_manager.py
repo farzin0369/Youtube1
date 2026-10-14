@@ -84,6 +84,40 @@ def _redact_secrets(text: str) -> str:
     return text
 
 
+LOOSE_OUTPUT_FIELDS = ("topic", "hook_angle", "visual_direction", "emotional_arc", "audience_value", "approved")
+
+
+def _parse_loose_json_object(value: str) -> dict[str, Any] | None:
+    """Recover the model's common unquoted-key pseudo-JSON; callers still validate every field."""
+    field_pattern = re.compile(
+        r'''(?:\{|,)\s*["']?(topic|hook_angle|visual_direction|emotional_arc|audience_value|approved)["']?\s*:''',
+        re.IGNORECASE,
+    )
+    matches = list(field_pattern.finditer(value))
+    keys = [match.group(1).lower() for match in matches]
+    if not matches or len(keys) != len(set(keys)):
+        return None
+    result: dict[str, Any] = {}
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(value)
+        raw = value[match.end():end].strip().rstrip(",").strip()
+        if raw.endswith("}"):
+            raw = raw[:-1].rstrip()
+        if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+            raw = raw[1:-1].strip()
+        if not raw:
+            return None
+        key = match.group(1).lower()
+        if key == "approved":
+            lowered = raw.lower()
+            if lowered not in {"true", "false"}:
+                return None
+            result[key] = lowered == "true"
+        else:
+            result[key] = raw
+    return result
+
+
 def parse_json_object(text: str) -> dict[str, Any]:
     """Parse a JSON object, tolerating one outer Markdown code fence."""
     value = str(text or "").strip()
@@ -103,6 +137,8 @@ def parse_json_object(text: str) -> dict[str, Any]:
             if isinstance(candidate, dict):
                 parsed = candidate
                 break
+        if parsed is None:
+            parsed = _parse_loose_json_object(value)
         if parsed is None:
             raise ManagerError("OpenClaw returned invalid JSON") from exc
     if not isinstance(parsed, dict):

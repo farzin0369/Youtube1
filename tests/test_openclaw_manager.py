@@ -53,6 +53,21 @@ def test_parse_json_object_extracts_object_from_model_preamble_and_trailer() -> 
     assert parse_json_object('پاسخ پیشنهادی:\n{"topic":"توکل آرام"}\nموفق باشید.') == {"topic": "توکل آرام"}
 
 
+def test_parse_json_object_recovers_known_unquoted_persian_fields():
+    raw = (
+        '{"audience_value:تمرین تمرکز برای تصمیم مسئولانه,emotional_arc:تردید؛ مکث؛ امید,'
+        'hook_angle:چرا یک مکث کوتاه؟,topic:تمرکز مسئولانه,visual_direction:فردی که پیش از پاسخ مکث می‌کند}'
+    )
+    parsed = parse_json_object(raw)
+    assert parsed["topic"] == "تمرکز مسئولانه"
+    assert parsed["audience_value"] == "تمرین تمرکز برای تصمیم مسئولانه"
+    assert validate_brief(parsed)["topic"] == "تمرکز مسئولانه"
+
+
+def test_parse_json_object_recovers_unquoted_boolean_approval():
+    assert parse_json_object("{approved:true}") == {"approved": True}
+
+
 def test_agent_json_retries_once_after_non_json_response(monkeypatch):
     outputs = iter(["متن بدون JSON", '{"topic":"توکل آرام"}'])
     roles = []
