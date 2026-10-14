@@ -449,9 +449,9 @@ def render_video(
             )
         if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
             raise RuntimeError(
-                "Shorts visual-quality gate: every authored scene needs portrait stock footage, "
-                "four explicitly supplied preview stills, or a complete LTX-generated scene set. "
-                "Check PEXELS_API_KEY or run AI_VIDEO_ENGINE=ltx on a CUDA GPU."
+                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
+                "each scene needs portrait stock footage, four explicitly supplied preview stills, or a complete "
+                "AI-generated scene set. Check PEXELS_API_KEY or run AI_VIDEO_ENGINE=wan on a CUDA GPU."
             )
         if scene_timings and len(scene_timings) == count:
             durations = [
