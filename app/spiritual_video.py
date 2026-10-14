@@ -417,8 +417,10 @@ def render_video(
     if video_format not in {"long", "shorts"}:
         raise ValueError("video_format must be 'long' or 'shorts'")
     ai_engine = (os.getenv("AI_VIDEO_ENGINE") or "").strip().lower()
-    if ai_engine == "ltx" and video_format != "shorts":
-        raise RuntimeError("The LTX backend is currently wired for scene-matched Shorts only")
+    if ai_engine not in {"", "ltx", "wan"}:
+        raise ValueError("AI_VIDEO_ENGINE must be unset, 'ltx', or 'wan'")
+    if ai_engine in {"ltx", "wan"} and video_format != "shorts":
+        raise RuntimeError("AI video backends are currently wired for scene-matched Shorts only")
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
@@ -429,7 +431,13 @@ def render_video(
             raise RuntimeError("Shorts require four specific, narration-matched visual searches")
         count = len(queries)
         ai_clips: list[Path] = []
-        if ai_engine == "ltx":
+        if ai_engine == "wan":
+            from app.wan_video_engine import generate_wan_clips
+            ai_clips = generate_wan_clips(
+                queries, out_dir / "wan", width=480, height=832, num_frames=81, fps=16,
+            )
+            stock, credits = [], []
+        elif ai_engine == "ltx":
             from app.ltx_video_engine import generate_ltx_clips
             ai_clips = generate_ltx_clips(
                 queries, out_dir / "ltx", width=512, height=896, num_frames=121, fps=FPS,
@@ -528,7 +536,7 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "ltx-video" if ai_clips else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "wan2.1" if ai_engine == "wan" and ai_clips else "ltx-video" if ai_clips else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
