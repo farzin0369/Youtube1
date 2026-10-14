@@ -25,7 +25,6 @@ from app.utils import env
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
-DEFAULT_LOCAL_MODEL = "qwen2.5:3b"
 
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
@@ -113,31 +112,6 @@ def _chat_completions(
     raise LLMUnavailable(f"cloud provider failed ({type(last_error).__name__})") from last_error
 
 
-def _ollama_call(
-    system: str,
-    prompt: str,
-    *,
-    max_tokens: int,
-    temperature: float,
-    json_mode: bool,
-    timeout: float,
-) -> str:
-    from app.local_ai import ollama_available, ollama_generate
-
-    if not ollama_available():
-        raise LLMUnavailable("local Ollama is not running")
-    model = (env("LOCAL_LLM_MODEL") or DEFAULT_LOCAL_MODEL).strip()
-    return ollama_generate(
-        prompt,
-        system=system,
-        model=model,
-        format_json=json_mode,
-        num_predict=max_tokens,
-        temperature=temperature,
-        timeout=timeout,
-    )
-
-
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
@@ -155,7 +129,6 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
-    chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 
@@ -180,20 +153,14 @@ def generate_text(
         except (TypeError, ValueError):
             timeout = 180.0
     chain = provider_chain()
+    if not chain:
+        raise LLMUnavailable("no cloud LLM provider configured; set GROQ_API_KEY or LLM_BASE_URL/LLM_API_KEY/LLM_MODEL")
     # Report provider names only; never log keys, URLs containing credentials, or tokens.
     logger.info("LLM providers configured: %s", ", ".join(name for name, _ in chain))
     failures: list[str] = []
     for name, call in chain:
         try:
             provider_timeout = timeout
-            if name.startswith("ollama:"):
-                try:
-                    provider_timeout = max(
-                        30.0,
-                        min(900.0, float(env("OLLAMA_TIMEOUT_SECONDS") or str(timeout))),
-                    )
-                except (TypeError, ValueError):
-                    provider_timeout = timeout
             text = call(
                 system,
                 prompt,
