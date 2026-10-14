@@ -1,0 +1,29 @@
+name: Apply OpenClaw reviewer fix
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2", "fix/openclaw-reviewer-v3"]
+    paths:
+      - "scripts/patch_openclaw_reviewer.py"
+      - ".github/workflows/apply-openclaw-reviewer-fix.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply surgical patch to openclaw_manager.py
+        run: python3 scripts/patch_openclaw_reviewer.py
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add scripts/openclaw_manager.py
+          if git diff --cached --quiet; then
+            echo "No manager changes to commit"
+          else
+            git commit -m "fix: apply bounded reviewer reject recovery to openclaw_manager"
+            git push
+          fi
