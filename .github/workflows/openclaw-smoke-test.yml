@@ -73,7 +73,7 @@ jobs:
             echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
             echo "provider=groq" >> "$GITHUB_OUTPUT"
           else
-            echo "model=openai/gpt-4.1-mini" >> "$GITHUB_OUTPUT"
+            echo "model=openai/gpt-5.5" >> "$GITHUB_OUTPUT"
             echo "provider=openai" >> "$GITHUB_OUTPUT"
           fi
 
