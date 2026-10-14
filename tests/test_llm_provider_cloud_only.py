@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from unittest.mock import patch
+
 import pytest
 
-from app.llm_provider import LLMUnavailable, generate_text, provider_chain
+from app.llm_provider import LLMUnavailable, _chat_completions, generate_text, provider_chain
 
 
 def test_provider_chain_never_uses_local_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -27,3 +30,39 @@ def test_cloud_provider_order_is_groq_then_generic(monkeypatch: pytest.MonkeyPat
     names = [name for name, _ in provider_chain()]
     assert names == ["groq:openai/gpt-oss-20b", "openai-compatible:test-model"]
     assert all("test-groq-key" not in name and "test-generic-key" not in name for name in names)
+
+
+def test_cloudflare_uses_max_tokens_parameter() -> None:
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode()
+
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(request, timeout):
+        captured["body"] = json.loads(request.data.decode())
+        return FakeResponse()
+
+    with patch("app.llm_provider.urllib.request.urlopen", side_effect=fake_urlopen):
+        answer = _chat_completions(
+            "https://api.cloudflare.com/client/v4/accounts/test-account/ai/v1",
+            "not-a-real-secret",
+            "@cf/meta/llama-3.1-8b-instruct-fast",
+            "system",
+            "prompt",
+            max_tokens=128,
+            temperature=0.2,
+            json_mode=False,
+            timeout=1,
+        )
+
+    assert answer == "ok"
+    body = captured["body"]
+    assert body["max_tokens"] == 128
+    assert "max_completion_tokens" not in body
