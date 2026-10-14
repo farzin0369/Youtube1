@@ -87,7 +87,7 @@ def main() -> int:
         "",
         "- This report does not include credentials or tokens.",
         "- GitHub-hosted runners have no CUDA GPU; this is a health/test report, not proof of a successful Colab GPU render.",
-- Public publishing is controlled by the channel configuration and the scheduled GitHub Actions workflow.
+        "- Public publishing is controlled by the channel configuration and the scheduled GitHub Actions workflow.",
     ]
     stats = health.get("statistics")
     if isinstance(stats, dict):
