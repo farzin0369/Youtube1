@@ -1,0 +1,68 @@
+name: Import OpenClaw Source
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "OpenClaw Git ref (branch, tag, or commit)"
+        required: true
+        default: "main"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-openclaw-source
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Youtube1
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Clone complete OpenClaw source
+        env:
+          OPENCLAW_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/openclaw-source
+          git clone --depth 1 --branch "$OPENCLAW_REF" https://github.com/openclaw/openclaw.git /tmp/openclaw-source || {
+            git clone https://github.com/openclaw/openclaw.git /tmp/openclaw-source
+            git -C /tmp/openclaw-source checkout "$OPENCLAW_REF"
+          }
+          rm -rf /tmp/openclaw-source/.git
+          test -f /tmp/openclaw-source/package.json
+          test -d /tmp/openclaw-source/src
+          du -sh /tmp/openclaw-source
+
+      - name: Copy source into vendor/openclaw
+        run: |
+          set -euo pipefail
+          mkdir -p vendor
+          rm -rf vendor/openclaw
+          cp -a /tmp/openclaw-source vendor/openclaw
+          cat > vendor/openclaw/IMPORTED_SOURCE.md <<'EOF'
+          This directory is a vendored snapshot of https://github.com/openclaw/openclaw.
+          It is imported by .github/workflows/import-openclaw-source.yml.
+          Upstream license and notices are retained. This snapshot does not mean the
+          OpenClaw Gateway is installed, configured, or running.
+          EOF
+
+      - name: Commit source snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/openclaw
+          if git diff --cached --quiet; then
+            echo "OpenClaw source snapshot is already up to date."
+            exit 0
+          fi
+          git commit -m "Vendor OpenClaw source snapshot"
+          git push origin HEAD:main
