@@ -124,7 +124,7 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
         base, key, model = generic
         chain.append((
             f"openai-compatible:{model}",
-            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+            lambda system, prompt, _base=base, _key=key, _model=model, **kw: _chat_completions(_base, _key, _model, system, prompt, **kw),
         ))
     return chain
 
