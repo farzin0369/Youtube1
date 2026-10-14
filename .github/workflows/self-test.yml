@@ -12,8 +12,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      PYTHONPATH: /usr/lib/python3/dist-packages
     steps:
       - uses: actions/checkout@v4
       - name: Install Linux D-Bus and GObject introspection runtime
@@ -24,7 +22,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install compatible build tooling
-        run: python -m pip install "setuptools<70" wheel
+        run: python -m pip install --upgrade pip setuptools wheel
       - name: Install dependencies
         run: |
           python -m pip install -r requirements.txt
@@ -32,6 +30,8 @@ jobs:
       - name: Python syntax check
         run: python -m compileall -q app scripts
       - name: Run unit tests
+        env:
+          PYTHONPATH: /usr/lib/python3/dist-packages
         run: python -m pytest -q
       - name: Verify automation files
         run: |
