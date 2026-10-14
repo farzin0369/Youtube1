@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL = "groq/openai/gpt-oss-20b"
+DEFAULT_MODEL = "openai/gpt-5.5"
 BRIEF_PATH = ROOT / "state" / "openclaw_brief.json"
 TEAM_IDS = ("editorial-coordinator", "editorial-researcher", "editorial-writer", "editorial-reviewer")
 
