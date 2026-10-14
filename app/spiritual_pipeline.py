@@ -92,7 +92,7 @@ def _configure_logging(run_id: str) -> logging.Logger:
 
 
 def _safe_error(message: str) -> str:
-    for name in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "GROQ_API_KEY", "PEXELS_API_KEY"):
+    for name in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "GROQ_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY", "PEXELS_API_KEY", "ELEVENLABS_API_KEY"):
         secret = (os.getenv(name) or "").strip()
         if secret:
             message = message.replace(secret, "[REDACTED]")
