@@ -429,6 +429,93 @@ def _ambient_track(
     return out_path
 
 
+def _sound_effect_track(
+    out_path: Path,
+    duration: float,
+    scene_timings: list[dict[str, float]] | None = None,
+) -> Path:
+    """Create deterministic, offline footsteps and golden-light shimmer.
+
+    The events are placed against the measured narration scene starts rather
+    than guessed clip lengths.  This keeps the first walking beat and the
+    light-tree reveal attached to the same spoken moments on every render.
+    """
+    import wave
+
+    import numpy as np
+
+    sample_rate = 48_000
+    frames = max(1, int(round(float(duration) * sample_rate)))
+    track = np.zeros((frames, 2), dtype=np.float64)
+    timings = scene_timings if scene_timings and len(scene_timings) >= 3 else []
+    starts = [float(row.get("start_seconds", 0.0)) for row in timings]
+    ends = [float(row.get("end_seconds", duration)) for row in timings]
+
+    def add_event(start: float, signal: np.ndarray, gain: float, pan: float = 0.0) -> None:
+        left_gain = gain * (1.0 - max(0.0, pan))
+        right_gain = gain * (1.0 + min(0.0, pan))
+        left = max(0, int(round(start * sample_rate)))
+        right = min(frames, left + len(signal))
+        if right <= left:
+            return
+        segment = signal[: right - left]
+        track[left:right, 0] += segment * left_gain
+        track[left:right, 1] += segment * right_gain
+
+    def footstep(length: float, seed: int) -> np.ndarray:
+        rng = np.random.default_rng(seed)
+        t = np.arange(max(1, int(length * sample_rate))) / sample_rate
+        envelope = np.exp(-t * 17.0) * (1.0 - np.exp(-t * 130.0))
+        body = 0.62 * np.sin(2 * np.pi * 92.0 * t) + 0.28 * np.sin(2 * np.pi * 148.0 * t)
+        grit = rng.normal(0.0, 0.16, len(t))
+        return (body + grit) * envelope
+
+    def shimmer(length: float) -> np.ndarray:
+        t = np.arange(max(1, int(length * sample_rate))) / sample_rate
+        envelope = np.exp(-t * 2.9) * (1.0 - np.exp(-t * 20.0))
+        sweep = 0.5 * np.sin(2 * np.pi * (1220.0 + 280.0 * t) * t)
+        high = 0.28 * np.sin(2 * np.pi * 1840.0 * t) + 0.18 * np.sin(2 * np.pi * 2630.0 * t)
+        return (sweep + high) * envelope
+
+    # Walking beat: three close steps in the macro opening and two steps in
+    # the rear tracking shot.  The short delays leave the narration clear.
+    foot_events: list[float] = []
+    if starts:
+        first_end = min(ends[0], duration)
+        foot_events.extend([starts[0] + 0.55, starts[0] + 1.55, max(starts[0] + 0.0, first_end - 0.42)])
+    if len(starts) > 1:
+        second_end = min(ends[1], duration)
+        foot_events.extend([starts[1] + 0.55, max(starts[1] + 0.0, second_end - 0.48)])
+    for index, event in enumerate(sorted(set(round(value, 3) for value in foot_events))):
+        add_event(event, footstep(0.34, 110 + index), 0.22, -0.12 if index % 2 == 0 else 0.12)
+
+    # Golden-light reveal: a shimmer at the third shot and a softer resolving
+    # tail at the final shot, with stereo movement but no synthetic melody.
+    if len(starts) > 2:
+        add_event(starts[2] + 0.20, shimmer(1.55), 0.16, -0.22)
+    if len(starts) > 3:
+        add_event(starts[3] + 0.10, shimmer(1.20), 0.10, 0.20)
+
+    # A very short stereo echo provides the hall impression without a large
+    # convolution dependency.  It is intentionally quieter than the source.
+    echo = track.copy()
+    delay = int(0.095 * sample_rate)
+    if delay < frames:
+        track[delay:, 0] += echo[:-delay, 1] * 0.12
+        track[delay:, 1] += echo[:-delay, 0] * 0.12
+
+    peak = float(np.max(np.abs(track))) or 1.0
+    track = np.clip(track / max(1.0, peak / 0.88), -1.0, 1.0)
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(out_path), "wb") as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes((track * 32767.0).astype(np.int16).tobytes())
+    return out_path
+
+
 def _make_segment(
     source: Path | None, image_path: Path | None, duration: float, out_path: Path, seed: int,
     *, width: int = WIDTH, height: int = HEIGHT,
@@ -639,6 +726,10 @@ def render_video(
         out_dir / "ambient.wav", duration, sum(map(ord, run_id)), profile=video_format,
         scene_durations=durations if video_format == "shorts" else None,
     )
+    effects = _sound_effect_track(
+        out_dir / "sound-effects.wav", duration,
+        scene_timings if video_format == "shorts" else None,
+    )
     thumbnail = make_thumbnail(title, thumbnail_text, out_dir / "thumbnail.jpg")
     final_path = out_dir / "video.mp4"
     subtitle_path = Path(captions_path)
@@ -655,17 +746,21 @@ def render_video(
     fade_start = max(0.0, duration - fade_duration)
     mix = (
         "[1:a]highpass=f=70,acompressor=threshold=0.16:ratio=2:attack=12:release=220,"
-        "loudnorm=I=-16:TP=-2:LRA=8,asetpts=PTS-STARTPTS,asplit=2[voice][voice_key];"
+        "loudnorm=I=-16:TP=-2:LRA=8,asetpts=PTS-STARTPTS,asplit=3[voice][voice_music][voice_fx];"
         "[2:a]volume=0.16,asetpts=PTS-STARTPTS[bed];"
-        "[bed][voice_key]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280,"
+        "[bed][voice_music]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280,"
         f"apad=whole_dur={duration:.3f},atrim=duration={duration:.3f},asetpts=PTS-STARTPTS,"
         f"afade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}[ducked];"
-        "[voice][ducked]amix=inputs=2:duration=longest:dropout_transition=0,"
+        "[3:a]volume=0.70,highpass=f=70,lowpass=f=7000,asetpts=PTS-STARTPTS[fx];"
+        "[fx][voice_fx]sidechaincompress=threshold=0.028:ratio=6:attack=6:release=180,"
+        f"apad=whole_dur={duration:.3f},atrim=duration={duration:.3f},asetpts=PTS-STARTPTS[fxducked];"
+        "[voice][ducked][fxducked]amix=inputs=3:duration=longest:dropout_transition=0,"
         f"alimiter=limit=0.96,apad=pad_dur=0.25,atrim=duration={duration:.3f}[aout]"
     )
     command = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file),
-        "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music), "-filter_complex", mix,
+        "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music),
+        "-i", str(effects), "-filter_complex", mix,
         "-map", "0:v:0", "-map", "[aout]", "-vf", subtitles,
         "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "160k",
@@ -682,6 +777,9 @@ def render_video(
         "visual_credits": credits,
         "pexels_credits": credits if stock_source == "pexels" else [],
         "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
+        "sound_effects_source": "procedurally generated offline footsteps and shimmer",
+        "sound_effects_path": str(effects),
+        "sound_effects_timing": "scene-anchored: footsteps in scenes 1-2, shimmer in scenes 3-4",
         "on_screen_captions": True, "video_width": width, "video_height": height,
         "video_format": video_format, "caption_font_size": 64 if video_format == "shorts" else 40,  # readable-caps-v2,
         "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",
