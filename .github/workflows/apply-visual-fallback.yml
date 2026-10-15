@@ -5,6 +5,7 @@ on:
     branches: ["feat/openclaw-autonomous-manager-v2"]
     paths:
       - "scripts/patch_shorts_visual_fallback.py"
+      - "scripts/patch_pollinations_visuals.py"
       - ".github/workflows/apply-visual-fallback.yml"
 permissions:
   contents: write
@@ -13,15 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply visual fallback patch
+      - name: Apply visual patches
         run: |
           set -euo pipefail
-          python3 scripts/patch_shorts_visual_fallback.py
-          grep -q "auto-generated abstract stills\|generating abstract stills" app/spiritual_video.py
+          [ -f scripts/patch_shorts_visual_fallback.py ] && python3 scripts/patch_shorts_visual_fallback.py || true
+          python3 scripts/patch_pollinations_visuals.py
+          grep -q "fetch_pollinations_stills" app/spiritual_video.py
       - name: Commit
         run: |
           set -euo pipefail
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
           git add app/spiritual_video.py
-          if git diff --cached --quiet; then echo noop; else git commit -m "fix: abstract stills fallback when Pexels/GPU missing" && git push; fi
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: free Pollinations visuals without Pexels account" && git push; fi

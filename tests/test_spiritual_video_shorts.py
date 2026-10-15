@@ -55,7 +55,8 @@ def test_shorts_score_has_four_audio_beats(tmp_path: Path):
     assert video.probe_duration(track) == pytest.approx(4.0, abs=0.1)
 
 
-def test_short_renderer_fails_closed_if_even_one_portrait_scene_is_missing(tmp_path: Path, monkeypatch):
+def test_short_renderer_falls_back_to_free_stills_when_stock_missing(tmp_path: Path, monkeypatch):
+    """Without Pexels, production may use Pollinations or local abstract stills — not hard-fail."""
     audio = tmp_path / "audio.wav"
     with wave.open(str(audio), "wb") as output:
         output.setnchannels(1)
@@ -64,9 +65,25 @@ def test_short_renderer_fails_closed_if_even_one_portrait_scene_is_missing(tmp_p
         output.writeframes(b"\0\0" * 22_050)
     monkeypatch.setattr(video, "probe_duration", lambda path: 1.0)
     monkeypatch.setattr(video, "fetch_stock", lambda *args, **kwargs: ([], []))
-    with pytest.raises(RuntimeError, match="portrait footage could not be obtained"):
-        video.render_video(
-            title="test", thumbnail_text="تست کوتاه", keywords=[], audio_path=audio,
-            captions_path=tmp_path / "captions.srt", out_dir=tmp_path / "render", run_id="test",
-            video_format="shorts", scene_queries=["one scene query"] * 4,
-        )
+    # Force offline free path so CI does not depend on Pollinations network.
+    if hasattr(video, "fetch_pollinations_stills"):
+        monkeypatch.setattr(video, "fetch_pollinations_stills", lambda *args, **kwargs: ([], []))
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    (tmp_path / "captions.srt").write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nتست\n",
+        encoding="utf-8",
+    )
+    result = video.render_video(
+        title="test",
+        thumbnail_text="تست کوتاه",
+        keywords=[],
+        audio_path=audio,
+        captions_path=tmp_path / "captions.srt",
+        out_dir=tmp_path / "render",
+        run_id="test",
+        video_format="shorts",
+        scene_queries=["one scene query"] * 4,
+    )
+    assert Path(result["video_path"]).is_file()
+    assert result.get("visual_scene_count") == 4
