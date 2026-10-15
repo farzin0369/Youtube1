@@ -1,6 +1,11 @@
 name: Restore video engine and soft OpenClaw
 on:
   workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/trigger_restore_video.txt"
+      - ".github/workflows/restore-video-and-openclaw.yml"
 permissions:
   contents: write
 jobs:
@@ -11,12 +16,10 @@ jobs:
       - name: Restore spiritual_video and soft OpenClaw in code
         run: |
           set -euo pipefail
-          # Restore video module from last known good commit
           curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/ec9c42ffaf28223b3678c2fcd4b108c033750041/app/spiritual_video.py" \
             -o app/spiritual_video.py
           test "$(wc -c < app/spiritual_video.py)" -gt 20000
 
-          # Yellow box captions
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/spiritual_video.py")
@@ -38,22 +41,16 @@ jobs:
           )
           compile(t, "spiritual_video.py", "exec")
           p.write_text(t, encoding="utf-8")
-          print("VIDEO_OK")
+          print("VIDEO_OK", p.stat().st_size)
           PY
 
-          # Soft OpenClaw when idea bank is on
           python3 - <<'PY'
           from pathlib import Path
           import re
           p = Path("scripts/openclaw_manager.py")
           t = p.read_text(encoding="utf-8")
           if "idea-bank skip" not in t:
-              inject = '''
-def _idea_bank_enabled() -> bool:
-    import os
-    return os.getenv("USE_IDEA_BANK", "").strip() in {"1", "true", "True", "yes"}
-
-'''
+              inject = "\ndef _idea_bank_enabled() -> bool:\n    import os\n    return os.getenv(\"USE_IDEA_BANK\", \"\").strip() in {\"1\", \"true\", \"True\", \"yes\"}\n\n"
               t = inject + t
               m = re.search(r"(def main\(\) -> int:\n)", t)
               if not m:
@@ -70,5 +67,4 @@ def _idea_bank_enabled() -> bool:
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
           git add app/spiritual_video.py scripts/openclaw_manager.py
-          git status
           if git diff --cached --quiet; then echo noop; else git commit -m "fix: restore video + yellow captions + idea-bank skips OpenClaw" && git push; fi
