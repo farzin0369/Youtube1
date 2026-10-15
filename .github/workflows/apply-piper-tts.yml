@@ -1,0 +1,41 @@
+name: Apply offline Piper Persian TTS
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and commit daily_run.yml first
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/a1a4ed16e60dbdb04659132c6921d5886b57d1db/.github/workflows/daily_run.yml" \
+            -o .github/workflows/daily_run.yml
+          sed -i "s/vars.TTS_PROVIDER || 'edge-tts'/vars.TTS_PROVIDER || 'piper'/" .github/workflows/daily_run.yml
+          grep -q "Persian spiritual channel" .github/workflows/daily_run.yml
+          test "$(wc -c < .github/workflows/daily_run.yml)" -gt 10000
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add .github/workflows/daily_run.yml
+          if git diff --cached --quiet; then
+            echo "daily_run already ok"
+          else
+            git commit -m "fix: restore daily_run.yml; default TTS_PROVIDER=piper"
+            git push
+          fi
+      - name: Optional piper backend patch
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ -f scripts/patch_piper_tts_backend.py ]; then
+            python3 scripts/patch_piper_tts_backend.py || true
+          fi
+          git add app/piper_tts.py app/spiritual_tts.py config/channel.yaml requirements.txt 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo noop
+          else
+            git commit -m "feat: free offline Piper Persian TTS backend" || true
+            git push || true
+          fi

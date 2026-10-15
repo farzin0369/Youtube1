@@ -38,6 +38,7 @@ def test_short_emotion_label_changes_tts_controls_conservatively():
     calm = _delivery("calm", {"emotion": "calm", "intensity": 0.8, "confidence": 0.9})
     neutral = _delivery("calm", {"emotion": "neutral", "intensity": 0.0, "confidence": 0.0})
     assert angry != calm
-    assert neutral == ("-8.0%", "-2.0Hz")
+    # clearer_v3 calm baseline
+    assert neutral == ("-8%", "-1Hz")
     assert abs(float(angry[0].rstrip("%"))) <= 10
     assert abs(float(angry[1].rstrip("Hz"))) <= 3

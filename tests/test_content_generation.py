@@ -124,48 +124,54 @@ def test_section_rules_are_not_placed_in_the_user_prompt():
     assert "قواعد نوشتن هر بخش" in spiritual_content.SECTION_RULES
 
 
-def test_provider_chain_falls_through_to_local_ollama(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_BASE_URL", raising=False)
-    monkeypatch.delenv("LLM_API_KEY", raising=False)
-    monkeypatch.delenv("LLM_MODEL", raising=False)
-    monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: "پاسخ محلی")
-    text, provider = llm_provider.generate_text("system", "prompt")
-    assert text == "پاسخ محلی"
-    assert provider.startswith("ollama:")
+def test_no_cloud_provider_fails_closed_without_local_fallback(monkeypatch):
+    for name in ("GROQ_API_KEY", "LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
+    with pytest.raises(llm_provider.LLMUnavailable, match="no cloud LLM provider configured"):
+        llm_provider.generate_text("system", "prompt")
 
 
 def test_groq_is_preferred_when_configured(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_BASE_URL", "https://generic.example/v1")
+    monkeypatch.setenv("LLM_API_KEY", "generic-test-key")
+    monkeypatch.setenv("LLM_MODEL", "generic-model")
     monkeypatch.setattr(llm_provider, "_chat_completions", lambda *a, **kw: "پاسخ ابری")
-    monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: pytest.fail("local model should not be used"))
     text, provider = llm_provider.generate_text("system", "prompt")
     assert text == "پاسخ ابری"
     assert provider.startswith("groq:")
 
 
-def test_cloud_failure_degrades_to_the_next_provider(monkeypatch):
+def test_cloud_failure_degrades_only_to_the_next_cloud_provider(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_BASE_URL", "https://generic.example/v1")
+    monkeypatch.setenv("LLM_API_KEY", "generic-test-key")
+    monkeypatch.setenv("LLM_MODEL", "generic-model")
 
-    def broken(*args, **kwargs):
-        raise RuntimeError("rate limited")
+    def fail_groq_then_succeed_generic(base_url, api_key, model, *args, **kwargs):
+        if base_url == llm_provider.GROQ_BASE_URL:
+            raise RuntimeError("rate limited")
+        return "پاسخ از جایگزین ابری"
 
-    monkeypatch.setattr(llm_provider, "_chat_completions", broken)
-    monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: "پاسخ محلی")
+    monkeypatch.setattr(llm_provider, "_chat_completions", fail_groq_then_succeed_generic)
     text, provider = llm_provider.generate_text("system", "prompt")
-    assert text == "پاسخ محلی"
-    assert provider.startswith("ollama:")
+    assert text == "پاسخ از جایگزین ابری"
+    assert provider == "openai-compatible:generic-model"
 
 
-def test_every_provider_failing_raises(monkeypatch):
+def test_every_cloud_provider_failing_raises(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_BASE_URL", "https://generic.example/v1")
+    monkeypatch.setenv("LLM_API_KEY", "generic-test-key")
+    monkeypatch.setenv("LLM_MODEL", "generic-model")
 
     def broken(*args, **kwargs):
         raise RuntimeError("unavailable")
 
     monkeypatch.setattr(llm_provider, "_chat_completions", broken)
-    monkeypatch.setattr(llm_provider, "_ollama_call", broken)
-    with pytest.raises(llm_provider.LLMUnavailable):
+    with pytest.raises(llm_provider.LLMUnavailable, match="no LLM provider succeeded"):
         llm_provider.generate_text("system", "prompt")
 
 

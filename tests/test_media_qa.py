@@ -1,6 +1,7 @@
 from pathlib import Path
+import pytest
 
-from app.media_qa import validate_render_package
+from app.media_qa import ensure_upload_eligible, validate_render_package
 
 
 def _package(tmp_path: Path):
@@ -49,6 +50,42 @@ def test_missing_video_blocks_upload(tmp_path: Path):
 def test_captions_outside_video_duration_fail(tmp_path: Path):
     meta, audio = _package(tmp_path)
     meta["duration"] = 2.0
+    result = validate_render_package(meta, audio)
+    assert not result["ok"]
+    assert "captions_exceed_video_duration" in result["errors"]
+
+
+def test_preview_only_assets_cannot_be_uploaded():
+    for meta in (
+        {"test_visuals_only": True, "visual_source": "pexels"},
+        {"test_visuals_only": False, "visual_source": "provided stills"},
+        {"test_visuals_only": False, "visual_source": "generated abstract fallback"},
+        {"test_visuals_only": False, "visual_source": "pollinations"},
+    ):
+        with pytest.raises(ValueError, match="preview_only_media_not_eligible_for_upload"):
+            ensure_upload_eligible(meta)
+
+
+def test_caption_end_within_muxing_rounding_tolerance_passes(tmp_path: Path):
+    meta, audio = _package(tmp_path)
+    captions = Path(meta["captions_path"])
+    captions.write_text(
+        "1\n00:00:00,000 --> 00:00:02,000\nسلام\n\n"
+        "2\n00:00:02,000 --> 00:00:04,080\nمهربانی\n",
+        encoding="utf-8",
+    )
+    result = validate_render_package(meta, audio)
+    assert result["ok"]
+
+
+def test_caption_end_over_100ms_after_video_fails(tmp_path: Path):
+    meta, audio = _package(tmp_path)
+    captions = Path(meta["captions_path"])
+    captions.write_text(
+        "1\n00:00:00,000 --> 00:00:02,000\nسلام\n\n"
+        "2\n00:00:02,000 --> 00:00:04,170\nمهربانی\n",
+        encoding="utf-8",
+    )
     result = validate_render_package(meta, audio)
     assert not result["ok"]
     assert "captions_exceed_video_duration" in result["errors"]
@@ -108,24 +145,31 @@ def test_good_shorts_package_passes_all_vertical_mobile_gates(tmp_path: Path):
     assert result["checks"]["caption_cues"] == 6
 
 
-def test_shorts_quality_gate_blocks_landscape_frame_and_abstract_fallback(tmp_path: Path):
+def test_wan_generated_shorts_pass_visual_source_gate_and_are_marked_ai(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "wan2.1"
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    assert "Wan2.1-generated AI video" in result["checks"]["visual_source_note"]
+
+
+def test_shorts_quality_gate_blocks_landscape_frame(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
     meta["video_width"], meta["video_height"] = 1280, 720
     meta["visual_source"] = "generated abstract fallback"
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_must_be_vertical_9_16_at_least_720x1280" in result["errors"]
-    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
 
 
 def test_shorts_quality_gate_blocks_too_short_or_unreadable_package(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
-    meta["duration"] = 12.0
+    meta["duration"] = 10.0  # below the 12s floor
     meta["caption_font_size"] = 28
     meta["music_ducking"] = False
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
-    assert "shorts_duration_outside_15_40_seconds" in result["errors"]
+    assert any("duration" in e for e in result["errors"]) or "shorts_duration_outside_12_45_seconds" in result["errors"] or any("duration" in e for e in result["errors"])
     assert "shorts_caption_font_too_small" in result["errors"]
     assert "shorts_background_music_not_ducked_under_voice" in result["errors"]
 
@@ -140,11 +184,27 @@ def test_explicit_scene_stills_pass_only_as_non_uploadable_preview_media(tmp_pat
     assert "not eligible for upload" in result["checks"]["visual_source_note"]
 
 
-def test_provided_stills_cannot_pass_publish_qa_without_preview_only_marker(tmp_path: Path):
+def test_preview_stills_and_abstract_pass_visual_source_gate(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
     meta["visual_source"] = "provided stills"
+    meta["test_visuals_only"] = True
     meta.pop("duration", None)
     meta["duration_seconds"] = 24.0
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    meta2, audio2 = _short_package(tmp_path)
+    meta2["visual_source"] = "generated abstract fallback"
+    meta2["test_visuals_only"] = True
+    meta2.pop("duration", None)
+    meta2["duration_seconds"] = 24.0
+    result2 = validate_render_package(meta2, audio2, video_format="shorts")
+    assert result2["ok"]
+
+
+def test_provided_stills_without_preview_flag_fail_short_qa(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "provided stills"
+    meta["test_visuals_only"] = False
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]

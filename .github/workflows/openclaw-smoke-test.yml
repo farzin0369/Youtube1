@@ -1,22 +1,135 @@
-name: OpenClaw CLI Smoke Test
+name: OpenClaw cloud model smoke test
 
 on:
   workflow_dispatch:
   push:
+    branches: ["feat/**", "fix/**"]
     paths:
       - "vendor/openclaw/package.json"
       - ".github/workflows/openclaw-smoke-test.yml"
+      - ".github/workflows/daily_run.yml"
+      - "docs/OPENCLAW_AUTONOMOUS_MANAGER.md"
+      - "app/llm_provider.py"
+      - "app/spiritual_shorts.py"
+      - "scripts/openclaw_manager.py"
+      - "tests/test_llm_provider_cloud_only.py"
+      - "tests/test_openclaw_manager.py"
+      - "config/channel.yaml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: openclaw-cloud-smoke
+  cancel-in-progress: false
+
 jobs:
-  cli-smoke-test:
+  cloud-model-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run cloud-only and manager unit tests
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest -q tests/test_llm_provider_cloud_only.py tests/test_openclaw_manager.py
+
+      - name: Require cloud credentials without revealing them
+        run: |
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Cloudflare Workers AI credentials are configured."
+          elif [ -n "${GROQ_API_KEY:-}" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "A cloud credential is configured."
+          else
+            echo "::error::Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, or a working Groq/OpenAI key."
+            exit 1
+          fi
+
+      - name: Test Cloudflare Workers AI API directly
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          python - <<'PY'
+          import json, os, re, urllib.error, urllib.request
+          from scripts.openclaw_manager import BRIEF_RESPONSE_FORMAT, REVIEW_PROMPT, REVIEW_RESPONSE_FORMAT, STRATEGY_PROMPT, _redact_secrets, parse_json_object, validate_brief
+          account = os.environ["CLOUDFLARE_ACCOUNT_ID"].strip()
+          token = os.environ["CLOUDFLARE_API_TOKEN"].strip()
+          url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions"
+          prompt = STRATEGY_PROMPT.replace("{recent}", "[]")
+          body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":prompt}],"response_format":BRIEF_RESPONSE_FORMAT}).encode()
+          req = urllib.request.Request(url, data=body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
+          try:
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = json.loads(response.read().decode())
+          except urllib.error.HTTPError as exc:
+              try:
+                  error_payload = json.loads(exc.read().decode("utf-8"))
+                  safe_errors = []
+                  for item in error_payload.get("errors", [])[:3]:
+                      if isinstance(item, dict):
+                          message = str(item.get("message", ""))
+                          for secret in (token, account):
+                              if secret:
+                                  message = message.replace(secret, "[REDACTED]")
+                          message = re.sub(r"(?i)(bearer\s+)\S+", r"\1[REDACTED]", message)
+                          safe_errors.append(f"{item.get('code', '?')}: {message[:240]}")
+              except Exception:
+                  safe_errors = []
+              detail = "; ".join(safe_errors) if safe_errors else "details unavailable/redacted"
+              print(f"Cloudflare Workers AI request failed with HTTP {exc.code}; {detail}.")
+              raise SystemExit(1)
+          except Exception as exc:
+              print(f"Cloudflare Workers AI request failed: {type(exc).__name__}; details withheld.")
+              raise SystemExit(1)
+          try:
+              content = payload["choices"][0]["message"]["content"]
+              result = json.loads(content) if isinstance(content, str) else content
+          except Exception as exc:
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(locals().get("content", "")))).strip()[:220]
+              print(f"Cloudflare Workers AI did not return valid JSON ({type(exc).__name__}); preview={preview!r}")
+              raise SystemExit(1)
+          required = set(BRIEF_RESPONSE_FORMAT["json_schema"]["required"])
+          if not isinstance(result, dict) or set(result) != required or any(not isinstance(result[k], str) for k in required):
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(content))).strip()[:220]
+              print(f"Cloudflare Workers AI returned a JSON object outside the five-field schema; preview={preview!r}")
+              raise SystemExit(1)
+          print("PASS: Cloudflare Workers AI returned a valid five-field JSON object.")
+          try:
+              validate_brief(result)
+              print("PASS: first draft passed the project content validator.")
+          except Exception as exc:
+              print(f"NOTE: first draft needs the manager's bounded content repair ({type(exc).__name__}: {exc}).")
+          review_prompt = REVIEW_PROMPT.replace("{candidate}", json.dumps(result, ensure_ascii=False))
+          review_body = json.dumps({"model":"@cf/meta/llama-3.1-8b-instruct-fast","messages":[{"role":"user","content":review_prompt}],"response_format":REVIEW_RESPONSE_FORMAT}).encode()
+          review_req = urllib.request.Request(url, data=review_body, headers={"Authorization":f"Bearer {token}","Content-Type":"application/json","cf-aig-gateway-id":"default"}, method="POST")
+          try:
+              with urllib.request.urlopen(review_req, timeout=60) as response:
+                  review_payload = json.loads(response.read().decode())
+              review_content = review_payload["choices"][0]["message"]["content"]
+              review_result = parse_json_object(review_content if isinstance(review_content, str) else json.dumps(review_content))
+          except Exception as exc:
+              preview = _redact_secrets(re.sub(r"\s+", " ", str(locals().get("review_content", "")))).strip()[:180]
+              print(f"Cloudflare direct reviewer probe failed ({type(exc).__name__}); preview={preview!r}")
+              raise SystemExit(1)
+          if type(review_result.get("approved")) is not bool:
+              print("Cloudflare direct reviewer probe did not return a boolean approval field.")
+              raise SystemExit(1)
+          print("PASS: Cloudflare direct reviewer probe returned a boolean approval value.")
+          PY
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
@@ -26,17 +139,95 @@ jobs:
       - name: Verify imported OpenClaw source
         shell: bash
         run: |
+          set -euo pipefail
           test -f vendor/openclaw/package.json
           node -e "const p=require('./vendor/openclaw/package.json'); if(p.name!=='openclaw') process.exit(1); console.log('OpenClaw package:', p.name, p.version)"
           test -f vendor/openclaw/openclaw.mjs
 
-      - name: Install published OpenClaw CLI
-        run: npm install --global openclaw@latest
-
-      - name: Verify CLI starts
-        run: openclaw --help
-
-      - name: Report deployment boundary
+      - name: Select cloud provider and model
+        id: model
+        shell: bash
         run: |
-          echo "PASS: OpenClaw CLI can start in GitHub Actions."
-          echo "This smoke test does not configure a model, start a persistent Gateway, connect YouTube, or publish videos."
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
+          elif [ -n "${GROQ_API_KEY:-}" ]; then
+            echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
+            echo "provider=groq" >> "$GITHUB_OUTPUT"
+          else
+            echo "model=openai/gpt-5.5" >> "$GITHUB_OUTPUT"
+            echo "provider=openai" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OpenClaw CLI and selected provider
+        run: |
+          npm install --global openclaw@2026.10.3
+          openclaw --help >/dev/null
+          if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
+            openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          fi
+
+      - name: Configure and validate cloud model
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.model.outputs.provider }}" = "cloudflare" ]; then
+            provider_json="$(python - <<'PY'
+          import json
+          print(json.dumps({
+            "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+            "apiKey": {"source": "env", "provider": "default", "id": "CLOUDFLARE_API_TOKEN"},
+            "headers": {"cf-aig-gateway-id": "default"},
+            "api": "openai-completions",
+            "models": [{
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
+              "name": "Cloudflare Workers AI Llama 3.1 8B",
+              "reasoning": False,
+              "input": ["text"],
+              "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+              "contextWindow": 131072,
+              "maxTokens": 4096,
+              "compat": {"requiresStringContent": True, "supportsTools": False, "supportsJsonSchemaResponseFormat": True}
+            }]
+          }))
+          PY
+          )"
+            openclaw config set models.providers.cloudflare "$provider_json" --strict-json --merge
+          fi
+          openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
+          openclaw config validate
+
+      - name: Run a real OpenClaw cloud completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          openclaw agent exec --model "${{ steps.model.outputs.model }}" --timeout 120 --json "Reply with exactly this marker and nothing else: OPENCLAW_CLOUD_MODEL_OK" > "${RUNNER_TEMP}/openclaw-result.json"
+          if ! grep -q "OPENCLAW_CLOUD_MODEL_OK" "${RUNNER_TEMP}/openclaw-result.json"; then
+            echo "::error::OpenClaw exited without the expected cloud completion marker."
+            head -c 3000 "${RUNNER_TEMP}/openclaw-result.json"
+            exit 1
+          fi
+          echo "PASS: OpenClaw returned the expected cloud completion marker."
+
+      - name: Run the real OpenClaw editorial manager
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENCLAW_MODEL: ${{ steps.model.outputs.model }}
+        run: python scripts/openclaw_manager.py
+
+      - name: Upload sanitized OpenClaw result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-cloud-smoke-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/openclaw-result.json
+            state/openclaw_brief.json
+          if-no-files-found: ignore
+          retention-days: 3

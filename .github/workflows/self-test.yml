@@ -14,17 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
+      - name: Install system Python, D-Bus, GObject introspection, FFmpeg and fonts
         run: |
-          pip install -r requirements.txt
-          pip install pytest
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-gi gir1.2-glib-2.0 dbus-x11 ffmpeg fonts-noto-core
+      - name: Create venv using system Python so PyGObject ABI matches
+        run: /usr/bin/python3 -m venv --system-site-packages .venv
+      - name: Install compatible build tooling and dependencies
+        run: |
+          .venv/bin/python -m pip install --upgrade pip "setuptools<81" wheel
+          .venv/bin/python -m pip install -r requirements.txt pytest
       - name: Python syntax check
-        run: python -m compileall -q app scripts
+        run: .venv/bin/python -m compileall -q app scripts
       - name: Run unit tests
-        run: python -m pytest -q
+        env:
+          PYTHONPATH: /usr/lib/python3/dist-packages
+        run: .venv/bin/python -m pytest -q
       - name: Verify automation files
         run: |
           test -f app/llm_provider.py

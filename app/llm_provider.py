@@ -1,14 +1,11 @@
-"""Provider-agnostic text generation for the daily pipeline.
+"""Cloud-only text generation for the daily pipeline.
 
-No paid subscription is required. Providers are tried in this order:
+Providers are tried in this order:
+1. GROQ_API_KEY — Groq's OpenAI-compatible API.
+2. LLM_BASE_URL + LLM_API_KEY + LLM_MODEL — another OpenAI-compatible cloud API.
 
-1. ``GROQ_API_KEY`` — free tier of Groq (OpenAI-compatible).
-2. ``LLM_BASE_URL`` + ``LLM_API_KEY`` — any OpenAI-compatible gateway
-   (OpenRouter, Together, DeepInfra, a self-hosted vLLM, ...).
-3. Local Ollama on ``OLLAMA_BASE_URL`` — always available, no key.
-
-Every provider failure is isolated: a rate-limited or unreachable cloud
-provider falls through to the next one instead of killing the run.
+There is deliberately no local-model fallback. If every configured cloud
+provider fails, generation stops safely instead of silently using Ollama.
 Credentials are never logged.
 """
 
@@ -25,7 +22,6 @@ from app.utils import env
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
-DEFAULT_LOCAL_MODEL = "qwen2.5:3b"
 
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
@@ -70,18 +66,23 @@ def _chat_completions(
             {"role": "user", "content": prompt},
         ],
         "temperature": temperature,
-        "max_completion_tokens": max_tokens,
     }
+    # Cloudflare's OpenAI-compatible endpoint expects max_tokens; OpenAI's
+    # newer API also accepts max_completion_tokens. Keep each provider's schema.
+    if "api.cloudflare.com/client/v4/accounts/" in base_url:
+        body["max_tokens"] = max_tokens
+    else:
+        body["max_completion_tokens"] = max_tokens
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_error: Exception | None = None
     for attempt in range(3):
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        if "api.cloudflare.com/client/v4/accounts/" in base_url:
+            headers["cf-aig-gateway-id"] = "default"
         request = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=payload,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            method="POST",
+            f"{base_url}/chat/completions", data=payload, headers=headers, method="POST",
         )
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -113,31 +114,6 @@ def _chat_completions(
     raise LLMUnavailable(f"cloud provider failed ({type(last_error).__name__})") from last_error
 
 
-def _ollama_call(
-    system: str,
-    prompt: str,
-    *,
-    max_tokens: int,
-    temperature: float,
-    json_mode: bool,
-    timeout: float,
-) -> str:
-    from app.local_ai import ollama_available, ollama_generate
-
-    if not ollama_available():
-        raise LLMUnavailable("local Ollama is not running")
-    model = (env("LOCAL_LLM_MODEL") or DEFAULT_LOCAL_MODEL).strip()
-    return ollama_generate(
-        prompt,
-        system=system,
-        model=model,
-        format_json=json_mode,
-        num_predict=max_tokens,
-        temperature=temperature,
-        timeout=timeout,
-    )
-
-
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
@@ -146,16 +122,15 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
         base, key, model = groq
         chain.append((
             f"groq:{model}",
-            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+            lambda system, prompt, _base=base, _key=key, _model=model, **kw: _chat_completions(_base, _key, _model, system, prompt, **kw),
         ))
     generic = _generic_config()
     if generic:
         base, key, model = generic
         chain.append((
             f"openai-compatible:{model}",
-            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+            lambda system, prompt, _base=base, _key=key, _model=model, **kw: _chat_completions(_base, _key, _model, system, prompt, **kw),
         ))
-    chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 
@@ -180,20 +155,14 @@ def generate_text(
         except (TypeError, ValueError):
             timeout = 180.0
     chain = provider_chain()
+    if not chain:
+        raise LLMUnavailable("no cloud LLM provider configured; set GROQ_API_KEY or LLM_BASE_URL/LLM_API_KEY/LLM_MODEL")
     # Report provider names only; never log keys, URLs containing credentials, or tokens.
     logger.info("LLM providers configured: %s", ", ".join(name for name, _ in chain))
     failures: list[str] = []
     for name, call in chain:
         try:
             provider_timeout = timeout
-            if name.startswith("ollama:"):
-                try:
-                    provider_timeout = max(
-                        30.0,
-                        min(900.0, float(env("OLLAMA_TIMEOUT_SECONDS") or str(timeout))),
-                    )
-                except (TypeError, ValueError):
-                    provider_timeout = timeout
             text = call(
                 system,
                 prompt,

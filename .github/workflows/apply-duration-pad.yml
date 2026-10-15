@@ -1,0 +1,22 @@
+name: Apply duration pad
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_duration_pad.py"
+      - ".github/workflows/apply-duration-pad.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_duration_pad.py
+      - run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/media_qa.py app/spiritual_tts.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: Shorts duration 12-45s + pad narration to 16s" && git push; fi

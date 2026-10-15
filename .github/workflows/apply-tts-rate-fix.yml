@@ -1,0 +1,27 @@
+name: Apply TTS rate integer fix
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_tts_rate_integer.py"
+      - ".github/workflows/apply-tts-rate-fix.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply TTS integer rate patch
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_tts_rate_integer.py
+          grep -q 'int(round(rate))' app/spiritual_tts.py
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_tts.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: Edge TTS integer rate/pitch" && git push; fi

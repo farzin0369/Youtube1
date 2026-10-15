@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from app.spiritual_content import validate_content, word_count
-from app.spiritual_pipeline import next_publish_at
+from app.spiritual_pipeline import _should_run_comment_moderation, next_publish_at
 from app.spiritual_tts import phrase_cues, TICKS_PER_SECOND
 from app.spiritual_comments import _spam, SENSITIVE_TERMS
 from app.spiritual_video import _get_with_backoff
@@ -99,6 +99,13 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     assert content["target_word_count"] == "28-44"
 
 
+def test_channel_defaults_to_local_piper_voice():
+    config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
+    channel = config["channel"]
+    assert channel["tts_model"] == "piper"
+    assert channel["tts_voice"] == "fa_IR-mana-medium.onnx"
+
+
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
@@ -120,6 +127,15 @@ def test_sensitive_or_spam_comments_are_never_auto_replied_to():
     assert _spam("سلام https://spam.example")
     assert SENSITIVE_TERMS.search("من به خودکشی فکر می‌کنم")
     assert SENSITIVE_TERMS.search("برای سرمایه‌گذاری شخصی چه کنم؟")
+
+
+def test_private_upload_never_enters_comment_moderation():
+    assert not _should_run_comment_moderation(
+        dry_run=False, upload_private=True, upload={"ok": True, "privacy": "private"}
+    )
+    assert _should_run_comment_moderation(
+        dry_run=False, upload_private=False, upload={"ok": True, "privacy": "scheduled"}
+    )
 
 
 def test_pexels_rate_limit_retries_before_falling_back(monkeypatch):

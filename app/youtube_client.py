@@ -18,7 +18,8 @@ YOUTUBE_SCOPES = [
 def _contains_synthetic_media() -> bool:
     setting = env("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA")
     if setting is None:
-        return (env("VIDEO_ENGINE") or "cpu").lower() == "cogvideox"
+        engine = (env("AI_VIDEO_ENGINE") or env("VIDEO_ENGINE") or "cpu").lower()
+        return engine in {"cogvideox", "wan", "ltx"}
     return setting.strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -186,7 +187,13 @@ def upload_video(
                 result["thumbnail_set"] = True
             except Exception as te:
                 result["thumbnail_error"] = str(te)
-                result.update({"ok": False, "error": "Custom thumbnail upload failed; video was left private."})
+                # Private drafts remain usable even when daily thumbnail quota is exhausted.
+                if privacy == "private":
+                    result["thumbnail_set"] = False
+                    result["ok"] = True
+                    result["warning"] = "thumbnail_quota_or_error; private video kept without custom thumb"
+                else:
+                    result.update({"ok": False, "error": "Custom thumbnail upload failed; video was left private."})
                 return result
         elif privacy in ("public", "unlisted"):
             result.update({"ok": False, "error": "Custom thumbnail missing; video was left private."})
