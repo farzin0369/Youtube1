@@ -1,1 +1,214 @@
-PLACEHOLDER
+name: Persian spiritual channel — daily Shorts
+
+on:
+  schedule:
+    - cron: "30 14 * * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Upload and schedule publicly for 18:00 Tehran
+        required: true
+        type: boolean
+        default: false
+      upload_private:
+        description: Upload a private draft now (never publish publicly)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persian-spiritual-daily
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
+      LLM_BASE_URL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && format('https://api.cloudflare.com/client/v4/accounts/{0}/ai/v1', secrets.CLOUDFLARE_ACCOUNT_ID) || vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_API_KEY: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.LLM_API_KEY || secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+      LLM_MODEL: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && '@cf/meta/llama-3.1-8b-instruct-fast' || vars.LLM_MODEL || 'gpt-4.1-mini' }}
+      LLM_TIMEOUT_SECONDS: "180"
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      AI_VIDEO_ENGINE: ""
+      WAN_MODEL_ID: ${{ vars.WAN_MODEL_ID }}
+      WAN_INFERENCE_STEPS: ${{ vars.WAN_INFERENCE_STEPS }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      TTS_PROVIDER: ${{ vars.TTS_PROVIDER || 'piper' }}
+      TTS_VOICE: fa-IR-FaridNeural
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_v4' }}
+      ELEVENLABS_STABILITY: ${{ vars.ELEVENLABS_STABILITY || '0.5' }}
+      ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
+      CHANNEL_BRAND: ImamAli110
+      CHANNEL_HISTORY_PATH: state/history.json
+      USE_IDEA_BANK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest piper-tts huggingface_hub
+      - name: Run automated regression tests before production
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          USE_IDEA_BANK: "0"
+        run: python -m pytest -q
+      - name: Install FFmpeg and Persian fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Restore bounded channel history and reply ledger
+        uses: actions/cache@v4
+        with:
+          path: state/
+          key: persian-growth-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            persian-growth-state-
+      - name: Initialize state files
+        run: |
+          mkdir -p state output logs
+          test -f state/history.json || printf '{"recent": []}\n' > state/history.json
+          test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
+      - name: Verify cloud LLM configuration before production
+        run: |
+          python - <<'PY'
+          import os, sys
+          groq = bool(os.getenv("GROQ_API_KEY", "").strip())
+          openai = bool(os.getenv("OPENAI_API_KEY", "").strip())
+          cloudflare = bool(os.getenv("CLOUDFLARE_API_TOKEN", "").strip() and os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip())
+          if not (groq or openai or cloudflare):
+              print("No cloud model credentials found.")
+              sys.exit(1)
+          print("Cloud model credential presence check passed.")
+          PY
+      - name: Verify YouTube credentials before any production work
+        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+        run: |
+          python - <<'PY'
+          from app.youtube_client import probe_youtube_auth
+          result = probe_youtube_auth()
+          if not result.get("ok"):
+              print("YouTube OAuth preflight failed")
+              raise SystemExit(1)
+          print("YouTube OAuth preflight passed.")
+          PY
+      - name: Set up Node.js for OpenClaw
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Select cloud model for OpenClaw
+        id: model
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "model=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_OUTPUT"
+            echo "provider=cloudflare" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=cloudflare/@cf/meta/llama-3.1-8b-instruct-fast" >> "$GITHUB_ENV"
+          elif [ -n "${GROQ_API_KEY:-}" ]; then
+            echo "model=groq/openai/gpt-oss-20b" >> "$GITHUB_OUTPUT"
+            echo "provider=groq" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=groq/openai/gpt-oss-20b" >> "$GITHUB_ENV"
+          elif [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "model=openai/gpt-5.5" >> "$GITHUB_OUTPUT"
+            echo "provider=openai" >> "$GITHUB_OUTPUT"
+            echo "OPENCLAW_MODEL=openai/gpt-5.5" >> "$GITHUB_ENV"
+          else
+            echo "::error::No supported cloud model credential configured."
+            exit 1
+          fi
+      - name: Install OpenClaw and selected cloud provider
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npm install --global openclaw@2026.10.3
+          if [ "${{ steps.model.outputs.provider }}" = "groq" ]; then
+            openclaw plugins install npm:@openclaw/groq-provider --accept-capabilities --acknowledge-install-policy-warning
+          elif [ "${{ steps.model.outputs.provider }}" = "cloudflare" ]; then
+            provider_json="$(python - <<'PY'
+          import json
+          print(json.dumps({
+            "baseUrl": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+            "apiKey": {"source": "env", "provider": "default", "id": "CLOUDFLARE_API_TOKEN"},
+            "headers": {"cf-aig-gateway-id": "default"},
+            "api": "openai-completions",
+            "models": [{
+              "id": "@cf/meta/llama-3.1-8b-instruct-fast",
+              "name": "Cloudflare Workers AI Llama 3.1 8B",
+              "reasoning": False,
+              "input": ["text"],
+              "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+              "contextWindow": 131072,
+              "maxTokens": 4096,
+              "compat": {"requiresStringContent": True, "supportsTools": False, "supportsJsonSchemaResponseFormat": True}
+            }]
+          }))
+          PY
+          )"
+            openclaw config set models.providers.cloudflare "$provider_json" --strict-json --merge
+          fi
+          openclaw config set agents.defaults.model.primary "${{ steps.model.outputs.model }}"
+          openclaw config validate
+      - name: Run OpenClaw editorial manager and specialist agents
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || secrets.OPENAI_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OPENCLAW_MODEL: ${{ steps.model.outputs.model }}
+        run: python scripts/openclaw_manager.py
+      - name: Run Persian spiritual video pipeline
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+          USE_IDEA_BANK: "1"
+        run: |
+          if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
+            python scripts/daily_run.py --publish
+          elif [ "${{ inputs.upload_private }}" = "true" ]; then
+            python scripts/daily_run.py --upload-private
+          else
+            python scripts/daily_run.py --dry-run
+          fi
+      - name: Run bounded comment moderation and daily health report
+        if: success() && (github.event_name == 'schedule' || inputs.publish == true)
+        env:
+          ENABLE_AUTO_COMMENT_REPLIES: "true"
+          MAX_COMMENT_VIDEOS: "1"
+          MAX_COMMENTS_PER_VIDEO: "3"
+        run: python scripts/daily_health_report.py --test-status passed
+      - name: Upload production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persian-spiritual-production-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/spiritual/
+            state/
+            logs/
+          retention-days: 3
+          if-no-files-found: warn
