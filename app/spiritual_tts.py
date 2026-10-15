@@ -85,7 +85,7 @@ def phrase_cues(
 
 
 async def _render(
-    text: str, audio_path: Path, *, rate: str = "-4%", pitch: str = "+0Hz",
+    text: str, audio_path: Path, *, rate: str = "-6%", pitch: str = "+0Hz",
 ) -> list[dict[str, Any]]:
     import edge_tts
 
@@ -241,13 +241,13 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     Edge TTS does not expose native emotion styles; these small changes are only
     prosody hints, not a claim that anger/joy/etc. can be faithfully synthesized.
     """
-    # natural_v2: milder rates sound less robotic on Edge neural voices.
+    # clearer_v3: slightly slow delivery improves Persian pronunciation on Edge TTS.
     base_rate, base_pitch = {
-        "hook": ("+2%", "+1Hz"),
-        "calm": ("-4%", "-1Hz"),
-        "reassuring": ("-2%", "+0Hz"),
-        "motivational": ("+3%", "+1Hz"),
-    }.get(str(mood or "").lower(), ("-2%", "+0Hz"))
+        "hook": ("-2%", "+0Hz"),
+        "calm": ("-8%", "-1Hz"),
+        "reassuring": ("-6%", "+0Hz"),
+        "motivational": ("-1%", "+0Hz"),
+    }.get(str(mood or "").lower(), ("-5%", "+0Hz"))
     hint = hint if isinstance(hint, dict) else {}
     emotion = str(hint.get("emotion") or "neutral").lower()
     intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
