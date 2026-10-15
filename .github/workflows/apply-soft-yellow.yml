@@ -1,11 +1,6 @@
 name: Soft OpenClaw and yellow captions
 on:
   workflow_dispatch:
-  push:
-    branches: ["feat/openclaw-autonomous-manager-v2"]
-    paths:
-      - "scripts/patch_soft_openclaw_yellow.py"
-      - ".github/workflows/apply-soft-yellow.yml"
 permissions:
   contents: write
 jobs:
@@ -13,8 +8,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/patch_soft_openclaw_yellow.py
-      - run: |
+      - name: Patch files with sed
+        run: |
+          set -euo pipefail
+          # Soft-fail OpenClaw so idea-bank production continues
+          if ! grep -q "continue-on-error: true" .github/workflows/daily_run.yml; then
+            sed -i '/name: Run OpenClaw editorial manager and specialist agents/a\        continue-on-error: true' .github/workflows/daily_run.yml
+          fi
+          grep -q "continue-on-error: true" .github/workflows/daily_run.yml
+
+          # Yellow opaque box captions (black text on yellow)
+          sed -i 's/Style: Default,Noto Naskh Arabic,72,&H00FFFFFF,&H0000FFFF,&HCC000000,&HCC000000,-1,0,0,0,100,100,0,0,4,12,0,2,40,40,280,1/Style: Default,Noto Naskh Arabic,68,\&H00000000,\&H00000000,\&H00000000,\&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,320,1/' app/spiritual_video.py
+          sed -i 's/Style: Hook,Noto Naskh Arabic,92,&H003EC9FF,&H0000FFFF,&HCC000000,&HCC000000,-1,0,0,0,100,100,0,0,5,14,0,8,36,36,360,1/Style: Hook,Noto Naskh Arabic,72,\&H00000000,\&H00000000,\&H00000000,\&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,380,1/' app/spiritual_video.py
+          grep -q "0,0,0,3,36,36,320" app/spiritual_video.py
+
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
           git add .github/workflows/daily_run.yml app/spiritual_video.py
