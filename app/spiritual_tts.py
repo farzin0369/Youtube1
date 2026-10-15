@@ -31,6 +31,9 @@ def _provider() -> str:
     provider = aliases.get(provider, provider)
     if provider not in {"edge-tts", "elevenlabs", "piper", "coqui", "vits"}:  # coqui-vits-v1
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
+    # coqui-first-v2: env may still say piper; upgrade to natural male VITS
+    if provider == "piper" and __import__("os").getenv("FORCE_PIPER", "").lower() not in {"1", "true", "yes"}:
+        provider = "coqui"
     return provider
 
 
