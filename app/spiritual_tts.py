@@ -25,25 +25,21 @@ def _provider() -> str:
         provider = str(configured).strip().lower()
     else:
         try:
-            provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "edge-tts").strip().lower()
+            provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "piper").strip().lower()
         except Exception:
-            provider = "edge-tts"
+            provider = "piper"
     aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
     provider = aliases.get(provider, provider)
     if provider not in {"edge-tts", "elevenlabs", "piper"}:
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
-    # Mana-Persian-Piper is a female voice. Apply the male-narrator guard after
-    # both the environment and channel.yaml have been resolved. The workflow
-    # sets TTS_PROVIDER=piper; without this, production crashes or speaks with
-    # the female checkpoint.
-    if provider == "piper" and env("ALLOW_FEMALE_TTS", "").strip().lower() not in {"1", "true", "yes"}:
-        logger.warning("piper Mana is female; using male fa-IR-FaridNeural via Edge TTS")
-        provider = "edge-tts"
     return provider
 
 
 def _voice(provider: str | None = None) -> str:
     provider = provider or _provider()
+    if provider == "piper":
+        from app.piper_tts import MODEL_ONNX
+        return MODEL_ONNX
     if provider == "elevenlabs":
         value = env("ELEVENLABS_VOICE_ID")
         if not value:
@@ -291,6 +287,25 @@ def _duration(path: Path) -> float:
     return duration
 
 
+def _piper_events(text: str, audio_path: Path, *, mood: str, hint: dict[str, Any]) -> list[dict[str, Any]]:
+    """Render with the local Piper voice and create deterministic caption timings."""
+    from app.piper_tts import synthesize_piper
+
+    synthesize_piper(text, audio_path, mood=mood, hint=hint)
+    duration = _duration(audio_path)
+    words = text.split()
+    slot = duration / max(len(words), 1)
+    return [
+        {
+            "type": "WordBoundary",
+            "text": word,
+            "offset": int(round(index * slot * TICKS_PER_SECOND)),
+            "duration": max(1, int(round(slot * TICKS_PER_SECOND))),
+        }
+        for index, word in enumerate(words)
+    ]
+
+
 def _merge_segments(
     parts: list[Path], output: Path, pause_seconds: float | list[float] = 0.28,
 ) -> None:
@@ -361,7 +376,10 @@ def synthesize_with_captions(
     provider = _provider()
 
     if scenes:
-        scene_texts = [re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip() for scene in scenes]
+        scene_texts = [
+            normalize_for_tts(re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip())
+            for scene in scenes
+        ]
         if " ".join(scene_texts) != normalized_script:
             raise ValueError("TTS scene narration must exactly match the approved script")
         with tempfile.TemporaryDirectory(prefix="persian-tts-", dir=str(audio_path.parent)) as temp_dir:
@@ -380,26 +398,11 @@ def synthesize_with_captions(
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
                 elif provider == "piper":
-                    from app.piper_tts import synthesize_piper
-                    synthesize_piper(
+                    events = _piper_events(
                         scene_text, part,
                         mood=str(scene.get("mood") or ""),
                         hint=hint if isinstance(hint, dict) else {},
                     )
-                    # Approximate word timings for captions (even split).
-                    import wave as _wave
-                    dur = _duration(part)
-                    words = scene_text.split()
-                    events = []
-                    if words:
-                        slot = dur / max(len(words), 1)
-                        for wi, w in enumerate(words):
-                            events.append({
-                                "type": "WordBoundary",
-                                "text": w,
-                                "offset": int(round(wi * slot * 10_000_000)),
-                                "duration": max(1, int(round(slot * 10_000_000))),
-                            })
                 else:
                     events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)
@@ -412,7 +415,10 @@ def synthesize_with_captions(
                     shifted_events.append(shifted)
                 all_events.extend(shifted_events)
                 scene_timings.append({"start_seconds": start, "end_seconds": start + duration})
-                pause = max(0.18, min(0.70, float(hint.get("pause_after_ms", 280)) / 1000.0))
+                # The supplied reference leaves roughly 1–2 seconds between
+                # contemplative beats; keep the ceiling high enough for that
+                # style while retaining a safe default for ordinary Shorts.
+                pause = max(0.18, min(1.50, float(hint.get("pause_after_ms", 280)) / 1000.0))
                 scene_pauses.append(pause)
                 delivery_log.append({
                     "mood": str(scene.get("mood") or ""),
@@ -430,6 +436,8 @@ def synthesize_with_captions(
     else:
         if provider == "elevenlabs":
             all_events = _render_elevenlabs(normalized_script, audio_path)
+        elif provider == "piper":
+            all_events = _piper_events(normalized_script, audio_path, mood="calm", hint={})
         else:
             all_events = asyncio.run(_render(normalized_script, audio_path))
 
@@ -451,7 +459,7 @@ def synthesize_with_captions(
     else:
         cues = phrase_cues(all_events)
     if not cues:
-        raise RuntimeError("No subtitle phrases could be built from Edge TTS metadata")
+        raise RuntimeError("No subtitle phrases could be built from TTS timing metadata")
     duration_seconds = _duration(audio_path)
     cues = clamp_caption_cues_to_duration(cues, duration_seconds)
     blocks = [
@@ -463,7 +471,7 @@ def synthesize_with_captions(
         "path": str(audio_path),
         "captions_path": str(captions_path),
         "provider": provider,
-        "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
+        "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else ("Mana-Persian-Piper" if provider == "piper" else "edge-tts"),
         "voice": _voice(provider),
         "narrator_locked": True,
         "caption_mode": "word-boundary phrase captions",

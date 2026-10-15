@@ -7,8 +7,8 @@ channel:
   timezone: Asia/Tehran
   audience: مخاطب فارسی‌زبان علاقه‌مند به ارتباط معنوی با خدا، حکمت، رشد فردی و عادت‌های سالم مالی
   objective: ویدئوهای اصیل دربارهٔ معنویت روزمره، توکل، امید، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
-  narrator: مرد
-  tts_voice: fa-IR-FaridNeural  # free Edge neural; slower rate improves clarity
+  narrator: زن، بزرگسال، آرام و تأملی
+  tts_voice: fa_IR-mana-medium.onnx  # local Mana-Persian-Piper; no speech API
   tts_model: piper
   visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
   ai_engine: groq-or-openai-compatible-cloud-only

@@ -1,33 +1,24 @@
-import logging
 import pytest
 
 from app import spiritual_tts
 from app.spiritual_tts import absorb_orphan_caption_tails, clamp_caption_cues_to_duration
 
 
-def test_piper_setting_keeps_the_male_farid_voice(monkeypatch, caplog):
+def test_piper_setting_stays_offline_and_uses_mana_voice(monkeypatch):
     monkeypatch.setenv("TTS_PROVIDER", "piper")
     monkeypatch.delenv("ALLOW_FEMALE_TTS", raising=False)
-    with caplog.at_level(logging.WARNING):
-        assert spiritual_tts._provider() == "edge-tts"
-    assert "female" in caplog.text.lower()
-    assert spiritual_tts._voice("edge-tts") == "fa-IR-FaridNeural"
+    assert spiritual_tts._provider() == "piper"
+    assert spiritual_tts._voice("piper") == "fa_IR-mana-medium.onnx"
 
 
-def test_channel_yaml_piper_also_falls_back_to_farid(monkeypatch):
+def test_channel_yaml_piper_stays_offline(monkeypatch):
     monkeypatch.delenv("TTS_PROVIDER", raising=False)
     monkeypatch.delenv("ALLOW_FEMALE_TTS", raising=False)
     monkeypatch.setattr(
         spiritual_tts,
         "load_channel_config",
-        lambda: {"channel": {"tts_model": "piper", "tts_voice": "fa-IR-FaridNeural"}},
+        lambda: {"channel": {"tts_model": "piper", "tts_voice": "fa_IR-mana-medium.onnx"}},
     )
-    assert spiritual_tts._provider() == "edge-tts"
-
-
-def test_female_piper_requires_an_explicit_opt_in(monkeypatch):
-    monkeypatch.setenv("TTS_PROVIDER", "piper")
-    monkeypatch.setenv("ALLOW_FEMALE_TTS", "true")
     assert spiritual_tts._provider() == "piper"
 
 

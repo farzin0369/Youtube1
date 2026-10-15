@@ -1,4 +1,4 @@
-"""Offline free Persian TTS via Piper + Mana-Persian-Piper (MIT, no API key)."""
+"""Offline Persian TTS via Piper + Mana-Persian-Piper (no speech API key)."""
 from __future__ import annotations
 
 from app.persian_tts_normalize import normalize_for_tts
@@ -94,13 +94,21 @@ def synthesize_piper(
         raise RuntimeError("Piper returned empty audio")
 
     # Convert to mp3 if caller asked for .mp3 (FFmpeg available in production).
+    # The default filter is intentionally subtle: it adds the close-mic body and
+    # short hall tail heard in the supplied reference without washing out speech.
     if audio_path.suffix.lower() == ".mp3":
         import subprocess
+
+        audio_filter = os.getenv(
+            "PIPER_AUDIO_FILTER",
+            "highpass=f=70,lowpass=f=12000,aecho=0.80:0.72:85|170|255:0.10|0.06|0.03,loudnorm=I=-16:TP=-1.5:LRA=11",
+        ).strip()
 
         subprocess.run(
             [
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                 "-i", str(wav_path), "-codec:a", "libmp3lame", "-b:a", "192k",
+                "-af", audio_filter,
                 str(audio_path),
             ],
             check=True,
@@ -122,6 +130,7 @@ def synthesize_piper(
         "model": MODEL_REPO,
         "voice": MODEL_ONNX,
         "length_scale": length_scale,
+        "audio_filter": audio_filter if audio_path.suffix.lower() == ".mp3" else "none",
         "mood": mood,
         "ok": True,
     }

@@ -99,6 +99,13 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     assert content["target_word_count"] == "28-44"
 
 
+def test_channel_defaults_to_local_piper_voice():
+    config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
+    channel = config["channel"]
+    assert channel["tts_model"] == "piper"
+    assert channel["tts_voice"] == "fa_IR-mana-medium.onnx"
+
+
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
