@@ -1,6 +1,8 @@
 """Persian neural TTS with word-timed captions and per-scene delivery shaping."""
 from __future__ import annotations
 
+import logging
+
 from app.persian_tts_normalize import normalize_for_tts
 
 import asyncio
@@ -13,6 +15,8 @@ from typing import Any
 
 from app.utils import env, load_channel_config
 
+logger = logging.getLogger(__name__)
+
 TICKS_PER_SECOND = 10_000_000
 
 
@@ -20,7 +24,7 @@ def _provider() -> str:
     configured = env("TTS_PROVIDER")  # male-voice-v1
     # Mana-Persian-Piper is a female voice; channel requires male narration.
     if (configured or "").strip().lower() == "piper" and env("ALLOW_FEMALE_TTS", "").lower() not in {"1", "true", "yes"}:
-        logger.warning("piper Mana is female — switching to edge-tts Farid (male)")
+        logging.getLogger(__name__).warning("piper Mana is female — switching to edge-tts Farid (male)")
         configured = "edge-tts"
     if configured:
         provider = str(configured).strip().lower()
