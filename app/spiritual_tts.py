@@ -25,7 +25,7 @@ def _provider() -> str:
             provider = "edge-tts"
     aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
     provider = aliases.get(provider, provider)
-    if provider not in {"edge-tts", "elevenlabs"}:
+    if provider not in {"edge-tts", "elevenlabs", "piper"}:
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
     return provider
 
@@ -302,6 +302,27 @@ def synthesize_with_captions(
                         previous_text=scene_texts[index - 1] if index > 0 else "",
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
+                elif provider == "piper":
+                    from app.piper_tts import synthesize_piper
+                    synthesize_piper(
+                        scene_text, part,
+                        mood=str(scene.get("mood") or ""),
+                        hint=hint if isinstance(hint, dict) else {},
+                    )
+                    # Approximate word timings for captions (even split).
+                    import wave as _wave
+                    dur = _duration(part)
+                    words = scene_text.split()
+                    events = []
+                    if words:
+                        slot = dur / max(len(words), 1)
+                        for wi, w in enumerate(words):
+                            events.append({
+                                "type": "WordBoundary",
+                                "text": w,
+                                "offset": int(round(wi * slot * 10_000_000)),
+                                "duration": max(1, int(round(slot * 10_000_000))),
+                            })
                 else:
                     events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)

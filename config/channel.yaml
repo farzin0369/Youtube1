@@ -9,7 +9,7 @@ channel:
   objective: ویدئوهای اصیل دربارهٔ معنویت روزمره، توکل، امید، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural  # free Edge neural; slower rate improves clarity
-  tts_model: edge-tts
+  tts_model: piper
   visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
   ai_engine: groq-or-openai-compatible-cloud-only
   llm_model: openai/gpt-oss-20b
