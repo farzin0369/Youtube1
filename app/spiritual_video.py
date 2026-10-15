@@ -1,6 +1,8 @@
 """Low-cost vertical stock/abstract video assembly with Persian captions."""
 from __future__ import annotations
 
+from app.visual_prompts import cinematic_prompts_for_scenes, mixkit_keywords_from_scenes
+
 import json
 import logging
 import math
@@ -600,8 +602,9 @@ def render_video(
         ai_clips: list[Path] = []
         if ai_engine == "wan":
             from app.wan_video_engine import generate_wan_clips
+            ai_prompts = cinematic_prompts_for_scenes(queries, topic=str(title or ""))
             ai_clips = generate_wan_clips(
-                queries, out_dir / "wan", width=480, height=832, num_frames=81, fps=16,
+                ai_prompts, out_dir / "wan", width=480, height=832, num_frames=81, fps=16,
             )
             stock, credits = [], []
         elif ai_engine == "ltx":
