@@ -142,6 +142,70 @@ def fetch_pollinations_stills(
     return paths, credits
 
 
+def fetch_mixkit_stock(
+    keywords: list[str], out_dir: Path, count: int = 4, *,
+    orientation: str = "portrait",
+) -> tuple[list[Path], list[str]]:
+    """Download free Mixkit stock clips — no API key, no account required."""
+    import re
+    import urllib.parse
+    import urllib.request
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    credits: list[str] = []
+    seen: set[str] = set()
+    queries = (keywords or ["calm nature", "peaceful light", "sunrise", "ocean waves"])[: max(count * 2, 4)]
+    # Prefer calm spiritual-adjacent free vertical search terms when queries are abstract.
+    extras = ["calm", "nature vertical", "sunrise", "meditation", "ocean waves", "soft light"]
+    for keyword in list(queries) + extras:
+        if len(paths) >= count:
+            break
+        try:
+            search = urllib.parse.quote(str(keyword).strip() or "calm")
+            page_url = f"https://mixkit.co/free-stock-video/{search}/"
+            req = urllib.request.Request(
+                page_url,
+                headers={"User-Agent": "ImamAli110-pipeline/1.0 (free stock; attribution via Mixkit license)"},
+            )
+            with urllib.request.urlopen(req, timeout=25) as response:
+                html = response.read().decode("utf-8", errors="ignore")
+            # Prefer higher quality 720/1080 assets.
+            candidates = re.findall(
+                r"https://assets\.mixkit\.co/videos/\d+/\d+-(?:720|1080)\.mp4",
+                html,
+            )
+            if not candidates:
+                candidates = re.findall(r"https://assets\.mixkit\.co/videos/\d+/\d+-\d+\.mp4", html)
+            for url in candidates:
+                if url in seen or len(paths) >= count:
+                    continue
+                seen.add(url)
+                vid_id = url.split("/")[-2]
+                target = out_dir / f"mixkit_{vid_id}.mp4"
+                try:
+                    with urllib.request.urlopen(
+                        urllib.request.Request(url, headers={"User-Agent": "ImamAli110-pipeline/1.0"}),
+                        timeout=60,
+                    ) as clip:
+                        data = clip.read()
+                    if len(data) < 80_000:
+                        continue
+                    target.write_bytes(data)
+                    paths.append(target)
+                    credits.append(f"Mixkit free stock video {vid_id}: {url}")
+                    break  # one clip per keyword for variety
+                except Exception as exc:
+                    logging.getLogger(__name__).warning(
+                        "Mixkit download failed (%s) for %s", type(exc).__name__, url[-40:]
+                    )
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Mixkit search failed for %r (%s)", str(keyword)[:60], type(exc).__name__
+            )
+    return paths, credits
+
+
 def fetch_stock(
     keywords: list[str], out_dir: Path, count: int = 18, *,
     orientation: str = "landscape", one_per_keyword: bool = False,
@@ -373,8 +437,25 @@ def _make_segment(
     if source:
         cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-pix_fmt", "yuv420p", str(out_path)]
     else:
-        zoom = "1+0.0005*on" if seed % 2 == 0 else "1.08-0.0005*on"
-        cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}", "-vf", f"zoompan=z='{zoom}':d=1:s={width}x{height}:fps={FPS},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", str(out_path)]
+        # Cinematic Ken Burns: slow zoom + horizontal drift so stills feel alive.
+        frames = max(int(duration * FPS), 24)
+        if seed % 2 == 0:
+            z_expr = "min(1.18,1+0.0012*on)"
+            x_expr = f"(iw-ow/zoom)*on/{frames}"
+            y_expr = f"(ih-oh/zoom)/2"
+        else:
+            z_expr = "max(1.0,1.16-0.0010*on)"
+            x_expr = f"(iw-ow/zoom)*(1-on/{frames})"
+            y_expr = f"(ih-oh/zoom)*on/{max(frames,1)}"
+        zoompan = (
+            f"scale=8000:-1,zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
+            f"d={frames}:s={width}x{height}:fps={FPS},eq=brightness=-0.02:saturation=1.05:contrast=1.06,format=yuv420p"
+        )
+        cmd = [
+            "ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}",
+            "-vf", zoompan, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            str(out_path),
+        ]
     subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(duration * 4)))
 
 
@@ -485,6 +566,13 @@ def render_video(
             stock, credits = fetch_stock(
                 queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
             )
+        if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
+            mix_paths, mix_credits = fetch_mixkit_stock(
+                queries, out_dir / "mixkit", count=count, orientation="portrait",
+            )
+            if len(mix_paths) == count:
+                stock, credits = mix_paths, mix_credits
+                logging.getLogger(__name__).info("using free Mixkit motion clips for %s scenes", count)
         if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
             # Free path (no Pexels account needed): Pollinations images, then abstract stills.
             free_stills, free_credits = fetch_pollinations_stills(

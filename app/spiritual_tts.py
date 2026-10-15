@@ -241,12 +241,13 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     Edge TTS does not expose native emotion styles; these small changes are only
     prosody hints, not a claim that anger/joy/etc. can be faithfully synthesized.
     """
+    # natural_v2: milder rates sound less robotic on Edge neural voices.
     base_rate, base_pitch = {
-        "hook": ("+5%", "+3Hz"),
-        "calm": ("-8%", "-2Hz"),
-        "reassuring": ("-3%", "+0Hz"),
-        "motivational": ("+6%", "+2Hz"),
-    }.get(str(mood or "").lower(), ("-4%", "+0Hz"))
+        "hook": ("+2%", "+1Hz"),
+        "calm": ("-4%", "-1Hz"),
+        "reassuring": ("-2%", "+0Hz"),
+        "motivational": ("+3%", "+1Hz"),
+    }.get(str(mood or "").lower(), ("-2%", "+0Hz"))
     hint = hint if isinstance(hint, dict) else {}
     emotion = str(hint.get("emotion") or "neutral").lower()
     intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
@@ -258,7 +259,7 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
         "neutral": (0.0, 0.0),
     }.get(emotion, (0.0, 0.0))
     confidence = max(0.0, min(1.0, float(hint.get("confidence") or 0.0)))
-    scale = intensity * confidence * 0.5
+    scale = intensity * confidence * 0.25  # natural_v2 softer
     base_rate_value = float(base_rate.rstrip("%"))
     base_pitch_value = float(base_pitch.rstrip("Hz"))
     rate = max(-10.0, min(10.0, base_rate_value + rate_delta * scale))
