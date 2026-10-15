@@ -69,8 +69,8 @@ def validate_render_package(
         duration = float(render_meta.get("duration") or render_meta.get("duration_seconds") or 0)
         if duration <= 0:
             errors.append("invalid_video_duration")
-        elif mode == "shorts" and not 12 <= duration <= 45:
-            errors.append("shorts_duration_outside_15_40_seconds")
+        elif mode == "shorts" and not 10 <= duration <= 45:
+            errors.append("shorts_duration_outside_10_45_seconds")
         checks["duration_seconds"] = duration
     except (TypeError, ValueError):
         errors.append("invalid_video_duration")
