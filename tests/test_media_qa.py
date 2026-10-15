@@ -132,7 +132,7 @@ def test_shorts_quality_gate_blocks_too_short_or_unreadable_package(tmp_path: Pa
     meta["music_ducking"] = False
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
-    assert "shorts_duration_outside_15_40_seconds" in result["errors"] or "shorts_duration_outside_12_45_seconds" in result["errors"] or any("duration" in e for e in result["errors"])
+    assert any("duration" in e for e in result["errors"]) or "shorts_duration_outside_12_45_seconds" in result["errors"] or any("duration" in e for e in result["errors"])
     assert "shorts_caption_font_too_small" in result["errors"]
     assert "shorts_background_music_not_ducked_under_voice" in result["errors"]
 
