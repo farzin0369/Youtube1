@@ -8,6 +8,12 @@ Gateway live only for the current job; GitHub-hosted runners are ephemeral.
 """
 from __future__ import annotations
 
+
+def _idea_bank_enabled() -> bool:
+    import os
+    return os.getenv("USE_IDEA_BANK", "").strip() in {"1", "true", "True", "yes"}
+
+
 import json
 import os
 import re
@@ -514,6 +520,9 @@ def run_manager() -> dict[str, Any]:
 
 
 def main() -> int:
+    if _idea_bank_enabled():  # idea-bank skip
+        print("OpenClaw skipped: USE_IDEA_BANK enabled")
+        return 0
     try:
         run_manager()
         return 0
