@@ -1,0 +1,24 @@
+name: Wire CogVideo Colab path
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_cogvideo_route.py"
+      - "scripts/colab_render_short.py"
+      - "scripts/trigger_cogvideo_colab.txt"
+      - "notebooks/Colab_CogVideoX_Spiritual_Short.ipynb"
+      - ".github/workflows/apply-cogvideo-colab.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_cogvideo_route.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_video.py app/local_video_engine.py scripts/colab_render_short.py notebooks/Colab_CogVideoX_Spiritual_Short.ipynb
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: CogVideoX Colab notebook + engine route" && git push; fi
