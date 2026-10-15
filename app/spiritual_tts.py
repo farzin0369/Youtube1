@@ -1,6 +1,8 @@
 """Persian neural TTS with word-timed captions and per-scene delivery shaping."""
 from __future__ import annotations
 
+from app.persian_tts_normalize import normalize_for_tts
+
 import asyncio
 import base64
 import re
@@ -301,7 +303,7 @@ def synthesize_with_captions(
     audio_path, captions_path = Path(audio_path), Path(captions_path)
     audio_path.parent.mkdir(parents=True, exist_ok=True)
     captions_path.parent.mkdir(parents=True, exist_ok=True)
-    normalized_script = re.sub(r"\s+", " ", str(text or "")).strip()
+    normalized_script = normalize_for_tts(re.sub(r"\s+", " ", str(text or "")).strip())
     all_events: list[dict[str, Any]] = []
     scene_timings: list[dict[str, float]] = []
     delivery_log: list[dict[str, str]] = []

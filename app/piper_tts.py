@@ -1,6 +1,8 @@
 """Offline free Persian TTS via Piper + Mana-Persian-Piper (MIT, no API key)."""
 from __future__ import annotations
 
+from app.persian_tts_normalize import normalize_for_tts
+
 import logging
 import os
 import wave
@@ -68,7 +70,7 @@ def synthesize_piper(
     """Synthesize one utterance with offline Piper; writes 16-bit mono WAV/MP3 path."""
     from piper import PiperVoice  # type: ignore
 
-    cleaned = " ".join(str(text or "").split()).strip()
+    cleaned = normalize_for_tts(" ".join(str(text or "").split()).strip())
     if not cleaned:
         raise ValueError("empty text for Piper TTS")
 
