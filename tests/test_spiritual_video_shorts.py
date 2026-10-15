@@ -30,6 +30,9 @@ def test_short_caption_ass_includes_a_separate_large_hook(tmp_path: Path):
     assert "یک قدم کافیست" in text
     assert "Dialogue: 0,0:00:00.15,0:00:01.40,Default" in text
     assert "WrapStyle: 0" in text and "Kerning: yes" in text
+    assert ",2,64,128,280,1" in text
+    assert ",8,80,80,168,1" in text
+    assert ",3,40,40,200,1" not in text
     assert r"\fad(100,130)" in text and r"\fscx108\fscy108" in text
     assert r"\fad(90,70)" in text and r"\fscx104\fscy104" in text
     assert "تا حالا شده؟" in text and "فقط یک قدم" in text

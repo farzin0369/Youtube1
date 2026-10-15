@@ -5,6 +5,7 @@ from app.persian_tts_normalize import normalize_for_tts
 
 import asyncio
 import base64
+import logging
 import re
 import subprocess
 import tempfile
@@ -13,15 +14,13 @@ from typing import Any
 
 from app.utils import env, load_channel_config
 
+logger = logging.getLogger(__name__)
+
 TICKS_PER_SECOND = 10_000_000
 
 
 def _provider() -> str:
-    configured = env("TTS_PROVIDER")  # male-voice-v1
-    # Mana-Persian-Piper is a female voice; channel requires male narration.
-    if (configured or "").strip().lower() == "piper" and env("ALLOW_FEMALE_TTS", "").lower() not in {"1", "true", "yes"}:
-        logger.warning("piper Mana is female — switching to edge-tts Farid (male)")
-        configured = "edge-tts"
+    configured = env("TTS_PROVIDER")
     if configured:
         provider = str(configured).strip().lower()
     else:
@@ -33,6 +32,13 @@ def _provider() -> str:
     provider = aliases.get(provider, provider)
     if provider not in {"edge-tts", "elevenlabs", "piper"}:
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
+    # Mana-Persian-Piper is a female voice. Apply the male-narrator guard after
+    # both the environment and channel.yaml have been resolved. The workflow
+    # sets TTS_PROVIDER=piper; without this, production crashes or speaks with
+    # the female checkpoint.
+    if provider == "piper" and env("ALLOW_FEMALE_TTS", "").strip().lower() not in {"1", "true", "yes"}:
+        logger.warning("piper Mana is female; using male fa-IR-FaridNeural via Edge TTS")
+        provider = "edge-tts"
     return provider
 
 
@@ -88,6 +94,30 @@ def phrase_cues(
         group.append(event)
     flush()
     return cues
+
+
+def absorb_orphan_caption_tails(
+    cues: list[tuple[float, float, str]],
+) -> list[tuple[float, float, str]]:
+    """Pull a one-word tail back into the previous phrase when speech is continuous.
+
+    A hard word cap otherwise leaves «بوده؟»، «گیرد.» or «است.» alone on screen.
+    Sentence-final cues stay separate, and a real pause is not glued shut.
+    """
+    merged: list[tuple[float, float, str]] = []
+    for start, end, phrase in cues:
+        words = phrase.split()
+        if (
+            merged
+            and len(words) == 1
+            and start - merged[-1][1] <= 0.08
+            and not re.search(r"[.!?؟…]$", merged[-1][2])
+        ):
+            prev_start, _prev_end, prev_text = merged[-1]
+            merged[-1] = (prev_start, end, f"{prev_text} {phrase}".strip())
+        else:
+            merged.append((start, end, phrase))
+    return merged
 
 
 async def _render(
@@ -397,7 +427,9 @@ def synthesize_with_captions(
                 for event in all_events
                 if start_tick <= int(event.get("offset") or 0) < end_tick
             ]
-            for start, end, phrase in phrase_cues(local, max_words=4, max_seconds=1.8):
+            for start, end, phrase in absorb_orphan_caption_tails(
+                phrase_cues(local, max_words=4, max_seconds=2.4)
+            ):
                 cues.append((start + timing["start_seconds"], end + timing["start_seconds"], phrase))
     else:
         cues = phrase_cues(all_events)
