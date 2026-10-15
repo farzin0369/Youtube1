@@ -29,6 +29,7 @@ def test_wan_rejects_invalid_dimensions_before_loading_models(tmp_path):
 
 
 def test_wan_rejects_insufficient_free_cuda_vram_before_loading_models(tmp_path, monkeypatch):
+    monkeypatch.setenv("WAN_QUALITY_PROFILE", "low_memory")
     class FakeCuda:
         @staticmethod
         def is_available():
@@ -39,5 +40,5 @@ def test_wan_rejects_insufficient_free_cuda_vram_before_loading_models(tmp_path,
             return 8_189_999_999, 16 * 1024**3
 
     monkeypatch.setitem(sys.modules, "torch", SimpleNamespace(cuda=FakeCuda()))
-    with pytest.raises(RuntimeError, match="needs at least 8.19 GB free CUDA VRAM"):
+    with pytest.raises(RuntimeError, match="low_memory profile needs at least 7.63 GB free CUDA VRAM"):
         generate_wan_clips(["mountains at sunrise"], tmp_path)
