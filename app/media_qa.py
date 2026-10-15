@@ -5,6 +5,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+CAPTION_END_TOLERANCE_SECONDS = 0.10
+PREVIEW_ONLY_VISUAL_SOURCES = {"provided stills", "generated abstract fallback", "pollinations"}
+
 
 def _srt_timestamp(value: str) -> float:
     match = re.fullmatch(r"(\d{2,}):(\d{2}):(\d{2}),(\d{3})", value.strip())
@@ -12,6 +15,12 @@ def _srt_timestamp(value: str) -> float:
         raise ValueError("invalid SRT timestamp: " + value)
     hours, minutes, seconds, millis = (int(part) for part in match.groups())
     return hours * 3600 + minutes * 60 + seconds + millis / 1000
+
+
+def ensure_upload_eligible(render_meta: dict[str, Any]) -> None:
+    visual_source = str(render_meta.get("visual_source") or "").strip().lower()
+    if render_meta.get("test_visuals_only") is True or visual_source in PREVIEW_ONLY_VISUAL_SOURCES:
+        raise ValueError("preview_only_media_not_eligible_for_upload")
 
 
 def validate_render_package(
@@ -122,11 +131,13 @@ def validate_render_package(
         if render_meta.get("scene_query_match") is not True:
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
-        test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
+        test_stills_are_allowed = (
+            visual_source in PREVIEW_ONLY_VISUAL_SOURCES
+            and render_meta.get("test_visuals_only") is True
+        )
         # Free private-draft path may use Pollinations or abstract stills when Pexels/GPU are unavailable.
         approved_visual_source = visual_source in {
-            "pexels", "wan2.1", "ltx-video", "provided stills",
-            "generated abstract fallback", "local fallback videos", "pollinations",
+            "pexels", "mixkit", "wan2.1", "ltx-video", "local fallback videos",
         }
         if not approved_visual_source and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
@@ -167,7 +178,7 @@ def validate_render_package(
                 last_end = end
             checks["caption_cues"] = len(blocks)
             checks["caption_end_seconds"] = last_end
-            if duration and last_end > duration + 1.5:
+            if duration and last_end > duration + CAPTION_END_TOLERANCE_SECONDS:
                 errors.append("captions_exceed_video_duration")
             if mode == "shorts":
                 if len(blocks) < 6:

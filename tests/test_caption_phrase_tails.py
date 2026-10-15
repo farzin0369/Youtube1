@@ -1,7 +1,8 @@
 import logging
+import pytest
 
 from app import spiritual_tts
-from app.spiritual_tts import absorb_orphan_caption_tails
+from app.spiritual_tts import absorb_orphan_caption_tails, clamp_caption_cues_to_duration
 
 
 def test_piper_setting_keeps_the_male_farid_voice(monkeypatch, caplog):
@@ -45,6 +46,18 @@ def test_single_word_tails_rejoin_the_previous_phrase():
         "از کار خوب می گیرد.",
         "دل سپاری همراه تلاش است.",
     ]
+
+
+def test_caption_end_is_clamped_to_actual_audio_duration():
+    cues = [(15.600, 16.047, "دل سپاری همراه تلاش است.")]
+    assert clamp_caption_cues_to_duration(cues, 15.840) == [
+        (15.600, 15.840, "دل سپاری همراه تلاش است.")
+    ]
+
+
+def test_caption_start_past_audio_duration_fails_loudly():
+    with pytest.raises(ValueError, match="starts after audio ends"):
+        clamp_caption_cues_to_duration([(15.9, 16.1, "است.")], 15.84)
 
 
 def test_sentence_break_and_pause_stay_separate():
