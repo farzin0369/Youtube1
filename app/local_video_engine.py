@@ -145,6 +145,11 @@ BASE_STYLE = (
 
 
 def _scene_prompt(sentence: str, title: str, index: int) -> str:
+    try:
+        from app.visual_prompts import cinematic_prompt_for_scene
+        return cinematic_prompt_for_scene(sentence, scene_index=index, topic=title)
+    except Exception:
+        pass
     text = f"{title} {sentence}".lower()
     if any(k in text for k in ("انتخابات", "دولت", "پارلمان", "president", "election", "politic", "حکومت")):
         key = "politics"

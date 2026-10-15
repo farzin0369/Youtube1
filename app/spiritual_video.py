@@ -586,9 +586,9 @@ def render_video(
     if video_format not in {"long", "shorts"}:
         raise ValueError("video_format must be 'long' or 'shorts'")
     ai_engine = (os.getenv("AI_VIDEO_ENGINE") or "").strip().lower()
-    if ai_engine not in {"", "ltx", "wan"}:
+    if ai_engine not in {"", "ltx", "wan", "cogvideo", "local", "cogvideox"}:
         raise ValueError("AI_VIDEO_ENGINE must be unset, 'ltx', or 'wan'")
-    if ai_engine in {"ltx", "wan"} and video_format != "shorts":
+    if ai_engine in {"ltx", "wan", "cogvideo", "local", "cogvideox"} and video_format != "shorts":
         raise RuntimeError("AI video backends are currently wired for scene-matched Shorts only")
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
@@ -600,7 +600,20 @@ def render_video(
             raise RuntimeError("Shorts require four specific, narration-matched visual searches")
         count = len(queries)
         ai_clips: list[Path] = []
-        if ai_engine == "wan":
+        if ai_engine in {"cogvideo", "local", "cogvideox"}:
+            from app.local_video_engine import generate_film
+            film = generate_film(
+                script=" ".join(str(q) for q in queries),
+                title=str(title or "ImamAli110"),
+                out_path=out_dir / "ai_film.mp4",
+                kind="short",
+            )
+            # Prefer per-scene clips if plan wrote them next to out_path
+            plan_path = (out_dir / "ai_film_scene_plan.json")
+            ai_clips = []
+            stock, credits = [], [f"cogvideox:{film.get('model')}"]
+            logging.getLogger(__name__).info("cogvideo film ok=%s model=%s", film.get("ok"), film.get("model"))
+        elif ai_engine == "wan":
             from app.wan_video_engine import generate_wan_clips
             ai_prompts = cinematic_prompts_for_scenes(queries, topic=str(title or ""))
             ai_clips = generate_wan_clips(
