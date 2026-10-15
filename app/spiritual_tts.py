@@ -21,18 +21,15 @@ TICKS_PER_SECOND = 10_000_000
 
 
 def _provider() -> str:
-    configured = env("TTS_PROVIDER")  # male-piper-gyro-v1
-    # Prefer piper male (gyro/ganji/amir). Edge Farid remains fallback if piper fails.
+    configured = env("TTS_PROVIDER")  # coqui-vits-v1
+    # Natural male: coqui VITS > piper gyro > edge Farid
     if configured:
         provider = str(configured).strip().lower()
     else:
-        try:
-            provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "edge-tts").strip().lower()
-        except Exception:
-            provider = "edge-tts"
-    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
+        provider = "coqui"  # default to natural male VITS
+    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs", "vits": "coqui", "coqui-tts": "coqui"}
     provider = aliases.get(provider, provider)
-    if provider not in {"edge-tts", "elevenlabs", "piper"}:
+    if provider not in {"edge-tts", "elevenlabs", "piper", "coqui", "vits"}:  # coqui-vits-v1
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
     return provider
 
@@ -333,6 +330,19 @@ def synthesize_with_captions(
                         previous_text=scene_texts[index - 1] if index > 0 else "",
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
+                elif provider in {"coqui", "vits"}:
+                    from app.coqui_tts import synthesize_coqui
+                    try:
+                        synthesize_coqui(chunk_text, chunk_wav, mood=str(mood or "calm"))
+                    except Exception as coqui_exc:
+                        logger.warning("coqui failed (%s); falling back to piper", type(coqui_exc).__name__)
+                        from app.piper_tts import synthesize_piper
+                        try:
+                            synthesize_piper(chunk_text, chunk_wav, mood=str(mood or "calm"))
+                        except Exception:
+                            logger.warning("piper also failed; edge-tts fallback")
+                            # force edge path by reassign — handled below if we raise
+                            raise
                 elif provider == "piper":
                     from app.piper_tts import synthesize_piper
                     synthesize_piper(
