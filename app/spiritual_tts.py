@@ -5,6 +5,7 @@ from app.persian_tts_normalize import normalize_for_tts
 
 import asyncio
 import base64
+import logging
 import re
 import subprocess
 import tempfile
@@ -13,15 +14,13 @@ from typing import Any
 
 from app.utils import env, load_channel_config
 
+logger = logging.getLogger(__name__)
+
 TICKS_PER_SECOND = 10_000_000
 
 
 def _provider() -> str:
-    configured = env("TTS_PROVIDER")  # male-voice-v1
-    # Mana-Persian-Piper is a female voice; channel requires male narration.
-    if (configured or "").strip().lower() == "piper" and env("ALLOW_FEMALE_TTS", "").lower() not in {"1", "true", "yes"}:
-        logger.warning("piper Mana is female — switching to edge-tts Farid (male)")
-        configured = "edge-tts"
+    configured = env("TTS_PROVIDER")
     if configured:
         provider = str(configured).strip().lower()
     else:
@@ -33,6 +32,11 @@ def _provider() -> str:
     provider = aliases.get(provider, provider)
     if provider not in {"edge-tts", "elevenlabs", "piper"}:
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
+    # Mana-Persian-Piper is a female voice; the channel is configured for a male
+    # narrator. Apply this guard AFTER resolving both environment and YAML config.
+    if provider == "piper" and env("ALLOW_FEMALE_TTS", "").strip().lower() not in {"1", "true", "yes"}:
+        logger.warning("piper Mana is female; using male fa-IR-FaridNeural via Edge TTS")
+        provider = "edge-tts"
     return provider
 
 
@@ -412,7 +416,7 @@ def synthesize_with_captions(
         "path": str(audio_path),
         "captions_path": str(captions_path),
         "provider": provider,
-        "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
+        "model": (str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "Mana-Persian-Piper/fa_IR-mana-medium" if provider == "piper" else "edge-tts"),
         "voice": _voice(provider),
         "narrator_locked": True,
         "caption_mode": "word-boundary phrase captions",
