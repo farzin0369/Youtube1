@@ -43,3 +43,12 @@ This audit is based on `app/spiritual_tts.py`, `app/emotion_tagger.py`, `config/
 ## New finding: Persian-specific free benchmark
 
 The strongest additional candidate to test on Colab is [ManaTTS Persian Tacotron2](https://github.com/MahtaFetrat/ManaTTS-Persian-Tacotron2-Model), whose repository includes an inference notebook and sample outputs. The linked model card states CC0 for the weights, but the GitHub README also describes the project as for research and development. This is a license ambiguity, not a green light for a monetized channel. Compare its generated Persian audio privately against Farid using identical narration before choosing it. The F5-TTS Persian fork is also worth a technical audition, but its README states that upstream pretrained weights are CC-BY-NC; do not assume those weights are suitable for monetized videos.
+
+
+## Additional candidate found: Persian male Piper voices (Apache-2.0)
+
+The Hugging Face repository [SadeghK/persian-text-to-speech](https://huggingface.co/SadeghK/persian-text-to-speech) explicitly lists two Farsi voices, **Amir** and **Ganji**, and labels the repository Apache-2.0. Its `farsi/` directory contains `amir`, `ganji`, and `ganji-adabi` variants. This is a stronger next benchmark candidate than the female Mana Piper voice because it appears to offer Persian male narration while preserving an offline, no-API-key path.
+
+**Important:** this is a candidate, not a quality verdict. Before wiring it into production, verify the exact model files/configs and inference API; render the same 20–30 second script with both male voices in Colab; listen for Persian pronunciation, natural pauses, emotional restraint, and voice consistency; and verify that the selected model artifact's license accompanies the exact files used. Do not replace the current Farid baseline until the listening test and subtitle alignment pass. If the model exposes no word timings, use a tested Persian forced aligner rather than evenly distributing words across the audio.
+
+Source: [SadeghK Persian TTS model card](https://huggingface.co/SadeghK/persian-text-to-speech) and [model files](https://huggingface.co/SadeghK/persian-text-to-speech/tree/main/farsi).
