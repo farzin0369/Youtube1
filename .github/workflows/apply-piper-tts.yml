@@ -6,6 +6,7 @@ on:
     paths:
       - "app/piper_tts.py"
       - "scripts/patch_piper_tts_backend.py"
+      - "scripts/patch_daily_tts_piper.py"
       - ".github/workflows/apply-piper-tts.yml"
 permissions:
   contents: write
@@ -17,11 +18,13 @@ jobs:
       - run: |
           set -euo pipefail
           python3 scripts/patch_piper_tts_backend.py
+          python3 scripts/patch_daily_tts_piper.py
           test -f app/piper_tts.py
           grep -q 'provider == "piper"' app/spiritual_tts.py
+          grep -q "piper" .github/workflows/daily_run.yml
       - run: |
           set -euo pipefail
           git config user.name "openclaw-fix-bot"
           git config user.email "openclaw-fix-bot@users.noreply.github.com"
-          git add app/piper_tts.py app/spiritual_tts.py config/channel.yaml requirements.txt || true
-          if git diff --cached --quiet; then echo noop; else git commit -m "feat: free offline Piper Persian TTS (Mana) with mood rate" && git push; fi
+          git add app/piper_tts.py app/spiritual_tts.py config/channel.yaml requirements.txt .github/workflows/daily_run.yml || true
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: free offline Piper Persian TTS default" && git push; fi
