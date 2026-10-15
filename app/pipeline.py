@@ -14,7 +14,7 @@ from app.video_render import render_video, make_thumbnail, write_srt
 from app.youtube_client import upload_video
 from app.channel_ops import reply_to_comments
 from app.agent_guard import enforce
-from app.media_qa import validate_render_package
+from app.media_qa import ensure_upload_eligible, validate_render_package
 
 def _probe_duration(path:Path)->float:
     result=subprocess.run(
@@ -81,6 +81,7 @@ def main()->None:
         raise RuntimeError("Media quality gate failed; upload blocked: " + ", ".join(media_qa["errors"]))
     if args.dry_run: upload_meta={"skipped":True,"reason":"dry-run"}
     else:
+        ensure_upload_eligible(render_meta)
         upload_meta=upload_video(video_path=Path(render_meta["video_path"]) if render_meta.get("video_path") else None,title=script_data["title"],description=script_data.get("description") or "",tags=list(script_data.get("tags") or []),privacy=publish_mode,thumbnail_path=Path(render_meta["thumbnail_path"]) if render_meta.get("thumbnail_path") else None)
     audit["steps"]["upload"]=upload_meta
     if upload_meta.get("ok") and upload_meta.get("video_id"):

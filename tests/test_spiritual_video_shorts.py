@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 import wave
 from pathlib import Path
 
@@ -90,3 +91,42 @@ def test_short_renderer_falls_back_to_free_stills_when_stock_missing(tmp_path: P
     )
     assert Path(result["video_path"]).is_file()
     assert result.get("visual_scene_count") == 4
+
+
+def test_mixkit_motion_clips_are_not_mislabeled_as_pexels(tmp_path: Path, monkeypatch):
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    audio = tmp_path / "audio.wav"
+    with wave.open(str(audio), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(22_050)
+        output.writeframes(b"\0\0" * 22_050 * 4)
+    clips = []
+    for index in range(4):
+        clip = tmp_path / f"mixkit-{index}.mp4"
+        subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+             "testsrc2=s=720x1280:r=24:d=4", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+            check=True, capture_output=True,
+        )
+        clips.append(clip)
+    credits = [f"Mixkit clip {index}" for index in range(4)]
+    monkeypatch.setattr(video, "fetch_stock", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(video, "fetch_mixkit_stock", lambda *args, **kwargs: (clips, credits))
+    (tmp_path / "captions.srt").write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nتست\n", encoding="utf-8",
+    )
+    result = video.render_video(
+        title="test", thumbnail_text="تست", keywords=[], audio_path=audio,
+        captions_path=tmp_path / "captions.srt", out_dir=tmp_path / "mixkit-render",
+        run_id="mixkit-test", video_format="shorts", scene_queries=["scene"] * 4,
+    )
+    assert result["visual_source"] == "mixkit"
+    assert result["visual_credits"] == credits
+    assert result["pexels_credits"] == []
+    from app.spiritual_pipeline import _description
+    description = _description(
+        {"format": "shorts", "description": "توضیح"}, result, audio_duration=4.0,
+    )
+    assert credits[0] in description

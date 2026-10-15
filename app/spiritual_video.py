@@ -544,6 +544,7 @@ def render_video(
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     ai_clips: list[Path] = []
+    stock_source = ""
     if video_format == "shorts":
         queries = [str(query).strip() for query in (scene_queries or []) if str(query).strip()]
         if len(queries) != 4:
@@ -566,12 +567,14 @@ def render_video(
             stock, credits = fetch_stock(
                 queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
             )
+            stock_source = "pexels" if stock else ""
         if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
             mix_paths, mix_credits = fetch_mixkit_stock(
                 queries, out_dir / "mixkit", count=count, orientation="portrait",
             )
             if len(mix_paths) == count:
                 stock, credits = mix_paths, mix_credits
+                stock_source = "mixkit"
                 logging.getLogger(__name__).info("using free Mixkit motion clips for %s scenes", count)
         if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
             # Free path (no Pexels account needed): Pollinations images, then abstract stills.
@@ -606,6 +609,7 @@ def render_video(
         # Long-form legacy mode keeps its landscape behavior and broad scene cadence.
         count = max(1, min(24, int(math.ceil(duration / 18.0))))
         stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
+        stock_source = "pexels" if stock else ""
         durations = [duration / count] * count
     local_fallbacks = _local_fallback_videos() if not stock else []
     scene_dir = out_dir / "scenes"
@@ -673,9 +677,11 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "wan2.1" if ai_engine == "wan" and ai_clips else "ltx-video" if ai_clips else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "wan2.1" if ai_engine == "wan" and ai_clips else "ltx-video" if ai_clips else stock_source if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
-        "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
+        "visual_credits": credits,
+        "pexels_credits": credits if stock_source == "pexels" else [],
+        "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
         "video_format": video_format, "caption_font_size": 64 if video_format == "shorts" else 40,  # readable-caps-v2,
         "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",

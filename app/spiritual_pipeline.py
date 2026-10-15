@@ -12,7 +12,7 @@ from typing import Any
 
 from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
-from app.media_qa import validate_render_package
+from app.media_qa import ensure_upload_eligible, validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
@@ -52,7 +52,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
             content.get("description", "").strip(),
             "گویندگی فارسی با صدای هوش مصنوعی تولید شده است.",
         ]
-        credits = render.get("pexels_credits") or []
+        credits = render.get("visual_credits") or render.get("pexels_credits") or []
         if credits:
             parts += ["", "تصاویر:", *credits]
         parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل"]
@@ -67,7 +67,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
     parts = [content.get("description", "").strip(), "", "فصل‌های ویدئو:", *chapters, "",
              "این ویدئو برای تأمل و آموزش عمومی ساخته شده و توصیهٔ مالی، پزشکی یا درمانی شخصی نیست.",
              "گویندگی فارسی با صدای ثابت هوش مصنوعی تولید شده است."]
-    credits = render.get("pexels_credits") or []
+    credits = render.get("visual_credits") or render.get("pexels_credits") or []
     if credits:
         parts += ["", "تصاویر:", *credits]
     parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل #برکت #سواد_مالی"]
@@ -153,7 +153,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             hook_overlay=content["scenes"][0]["on_screen_text"] if content_format == "shorts" else "",
             scene_stills=preview_stills,
         )
-        render["test_visuals_only"] = bool(preview_stills and dry_run)
+        render["test_visuals_only"] = bool(render.get("test_visuals_only") or (preview_stills and dry_run))
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
         media_quality = validate_render_package(render, audio_path, video_format=content_format)
         if not media_quality.get("ok"):
@@ -162,6 +162,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
+            ensure_upload_eligible(render)
             stage = "YouTube upload and scheduling"
             scheduled_at = None if upload_private else next_publish_at()
             cfg = load_channel_config()

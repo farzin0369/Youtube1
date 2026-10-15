@@ -65,6 +65,23 @@ def srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{whole:02d},{ms:03d}"
 
 
+def clamp_caption_cues_to_duration(
+    cues: list[tuple[float, float, str]], audio_duration: float,
+) -> list[tuple[float, float, str]]:
+    if audio_duration <= 0:
+        raise ValueError("audio duration must be positive")
+    bounded: list[tuple[float, float, str]] = []
+    for start, end, phrase in cues:
+        start, end = float(start), float(end)
+        if start >= audio_duration:
+            raise ValueError("caption cue starts after audio ends")
+        end = min(end, audio_duration)
+        if end <= start:
+            raise ValueError("caption cue has no duration after audio-end clamp")
+        bounded.append((start, end, str(phrase)))
+    return bounded
+
+
 def phrase_cues(
     events: list[dict[str, Any]], *, max_words: int = 5, max_seconds: float = 3.2,
 ) -> list[tuple[float, float, str]]:
@@ -435,6 +452,8 @@ def synthesize_with_captions(
         cues = phrase_cues(all_events)
     if not cues:
         raise RuntimeError("No subtitle phrases could be built from Edge TTS metadata")
+    duration_seconds = _duration(audio_path)
+    cues = clamp_caption_cues_to_duration(cues, duration_seconds)
     blocks = [
         f"{index}\n{srt_timestamp(start)} --> {srt_timestamp(end)}\n{phrase}\n"
         for index, (start, end, phrase) in enumerate(cues, 1)
@@ -448,7 +467,7 @@ def synthesize_with_captions(
         "voice": _voice(provider),
         "narrator_locked": True,
         "caption_mode": "word-boundary phrase captions",
-        "duration_seconds": _duration(audio_path),
+        "duration_seconds": duration_seconds,
         "caption_count": len(cues),
         "scene_timings": scene_timings,
         "delivery_profiles": delivery_log,
