@@ -1,0 +1,44 @@
+name: Fix TTS logger NameError
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/trigger_fix_logger.txt"
+      - ".github/workflows/fix-logger-tts.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/spiritual_tts.py")
+          t = p.read_text(encoding="utf-8")
+          if "import logging" not in t:
+              t = t.replace("from __future__ import annotations\n", "from __future__ import annotations\n\nimport logging\n", 1)
+          if "logger = logging.getLogger" not in t:
+              # after imports block near TICKS
+              t = t.replace(
+                  "TICKS_PER_SECOND = 10_000_000",
+                  "logger = logging.getLogger(__name__)\n\nTICKS_PER_SECOND = 10_000_000",
+                  1,
+              )
+          # also harden: never crash if logger missing
+          t = t.replace(
+              'logger.warning("piper Mana is female — switching to edge-tts Farid (male)")',
+              'logging.getLogger(__name__).warning("piper Mana is female — switching to edge-tts Farid (male)")',
+              1,
+          )
+          compile(t, "spiritual_tts.py", "exec")
+          p.write_text(t, encoding="utf-8")
+          print("FIXED")
+          PY
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_tts.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: define logger in spiritual_tts for male-voice switch" && git push; fi
