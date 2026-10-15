@@ -665,6 +665,11 @@ def render_video(
                 queries, out_dir / "wan", width=wan_width, height=wan_height, num_frames=81, fps=16,
             )
             stock, credits = [], []
+            if len(ai_clips) != count:
+                raise RuntimeError(
+                    f"Wan generated {len(ai_clips)} of {count} required scene clips; "
+                    "refusing reference-still or stock fallback"
+                )
         elif ai_engine == "ltx":
             from app.ltx_video_engine import generate_ltx_clips
             ai_clips = generate_ltx_clips(
