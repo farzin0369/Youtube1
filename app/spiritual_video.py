@@ -515,8 +515,8 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Default,Noto Naskh Arabic,64,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,5,2,3,40,40,200,1
-Style: Hook,Noto Naskh Arabic,70,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,6,2,3,36,36,240,1
+Style: Default,Noto Naskh Arabic,64,&H00F4F0E8,&H000000FF,&H00110E0C,&HC0110E0C,-1,0,0,0,100,100,0,0,3,14,0,2,64,128,280,1
+Style: Hook,Noto Naskh Arabic,70,&H00F7F1DE,&H000000FF,&H00110E0C,&HC018140C,-1,0,0,0,100,100,0,0,3,16,0,8,80,80,168,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
