@@ -17,7 +17,11 @@ TICKS_PER_SECOND = 10_000_000
 
 
 def _provider() -> str:
-    configured = env("TTS_PROVIDER")
+    configured = env("TTS_PROVIDER")  # male-voice-v1
+    # Mana-Persian-Piper is a female voice; channel requires male narration.
+    if (configured or "").strip().lower() == "piper" and env("ALLOW_FEMALE_TTS", "").lower() not in {"1", "true", "yes"}:
+        logger.warning("piper Mana is female — switching to edge-tts Farid (male)")
+        configured = "edge-tts"
     if configured:
         provider = str(configured).strip().lower()
     else:

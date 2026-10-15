@@ -515,8 +515,8 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Default,Noto Naskh Arabic,68,&H00000000,&H00000000,&H00000000,&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,320,1
-Style: Hook,Noto Naskh Arabic,72,&H00000000,&H00000000,&H00000000,&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,380,1
+Style: Default,Noto Naskh Arabic,64,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,5,2,3,40,40,200,1
+Style: Hook,Noto Naskh Arabic,70,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,6,2,3,36,36,240,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
@@ -677,7 +677,7 @@ def render_video(
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
-        "video_format": video_format, "caption_font_size": 68 if video_format == "shorts" else 40,  # yellow-box-v1,
+        "video_format": video_format, "caption_font_size": 64 if video_format == "shorts" else 40,  # readable-caps-v2,
         "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",
         "persian_text_shaping": "noto-naskh-unicode-rtl" if video_format == "shorts" else "default",
         "audio_duration_seconds": probe_stream_duration(final_path, "a:0"),

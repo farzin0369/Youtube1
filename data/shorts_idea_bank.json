@@ -58,17 +58,17 @@
       "id": "bank-0004",
       "topic": "توکل آرام",
       "title": "Imam Ali ✨ توکل بدون عجله",
-      "hook": "اگر نتیجه دیر آمد، آیا تلاشت بی معنا بوده؟",
+      "hook": "اگر نتیجه دیر آمد، آیا تلاشت بی معنی بوده؟",
       "thumbnail_text": "توکل آرام",
-      "description": "توکل یعنی تلاش مسئولانه و دل سپاری بدون شتاب و وعده قطعی.",
+      "description": "توکل یعنی تلاش مسئولانه و سپردن دل بدون شتاب و وعده قطعی.",
       "tags": ["توکل", "امید"],
       "scenes": [
-        {"spoken_text": "اگر نتیجه دیر آمد، آیا تلاشت بی معنا بوده؟", "mood": "hook", "visual_query": "person waiting by rainy window", "on_screen_text": "نتیجه دیر؟"},
+        {"spoken_text": "اگر نتیجه دیر آمد، آیا تلاشت بی معنی بوده؟", "mood": "hook", "visual_query": "person waiting by rainy window", "on_screen_text": "نتیجه دیر؟"},
         {"spoken_text": "گاهی عجله، آرامش را از کار خوب می گیرد.", "mood": "calm", "visual_query": "clock hands close up soft light", "on_screen_text": "عجله"},
         {"spoken_text": "امروز کار درست را انجام بده. نتیجه را با شتاب نفرست.", "mood": "reassuring", "visual_query": "hands finishing simple honest task", "on_screen_text": "کار درست"},
-        {"spoken_text": "توکل، عجله نیست. توکل، دل سپاری همراه تلاش است.", "mood": "motivational", "visual_query": "peaceful mountain path morning mist", "on_screen_text": "دل سپاری"}
+        {"spoken_text": "توکل، عجله نیست. توکل، سپردن دل همراه تلاش است.", "mood": "motivational", "visual_query": "peaceful mountain path morning mist", "on_screen_text": "سپردن دل"}
       ],
-      "script": "اگر نتیجه دیر آمد، آیا تلاشت بی معنا بوده؟ گاهی عجله، آرامش را از کار خوب می گیرد. امروز کار درست را انجام بده. نتیجه را با شتاب نفرست. توکل، عجله نیست. توکل، دل سپاری همراه تلاش است.",
+      "script": "اگر نتیجه دیر آمد، آیا تلاشت بی معنی بوده؟ گاهی عجله، آرامش را از کار خوب می گیرد. امروز کار درست را انجام بده. نتیجه را با شتاب نفرست. توکل، عجله نیست. توکل، سپردن دل همراه تلاش است.",
       "word_count": 42
     },
     {

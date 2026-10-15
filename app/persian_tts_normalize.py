@@ -12,6 +12,12 @@ _TATWEEL = "\u0640"
 
 # Spoken-friendly replacements (literary → clearer oral forms for TTS)
 _REPLACEMENTS: list[tuple[str, str]] = [
+    # oral-disambig-v1
+    ("کارت را", "کار تو را"),
+    ("کارت ", "کار تو "),
+    ("کارِت", "کار تو"),
+    ("بی معنا", "بی معنی"),
+    ("دل سپاری", "سپردن دل"),
     ("می‌تواند", "می تواند"),
     ("می‌آورد", "می آورد"),
     ("می‌کند", "می کند"),
