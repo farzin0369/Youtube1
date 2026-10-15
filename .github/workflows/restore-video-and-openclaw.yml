@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restore spiritual_video and soft OpenClaw in code
+      - name: Restore spiritual_video only and commit
         run: |
           set -euo pipefail
           curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/ec9c42ffaf28223b3678c2fcd4b108c033750041/app/spiritual_video.py" \
@@ -44,24 +44,39 @@ jobs:
           print("VIDEO_OK", p.stat().st_size)
           PY
 
+          # Soft OpenClaw: inject after __future__ imports
           python3 - <<'PY'
           from pathlib import Path
           import re
           p = Path("scripts/openclaw_manager.py")
           t = p.read_text(encoding="utf-8")
-          if "idea-bank skip" not in t:
-              inject = "\ndef _idea_bank_enabled() -> bool:\n    import os\n    return os.getenv(\"USE_IDEA_BANK\", \"\").strip() in {\"1\", \"true\", \"True\", \"yes\"}\n\n"
-              t = inject + t
+          if "idea-bank skip" in t:
+              print("OPENCLAW_ALREADY")
+          else:
+              helper = "\n\ndef _idea_bank_enabled() -> bool:\n    import os\n    return os.getenv(\"USE_IDEA_BANK\", \"\").strip() in {\"1\", \"true\", \"True\", \"yes\"}\n"
+              # insert helper after last future import / module docstring block
+              if "from __future__ import annotations" in t:
+                  t = t.replace(
+                      "from __future__ import annotations\n",
+                      "from __future__ import annotations\n" + helper + "\n",
+                      1,
+                  )
+              else:
+                  t = helper + "\n" + t
               m = re.search(r"(def main\(\) -> int:\n)", t)
               if not m:
                   raise SystemExit("main not found")
               pos = m.end()
-              t = t[:pos] + "    if _idea_bank_enabled():  # idea-bank skip\n        print(\"OpenClaw skipped: USE_IDEA_BANK enabled\")\n        return 0\n" + t[pos:]
+              t = (
+                  t[:pos]
+                  + "    if _idea_bank_enabled():  # idea-bank skip\n"
+                  + "        print(\"OpenClaw skipped: USE_IDEA_BANK enabled\")\n"
+                  + "        return 0\n"
+                  + t[pos:]
+              )
               compile(t, "openclaw_manager.py", "exec")
               p.write_text(t, encoding="utf-8")
               print("OPENCLAW_SKIP")
-          else:
-              print("OPENCLAW_ALREADY")
           PY
 
           git config user.name "openclaw-fix-bot"
