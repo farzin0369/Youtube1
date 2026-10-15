@@ -518,14 +518,14 @@ def _sound_effect_track(
 
 def _make_segment(
     source: Path | None, image_path: Path | None, duration: float, out_path: Path, seed: int,
-    *, width: int = WIDTH, height: int = HEIGHT,
+    *, width: int = WIDTH, height: int = HEIGHT, fps: int = FPS,
 ) -> None:
-    vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,fps={FPS},eq=brightness=-0.02:saturation=1.02:contrast=1.04"
+    vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,fps={fps},eq=brightness=-0.02:saturation=1.02:contrast=1.04"
     if source:
-        cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-pix_fmt", "yuv420p", str(out_path)]
+        cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path)]
     else:
         # Cinematic Ken Burns: slow zoom + horizontal drift so stills feel alive.
-        frames = max(int(duration * FPS), 24)
+        frames = max(int(duration * fps), 24)
         if seed % 2 == 0:
             z_expr = "min(1.18,1+0.0012*on)"
             x_expr = f"(iw-ow/zoom)*on/{frames}"
@@ -536,11 +536,11 @@ def _make_segment(
             y_expr = f"(ih-oh/zoom)*on/{max(frames,1)}"
         zoompan = (
             f"scale=8000:-1,zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
-            f"d={frames}:s={width}x{height}:fps={FPS},eq=brightness=-0.02:saturation=1.05:contrast=1.06,format=yuv420p"
+            f"d={frames}:s={width}x{height}:fps={fps},eq=brightness=-0.02:saturation=1.05:contrast=1.06,format=yuv420p"
         )
         cmd = [
             "ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}",
-            "-vf", zoompan, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            "-vf", zoompan, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
             str(out_path),
         ]
     subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(duration * 4)))
@@ -627,7 +627,22 @@ def render_video(
         raise ValueError("AI_VIDEO_ENGINE must be unset, 'ltx', or 'wan'")
     if ai_engine in {"ltx", "wan"} and video_format != "shorts":
         raise RuntimeError("AI video backends are currently wired for scene-matched Shorts only")
-    width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
+    if video_format == "shorts":
+        try:
+            width = int(env("SHORTS_WIDTH") or "1080")
+            height = int(env("SHORTS_HEIGHT") or "1920")
+            output_fps = int(env("SHORTS_FPS") or "30")
+            crf = int(env("SHORTS_CRF") or "18")
+        except ValueError:
+            raise ValueError("SHORTS_WIDTH, SHORTS_HEIGHT, SHORTS_FPS and SHORTS_CRF must be integers") from None
+        if width < 720 or height < 1280 or width * 16 != height * 9:
+            raise ValueError("Shorts output must be a portrait 9:16 frame at least 720x1280")
+        if output_fps not in {24, 25, 30, 50, 60}:
+            raise ValueError("SHORTS_FPS must be one of 24, 25, 30, 50 or 60")
+        if not 16 <= crf <= 24:
+            raise ValueError("SHORTS_CRF must be between 16 and 24")
+    else:
+        width, height, output_fps, crf = WIDTH, HEIGHT, FPS, 18
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
     ai_clips: list[Path] = []
@@ -706,19 +721,19 @@ def render_video(
         part = scene_dir / f"scene_{index:03d}.mp4"
         if ai_clips:
             source = ai_clips[index]
-            _make_segment(source, None, durations[index], part, index, width=width, height=height)
+            _make_segment(source, None, durations[index], part, index, width=width, height=height, fps=output_fps)
         elif stock:
             source = stock[index % len(stock)]
-            _make_segment(source, None, durations[index], part, index, width=width, height=height)
+            _make_segment(source, None, durations[index], part, index, width=width, height=height, fps=output_fps)
         elif scene_stills:
-            _make_segment(None, scene_stills[index % len(scene_stills)], durations[index], part, index, width=width, height=height)
+            _make_segment(None, scene_stills[index % len(scene_stills)], durations[index], part, index, width=width, height=height, fps=output_fps)
         elif local_fallbacks:
             source = local_fallbacks[(index + sum(map(ord, run_id))) % len(local_fallbacks)]
-            _make_segment(source, None, durations[index], part, index, width=width, height=height)
+            _make_segment(source, None, durations[index], part, index, width=width, height=height, fps=output_fps)
         else:
             still = scene_dir / f"abstract_{index:03d}.jpg"
             _fallback_still(still, index + sum(map(ord, run_id)), width=width, height=height)
-            _make_segment(None, still, durations[index], part, index, width=width, height=height)
+            _make_segment(None, still, durations[index], part, index, width=width, height=height, fps=output_fps)
         parts.append(part)
     concat_file = out_dir / "scenes.txt"
     concat_file.write_text("".join(f"file '{p.resolve().as_posix()}'\n" for p in parts), encoding="utf-8")
@@ -762,8 +777,9 @@ def render_video(
         "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music),
         "-i", str(effects), "-filter_complex", mix,
         "-map", "0:v:0", "-map", "[aout]", "-vf", subtitles,
-        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-        "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "160k",
+        "-t", f"{duration:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", str(crf),
+        "-maxrate", "16M", "-bufsize", "24M", "-pix_fmt", "yuv420p", "-r", str(output_fps),
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
         "-movflags", "+faststart", str(final_path),
     ]
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(900, int(duration * 8)))
@@ -781,6 +797,7 @@ def render_video(
         "sound_effects_path": str(effects),
         "sound_effects_timing": "scene-anchored: footsteps in scenes 1-2, shimmer in scenes 3-4",
         "on_screen_captions": True, "video_width": width, "video_height": height,
+        "video_fps": output_fps, "video_crf": crf,
         "video_format": video_format, "caption_font_size": 64 if video_format == "shorts" else 40,  # readable-caps-v2,
         "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",
         "persian_text_shaping": "noto-naskh-unicode-rtl" if video_format == "shorts" else "default",
