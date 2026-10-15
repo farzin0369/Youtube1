@@ -32,17 +32,11 @@ def main() -> int:
         raise SystemExit("PATCH_FAIL: base_rate block not found")
     text = text.replace(old, new, 1)
 
-    # Reduce emotion exaggeration scale.
-    text = text.replace(
-        "scale = intensity * confidence * 0.5",
-        "scale = intensity * confidence * 0.25  # natural_v2 softer",",",
-        1,
-    )
-    # fix possible typo if double replace
-    text = text.replace(
-        "scale = intensity * confidence * 0.25  # natural_v2 softer",",",
-        "scale = intensity * confidence * 0.25  # natural_v2 softer",
-    )
+    old_scale = "scale = intensity * confidence * 0.5"
+    new_scale = "scale = intensity * confidence * 0.25  # natural_v2 softer"
+    if old_scale not in text:
+        raise SystemExit("PATCH_FAIL: scale line not found")
+    text = text.replace(old_scale, new_scale, 1)
 
     compile(text, str(TARGET), "exec")
     TARGET.write_text(text, encoding="utf-8")
