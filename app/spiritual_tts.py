@@ -203,6 +203,30 @@ def _render_elevenlabs(
     return _alignment_word_events(alignment, text)
 
 
+
+def pad_audio_to_min(path: Path, min_seconds: float = 16.0) -> float:
+    """Append silence so Shorts stay above the platform comfort floor."""
+    import subprocess
+    path = Path(path)
+    try:
+        cur = _duration(path)
+    except Exception:
+        return 0.0
+    if cur >= min_seconds - 0.05:
+        return cur
+    need = max(0.05, min_seconds - cur)
+    out = path.with_name(path.stem + "_padded" + path.suffix)
+    # apad works for wav/mp3 via ffmpeg
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(path),
+        "-af", f"apad=pad_dur={need:.3f}",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=60)
+    out.replace(path)
+    return float(min_seconds)
+
 def _duration(path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
