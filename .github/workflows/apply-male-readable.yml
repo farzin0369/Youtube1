@@ -1,0 +1,22 @@
+name: Male voice and readable captions
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_male_voice_readable_caps.py"
+      - "scripts/trigger_male_readable.txt"
+      - ".github/workflows/apply-male-readable.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_male_voice_readable_caps.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_tts.py app/spiritual_video.py app/persian_tts_normalize.py data/shorts_idea_bank.json
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: male Edge voice + high-contrast captions + oral disambiguation" && git push; fi
