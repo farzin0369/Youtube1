@@ -1,0 +1,23 @@
+name: Coqui natural male TTS
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "app/coqui_tts.py"
+      - "scripts/patch_coqui_provider.py"
+      - "scripts/trigger_coqui.txt"
+      - ".github/workflows/apply-coqui-tts.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_coqui_provider.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_tts.py app/coqui_tts.py requirements.txt
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: Coqui VITS natural male Persian TTS with fallbacks" && git push; fi
