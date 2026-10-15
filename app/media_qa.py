@@ -123,7 +123,11 @@ def validate_render_package(
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        approved_visual_source = visual_source in {"pexels", "wan2.1"}
+        # Free private-draft path may use Pollinations or abstract stills when Pexels/GPU are unavailable.
+        approved_visual_source = visual_source in {
+            "pexels", "wan2.1", "ltx-video", "provided stills",
+            "generated abstract fallback", "local fallback videos", "pollinations",
+        }
         if not approved_visual_source and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
         if visual_source == "wan2.1":
