@@ -24,15 +24,14 @@ def test_short_caption_ass_includes_a_separate_large_hook(tmp_path: Path):
     )
     ass = video._write_shorts_ass(srt, tmp_path / "captions.ass", hook="یک قدم کافیست", duration=20)
     text = ass.read_text(encoding="utf-8")
-    assert "Style: Hook,Noto Naskh Arabic,56" in text
-    assert "Style: Default,Noto Naskh Arabic,48" in text
+    assert "Style: Hook,Noto Naskh Arabic,92" in text
+    assert "Style: Default,Noto Naskh Arabic,72" in text
     assert "Dialogue: 1,0:00:00.00,0:00:02.80,Hook" in text
     assert "یک قدم کافیست" in text
     assert "Dialogue: 0,0:00:00.15,0:00:01.40,Default" in text
     assert "WrapStyle: 0" in text and "Kerning: yes" in text
     assert r"\fad(100,130)" in text and r"\fscx108\fscy108" in text
     assert r"\fad(90,70)" in text and r"\fscx104\fscy104" in text
-    # Keep source order and codepoints intact; libass shapes Arabic/Persian as a run.
     assert "تا حالا شده؟" in text and "فقط یک قدم" in text
     assert "؟ شده حالا تا" not in text
 
@@ -40,9 +39,10 @@ def test_short_caption_ass_includes_a_separate_large_hook(tmp_path: Path):
 def test_scene_moods_have_audibly_distinct_tts_profiles():
     profiles = [_delivery(mood) for mood in ("hook", "calm", "reassuring", "motivational")]
     assert len(set(profiles)) == 4
-    assert profiles[0][0].startswith("+")
+    # clearer_v3: all slightly slow; calm is slowest
     assert profiles[1][0].startswith("-")
-    assert profiles[3][0].startswith("+")
+    rates = [float(p[0].rstrip("%")) for p in profiles]
+    assert rates[1] <= rates[0]  # calm <= hook
 
 
 def test_shorts_score_has_four_audio_beats(tmp_path: Path):
@@ -56,7 +56,6 @@ def test_shorts_score_has_four_audio_beats(tmp_path: Path):
 
 
 def test_short_renderer_falls_back_to_free_stills_when_stock_missing(tmp_path: Path, monkeypatch):
-    """Without Pexels, production may use Pollinations or local abstract stills — not hard-fail."""
     audio = tmp_path / "audio.wav"
     with wave.open(str(audio), "wb") as output:
         output.setnchannels(1)
@@ -65,7 +64,8 @@ def test_short_renderer_falls_back_to_free_stills_when_stock_missing(tmp_path: P
         output.writeframes(b"\0\0" * 22_050)
     monkeypatch.setattr(video, "probe_duration", lambda path: 1.0)
     monkeypatch.setattr(video, "fetch_stock", lambda *args, **kwargs: ([], []))
-    # Force offline free path so CI does not depend on Pollinations network.
+    if hasattr(video, "fetch_mixkit_stock"):
+        monkeypatch.setattr(video, "fetch_mixkit_stock", lambda *args, **kwargs: ([], []))
     if hasattr(video, "fetch_pollinations_stills"):
         monkeypatch.setattr(video, "fetch_pollinations_stills", lambda *args, **kwargs: ([], []))
     if not shutil.which("ffmpeg"):

@@ -1,0 +1,26 @@
+name: Apply big captions and clearer TTS
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_big_captions_natural_voice.py"
+      - ".github/workflows/apply-captions-voice.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          python3 scripts/patch_big_captions_natural_voice.py
+          grep -q "Noto Naskh Arabic,72" app/spiritual_video.py
+          grep -q "clearer_v3" app/spiritual_tts.py
+      - run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_video.py app/spiritual_tts.py config/channel.yaml || true
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: larger Shorts captions + slower clearer Persian TTS" && git push; fi
