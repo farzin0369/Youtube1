@@ -142,6 +142,54 @@ def fetch_pollinations_stills(
     return paths, credits
 
 
+
+# scene-match-v1: map Persian spiritual themes to distinct free Mixkit visual queries
+_THEME_VISUALS = {
+    "توکل": ["person walking path nature", "sunrise mountain silhouette", "calm open sky"],
+    "نفس": ["deep breath nature forest", "peaceful lake reflection", "slow clouds sky"],
+    "صبر": ["hourglass sand slow", "rain window calm", "candle flame close"],
+    "شکر": ["sunrise golden field", "hands open sunlight", "birds flying sky"],
+    "قدم": ["footsteps path forest", "walking trail nature", "bridge over river"],
+    "نور": ["light rays through trees", "candle in dark room", "sunrise through window"],
+    "آرام": ["calm ocean waves", "misty morning forest", "quiet empty mosque courtyard"],
+    "دعا": ["hands prayer silhouette", "candle light spirituality", "moon night sky"],
+    "امید": ["sunrise over hills", "light at end of tunnel", "green sprout soil"],
+    "تلاش": ["person climbing hill", "hands working soil", "road journey mountains"],
+}
+
+def _visual_queries_for_scenes(keywords: list[str], count: int = 4) -> list[str]:
+    """Build diversified English visual queries aligned to spiritual keywords."""
+    import random
+    joined = " ".join(str(k) for k in (keywords or []))
+    picked: list[str] = []
+    for theme, visuals in _THEME_VISUALS.items():
+        if theme in joined:
+            for v in visuals:
+                if v not in picked:
+                    picked.append(v)
+    # Always enrich with generic spiritual-safe free stock
+    extras = [
+        "candle light darkness",
+        "person silhouette sunrise",
+        "forest path sunlight",
+        "calm sea horizon",
+        "desert dunes golden hour",
+        "night sky stars timelapse",
+        "rain drops leaf macro",
+        "open book light window",
+    ]
+    for e in extras:
+        if e not in picked:
+            picked.append(e)
+    # seed with original english-ish keywords if any ascii
+    for k in keywords or []:
+        ks = str(k).strip()
+        if ks and all(ord(c) < 128 for c in ks) and ks not in picked:
+            picked.insert(0, ks)
+    random.shuffle(picked)
+    return picked[: max(count * 3, 8)]
+
+
 def fetch_mixkit_stock(
     keywords: list[str], out_dir: Path, count: int = 4, *,
     orientation: str = "portrait",
@@ -155,7 +203,7 @@ def fetch_mixkit_stock(
     paths: list[Path] = []
     credits: list[str] = []
     seen: set[str] = set()
-    queries = (keywords or ["calm nature", "peaceful light", "sunrise", "ocean waves"])[: max(count * 2, 4)]
+    queries = _visual_queries_for_scenes(keywords or ["calm", "light", "path", "sunrise"], count)  # scene-match-v1
     # Prefer calm spiritual-adjacent free vertical search terms when queries are abstract.
     extras = ["calm", "nature vertical", "sunrise", "meditation", "ocean waves", "soft light"]
     for keyword in list(queries) + extras:
