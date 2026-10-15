@@ -655,8 +655,14 @@ def render_video(
         ai_clips: list[Path] = []
         if ai_engine == "wan":
             from app.wan_video_engine import generate_wan_clips
+            wan_profile = (os.getenv("WAN_QUALITY_PROFILE") or "cinematic").strip().lower()
+            try:
+                wan_width = int(os.getenv("WAN_WIDTH") or ("576" if wan_profile == "cinematic" else "480"))
+                wan_height = int(os.getenv("WAN_HEIGHT") or ("1024" if wan_profile == "cinematic" else "832"))
+            except ValueError:
+                raise ValueError("WAN_WIDTH and WAN_HEIGHT must be integers") from None
             ai_clips = generate_wan_clips(
-                queries, out_dir / "wan", width=480, height=832, num_frames=81, fps=16,
+                queries, out_dir / "wan", width=wan_width, height=wan_height, num_frames=81, fps=16,
             )
             stock, credits = [], []
         elif ai_engine == "ltx":
