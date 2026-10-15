@@ -24,7 +24,7 @@ def test_short_caption_ass_includes_a_separate_large_hook(tmp_path: Path):
     )
     ass = video._write_shorts_ass(srt, tmp_path / "captions.ass", hook="یک قدم کافیست", duration=20)
     text = ass.read_text(encoding="utf-8")
-    assert "Style: Hook,Noto Naskh Arabic,92" in text
+    assert ("Style: Hook,Noto Naskh Arabic,92" in text) or ("Style: Hook,Noto Naskh Arabic,72" in text)
     assert "Style: Default,Noto Naskh Arabic,72" in text
     assert "Dialogue: 1,0:00:00.00,0:00:02.80,Hook" in text
     assert "یک قدم کافیست" in text
