@@ -90,13 +90,13 @@ jobs:
             fi
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::Colab did not allocate a T4 GPU after 5 attempts. This is a Colab capacity/service response, not a YouTube credential error. Retry later or use an already-connected Colab runtime." | tee -a output/colab_cli/run.log
+            echo "::error::Colab did not allocate a T4 GPU after 5 attempts. No video was rendered; downstream video steps will be skipped. This is a Colab capacity/service response, not a YouTube credential error. Retry later or use an already-connected Colab runtime." | tee -a output/colab_cli/run.log
             exit 1
           fi
           echo "session=$SESSION" >> "$GITHUB_OUTPUT"
 
       - name: Install video dependencies in Colab
-        if: steps.check.outputs.ok == 'true'
+        if: steps.check.outputs.ok == 'true' && steps.gpu.outcome == 'success'
         env:
           SESSION: ${{ steps.gpu.outputs.session }}
         run: |
@@ -105,7 +105,7 @@ jobs:
             | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log
 
       - name: Generate video on Colab GPU
-        if: steps.check.outputs.ok == 'true'
+        if: steps.check.outputs.ok == 'true' && steps.gpu.outcome == 'success'
         env:
           SESSION: ${{ steps.gpu.outputs.session }}
         run: |
@@ -113,7 +113,7 @@ jobs:
           colab exec -s "$SESSION" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
 
       - name: Download generated video
-        if: steps.check.outputs.ok == 'true'
+        if: steps.check.outputs.ok == 'true' && steps.gpu.outcome == 'success'
         env:
           SESSION: ${{ steps.gpu.outputs.session }}
         run: |
@@ -123,7 +123,7 @@ jobs:
           ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 output/colab_cli/video_raw.mp4 | tee output/colab_cli/video_probe.txt
 
       - name: Finish short (natural TTS + captions)
-        if: steps.check.outputs.ok == 'true'
+        if: steps.check.outputs.ok == 'true' && steps.gpu.outcome == 'success'
         run: |
           set -euo pipefail
           python scripts/finish_gpu_short.py output/colab_cli
