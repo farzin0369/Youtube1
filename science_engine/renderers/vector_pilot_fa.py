@@ -18,7 +18,7 @@ class VectorPilotFA(ThreeDScene):
         self.add(stars)
 
         title = Text("سیاه‌چاله؛ مرزِ بی‌بازگشت", font="Noto Sans Arabic",
-                     font_size=29, weight=BOLD, color="#F5F7FF)
+                     font_size=29, weight=BOLD, color="#F5F7FF")
         subtitle = Text("سفر به افق رویداد", font="Noto Sans Arabic",
                         font_size=19, color="#B8C7E8")
         title.to_edge(UP, buff=0.25)
@@ -32,7 +32,7 @@ class VectorPilotFA(ThreeDScene):
         core.set_color("#010207").set_opacity(1)
         core.set_shade_in_3d(True)
         photon = Torus(major_radius=1.18, minor_radius=0.035,
-                       resolution=(16, 80), color="#FFC16A)
+                       resolution=(16, 80), color="#FFC16A")
         photon.rotate(68 * DEGREES, axis=RIGHT)
         photon.set_shade_in_3d(True)
         horizon = Torus(major_radius=1.01, minor_radius=0.055,
@@ -80,7 +80,7 @@ class VectorPilotFA(ThreeDScene):
             t_range=[0, 1], color="#58D9FF", stroke_width=5)
         raydot = Dot3D(point=path.get_start(), radius=0.075, color="#A8F4FF")
         label3 = Text("بیرون از افق، نور می‌تواند دور شود", font="Noto Sans Arabic",
-                      font_size=19, color="#8BE8FF)
+                      font_size=19, color="#8BE8FF")
         label3.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(label3)
         self.play(Create(path), FadeIn(raydot), FadeIn(label3), run_time=2.0)
@@ -94,7 +94,7 @@ class VectorPilotFA(ThreeDScene):
             t_range=[0, 1], color="#FF6A59", stroke_width=5)
         inward_dot = Dot3D(point=inward.get_start(), radius=0.075, color="#FF9B8C")
         label4 = Text("پس از عبور از افق، راهِ بازگشت به بیرون نیست", 
-                      font="Noto Sans Arabic", font_size=18, color="#FFB0A4)
+                      font="Noto Sans Arabic", font_size=18, color="#FFB0A4")
         label4.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(label4)
         self.play(Create(inward), FadeIn(inward_dot), FadeIn(label4), run_time=1.5)
@@ -105,7 +105,7 @@ class VectorPilotFA(ThreeDScene):
         # 25-31s: pull back and make the misconception correction visual.
         self.play(self.camera.frame.animate.scale(1.09), run_time=1.0)
         label5 = Text("سیاه‌چاله از دور، جاروبرقیِ کیهانی نیست", 
-                      font="Noto Sans Arabic", font_size=22, color="#F5F7FF, weight=BOLD)
+                      font="Noto Sans Arabic", font_size=22, color="#F5F7FF", weight=BOLD)
         label5.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(label5)
         self.play(FadeIn(label5), run_time=0.5)
@@ -114,7 +114,7 @@ class VectorPilotFA(ThreeDScene):
 
         # 31-38s: concluding image remains alive while the final narration finishes.
         ending = Text("شگفتیِ آن، هندسهٔ فضا و زمان است", font="Noto Sans Arabic",
-                      font_size=23, color="#FFC16A, weight=BOLD)
+                      font_size=23, color="#FFC16A", weight=BOLD)
         ending.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(ending)
         self.play(FadeIn(ending), run_time=0.7)
