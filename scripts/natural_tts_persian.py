@@ -68,11 +68,9 @@ def synth_xtts(text: str, ref_wav: Path, out_wav: Path) -> None:
     )
 
 
-def synth_piper_fallback(text: str, out_wav: Path) -> None:
-    """CPU Piper Persian if XTTS unavailable."""
-    print("[tts] Piper fallback", flush=True)
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "piper-tts"])
-    # Try common Persian models via edge as last resort
+def synth_edge_fallback(text: str, out_wav: Path) -> None:
+    """Use Edge TTS Farid as the explicit network-backed fallback when XTTS fails."""
+    print("[tts] Edge TTS Farid fallback (not Piper)", flush=True)
     try:
         import edge_tts
         import asyncio
@@ -107,7 +105,7 @@ def main() -> int:
         synth_xtts(text, ref, out_wav)
     except Exception as e:
         print(f"[tts] XTTS path failed: {e}", flush=True)
-        synth_piper_fallback(text, out_wav)
+        synth_edge_fallback(text, out_wav)
 
     # Normalize loudness + mp3 for mux
     subprocess.check_call(
@@ -122,7 +120,7 @@ def main() -> int:
     # Attribution note
     (out_dir / "ATTRIBUTION_VOICES.txt").write_text(
         "Voice reference: Open Swara (jaymunshi/open-swara) Persian male sample, CC-BY-SA 4.0.\n"
-        "Synthesis: Coqui XTTS v2 multilingual (or Edge/Piper fallback).\n",
+        "Synthesis: Coqui XTTS v2 multilingual (Edge TTS Farid fallback if XTTS fails).\n",
         encoding="utf-8",
     )
     return 0
