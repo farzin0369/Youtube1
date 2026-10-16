@@ -1,0 +1,53 @@
+name: Science bank harvest (isolated branch only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harvest-arxiv:
+    if: github.ref == 'refs/heads/feat/science-bank-harvest-run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out isolated harvest branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/science-bank-harvest-run
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Harvest research metadata in controlled batches
+        shell: bash
+        run: |
+          set +e
+          python -m science_engine.batch_import_arxiv --start-index 0 --topics-per-run 107 --limit-per-topic 100 --delay-seconds 3 > /tmp/science-harvest.log 2>&1
+          harvest_status=$?
+          cat /tmp/science-harvest.log
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add science_engine/ideas.jsonl
+          if ! git diff --cached --quiet; then
+            git commit -m "Harvest arXiv science research candidates"
+            git push origin HEAD:feat/science-bank-harvest-run
+          else
+            echo "No bank changes to commit."
+          fi
+          exit "$harvest_status"
+
+      - name: Upload harvest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: science-bank-harvest-report
+          path: /tmp/science-harvest.log
+          if-no-files-found: warn
+          retention-days: 7
