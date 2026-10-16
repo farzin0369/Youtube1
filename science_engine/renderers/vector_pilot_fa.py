@@ -6,7 +6,7 @@ class VectorPilotFA(Scene):
     def construct(self):
         self.camera.background_color = "#070B18"
         title = Text("بردارها؛ زبان پنهان حرکت", font="Noto Sans Arabic", font_size=32, weight=BOLD, color="#F4F7FF")
-        subtitle = Text("اندازه + جهت", font="Noto Sans Arabic", font_size=23, color="#AAB8D6")
+        subtitle = Text("دو ویژگی مهم", font="Noto Sans Arabic", font_size=23, color="#AAB8D6")
         title.to_edge(UP, buff=0.42)
         subtitle.next_to(title, DOWN, buff=0.15)
         self.play(FadeIn(title, shift=DOWN * 0.15), FadeIn(subtitle), run_time=1.5)
