@@ -200,6 +200,78 @@ def fetch_arxiv(query: str, limit: int) -> list[dict[str, Any]]:
     return parse_arxiv_feed(payload, limit)
 
 
+
+def parse_crossref_payload(payload: bytes, limit: int = 10) -> list[dict[str, Any]]:
+    """Convert Crossref REST metadata into source-linked review candidates."""
+    try:
+        data = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid Crossref JSON: {exc}") from exc
+    message = data.get("message") or {}
+    records: list[dict[str, Any]] = []
+    for work in (message.get("items") or [])[:max(1, min(int(limit), 100))]:
+        titles = work.get("title") or []
+        title = " ".join(str(titles[0]).split()) if titles else ""
+        if not title:
+            continue
+        doi = str(work.get("DOI") or "").strip().lower()
+        authors = []
+        for author in (work.get("author") or [])[:8]:
+            name = " ".join([str(author.get("given", "")).strip(), str(author.get("family", "")).strip()]).strip()
+            if name:
+                authors.append(name)
+        date_parts = ((work.get("published-print") or work.get("published-online") or work.get("created") or {}).get("date-parts") or [[None]])
+        year = date_parts[0][0] if date_parts and date_parts[0] else None
+        container = work.get("container-title") or []
+        subjects = work.get("subject") or []
+        url = work.get("URL") or (("https://doi.org/" + doi) if doi else "")
+        records.append({
+            "id": "crossref-" + (doi.replace("/", "-") if doi else str(work.get("type", "work")) + "-" + str(len(records))),
+            "title": title,
+            "tags": [str(s) for s in subjects[:8]],
+            "hook": "What does the research tell us about: " + title.rstrip("?. ") + "?",
+            "plain_explanation": "Review the cited source, then write and fact-check a plain-language explanation; metadata alone is not evidence for the claim.",
+            "deeper_angle": "Inspect methods, source type, limitations, competing interpretations, and specialist context.",
+            "visual_plan": ["Frame a question", "Illustrate only verified concepts", "Show the key limitation or open question"],
+            "sources": [{
+                "provider": "Crossref",
+                "url": url,
+                "doi": doi or None,
+                "publication_year": year,
+                "source_name": container[0] if container else None,
+                "authors": authors,
+                "cited_by_count": work.get("is-referenced-by-count", 0),
+                "work_type": work.get("type"),
+            }],
+            "evidence_status": "needs_review",
+            "workflow_status": "research_candidate",
+            "language": "en",
+        })
+    return records
+
+
+def fetch_crossref(query: str, limit: int) -> list[dict[str, Any]]:
+    if not query.strip():
+        raise ValueError("Query must not be empty.")
+    limit = max(1, min(int(limit), 100))
+    params = {
+        "query": query,
+        "rows": str(limit),
+        "select": "DOI,title,author,published-print,published-online,created,container-title,type,URL,subject,is-referenced-by-count",
+    }
+    url = "https://api.crossref.org/works?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Youtube1-ScienceIdeaEngine/0.1 (metadata only; https://github.com/farzin0369/Youtube1)"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            payload = response.read()
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise RuntimeError(f"Crossref request failed: {exc}") from exc
+    return parse_crossref_payload(payload, limit)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Search and grow the isolated science idea bank.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -212,6 +284,9 @@ def main(argv: list[str] | None = None) -> int:
     arxiv = sub.add_parser("import-arxiv", help="Import research candidates from the arXiv API.")
     arxiv.add_argument("--query", required=True)
     arxiv.add_argument("--limit", type=int, default=10)
+    crossref = sub.add_parser("import-crossref", help="Import research metadata candidates from Crossref.")
+    crossref.add_argument("--query", required=True)
+    crossref.add_argument("--limit", type=int, default=10)
     rank = sub.add_parser("rank", help="Rank idea candidates with an explainable editorial rubric.")
     rank.add_argument("--limit", type=int, default=30)
     args = parser.parse_args(argv)
@@ -233,6 +308,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "rank":
             from science_engine.ranking import rank_ideas
             print(json.dumps(rank_ideas(records)[:max(1, min(args.limit, 500))], ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "import-crossref":
+            incoming = fetch_crossref(args.query, args.limit)
+            merged, added = merge_records(records, incoming)
+            save_records(merged)
+            print(json.dumps({"query": args.query, "source": "Crossref", "fetched": len(incoming), "added": added, "duplicates_skipped": len(incoming) - added, "total_ideas": len(merged)}, ensure_ascii=False, indent=2))
             return 0
         if args.command == "import-arxiv":
             incoming = fetch_arxiv(args.query, args.limit)
