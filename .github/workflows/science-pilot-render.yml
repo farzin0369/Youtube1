@@ -2,6 +2,9 @@ name: Science pilot render (manual only)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/science-idea-engine-safe-pilot
 
 permissions:
   contents: read
@@ -18,7 +21,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
 
       - name: Install system libraries
         run: |
