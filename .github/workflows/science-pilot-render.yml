@@ -2,9 +2,6 @@ name: Science pilot render (manual only)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/science-idea-engine-safe-pilot
 
 permissions:
   contents: read
