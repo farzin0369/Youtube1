@@ -20,12 +20,13 @@ python -m science_engine.cli import-openalex --query "quantum entanglement" --li
 python -m science_engine.cli import-arxiv --query "quantum entanglement" --limit 10
 python -m science_engine.cli rank --limit 20
 python -m science_engine.batch_import --start-index 0 --topics-per-run 5 --limit-per-topic 50
+python -m science_engine.batch_import_arxiv --start-index 0 --topics-per-run 5 --limit-per-topic 50
 ```
 
-Imported records are appended to `science_engine/ideas.jsonl`. Existing records are preserved. Deduplication uses DOI where available and normalized title otherwise. OpenAlex basic API usage is free to start; set `OPENALEX_API_KEY` as an environment variable for a higher quota. Never commit API keys.
+Imported records are appended to `science_engine/ideas.jsonl`. Existing records are preserved. Deduplication uses DOI where available and normalized title otherwise. OpenAlex now requires a free API key for sustained use; set `OPENALEX_API_KEY` as an environment variable or a GitHub Secret. Never commit API keys. For a keyless source, use the arXiv adapter; it is rate-limited to at least three seconds between requests and its records may be preprints.
 
 ## Growing the bank toward 10,000 candidates
-`topics.json` contains 100 cross-disciplinary research queries. `batch_import.py` runs a small, resumable batch and saves after each topic, so a network or rate-limit failure does not discard completed work. Example: `python -m science_engine.batch_import --start-index 0 --topics-per-run 5 --limit-per-topic 50`. After the summary reports `next_start_index`, use that number for the next batch. Reaching 10,000 distinct records is a target, not a guarantee: API results overlap, some queries return fewer records, and source quality still needs review. Do not run a huge batch in GitHub Actions; run controlled batches in Colab or another session with network access.
+`topics.json` contains 107 cross-disciplinary research queries. `batch_import.py` runs resumable OpenAlex batches; `batch_import_arxiv.py` does the same with the arXiv API and enforces a conservative three-second delay. Both save after each topic, so a network or rate-limit failure does not discard completed work. Example: `python -m science_engine.batch_import --start-index 0 --topics-per-run 5 --limit-per-topic 50`. After the summary reports `next_start_index`, use that number for the next batch. Reaching 10,000 distinct records is a target, not a guarantee: API results overlap, some queries return fewer records, and source quality still needs review. Do not run a huge batch in GitHub Actions; run controlled batches in Colab or another session with network access.
 
 ## Current safeguards and limits
 - OpenAlex and arXiv imports add **research candidates**, not finished scripts or verified conclusions.
