@@ -5,6 +5,7 @@ from pathlib import Path
 
 from science_engine.cli import dedupe_key, load_records, merge_records, save_records, search_bank
 from science_engine.ranking import rank_idea, rank_ideas
+from science_engine.cli import parse_arxiv_feed
 
 
 class ScienceIdeaBankTests(unittest.TestCase):
@@ -66,6 +67,30 @@ class ScienceIdeaBankTests(unittest.TestCase):
     def test_ranking_marks_philosophy_for_review(self):
         result = rank_idea({"title": "Does mathematics exist independently?", "evidence_status": "philosophical_debate"})
         self.assertTrue(result["review_required"])
+
+
+    def test_parse_arxiv_feed_creates_review_candidate(self):
+        xml_data = b\'''<?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+          <entry>
+            <id>https://arxiv.org/abs/2401.01234</id>
+            <published>2024-01-03T00:00:00Z</published>
+            <title>  Quantum fields and the vacuum  </title>
+            <summary>A compact abstract for testing.</summary>
+            <author><name>Researcher One</name></author>
+            <category term="quant-ph" />
+            <arxiv:doi>10.1234/test-paper</arxiv:doi>
+          </entry>
+        </feed>\'''
+        records = parse_arxiv_feed(xml_data, limit=10)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["title"], "Quantum fields and the vacuum")
+        self.assertEqual(records[0]["workflow_status"], "research_candidate")
+        self.assertEqual(records[0]["sources"][0]["doi"], "10.1234/test-paper")
+
+    def test_parse_arxiv_feed_rejects_invalid_xml(self):
+        with self.assertRaises(ValueError):
+            parse_arxiv_feed(b"<feed><entry>", limit=5)
 
     def test_rank_ideas_sorted_highest_first(self):
         results = rank_ideas([{"title": "Untitled"}, {"title": "Why is space curved?", "hook": "What if space were curved?", "tags": ["space"]}])
