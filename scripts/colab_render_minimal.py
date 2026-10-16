@@ -14,6 +14,11 @@ import sys
 import traceback
 from pathlib import Path
 
+# The model is public: avoid implicit authentication/Colab-vault token lookup.
+os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "15")
+
 MIN_SCENE_BYTES = 80_000  # reject empty/red-dot outputs
 MIN_FINAL_BYTES = 200_000
 
