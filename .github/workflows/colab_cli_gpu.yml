@@ -82,7 +82,7 @@ jobs:
           fi
 
           echo "Installing render dependencies (max 8 minutes)" | tee -a output/colab_cli/run.log
-          if ! timeout 8m sh -c 'echo '\''import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])'\'' | colab exec -s "$1"' _ "$SESSION" 2>&1 | tee -a output/colab_cli/run.log; then
+          if ! printf '%s\n' 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])' | timeout 8m colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log; then
             echo "Remote dependency installation failed or timed out" | tee -a output/colab_cli/run.log
             exit 1
           fi
