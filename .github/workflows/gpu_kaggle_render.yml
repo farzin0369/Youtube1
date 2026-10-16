@@ -1,0 +1,68 @@
+name: Optional Kaggle GPU cinematic render
+
+# Fully automatic WHEN secrets exist:
+#   KAGGLE_USERNAME + KAGGLE_KEY
+# Otherwise this workflow no-ops / skips.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  kaggle-gpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Kaggle secrets
+        id: check
+        run: |
+          if [ -n "${{ secrets.KAGGLE_USERNAME }}" ] && [ -n "${{ secrets.KAGGLE_KEY }}" ]; then
+            echo "has_kaggle=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_kaggle=false" >> "$GITHUB_OUTPUT"
+            echo "Kaggle secrets missing — skip GPU path (set KAGGLE_USERNAME + KAGGLE_KEY for auto cinematic render)"
+          fi
+
+      - name: Setup Kaggle CLI
+        if: steps.check.outputs.has_kaggle == 'true'
+        run: |
+          pip install -q kaggle
+          mkdir -p ~/.kaggle
+          cat > ~/.kaggle/kaggle.json << EOF
+          {"username":"${{ secrets.KAGGLE_USERNAME }}","key":"${{ secrets.KAGGLE_KEY }}"}
+          EOF
+          chmod 600 ~/.kaggle/kaggle.json
+
+      - name: Push GPU kernel to Kaggle
+        if: steps.check.outputs.has_kaggle == 'true'
+        run: |
+          mkdir -p /tmp/kernel
+          cp kaggle/render_short_kernel.py /tmp/kernel/render_short_kernel.py
+          cat > /tmp/kernel/kernel-metadata.json << EOF
+          {
+            "id": "${{ secrets.KAGGLE_USERNAME }}/imamali-gpu-short",
+            "title": "imamali-gpu-short",
+            "code_file": "render_short_kernel.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_internet": true,
+            "dataset_sources": [],
+            "competition_sources": [],
+            "kernel_sources": []
+          }
+          EOF
+          kaggle kernels push -p /tmp/kernel || true
+          echo "Kernel pushed — Kaggle will run on GPU when quota allows."
+          echo "Output appears under your Kaggle kernels; daily pipeline can pull latest output version."
+
+      - name: Note
+        if: steps.check.outputs.has_kaggle != 'true'
+        run: |
+          echo "To enable automatic cinematic GPU:"
+          echo "1. Create free Kaggle account"
+          echo "2. API token → GitHub Secrets KAGGLE_USERNAME + KAGGLE_KEY"
+          echo "3. Re-run this workflow or daily_run"
