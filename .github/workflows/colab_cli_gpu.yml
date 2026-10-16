@@ -74,17 +74,23 @@ jobs:
           SESSION="imamali-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "SESSION=$SESSION" | tee -a output/colab_cli/run.log
           ok=0
-          for attempt in 1 2 3; do
-            echo "allocate attempt $attempt" | tee -a output/colab_cli/run.log
+          # Colab can return transient 503/Service Unavailable when T4 capacity is busy.
+          # Retry with increasing waits and a fresh unique session name each time.
+          for attempt in 1 2 3 4 5; do
+            SESSION="imamali-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$attempt"
+            echo "GPU allocation attempt $attempt/5 for $SESSION" | tee -a output/colab_cli/run.log
             if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log; then
               ok=1
               break
             fi
-            sleep 30
-            SESSION="imamali-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$attempt"
+            if [ "$attempt" -lt 5 ]; then
+              wait_seconds=$((attempt * 45))
+              echo "Allocation unavailable; waiting ${wait_seconds}s before retry." | tee -a output/colab_cli/run.log
+              sleep "$wait_seconds"
+            fi
           done
           if [ "$ok" != "1" ]; then
-            echo "GPU allocation failed after retries" | tee -a output/colab_cli/run.log
+            echo "::error::Colab did not allocate a T4 GPU after 5 attempts. This is a Colab capacity/service response, not a YouTube credential error. Retry later or use an already-connected Colab runtime." | tee -a output/colab_cli/run.log
             exit 1
           fi
           echo "session=$SESSION" >> "$GITHUB_OUTPUT"
