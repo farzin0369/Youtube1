@@ -36,7 +36,7 @@ class VectorPilotFA(ThreeDScene):
         photon.rotate(68 * DEGREES, axis=RIGHT)
         photon.set_shade_in_3d(True)
         horizon = Torus(major_radius=1.01, minor_radius=0.055,
-                        resolution=(16, 80), color="#8C75FF)
+                        resolution=(16, 80), color="#8C75FF")
         horizon.rotate(68 * DEGREES, axis=RIGHT)
         horizon.set_opacity(0.65)
         disk = VGroup()
@@ -67,10 +67,11 @@ class VectorPilotFA(ThreeDScene):
 
         # 8-14s: distinguish the horizon from a solid surface.
         label2 = Text("این یک سطحِ جامد نیست؛ مرزی در فضا-زمان است", 
-                      font="Noto Sans Arabic", font_size=19, color="#BFEAFF)
+                      font="Noto Sans Arabic", font_size=19, color="#BFEAFF")
         label2.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(label2)
-        self.play(FadeIn(label2), self.camera.frame.animate.scale(0.92), run_time=1.0)
+        self.play(FadeIn(label2), run_time=1.0)
+        self.move_camera(zoom=1.02, run_time=1.0)
         self.wait(3.2)
         self.play(FadeOut(label2), run_time=0.35)
 
@@ -103,7 +104,7 @@ class VectorPilotFA(ThreeDScene):
         self.play(FadeOut(inward), FadeOut(inward_dot), FadeOut(label4), run_time=0.4)
 
         # 25-31s: pull back and make the misconception correction visual.
-        self.play(self.camera.frame.animate.scale(1.09), run_time=1.0)
+        self.move_camera(zoom=0.94, run_time=1.0)
         label5 = Text("سیاه‌چاله از دور، جاروبرقیِ کیهانی نیست", 
                       font="Noto Sans Arabic", font_size=22, color="#F5F7FF", weight=BOLD)
         label5.to_edge(DOWN, buff=0.42)
