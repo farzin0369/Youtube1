@@ -1,59 +1,47 @@
-"""Persian-language short visual pilot: vector addition, with clean math graphics."""
+"""Persian science short: why a black hole's event horizon is not a solid surface."""
 from manim import *
 
 
 class VectorPilotFA(Scene):
     def construct(self):
-        self.camera.background_color = "#070B18"
-        title = Text("بردارها؛ زبان پنهان حرکت", font="Noto Sans Arabic", font_size=32, weight=BOLD, color="#F4F7FF")
-        subtitle = Text("دو ویژگی مهم", font="Noto Sans Arabic", font_size=23, color="#AAB8D6")
+        self.camera.background_color = "#050711"
+        title = Text("سیاه‌چاله؛ مرزِ بی‌بازگشت", font="Noto Sans Arabic", font_size=31, weight=BOLD, color="#F4F7FF")
+        subtitle = Text("افق رویداد چیست؟", font="Noto Sans Arabic", font_size=23, color="#AAB8D6")
         title.to_edge(UP, buff=0.42)
         subtitle.next_to(title, DOWN, buff=0.15)
-        self.play(FadeIn(title, shift=DOWN * 0.15), FadeIn(subtitle), run_time=1.5)
-        self.wait(1.4)
+        self.play(FadeIn(title, shift=DOWN * 0.15), FadeIn(subtitle), run_time=1.2)
 
-        axes = Axes(
-            x_range=[-3, 3, 1], y_range=[-2, 2, 1],
-            x_length=7.0, y_length=3.8,
-            axis_config={"color": "#45516D", "stroke_width": 2, "include_ticks": False},
-            tips=True,
-        ).shift(DOWN * 0.55)
-        grid = NumberPlane(
-            x_range=[-3, 3, 1], y_range=[-2, 2, 1],
-            x_length=7.0, y_length=3.8,
-            background_line_style={"stroke_color": "#26324D", "stroke_opacity": 0.45, "stroke_width": 1},
-            axis_config={"stroke_opacity": 0},
-        ).shift(DOWN * 0.55)
-        self.play(Create(grid), Create(axes), run_time=2.0)
-        self.wait(0.8)
+        stars = VGroup(*[
+            Dot([((i * 17) % 13 - 6) * 0.72, ((i * 11) % 9 - 4) * 0.48, 0],
+                radius=0.018, color="#AAB8D6")
+            for i in range(45)
+        ])
+        self.play(FadeIn(stars), run_time=0.7)
 
-        origin = axes.c2p(0, 0)
-        arrow_a = Arrow(origin, axes.c2p(2.2, 1.0), buff=0, color="#55D6FF", stroke_width=6, max_tip_length_to_length_ratio=0.12)
-        arrow_b = Arrow(origin, axes.c2p(-0.8, 1.0), buff=0, color="#FFB86B", stroke_width=6, max_tip_length_to_length_ratio=0.15)
-        label_a = MathTex(r"\vec{a}", color="#55D6FF", font_size=36).next_to(arrow_a.get_tip(), UR, buff=0.08)
-        label_b = MathTex(r"\vec{b}", color="#FFB86B", font_size=36).next_to(arrow_b.get_tip(), UL, buff=0.08)
-        self.play(GrowArrow(arrow_a), FadeIn(label_a), run_time=1.4)
-        self.wait(0.8)
-        self.play(GrowArrow(arrow_b), FadeIn(label_b), run_time=1.4)
-        self.wait(1.0)
+        glow = Circle(radius=1.45, color="#6A5CFF", stroke_width=10).set_stroke(opacity=0.20)
+        ring = Circle(radius=1.18, color="#FFB86B", stroke_width=5)
+        inner_ring = Circle(radius=0.94, color="#55D6FF", stroke_width=2).set_stroke(opacity=0.55)
+        hole = Circle(radius=0.78, color="#000000", fill_opacity=1, stroke_color="#0A0B16", stroke_width=3)
+        hole.move_to(DOWN * 0.35)
+        glow.move_to(hole.get_center())
+        ring.move_to(hole.get_center())
+        inner_ring.move_to(hole.get_center())
+        self.play(FadeIn(glow), Create(ring), Create(inner_ring), run_time=1.6)
+        self.play(FadeIn(hole), run_time=0.8)
 
-        sum_tip = axes.c2p(1.4, 2.0)
-        ghost_a = DashedLine(axes.c2p(-0.8, 1.0), sum_tip, color="#FFB86B", dash_length=0.09, stroke_opacity=0.85)
-        ghost_b = DashedLine(axes.c2p(2.2, 1.0), sum_tip, color="#55D6FF", dash_length=0.09, stroke_opacity=0.85)
-        sum_arrow = Arrow(origin, sum_tip, buff=0, color="#B8F36B", stroke_width=7, max_tip_length_to_length_ratio=0.1)
-        sum_label = MathTex(r"\vec{a}+\vec{b}", color="#B8F36B", font_size=32).next_to(sum_arrow.get_tip(), RIGHT, buff=0.12)
-        self.play(Create(ghost_a), Create(ghost_b), run_time=1.0)
-        self.play(GrowArrow(sum_arrow), FadeIn(sum_label), run_time=1.4)
-        self.wait(1.8)
+        orbit = Circle(radius=1.8, color="#AAB8D6", stroke_width=1.5).set_stroke(opacity=0.35)
+        orbit.move_to(hole.get_center())
+        dot = Dot(orbit.point_from_proportion(0.08), radius=0.075, color="#F4F7FF")
+        self.play(Create(orbit), FadeIn(dot), run_time=0.7)
+        self.play(MoveAlongPath(dot, orbit), run_time=3.0, rate_func=linear)
+        self.play(FadeOut(orbit), FadeOut(dot), run_time=0.4)
 
-        formula = MathTex(r"\vec{a}=(a_x,a_y)", r"\qquad", r"\vec{b}=(b_x,b_y)", color="#F4F7FF", font_size=31)
-        formula.to_edge(DOWN, buff=0.4)
-        formula[0].set_color("#55D6FF")
-        formula[2].set_color("#FFB86B")
-        self.play(FadeIn(formula, shift=UP * 0.15), run_time=1.2)
-        self.wait(2.2)
+        arrow = Arrow(UP * 2.35 + RIGHT * 2.9, DOWN * 0.2 + RIGHT * 0.65, color="#FFB86B", stroke_width=5, buff=0.05)
+        label = Text("مرزِ گریزناپذیر", font="Noto Sans Arabic", font_size=22, color="#FFB86B)
+        label.next_to(arrow, RIGHT, buff=0.12)
+        self.play(GrowArrow(arrow), FadeIn(label), run_time=1.0)
 
-        final = Text("مؤلفه‌ها را جمع کن؛ نتیجه را پیش‌بینی کن", font="Noto Sans Arabic", font_size=25, weight=BOLD, color="#B8F36B")
-        final.to_edge(DOWN, buff=0.35)
-        self.play(FadeOut(formula), FadeIn(final, shift=UP * 0.12), run_time=1.2)
-        self.wait(4.0)
+        note = Text("حتی نور هم از درون آن بیرون نمی‌آید", font="Noto Sans Arabic", font_size=23, color="#F4F7FF)
+        note.to_edge(DOWN, buff=0.45)
+        self.play(FadeIn(note, shift=UP * 0.12), run_time=0.8)
+        self.wait(2.0)
