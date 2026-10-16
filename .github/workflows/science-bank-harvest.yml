@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python -m science_engine.batch_import_crossref --start-index 0 --topics-per-run 107 --limit-per-topic 100 --delay-seconds 1 > /tmp/science-harvest.log 2>&1
+          python -m science_engine.batch_import_crossref --start-index 107 --topics-per-run 20 --limit-per-topic 100 --delay-seconds 1 > /tmp/science-harvest.log 2>&1
           harvest_status=$?
           cat /tmp/science-harvest.log
           set -e
