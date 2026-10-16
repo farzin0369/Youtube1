@@ -17,9 +17,18 @@ From the repository root:
 python -m science_engine.cli stats
 python -m science_engine.cli search "black hole"
 python -m science_engine.cli import-openalex --query "quantum entanglement" --limit 10
+python -m science_engine.cli import-arxiv --query "quantum entanglement" --limit 10
+python -m science_engine.cli rank --limit 20
 ```
 
 Imported records are appended to `science_engine/ideas.jsonl`. Existing records are preserved. Deduplication uses DOI where available and normalized title otherwise. OpenAlex basic API usage is free to start; set `OPENALEX_API_KEY` as an environment variable for a higher quota. Never commit API keys.
+
+## Current safeguards and limits
+- OpenAlex and arXiv imports add **research candidates**, not finished scripts or verified conclusions.
+- Ranking is an explainable editorial triage score (hook, question appeal, visual potential, source trail, evidence status, readiness); it is not a prediction of views.
+- The arXiv API may return preprints; read the paper, check publication status and limitations before presenting claims as established.
+- Run unit tests with `python -m unittest discover -s tests -p "test_science_engine.py"`.
+- The Manim render workflow is manual-only to avoid repeatedly consuming hosted runner minutes. It does not publish to YouTube.
 
 ## Record fields
 Each JSONL line contains a stable ID, question/title, subject tags, hook, accessible explanation, deeper angle, visual plan, source URLs, evidence status, and workflow status. Imported scholarly records are marked `research_candidate`; they are **not** automatically treated as video-ready facts.
