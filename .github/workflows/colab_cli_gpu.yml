@@ -1,6 +1,8 @@
 name: Colab CLI GPU cinematic render
 
-# Secret: COLAB_CLI_TOKEN_JSON
+# Secrets: COLAB_CLI_TOKEN_JSON (required), HF_TOKEN (optional, recommended)
+# HF_TOKEN is passed to the remote kernel through the documented --env option;
+# its value is never echoed or written to an artifact.
 
 on:
   workflow_dispatch:
@@ -9,7 +11,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 125
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +31,7 @@ jobs:
 
       - name: Install Colab CLI
         if: steps.check.outputs.ok == 'true'
+        timeout-minutes: 5
         run: pip install -q google-colab-cli edge-tts
 
       - name: Restore Colab CLI token
@@ -40,69 +43,88 @@ jobs:
           printf '%s' "$COLAB_CLI_TOKEN_JSON" > ~/.config/colab-cli/token.json
           chmod 600 ~/.config/colab-cli/token.json
 
-      - name: Free stuck Colab sessions
+      - name: Inspect Colab sessions (do not stop unrelated sessions)
         if: steps.check.outputs.ok == 'true'
         continue-on-error: true
+        timeout-minutes: 2
         run: |
           mkdir -p output/colab_cli
-          colab sessions 2>&1 | tee output/colab_cli/sessions_before.txt || true
-          # Stop every listed session name (best-effort)
-          colab sessions 2>/dev/null | awk '{print $1}' | while read -r s; do
-            case "$s" in
-              SESSION|Name|----*|"") continue ;;
-            esac
-            echo "Stopping $s"
-            colab stop -s "$s" 2>&1 || true
-          done
-          sleep 15
-          colab sessions 2>&1 | tee output/colab_cli/sessions_after.txt || true
+          timeout 60s colab sessions 2>&1 | tee output/colab_cli/sessions_before.txt || true
 
       - name: GPU render on Colab T4 (LTX)
         if: steps.check.outputs.ok == 'true'
         id: gpu
         continue-on-error: true
+        timeout-minutes: 105
+        env:
+          HF_HUB_DOWNLOAD_TIMEOUT: "30"
+          HF_HUB_ETAG_TIMEOUT: "15"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p output/colab_cli
           SESSION="imamali-$(date +%s)"
           echo "SESSION=$SESSION" | tee -a output/colab_cli/run.log
 
-          # Retry allocate up to 3 times (quota / capacity)
+          # Bound each allocation attempt so the job cannot wait forever.
           ok=0
           for attempt in 1 2 3; do
             echo "allocate attempt $attempt" | tee -a output/colab_cli/run.log
-            if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log; then
+            if timeout 5m colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log; then
               ok=1
               break
             fi
-            sleep 30
+            sleep 10
             SESSION="imamali-$(date +%s)-$attempt"
           done
           if [ "$ok" != "1" ]; then
-            echo "GPU allocate failed after retries" | tee -a output/colab_cli/run.log
+            echo "GPU allocation failed or timed out after 3 attempts" | tee -a output/colab_cli/run.log
             exit 1
           fi
 
-          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])' \
-            | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
+          echo "Installing render dependencies (max 8 minutes)" | tee -a output/colab_cli/run.log
+          if ! printf '%s\n' 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])' | timeout 8m colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log; then
+            echo "Remote dependency installation failed or timed out" | tee -a output/colab_cli/run.log
+            exit 1
+          fi
 
+          echo "Starting LTX render (max 85 minutes, including model download)" | tee -a output/colab_cli/run.log
+          remote_env=(--env "HF_HUB_DOWNLOAD_TIMEOUT=30" --env "HF_HUB_ETAG_TIMEOUT=15")
+          if [ -n "${HF_TOKEN:-}" ]; then
+            echo "Using explicit Hugging Face token for remote model download" | tee -a output/colab_cli/run.log
+            remote_env+=(--env "HF_TOKEN=$HF_TOKEN")
+          else
+            echo "No HF_TOKEN configured; disabling implicit Colab-vault lookup" | tee -a output/colab_cli/run.log
+            remote_env+=(--env "HF_HUB_DISABLE_IMPLICIT_TOKEN=1")
+          fi
           set +e
-          colab exec -s "$SESSION" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          timeout 85m colab exec -s "$SESSION" "${remote_env[@]}" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          render_rc=${PIPESTATUS[0]}
           set -e
+          if [ "$render_rc" -ne 0 ]; then
+            echo "LTX render failed or timed out (exit $render_rc)" | tee -a output/colab_cli/run.log
+          fi
 
-          colab download -s "$SESSION" /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>&1 | tee -a output/colab_cli/run.log || true
-          colab stop -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
+          echo "Downloading output (max 4 minutes)" | tee -a output/colab_cli/run.log
+          timeout 4m colab download -s "$SESSION" /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+          timeout 2m colab stop -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
           ls -la output/colab_cli/ || true
+          if [ ! -s output/colab_cli/video_raw.mp4 ]; then
+            echo "No video downloaded; last render log lines follow" | tee -a output/colab_cli/run.log
+            tail -n 80 output/colab_cli/run.log || true
+            exit 1
+          fi
 
       - name: Finish short (natural TTS + captions)
         if: steps.check.outputs.ok == 'true'
+        timeout-minutes: 10
         run: |
           if [ -f output/colab_cli/video_raw.mp4 ]; then
             python scripts/finish_gpu_short.py output/colab_cli
             ls -la output/colab_cli/
           else
             echo "No video_raw"
-            tail -n 50 output/colab_cli/run.log || true
+            tail -n 80 output/colab_cli/run.log || true
             exit 1
           fi
 

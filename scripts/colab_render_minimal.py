@@ -14,6 +14,15 @@ import sys
 import traceback
 from pathlib import Path
 
+# Keep Hub access bounded. If the workflow supplies HF_TOKEN, huggingface_hub
+# uses it for the model download; no token is embedded in this source file.
+if os.environ.get("HF_TOKEN"):
+    os.environ.pop("HF_HUB_DISABLE_IMPLICIT_TOKEN", None)
+else:
+    os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "30")
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "15")
+
 MIN_SCENE_BYTES = 80_000  # reject empty/red-dot outputs
 MIN_FINAL_BYTES = 200_000
 
@@ -119,8 +128,8 @@ def main() -> int:
             torch.cuda.empty_cache()
             out = pipe(
                 prompt=prompt,
-                width=576,
-                height=384,
+                width=384,
+                height=576,
                 num_frames=25,
                 num_inference_steps=20,
             )
