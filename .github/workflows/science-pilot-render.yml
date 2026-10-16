@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feat/science-black-hole-video
+      - feat/science-black-hole-cinematic-sync
 
 permissions:
   contents: read
