@@ -1,0 +1,22 @@
+name: Apply Persian TTS normalizer
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "app/persian_tts_normalize.py"
+      - "scripts/patch_tts_normalize_wire.py"
+      - ".github/workflows/apply-tts-normalize.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_tts_normalize_wire.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/persian_tts_normalize.py app/spiritual_tts.py app/piper_tts.py data/shorts_idea_bank.json
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: oral Persian texts + TTS normalizer for clearer speech" && git push; fi

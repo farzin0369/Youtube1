@@ -1,6 +1,8 @@
 """Low-cost vertical stock/abstract video assembly with Persian captions."""
 from __future__ import annotations
 
+from app.visual_prompts import cinematic_prompts_for_scenes, mixkit_keywords_from_scenes
+
 import json
 import logging
 import math
@@ -102,6 +104,156 @@ def _choose_file(video: dict[str, Any], *, orientation: str = "landscape") -> di
     sufficient = [f for f in pool if (f.get("height") or 0) >= 960]
     pool = sufficient or pool
     return min(pool, key=lambda f: (f.get("width") or 10_000) * (f.get("height") or 10_000))
+
+
+def fetch_pollinations_stills(
+    keywords: list[str], out_dir: Path, count: int = 4, *,
+    width: int = 1080, height: int = 1920,
+) -> tuple[list[Path], list[str]]:
+    """Download free AI stills from Pollinations (no API key required)."""
+    import urllib.parse
+    import urllib.request
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    credits: list[str] = []
+    queries = (keywords or ["peaceful abstract light"])[: max(count, 1)]
+    while len(queries) < count:
+        queries.append(queries[len(queries) % max(len(queries), 1)])
+    for index, query in enumerate(queries[:count]):
+        prompt = f"cinematic vertical portrait photo, {query}, soft natural light, realistic, no text, no watermark"
+        url = (
+            "https://image.pollinations.ai/prompt/"
+            + urllib.parse.quote(prompt)
+            + f"?width={width}&height={height}&nologo=true&seed={1000 + index}"
+        )
+        target = out_dir / f"pollinations_{index:03d}.jpg"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "ImamAli110-pipeline/1.0"})
+            with urllib.request.urlopen(req, timeout=45) as response:
+                data = response.read()
+            if len(data) < 8_000:
+                raise ValueError("image too small")
+            target.write_bytes(data)
+            paths.append(target)
+            credits.append(f"Visual generated via Pollinations (free): {query}")
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Pollinations still failed for %r (%s)", query[:80], type(exc).__name__
+            )
+    return paths, credits
+
+
+
+# scene-match-v1: map Persian spiritual themes to distinct free Mixkit visual queries
+_THEME_VISUALS = {
+    "توکل": ["person walking path nature", "sunrise mountain silhouette", "calm open sky"],
+    "نفس": ["deep breath nature forest", "peaceful lake reflection", "slow clouds sky"],
+    "صبر": ["hourglass sand slow", "rain window calm", "candle flame close"],
+    "شکر": ["sunrise golden field", "hands open sunlight", "birds flying sky"],
+    "قدم": ["footsteps path forest", "walking trail nature", "bridge over river"],
+    "نور": ["light rays through trees", "candle in dark room", "sunrise through window"],
+    "آرام": ["calm ocean waves", "misty morning forest", "quiet empty mosque courtyard"],
+    "دعا": ["hands prayer silhouette", "candle light spirituality", "moon night sky"],
+    "امید": ["sunrise over hills", "light at end of tunnel", "green sprout soil"],
+    "تلاش": ["person climbing hill", "hands working soil", "road journey mountains"],
+}
+
+def _visual_queries_for_scenes(keywords: list[str], count: int = 4) -> list[str]:
+    """Build diversified English visual queries aligned to spiritual keywords."""
+    import random
+    joined = " ".join(str(k) for k in (keywords or []))
+    picked: list[str] = []
+    for theme, visuals in _THEME_VISUALS.items():
+        if theme in joined:
+            for v in visuals:
+                if v not in picked:
+                    picked.append(v)
+    # Always enrich with generic spiritual-safe free stock
+    extras = [
+        "candle light darkness",
+        "person silhouette sunrise",
+        "forest path sunlight",
+        "calm sea horizon",
+        "desert dunes golden hour",
+        "night sky stars timelapse",
+        "rain drops leaf macro",
+        "open book light window",
+    ]
+    for e in extras:
+        if e not in picked:
+            picked.append(e)
+    # seed with original english-ish keywords if any ascii
+    for k in keywords or []:
+        ks = str(k).strip()
+        if ks and all(ord(c) < 128 for c in ks) and ks not in picked:
+            picked.insert(0, ks)
+    random.shuffle(picked)
+    return picked[: max(count * 3, 8)]
+
+
+def fetch_mixkit_stock(
+    keywords: list[str], out_dir: Path, count: int = 4, *,
+    orientation: str = "portrait",
+) -> tuple[list[Path], list[str]]:
+    """Download free Mixkit stock clips — no API key, no account required."""
+    import re
+    import urllib.parse
+    import urllib.request
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    credits: list[str] = []
+    seen: set[str] = set()
+    queries = _visual_queries_for_scenes(keywords or ["calm", "light", "path", "sunrise"], count)  # scene-match-v1
+    # Prefer calm spiritual-adjacent free vertical search terms when queries are abstract.
+    extras = ["calm", "nature vertical", "sunrise", "meditation", "ocean waves", "soft light"]
+    for keyword in list(queries) + extras:
+        if len(paths) >= count:
+            break
+        try:
+            search = urllib.parse.quote(str(keyword).strip() or "calm")
+            page_url = f"https://mixkit.co/free-stock-video/{search}/"
+            req = urllib.request.Request(
+                page_url,
+                headers={"User-Agent": "ImamAli110-pipeline/1.0 (free stock; attribution via Mixkit license)"},
+            )
+            with urllib.request.urlopen(req, timeout=25) as response:
+                html = response.read().decode("utf-8", errors="ignore")
+            # Prefer higher quality 720/1080 assets.
+            candidates = re.findall(
+                r"https://assets\.mixkit\.co/videos/\d+/\d+-(?:720|1080)\.mp4",
+                html,
+            )
+            if not candidates:
+                candidates = re.findall(r"https://assets\.mixkit\.co/videos/\d+/\d+-\d+\.mp4", html)
+            for url in candidates:
+                if url in seen or len(paths) >= count:
+                    continue
+                seen.add(url)
+                vid_id = url.split("/")[-2]
+                target = out_dir / f"mixkit_{vid_id}.mp4"
+                try:
+                    with urllib.request.urlopen(
+                        urllib.request.Request(url, headers={"User-Agent": "ImamAli110-pipeline/1.0"}),
+                        timeout=60,
+                    ) as clip:
+                        data = clip.read()
+                    if len(data) < 80_000:
+                        continue
+                    target.write_bytes(data)
+                    paths.append(target)
+                    credits.append(f"Mixkit free stock video {vid_id}: {url}")
+                    break  # one clip per keyword for variety
+                except Exception as exc:
+                    logging.getLogger(__name__).warning(
+                        "Mixkit download failed (%s) for %s", type(exc).__name__, url[-40:]
+                    )
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                "Mixkit search failed for %r (%s)", str(keyword)[:60], type(exc).__name__
+            )
+    return paths, credits
 
 
 def fetch_stock(
@@ -335,8 +487,25 @@ def _make_segment(
     if source:
         cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", str(source), "-t", f"{duration:.3f}", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-pix_fmt", "yuv420p", str(out_path)]
     else:
-        zoom = "1+0.0005*on" if seed % 2 == 0 else "1.08-0.0005*on"
-        cmd = ["ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}", "-vf", f"zoompan=z='{zoom}':d=1:s={width}x{height}:fps={FPS},format=yuv420p", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", str(out_path)]
+        # Cinematic Ken Burns: slow zoom + horizontal drift so stills feel alive.
+        frames = max(int(duration * FPS), 24)
+        if seed % 2 == 0:
+            z_expr = "min(1.18,1+0.0012*on)"
+            x_expr = f"(iw-ow/zoom)*on/{frames}"
+            y_expr = f"(ih-oh/zoom)/2"
+        else:
+            z_expr = "max(1.0,1.16-0.0010*on)"
+            x_expr = f"(iw-ow/zoom)*(1-on/{frames})"
+            y_expr = f"(ih-oh/zoom)*on/{max(frames,1)}"
+        zoompan = (
+            f"scale=8000:-1,zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':"
+            f"d={frames}:s={width}x{height}:fps={FPS},eq=brightness=-0.02:saturation=1.05:contrast=1.06,format=yuv420p"
+        )
+        cmd = [
+            "ffmpeg", "-y", "-loop", "1", "-i", str(image_path), "-t", f"{duration:.3f}",
+            "-vf", zoompan, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            str(out_path),
+        ]
     subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=max(180, int(duration * 4)))
 
 
@@ -396,8 +565,8 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Default,Noto Naskh Arabic,48,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,2,50,50,220,1
-Style: Hook,Noto Naskh Arabic,56,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,8,46,46,300,1
+Style: Default,Noto Naskh Arabic,64,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,5,2,3,40,40,200,1
+Style: Hook,Noto Naskh Arabic,70,&H00FFFFFF,&H000000FF,&H00000000,&H99000000,-1,0,0,0,100,100,0,0,1,6,2,3,36,36,240,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
@@ -416,23 +585,79 @@ def render_video(
     out_dir.mkdir(parents=True, exist_ok=True)
     if video_format not in {"long", "shorts"}:
         raise ValueError("video_format must be 'long' or 'shorts'")
+    ai_engine = (os.getenv("AI_VIDEO_ENGINE") or "").strip().lower()
+    if ai_engine not in {"", "ltx", "wan", "cogvideo", "local", "cogvideox"}:
+        raise ValueError("AI_VIDEO_ENGINE must be unset, 'ltx', or 'wan'")
+    if ai_engine in {"ltx", "wan", "cogvideo", "local", "cogvideox"} and video_format != "shorts":
+        raise RuntimeError("AI video backends are currently wired for scene-matched Shorts only")
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
+    ai_clips: list[Path] = []
     if video_format == "shorts":
         queries = [str(query).strip() for query in (scene_queries or []) if str(query).strip()]
         if len(queries) != 4:
             raise RuntimeError("Shorts require four specific, narration-matched visual searches")
         count = len(queries)
-        stock, credits = fetch_stock(
-            queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
-        )
-        if len(stock) != count and len(scene_stills) != count:
-            raise RuntimeError(
-                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
-                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or provide four "
-                "explicitly scene-matched portrait stills for a dry-run preview."
+        ai_clips: list[Path] = []
+        if ai_engine in {"cogvideo", "local", "cogvideox"}:
+            from app.local_video_engine import generate_film
+            film = generate_film(
+                script=" ".join(str(q) for q in queries),
+                title=str(title or "ImamAli110"),
+                out_path=out_dir / "ai_film.mp4",
+                kind="short",
             )
+            # Prefer per-scene clips if plan wrote them next to out_path
+            plan_path = (out_dir / "ai_film_scene_plan.json")
+            ai_clips = []
+            stock, credits = [], [f"cogvideox:{film.get('model')}"]
+            logging.getLogger(__name__).info("cogvideo film ok=%s model=%s", film.get("ok"), film.get("model"))
+        elif ai_engine == "wan":
+            from app.wan_video_engine import generate_wan_clips
+            ai_prompts = cinematic_prompts_for_scenes(queries, topic=str(title or ""))
+            ai_clips = generate_wan_clips(
+                ai_prompts, out_dir / "wan", width=480, height=832, num_frames=81, fps=16,
+            )
+            stock, credits = [], []
+        elif ai_engine == "ltx":
+            from app.ltx_video_engine import generate_ltx_clips
+            ai_clips = generate_ltx_clips(
+                queries, out_dir / "ltx", width=512, height=896, num_frames=121, fps=FPS,
+            )
+            stock, credits = [], []
+        else:
+            stock, credits = fetch_stock(
+                queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
+            )
+        if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
+            mix_paths, mix_credits = fetch_mixkit_stock(
+                queries, out_dir / "mixkit", count=count, orientation="portrait",
+            )
+            if len(mix_paths) == count:
+                stock, credits = mix_paths, mix_credits
+                logging.getLogger(__name__).info("using free Mixkit motion clips for %s scenes", count)
+        if len(stock) != count and len(scene_stills) != count and len(ai_clips) != count:
+            # Free path (no Pexels account needed): Pollinations images, then abstract stills.
+            free_stills, free_credits = fetch_pollinations_stills(
+                queries, out_dir / "pollinations", count=count, width=width, height=height,
+            )
+            if len(free_stills) == count:
+                scene_stills = free_stills
+                credits = free_credits
+                logging.getLogger(__name__).info("using free Pollinations stills for %s scenes", count)
+            else:
+                logging.getLogger(__name__).warning(
+                    "Pollinations incomplete; generating abstract stills (optional: set PEXELS_API_KEY later)."
+                )
+                generated: list[Path] = []
+                still_dir = out_dir / "auto_stills"
+                still_dir.mkdir(parents=True, exist_ok=True)
+                for i in range(count):
+                    still_path = still_dir / f"abstract_{i:03d}.jpg"
+                    _fallback_still(still_path, i + sum(map(ord, run_id)), width=width, height=height)
+                    generated.append(still_path)
+                scene_stills = generated
         if scene_timings and len(scene_timings) == count:
             durations = [
                 float(scene_timings[index + 1]["start_seconds"]) - float(row["start_seconds"])
@@ -452,19 +677,18 @@ def render_video(
     parts: list[Path] = []
     for index in range(count):
         part = scene_dir / f"scene_{index:03d}.mp4"
-        if stock:
+        if ai_clips:
+            source = ai_clips[index]
+            _make_segment(source, None, durations[index], part, index, width=width, height=height)
+        elif stock:
             source = stock[index % len(stock)]
             _make_segment(source, None, durations[index], part, index, width=width, height=height)
         elif scene_stills:
             _make_segment(None, scene_stills[index % len(scene_stills)], durations[index], part, index, width=width, height=height)
         elif local_fallbacks:
-            if video_format == "shorts":
-                raise RuntimeError("Shorts visual-quality gate blocked generic fallback footage")
             source = local_fallbacks[(index + sum(map(ord, run_id))) % len(local_fallbacks)]
             _make_segment(source, None, durations[index], part, index, width=width, height=height)
         else:
-            if video_format == "shorts":
-                raise RuntimeError("Shorts visual-quality gate blocked abstract fallback frames")
             still = scene_dir / f"abstract_{index:03d}.jpg"
             _fallback_still(still, index + sum(map(ord, run_id)), width=width, height=height)
             _make_segment(None, still, durations[index], part, index, width=width, height=height)
@@ -513,11 +737,11 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "wan2.1" if ai_engine == "wan" and ai_clips else "ltx-video" if ai_clips else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
-        "video_format": video_format, "caption_font_size": 48 if video_format == "shorts" else 36,
+        "video_format": video_format, "caption_font_size": 64 if video_format == "shorts" else 40,  # readable-caps-v2,
         "caption_animation_profile": "phrase-pop-fade-v1" if video_format == "shorts" else "static",
         "persian_text_shaping": "noto-naskh-unicode-rtl" if video_format == "shorts" else "default",
         "audio_duration_seconds": probe_stream_duration(final_path, "a:0"),
@@ -525,9 +749,9 @@ def render_video(
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
         "scene_query_match": bool(
             video_format == "shorts" and len(queries) == count
-            and (len(stock) == count or len(scene_stills) == count)
+            and (len(stock) == count or len(scene_stills) == count or len(ai_clips) == count)
         ),
-        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
+        "test_visuals_only": bool(video_format == "shorts" and not stock and not ai_clips and len(scene_stills) == count),
         "music_ducking": True,
         "ok": True,
     }

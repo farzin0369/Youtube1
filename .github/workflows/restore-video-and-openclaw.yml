@@ -1,0 +1,85 @@
+name: Restore video engine and soft OpenClaw
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/trigger_restore_video.txt"
+      - ".github/workflows/restore-video-and-openclaw.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore spiritual_video only and commit
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/ec9c42ffaf28223b3678c2fcd4b108c033750041/app/spiritual_video.py" \
+            -o app/spiritual_video.py
+          test "$(wc -c < app/spiritual_video.py)" -gt 20000
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/spiritual_video.py")
+          t = p.read_text(encoding="utf-8")
+          t = t.replace(
+              "Style: Default,Noto Naskh Arabic,72,&H00FFFFFF,&H0000FFFF,&HCC000000,&HCC000000,-1,0,0,0,100,100,0,0,4,12,0,2,40,40,280,1",
+              "Style: Default,Noto Naskh Arabic,68,&H00000000,&H00000000,&H00000000,&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,320,1",
+              1,
+          )
+          t = t.replace(
+              "Style: Hook,Noto Naskh Arabic,92,&H003EC9FF,&H0000FFFF,&HCC000000,&HCC000000,-1,0,0,0,100,100,0,0,5,14,0,8,36,36,360,1",
+              "Style: Hook,Noto Naskh Arabic,72,&H00000000,&H00000000,&H00000000,&H0000FFFF,-1,0,0,0,100,100,0,0,0,0,0,3,36,36,380,1",
+              1,
+          )
+          t = t.replace(
+              '"caption_font_size": 72 if video_format == "shorts" else 40',
+              '"caption_font_size": 68 if video_format == "shorts" else 40,  # yellow-box-v1',
+              1,
+          )
+          compile(t, "spiritual_video.py", "exec")
+          p.write_text(t, encoding="utf-8")
+          print("VIDEO_OK", p.stat().st_size)
+          PY
+
+          # Soft OpenClaw: inject after __future__ imports
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("scripts/openclaw_manager.py")
+          t = p.read_text(encoding="utf-8")
+          if "idea-bank skip" in t:
+              print("OPENCLAW_ALREADY")
+          else:
+              helper = "\n\ndef _idea_bank_enabled() -> bool:\n    import os\n    return os.getenv(\"USE_IDEA_BANK\", \"\").strip() in {\"1\", \"true\", \"True\", \"yes\"}\n"
+              # insert helper after last future import / module docstring block
+              if "from __future__ import annotations" in t:
+                  t = t.replace(
+                      "from __future__ import annotations\n",
+                      "from __future__ import annotations\n" + helper + "\n",
+                      1,
+                  )
+              else:
+                  t = helper + "\n" + t
+              m = re.search(r"(def main\(\) -> int:\n)", t)
+              if not m:
+                  raise SystemExit("main not found")
+              pos = m.end()
+              t = (
+                  t[:pos]
+                  + "    if _idea_bank_enabled():  # idea-bank skip\n"
+                  + "        print(\"OpenClaw skipped: USE_IDEA_BANK enabled\")\n"
+                  + "        return 0\n"
+                  + t[pos:]
+              )
+              compile(t, "openclaw_manager.py", "exec")
+              p.write_text(t, encoding="utf-8")
+              print("OPENCLAW_SKIP")
+          PY
+
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_video.py scripts/openclaw_manager.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: restore video + yellow captions + idea-bank skips OpenClaw" && git push; fi

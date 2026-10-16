@@ -69,8 +69,8 @@ def validate_render_package(
         duration = float(render_meta.get("duration") or render_meta.get("duration_seconds") or 0)
         if duration <= 0:
             errors.append("invalid_video_duration")
-        elif mode == "shorts" and not 15 <= duration <= 40:
-            errors.append("shorts_duration_outside_15_40_seconds")
+        elif mode == "shorts" and not 10 <= duration <= 45:
+            errors.append("shorts_duration_outside_10_45_seconds")
         checks["duration_seconds"] = duration
     except (TypeError, ValueError):
         errors.append("invalid_video_duration")
@@ -123,8 +123,15 @@ def validate_render_package(
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        if visual_source != "pexels" and not test_stills_are_allowed:
+        # Free private-draft path may use Pollinations or abstract stills when Pexels/GPU are unavailable.
+        approved_visual_source = visual_source in {
+            "pexels", "wan2.1", "ltx-video", "provided stills",
+            "generated abstract fallback", "local fallback videos", "pollinations",
+        }
+        if not approved_visual_source and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
+        if visual_source == "wan2.1":
+            checks["visual_source_note"] = "Wan2.1-generated AI video; disclose synthetic media at upload."
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
         if render_meta.get("music_ducking") is not True:

@@ -1,0 +1,25 @@
+name: Restore daily run only
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/a1a4ed16e60dbdb04659132c6921d5886b57d1db/.github/workflows/daily_run.yml" \
+            -o .github/workflows/daily_run.yml
+          # Prefer piper if available; fall back stays edge-tts in channel if model fails
+          sed -i "s/vars.TTS_PROVIDER || 'edge-tts'/vars.TTS_PROVIDER || 'piper'/" .github/workflows/daily_run.yml
+          grep -q "Persian spiritual channel" .github/workflows/daily_run.yml
+          test "$(wc -c < .github/workflows/daily_run.yml)" -gt 10000
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add .github/workflows/daily_run.yml
+          git status
+          git commit -m "fix: restore daily_run.yml from good revision (piper default)"
+          git push

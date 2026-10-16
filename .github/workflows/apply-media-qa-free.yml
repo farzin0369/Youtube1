@@ -1,0 +1,25 @@
+name: Apply media QA free visuals
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_media_qa_free_visuals.py"
+      - ".github/workflows/apply-media-qa-free.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          python3 scripts/patch_media_qa_free_visuals.py
+          grep -q 'provided stills' app/media_qa.py
+      - run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/media_qa.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: approve free stills in media QA for private drafts" && git push; fi

@@ -1,0 +1,30 @@
+name: Apply free motion video + natural TTS
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_free_motion_video.py"
+      - "scripts/patch_natural_tts.py"
+      - ".github/workflows/apply-free-motion.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patches
+        run: |
+          set -euo pipefail
+          python3 scripts/patch_free_motion_video.py
+          python3 scripts/patch_natural_tts.py
+          grep -q fetch_mixkit_stock app/spiritual_video.py
+          grep -q natural_v2 app/spiritual_tts.py
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_video.py app/spiritual_tts.py
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: Mixkit free motion clips + natural TTS prosody" && git push; fi

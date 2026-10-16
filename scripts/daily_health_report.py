@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.channel_ops import channel_health, reply_to_recent_comments
 from app.utils import utc_now_iso
+from app.llm_provider import provider_chain
 
 
 def _git_sha() -> str:
@@ -57,7 +58,7 @@ def main() -> int:
         "recent_changes": _recent_changes(),
         "secrets_present": {
             "youtube_oauth": all(os.environ.get(k) for k in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")),
-            "local_model": bool(os.environ.get("LOCAL_LLM_MODEL") or os.environ.get("AI_ENGINE") == "local"),
+            "cloud_llm": bool(provider_chain()),
         },
     }
     (report_dir / "daily_health_report.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -69,7 +70,7 @@ def main() -> int:
         f"- Python: {data['python']}",
         f"- Unit tests: **{args.test_status}**",
         f"- YouTube OAuth/API: **{'OK' if health.get('youtube') else 'FAILED'}**",
-        f"- Local model configured: **{'yes' if health.get('local_ai') else 'no'}**",
+        f"- Cloud LLM configured: **{'yes' if health.get('cloud_llm') else 'no'}**",
         "",
         f"- Auto comment moderation: **{'enabled' if moderation is not None else 'disabled'}**",
         "",
@@ -86,7 +87,7 @@ def main() -> int:
         "",
         "- This report does not include credentials or tokens.",
         "- GitHub-hosted runners have no CUDA GPU; this is a health/test report, not proof of a successful Colab GPU render.",
-        "- Public publishing is controlled by the channel configuration and the scheduled Colab GPU workflow.",
+        "- Public publishing is controlled by the channel configuration and the scheduled GitHub Actions workflow.",
     ]
     stats = health.get("statistics")
     if isinstance(stats, dict):

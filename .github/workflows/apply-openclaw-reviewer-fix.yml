@@ -1,0 +1,52 @@
+name: Apply OpenClaw reviewer fix
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2", "fix/openclaw-reviewer-v3"]
+    paths:
+      - "scripts/patch_*.py"
+      - "scripts/build_shorts_idea_bank.py"
+      - "app/idea_bank.py"
+      - "config/channel.yaml"
+      - ".github/workflows/apply-openclaw-reviewer-fix.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ensure spiritual_shorts is real source
+        run: |
+          set -euo pipefail
+          if ! grep -q "def generate_shorts_content" app/spiritual_shorts.py; then
+            curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/a5f7d8e819b381ae64710f285565cdb3d85fb866/app/spiritual_shorts.py" \
+              -o app/spiritual_shorts.py
+          fi
+      - name: Build curated Shorts idea bank
+        run: |
+          set -euo pipefail
+          if [ -f scripts/build_shorts_idea_bank.py ]; then
+            python3 scripts/build_shorts_idea_bank.py
+            test -f data/shorts_idea_bank.json
+          fi
+      - name: Apply recovery patches
+        run: |
+          set -euo pipefail
+          for p in scripts/patch_openclaw_reviewer.py scripts/patch_spiritual_shorts.py scripts/patch_shorts_hook_recovery.py scripts/patch_shorts_qa_tolerance.py scripts/patch_use_idea_bank.py scripts/patch_tts_rate_integer.py; do
+            if [ -f "$p" ]; then python3 "$p"; fi
+          done
+      - name: Commit if changed
+        run: |
+          set -euo pipefail
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/ data/ config/ || true
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+          else
+            git commit -m "fix: apply production patches (TTS rate, idea bank, recovery)"
+            git push
+          fi

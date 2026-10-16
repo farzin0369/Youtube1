@@ -1,0 +1,21 @@
+name: Apply reference caption style + soft OpenClaw
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_idea_bank_skip_openclaw_and_yellow_caps.py"
+      - ".github/workflows/apply-ref-style.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_idea_bank_skip_openclaw_and_yellow_caps.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/spiritual_video.py .github/workflows/daily_run.yml || true
+          if git diff --cached --quiet; then echo noop; else git commit -m "feat: yellow-box captions + soft OpenClaw with idea-bank" && git push; fi

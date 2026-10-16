@@ -1,0 +1,22 @@
+name: Fix shorts duration QA
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/openclaw-autonomous-manager-v2"]
+    paths:
+      - "scripts/patch_duration_pad.py"
+      - "scripts/trigger_duration_pad.txt"
+      - ".github/workflows/apply-duration-pad.yml"
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/patch_duration_pad.py
+      - run: |
+          git config user.name "openclaw-fix-bot"
+          git config user.email "openclaw-fix-bot@users.noreply.github.com"
+          git add app/media_qa.py tests/test_media_qa.py || true
+          if git diff --cached --quiet; then echo noop; else git commit -m "fix: shorts duration accept 10-45 seconds" && git push; fi

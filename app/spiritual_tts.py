@@ -1,6 +1,10 @@
 """Persian neural TTS with word-timed captions and per-scene delivery shaping."""
 from __future__ import annotations
 
+import logging
+
+from app.persian_tts_normalize import normalize_for_tts
+
 import asyncio
 import base64
 import re
@@ -11,22 +15,25 @@ from typing import Any
 
 from app.utils import env, load_channel_config
 
+logger = logging.getLogger(__name__)
+
 TICKS_PER_SECOND = 10_000_000
 
 
 def _provider() -> str:
-    configured = env("TTS_PROVIDER")
+    configured = env("TTS_PROVIDER")  # coqui-vits-v1
+    # Natural male: coqui VITS > piper gyro > edge Farid
     if configured:
         provider = str(configured).strip().lower()
     else:
-        try:
-            provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "edge-tts").strip().lower()
-        except Exception:
-            provider = "edge-tts"
-    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
+        provider = "coqui"  # default to natural male VITS
+    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs", "vits": "coqui", "coqui-tts": "coqui"}
     provider = aliases.get(provider, provider)
-    if provider not in {"edge-tts", "elevenlabs"}:
+    if provider not in {"edge-tts", "elevenlabs", "piper", "coqui", "vits"}:  # coqui-vits-v1
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
+    # coqui-first-v2: env may still say piper; upgrade to natural male VITS
+    if provider == "piper" and __import__("os").getenv("FORCE_PIPER", "").lower() not in {"1", "true", "yes"}:
+        provider = "coqui"
     return provider
 
 
@@ -85,7 +92,7 @@ def phrase_cues(
 
 
 async def _render(
-    text: str, audio_path: Path, *, rate: str = "-4%", pitch: str = "+0Hz",
+    text: str, audio_path: Path, *, rate: str = "-6%", pitch: str = "+0Hz",
 ) -> list[dict[str, Any]]:
     import edge_tts
 
@@ -203,6 +210,30 @@ def _render_elevenlabs(
     return _alignment_word_events(alignment, text)
 
 
+
+def pad_audio_to_min(path: Path, min_seconds: float = 16.0) -> float:
+    """Append silence so Shorts stay above the platform comfort floor."""
+    import subprocess
+    path = Path(path)
+    try:
+        cur = _duration(path)
+    except Exception:
+        return 0.0
+    if cur >= min_seconds - 0.05:
+        return cur
+    need = max(0.05, min_seconds - cur)
+    out = path.with_name(path.stem + "_padded" + path.suffix)
+    # apad works for wav/mp3 via ffmpeg
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(path),
+        "-af", f"apad=pad_dur={need:.3f}",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=60)
+    out.replace(path)
+    return float(min_seconds)
+
 def _duration(path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
@@ -241,12 +272,13 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     Edge TTS does not expose native emotion styles; these small changes are only
     prosody hints, not a claim that anger/joy/etc. can be faithfully synthesized.
     """
+    # clearer_v3: slightly slow delivery improves Persian pronunciation on Edge TTS.
     base_rate, base_pitch = {
-        "hook": ("+5%", "+3Hz"),
-        "calm": ("-8%", "-2Hz"),
-        "reassuring": ("-3%", "+0Hz"),
-        "motivational": ("+6%", "+2Hz"),
-    }.get(str(mood or "").lower(), ("-4%", "+0Hz"))
+        "hook": ("-2%", "+0Hz"),
+        "calm": ("-8%", "-1Hz"),
+        "reassuring": ("-6%", "+0Hz"),
+        "motivational": ("-1%", "+0Hz"),
+    }.get(str(mood or "").lower(), ("-5%", "+0Hz"))
     hint = hint if isinstance(hint, dict) else {}
     emotion = str(hint.get("emotion") or "neutral").lower()
     intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
@@ -258,12 +290,12 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
         "neutral": (0.0, 0.0),
     }.get(emotion, (0.0, 0.0))
     confidence = max(0.0, min(1.0, float(hint.get("confidence") or 0.0)))
-    scale = intensity * confidence * 0.5
+    scale = intensity * confidence * 0.25  # natural_v2 softer
     base_rate_value = float(base_rate.rstrip("%"))
     base_pitch_value = float(base_pitch.rstrip("Hz"))
     rate = max(-10.0, min(10.0, base_rate_value + rate_delta * scale))
     pitch = max(-3.0, min(3.0, base_pitch_value + pitch_delta * scale))
-    return f"{rate:+.1f}%", f"{pitch:+.1f}Hz"
+    return f"{int(round(rate)):+d}%", f"{int(round(pitch)):+d}Hz"
 
 
 def synthesize_with_captions(
@@ -276,7 +308,7 @@ def synthesize_with_captions(
     audio_path, captions_path = Path(audio_path), Path(captions_path)
     audio_path.parent.mkdir(parents=True, exist_ok=True)
     captions_path.parent.mkdir(parents=True, exist_ok=True)
-    normalized_script = re.sub(r"\s+", " ", str(text or "")).strip()
+    normalized_script = normalize_for_tts(re.sub(r"\s+", " ", str(text or "")).strip())
     all_events: list[dict[str, Any]] = []
     scene_timings: list[dict[str, float]] = []
     delivery_log: list[dict[str, str]] = []
@@ -301,6 +333,40 @@ def synthesize_with_captions(
                         previous_text=scene_texts[index - 1] if index > 0 else "",
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
+                elif provider in {"coqui", "vits"}:
+                    from app.coqui_tts import synthesize_coqui
+                    try:
+                        synthesize_coqui(chunk_text, chunk_wav, mood=str(mood or "calm"))
+                    except Exception as coqui_exc:
+                        logger.warning("coqui failed (%s); falling back to piper", type(coqui_exc).__name__)
+                        from app.piper_tts import synthesize_piper
+                        try:
+                            synthesize_piper(chunk_text, chunk_wav, mood=str(mood or "calm"))
+                        except Exception:
+                            logger.warning("piper also failed; edge-tts fallback")
+                            # force edge path by reassign — handled below if we raise
+                            raise
+                elif provider == "piper":
+                    from app.piper_tts import synthesize_piper
+                    synthesize_piper(
+                        scene_text, part,
+                        mood=str(scene.get("mood") or ""),
+                        hint=hint if isinstance(hint, dict) else {},
+                    )
+                    # Approximate word timings for captions (even split).
+                    import wave as _wave
+                    dur = _duration(part)
+                    words = scene_text.split()
+                    events = []
+                    if words:
+                        slot = dur / max(len(words), 1)
+                        for wi, w in enumerate(words):
+                            events.append({
+                                "type": "WordBoundary",
+                                "text": w,
+                                "offset": int(round(wi * slot * 10_000_000)),
+                                "duration": max(1, int(round(slot * 10_000_000))),
+                            })
                 else:
                     events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)

@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from app.spiritual_content import validate_content, word_count
-from app.spiritual_pipeline import next_publish_at
+from app.spiritual_pipeline import _should_run_comment_moderation, next_publish_at
 from app.spiritual_tts import phrase_cues, TICKS_PER_SECOND
 from app.spiritual_comments import _spam, SENSITIVE_TERMS
 from app.spiritual_video import _get_with_backoff
@@ -120,6 +120,15 @@ def test_sensitive_or_spam_comments_are_never_auto_replied_to():
     assert _spam("سلام https://spam.example")
     assert SENSITIVE_TERMS.search("من به خودکشی فکر می‌کنم")
     assert SENSITIVE_TERMS.search("برای سرمایه‌گذاری شخصی چه کنم؟")
+
+
+def test_private_upload_never_enters_comment_moderation():
+    assert not _should_run_comment_moderation(
+        dry_run=False, upload_private=True, upload={"ok": True, "privacy": "private"}
+    )
+    assert _should_run_comment_moderation(
+        dry_run=False, upload_private=False, upload={"ok": True, "privacy": "scheduled"}
+    )
 
 
 def test_pexels_rate_limit_retries_before_falling_back(monkeypatch):
