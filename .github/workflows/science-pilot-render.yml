@@ -2,6 +2,9 @@ name: Science pilot render (manual only)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/science-video-render-run
 
 permissions:
   contents: read
