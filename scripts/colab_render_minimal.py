@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Higher-quality CogVideoX short for free Colab T4.
+"""LTX-Video cinematic short on free Colab T4 — real motion, not garbage frames.
 
-Target: ~12–18s vertical cinematic (more scenes, more frames).
-Writes /content/video_raw.mp4
+Why LTX: designed for consumer GPUs; 49 frames @ ~24fps ≈ 2s of real motion per clip.
+Hard QA: refuse to write final if file too small / no motion.
 """
 from __future__ import annotations
 
@@ -14,119 +14,154 @@ import sys
 import traceback
 from pathlib import Path
 
+MIN_SCENE_BYTES = 80_000  # reject empty/red-dot outputs
+MIN_FINAL_BYTES = 200_000
+
 
 def main() -> int:
-    print("[hq] start", flush=True)
+    print("[ltx] start", flush=True)
     try:
         import torch
-        from diffusers import CogVideoXPipeline
+        from diffusers import LTXPipeline
         from diffusers.utils import export_to_video
     except Exception:
-        print("[hq] installing deps...", flush=True)
+        print("[ltx] installing deps...", flush=True)
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "-q",
-             "diffusers", "transformers", "accelerate", "imageio-ffmpeg"]
+             "diffusers>=0.32.0", "transformers", "accelerate", "imageio-ffmpeg", "sentencepiece"]
         )
         import torch
-        from diffusers import CogVideoXPipeline
+        from diffusers import LTXPipeline
         from diffusers.utils import export_to_video
 
     if not torch.cuda.is_available():
-        print("[hq] ERROR: no CUDA", flush=True)
+        print("[ltx] ERROR: no CUDA", flush=True)
         return 1
 
-    print("[hq] GPU:", torch.cuda.get_device_name(0), flush=True)
+    print("[ltx] GPU:", torch.cuda.get_device_name(0), flush=True)
     free, total = torch.cuda.mem_get_info()
-    print(f"[hq] VRAM {free/1e9:.1f}/{total/1e9:.1f} GB", flush=True)
+    print(f"[ltx] VRAM {free/1e9:.1f}/{total/1e9:.1f} GB", flush=True)
 
-    # 4 cinematic beats aligned with Persian spiritual short
+    # Strong visual prompts — photoreal / 3D-like cinematic spiritual
     prompts = [
-        "cloaked hooded figure walks slowly into a vast candle-lit stone cathedral, golden dust in volumetric god rays, cinematic camera tracking shot, film grain, no text no watermark",
-        "close-up of ancient golden light symbols glowing on dark stone walls, soft slow pan, sacred atmosphere, highly detailed, cinematic lighting, no text",
-        "tree of luminous golden light grows from a person's chest in a dark sacred hall, gentle camera push-in, emotional spiritual mood, filmic color grade, no text",
-        "wide shot of the same cloaked figure standing under a column of golden light, particles rising, epic calm ending, vertical 9:16 composition, cinematic, no text no watermark",
+        (
+            "cinematic vertical video, photorealistic, a hooded traveler in a dark stone cathedral, "
+            "golden volumetric god rays through tall windows, slow camera dolly forward, "
+            "dust particles floating, wet stone floor reflections, epic sacred atmosphere, "
+            "high detail, natural motion, no text, no watermark, no logo"
+        ),
+        (
+            "cinematic vertical video, photorealistic close-up, glowing golden light symbols "
+            "carved into ancient stone walls, soft camera pan left, warm candle flicker, "
+            "depth of field, film grain, sacred mood, natural motion, no text no watermark"
+        ),
+        (
+            "cinematic vertical video, photorealistic, luminous golden tree of light growing "
+            "from a person's chest in a dark cathedral, gentle camera push-in, emotional lighting, "
+            "particles rising, filmic color grade, natural motion, no text no watermark"
+        ),
+        (
+            "cinematic vertical video, photorealistic wide shot, cloaked figure standing under "
+            "a column of golden light in a vast hall, particles rising, slow orbit camera, "
+            "epic calm ending, highly detailed, natural motion, no text no watermark"
+        ),
     ]
 
-    model_id = os.getenv("LOCAL_VIDEO_MODEL", "THUDM/CogVideoX-2b")
-    # CogVideoX needs 4n+1 frames. 17 frames @ 8fps ≈ 2.1s per scene → ~8.5s total
-    num_frames = int(os.getenv("VIDEO_FRAMES", "17"))
-    steps = int(os.getenv("VIDEO_STEPS", "10"))
+    model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video")
+    num_frames = int(os.getenv("VIDEO_FRAMES", "49"))  # LTX likes longer sequences
+    steps = int(os.getenv("VIDEO_STEPS", "30"))
+    height = int(os.getenv("VIDEO_H", "512"))
+    width = int(os.getenv("VIDEO_W", "768"))
 
-    print(f"[hq] load {model_id} frames={num_frames} steps={steps} scenes={len(prompts)}", flush=True)
-    pipe = CogVideoXPipeline.from_pretrained(
-        model_id, torch_dtype=torch.float16, low_cpu_mem_usage=True
-    )
-    if hasattr(pipe, "vae"):
-        if hasattr(pipe.vae, "enable_tiling"):
-            pipe.vae.enable_tiling()
-        if hasattr(pipe.vae, "enable_slicing"):
-            pipe.vae.enable_slicing()
+    print(f"[ltx] load {model_id} frames={num_frames} steps={steps} {width}x{height}", flush=True)
+    pipe = LTXPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
     try:
-        pipe.enable_sequential_cpu_offload()
-        print("[hq] sequential CPU offload", flush=True)
-    except Exception:
         pipe.enable_model_cpu_offload()
+    except Exception:
+        pipe.to("cuda")
 
     content = Path("/content")
     content.mkdir(parents=True, exist_ok=True)
     clip_paths: list[Path] = []
 
     for i, prompt in enumerate(prompts):
-        print(f"[hq] scene {i+1}/{len(prompts)}", prompt[:70], flush=True)
+        print(f"[ltx] scene {i+1}/{len(prompts)}", flush=True)
         gc.collect()
         torch.cuda.empty_cache()
         try:
-            result = pipe(
+            out = pipe(
                 prompt=prompt,
-                num_videos_per_prompt=1,
-                num_inference_steps=steps,
+                negative_prompt="blurry, low quality, static image, text, watermark, logo, cartoon, deformed",
+                width=width,
+                height=height,
                 num_frames=num_frames,
-                guidance_scale=6.5,
-                generator=torch.Generator(device="cpu").manual_seed(1100 + i),
+                num_inference_steps=steps,
+                guide_scale=3.0 if hasattr(pipe, "guide_scale") else None,
             )
-            frames = result.frames[0]
+            # handle different return shapes
+            frames = out.frames[0] if hasattr(out, "frames") else out[0]
+        except TypeError:
+            # older API without guide_scale
+            out = pipe(
+                prompt=prompt,
+                negative_prompt="blurry, low quality, static image, text, watermark, logo",
+                width=width,
+                height=height,
+                num_frames=num_frames,
+                num_inference_steps=steps,
+            )
+            frames = out.frames[0]
         except Exception as exc:
-            print(f"[hq] OOM/fail scene {i}: {exc}", flush=True)
+            print(f"[ltx] scene fail: {exc}", flush=True)
             traceback.print_exc()
+            # fallback smaller
             gc.collect()
             torch.cuda.empty_cache()
-            result = pipe(
+            out = pipe(
                 prompt=prompt,
-                num_videos_per_prompt=1,
-                num_inference_steps=max(6, steps - 2),
-                num_frames=13,
-                guidance_scale=6.0,
-                generator=torch.Generator(device="cpu").manual_seed(1100 + i),
+                width=576,
+                height=384,
+                num_frames=25,
+                num_inference_steps=20,
             )
-            frames = result.frames[0]
+            frames = out.frames[0]
 
         clip = content / f"scene_{i:02d}.mp4"
-        export_to_video(frames, str(clip), fps=8)
-        print(f"[hq] wrote {clip} bytes={clip.stat().st_size}", flush=True)
+        export_to_video(frames, str(clip), fps=24)
+        size = clip.stat().st_size
+        print(f"[ltx] wrote {clip} bytes={size}", flush=True)
+        if size < MIN_SCENE_BYTES:
+            print(f"[ltx] QA FAIL scene too small ({size} < {MIN_SCENE_BYTES}) — abort", flush=True)
+            return 2
         clip_paths.append(clip)
-        del result, frames
+        del out, frames
         gc.collect()
         torch.cuda.empty_cache()
 
     list_file = content / "concat.txt"
     list_file.write_text("\n".join(f"file '{p.resolve()}'" for p in clip_paths), encoding="utf-8")
     primary = content / "video_raw.mp4"
-    # Slight slow-mo for more screen time (~1.35x duration) while keeping motion smooth
+    # Vertical 9:16 for Shorts + slight slow for longer watch time
     cmd = [
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
         "-vf",
-        "setpts=1.35*PTS,scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,fps=24",
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+        "setpts=1.15*PTS,scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,fps=24",
+        "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p",
         str(primary),
     ]
-    print("[hq] ffmpeg", " ".join(cmd), flush=True)
+    print("[ltx] ffmpeg", flush=True)
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
-        print("[hq] ffmpeg err:", r.stderr[-1000:], flush=True)
+        print("[ltx] ffmpeg err:", r.stderr[-1200:], flush=True)
         return 1
 
-    print("[hq] SUCCESS", primary, primary.stat().st_size, flush=True)
-    print(json.dumps({"ok": True, "path": str(primary), "bytes": primary.stat().st_size, "scenes": len(prompts)}))
+    fsize = primary.stat().st_size
+    if fsize < MIN_FINAL_BYTES:
+        print(f"[ltx] QA FAIL final too small ({fsize}) — refuse publish", flush=True)
+        return 2
+
+    print("[ltx] SUCCESS", primary, fsize, flush=True)
+    print(json.dumps({"ok": True, "path": str(primary), "bytes": fsize, "engine": "ltx", "scenes": len(prompts)}))
     return 0
 
 
