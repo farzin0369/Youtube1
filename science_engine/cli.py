@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -86,8 +85,10 @@ def fetch_openalex(query: str, limit: int) -> list[dict[str, Any]]:
         "search": query,
         "per-page": str(limit),
         "select": FIELDS,
-        "mailto": os.environ.get("OPENALEX_MAILTO", "science-engine@example.invalid"),
     }
+    mailto = os.environ.get("OPENALEX_MAILTO")
+    if mailto:
+        params["mailto"] = mailto
     api_key = os.environ.get("OPENALEX_API_KEY")
     if api_key:
         params["api_key"] = api_key
