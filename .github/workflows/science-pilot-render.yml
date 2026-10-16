@@ -9,7 +9,7 @@ permissions:
 jobs:
   render-science-pilot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -19,28 +19,40 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system libraries
+      - name: Install rendering, Persian fonts, and LaTeX
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev pkg-config python3-dev build-essential
+          sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev pkg-config python3-dev build-essential fonts-noto-core texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm
 
-      - name: Install render and test dependencies
+      - name: Install render, test, and narration dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install manim pytest
+          python -m pip install manim pytest edge-tts
 
-      - name: Test the isolated idea bank
-        run: python -m pytest -q tests/test_science_engine.py
+      - name: Test the isolated idea bank and syntax
+        run: |
+          python -m pytest -q tests/test_science_engine.py
+          python -m compileall -q science_engine
 
-      - name: Render low-quality preview
-        run: manim -ql --disable_caching science_engine/renderers/vector_pilot.py VectorPilot
+      - name: Render Persian visual pilot
+        run: manim -ql --disable_caching science_engine/renderers/vector_pilot_fa.py VectorPilotFA
 
-      - name: Upload preview artifact
+      - name: Generate Persian narration
+        run: python -m science_engine.audio --text-file science_engine/pilots/vector_addition_fa.txt --output media/science-vector-pilot-fa-narration.mp3 --voice fa-IR-FaridNeural --rate=-5%
+
+      - name: Mix narration and burn Persian subtitles
+        run: |
+          mkdir -p science_engine/output
+          ffmpeg -y             -i media/videos/vector_pilot_fa/480p15/VectorPilotFA.mp4             -i media/science-vector-pilot-fa-narration.mp3             -vf "tpad=stop_mode=clone:stop_duration=30,subtitles=science_engine/pilots/vector_addition_fa.srt:force_style='FontName=Noto Sans Arabic,FontSize=24,Outline=2,Shadow=1,MarginV=42'"             -filter:a "apad=pad_dur=4"             -map 0:v:0 -map 1:a:0             -c:v libx264 -preset veryfast -crf 20             -c:a aac -b:a 192k -shortest             science_engine/output/science-vector-pilot-fa.mp4
+          ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 science_engine/output/science-vector-pilot-fa.mp4
+
+      - name: Upload video preview artifact
         uses: actions/upload-artifact@v4
         with:
-          name: science-vector-pilot-preview
+          name: science-vector-pilot-persian-preview
           path: |
-            media/videos/vector_pilot/480p15/VectorPilot.mp4
-            science_engine/pilots/vector_addition.md
+            science_engine/output/science-vector-pilot-fa.mp4
+            media/science-vector-pilot-fa-narration.mp3
+            science_engine/pilots/vector_addition_fa.srt
           if-no-files-found: error
           retention-days: 7
