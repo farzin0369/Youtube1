@@ -1,0 +1,41 @@
+name: Blender cinematic 3D black-hole preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/blender-cinematic-3d-engine
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout isolated cinematic branch
+        uses: actions/checkout@v4
+
+      - name: Install Blender and ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender ffmpeg
+          blender --version | head -n 2
+
+      - name: Render a real animated 3D scene
+        run: |
+          mkdir -p output/blender_cinematic
+          blender -b -t 2 --python scripts/blender_cinematic_blackhole.py 2>&1 | tee output/blender_cinematic/render.log
+          test -s /tmp/blackhole_cinematic.mp4
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height,r_frame_rate -of json /tmp/blackhole_cinematic.mp4 | tee output/blender_cinematic/metadata.json
+          cp /tmp/blackhole_cinematic.mp4 output/blender_cinematic/blackhole-cinematic-3d.mp4
+          test "$(stat -c%s output/blender_cinematic/blackhole-cinematic-3d.mp4)" -gt 200000
+
+      - name: Upload rendered video for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-cinematic-blackhole-preview
+          path: output/blender_cinematic/
+          if-no-files-found: error
+          retention-days: 7
