@@ -9,7 +9,8 @@ for datablocks in (bpy.data.materials, bpy.data.curves, bpy.data.meshes, bpy.dat
     pass
 
 scene = bpy.context.scene
-scene.render.engine = "BLENDER_EEVEE_NEXT" if hasattr(bpy.types, "BLENDER_EEVEE_NEXT") else "BLENDER_EEVEE"
+engine_ids = {item.identifier for item in scene.render.bl_rna.properties["engine"].enum_items}
+scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engine_ids else "BLENDER_EEVEE"
 scene.render.resolution_x = 960
 scene.render.resolution_y = 540
 scene.render.resolution_percentage = 100
