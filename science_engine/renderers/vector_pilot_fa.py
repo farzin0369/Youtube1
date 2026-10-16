@@ -53,7 +53,7 @@ class VectorPilotFA(Scene):
         self.play(FadeIn(formula, shift=UP * 0.15), run_time=1.2)
         self.wait(2.2)
 
-        final = Text("مؤلفه‌ها را جمع کن؛ نتیجه را پیش‌بینی کن", font="Noto Sans Arabic", font_size=25, weight=BOLD, color="#B8F36B)
+        final = Text("مؤلفه‌ها را جمع کن؛ نتیجه را پیش‌بینی کن", font="Noto Sans Arabic", font_size=25, weight=BOLD, color="#B8F36B")
         final.to_edge(DOWN, buff=0.35)
         self.play(FadeOut(formula), FadeIn(final, shift=UP * 0.12), run_time=1.2)
         self.wait(4.0)
