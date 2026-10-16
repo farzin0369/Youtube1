@@ -89,8 +89,16 @@ jobs:
           fi
 
           echo "Starting LTX render (max 22 minutes)" | tee -a output/colab_cli/run.log
+          remote_env=(--env "HF_HUB_DOWNLOAD_TIMEOUT=30" --env "HF_HUB_ETAG_TIMEOUT=15")
+          if [ -n "${HF_TOKEN:-}" ]; then
+            echo "Using explicit Hugging Face token for remote model download" | tee -a output/colab_cli/run.log
+            remote_env+=(--env "HF_TOKEN=$HF_TOKEN")
+          else
+            echo "No HF_TOKEN configured; disabling implicit Colab-vault lookup" | tee -a output/colab_cli/run.log
+            remote_env+=(--env "HF_HUB_DISABLE_IMPLICIT_TOKEN=1")
+          fi
           set +e
-          timeout 22m colab exec -s "$SESSION" --env "HF_TOKEN=$HF_TOKEN" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          timeout 22m colab exec -s "$SESSION" "${remote_env[@]}" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
           render_rc=${PIPESTATUS[0]}
           set -e
           if [ "$render_rc" -ne 0 ]; then
