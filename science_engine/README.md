@@ -19,9 +19,13 @@ python -m science_engine.cli search "black hole"
 python -m science_engine.cli import-openalex --query "quantum entanglement" --limit 10
 python -m science_engine.cli import-arxiv --query "quantum entanglement" --limit 10
 python -m science_engine.cli rank --limit 20
+python -m science_engine.batch_import --start-index 0 --topics-per-run 5 --limit-per-topic 50
 ```
 
 Imported records are appended to `science_engine/ideas.jsonl`. Existing records are preserved. Deduplication uses DOI where available and normalized title otherwise. OpenAlex basic API usage is free to start; set `OPENALEX_API_KEY` as an environment variable for a higher quota. Never commit API keys.
+
+## Growing the bank toward 10,000 candidates
+`topics.json` contains 100 cross-disciplinary research queries. `batch_import.py` runs a small, resumable batch and saves after each topic, so a network or rate-limit failure does not discard completed work. Example: `python -m science_engine.batch_import --start-index 0 --topics-per-run 5 --limit-per-topic 50`. After the summary reports `next_start_index`, use that number for the next batch. Reaching 10,000 distinct records is a target, not a guarantee: API results overlap, some queries return fewer records, and source quality still needs review. Do not run a huge batch in GitHub Actions; run controlled batches in Colab or another session with network access.
 
 ## Current safeguards and limits
 - OpenAlex and arXiv imports add **research candidates**, not finished scripts or verified conclusions.
@@ -43,3 +47,6 @@ Each JSONL line contains a stable ID, question/title, subject tags, hook, access
 
 ## Next stage
 Add source adapters (arXiv/Wikidata), a ranking/review queue, then a separate Manim/Blender pilot. Render a short local preview and inspect it before any upload workflow is considered.
+
+## Persian visual pilot
+The Persian prototype files are in `renderers/vector_pilot_fa.py`, `pilots/vector_addition_fa.txt`, and `pilots/vector_addition_fa.srt`. The isolated render workflow can create a Persian narrated preview using Manim and Edge TTS. This output is a prototype, not yet a validated final episode; check RTL shaping, narration/subtitle timing, and the actual MP4 before production.
