@@ -70,7 +70,7 @@ class ScienceIdeaBankTests(unittest.TestCase):
 
 
     def test_parse_arxiv_feed_creates_review_candidate(self):
-        xml_data = b\'''<?xml version="1.0" encoding="UTF-8"?>
+        xml_data = b'''<?xml version="1.0" encoding="UTF-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
           <entry>
             <id>https://arxiv.org/abs/2401.01234</id>
@@ -81,7 +81,7 @@ class ScienceIdeaBankTests(unittest.TestCase):
             <category term="quant-ph" />
             <arxiv:doi>10.1234/test-paper</arxiv:doi>
           </entry>
-        </feed>\'''
+        </feed>'''
         records = parse_arxiv_feed(xml_data, limit=10)
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["title"], "Quantum fields and the vacuum")
