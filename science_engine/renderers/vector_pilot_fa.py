@@ -37,11 +37,11 @@ class VectorPilotFA(Scene):
         self.play(FadeOut(orbit), FadeOut(dot), run_time=0.4)
 
         arrow = Arrow(UP * 2.35 + RIGHT * 2.9, DOWN * 0.2 + RIGHT * 0.65, color="#FFB86B", stroke_width=5, buff=0.05)
-        label = Text("مرزِ گریزناپذیر", font="Noto Sans Arabic", font_size=22, color="#FFB86B)
+        label = Text("مرزِ گریزناپذیر", font="Noto Sans Arabic", font_size=22, color="#FFB86B")
         label.next_to(arrow, RIGHT, buff=0.12)
         self.play(GrowArrow(arrow), FadeIn(label), run_time=1.0)
 
-        note = Text("حتی نور هم از درون آن بیرون نمی‌آید", font="Noto Sans Arabic", font_size=23, color="#F4F7FF)
+        note = Text("حتی نور هم از درون آن بیرون نمی‌آید", font="Noto Sans Arabic", font_size=23, color="#F4F7FF")
         note.to_edge(DOWN, buff=0.45)
         self.play(FadeIn(note, shift=UP * 0.12), run_time=0.8)
         self.wait(2.0)
