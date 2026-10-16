@@ -151,6 +151,55 @@ def fetch_openalex(query: str, limit: int) -> list[dict[str, Any]]:
     return records
 
 
+
+def parse_arxiv_feed(xml_data: bytes, limit: int = 10) -> list[dict[str, Any]]:
+    """Convert an arXiv Atom response to review-required research candidates."""
+    ns = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError as exc:
+        raise ValueError(f"Invalid arXiv XML: {exc}") from exc
+    records: list[dict[str, Any]] = []
+    for entry in root.findall("atom:entry", ns)[:max(1, min(int(limit), 100))]:
+        title = " ".join(entry.findtext("atom:title", default="", namespaces=ns).split())
+        if not title:
+            continue
+        summary = " ".join(entry.findtext("atom:summary", default="", namespaces=ns).split())
+        entry_id = entry.findtext("atom:id", default="", namespaces=ns).strip()
+        published = entry.findtext("atom:published", default="", namespaces=ns).strip()
+        authors = [a.findtext("atom:name", default="", namespaces=ns).strip() for a in entry.findall("atom:author", ns)]
+        categories = [x.attrib.get("term", "") for x in entry.findall("atom:category", ns) if x.attrib.get("term")]
+        doi = entry.findtext("arxiv:doi", default="", namespaces=ns).strip()
+        records.append({
+            "id": "arxiv-" + entry_id.rstrip("/").split("/")[-1],
+            "title": title,
+            "tags": categories,
+            "hook": "What can this research teach us about: " + title.rstrip("?. ") + "?",
+            "plain_explanation": "Review the paper, then write and fact-check a plain-language explanation; the abstract alone is not enough.",
+            "deeper_angle": summary,
+            "visual_plan": ["Frame the research question", "Illustrate verified concepts", "Show limitations and open questions"],
+            "sources": [{"provider": "arXiv", "url": entry_id, "doi": doi or None, "published": published, "authors": authors[:8], "source_type": "preprint_or_paper_record"}],
+            "evidence_status": "needs_review",
+            "workflow_status": "research_candidate",
+            "language": "en",
+        })
+    return records
+
+
+def fetch_arxiv(query: str, limit: int) -> list[dict[str, Any]]:
+    if not query.strip():
+        raise ValueError("Query must not be empty.")
+    params = {"search_query": "all:" + query, "start": "0", "max_results": str(max(1, min(int(limit), 100))), "sortBy": "relevance", "sortOrder": "descending"}
+    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(url, headers={"User-Agent": "Youtube1-ScienceIdeaEngine/0.1"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = response.read()
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise RuntimeError(f"arXiv request failed: {exc}") from exc
+    return parse_arxiv_feed(payload, limit)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Search and grow the isolated science idea bank.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -160,6 +209,11 @@ def main(argv: list[str] | None = None) -> int:
     imp = sub.add_parser("import-openalex", help="Import research metadata candidates from OpenAlex.")
     imp.add_argument("--query", required=True)
     imp.add_argument("--limit", type=int, default=10)
+    arxiv = sub.add_parser("import-arxiv", help="Import research candidates from the arXiv API.")
+    arxiv.add_argument("--query", required=True)
+    arxiv.add_argument("--limit", type=int, default=10)
+    rank = sub.add_parser("rank", help="Rank idea candidates with an explainable editorial rubric.")
+    rank.add_argument("--limit", type=int, default=30)
     args = parser.parse_args(argv)
 
     try:
@@ -175,6 +229,16 @@ def main(argv: list[str] | None = None) -> int:
             hits = search_bank(args.query, records)
             print(json.dumps(hits[:30], ensure_ascii=False, indent=2))
             print(f"\nMatches: {len(hits)}", file=sys.stderr)
+            return 0
+        if args.command == "rank":
+            from science_engine.ranking import rank_ideas
+            print(json.dumps(rank_ideas(records)[:max(1, min(args.limit, 500))], ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "import-arxiv":
+            incoming = fetch_arxiv(args.query, args.limit)
+            merged, added = merge_records(records, incoming)
+            save_records(merged)
+            print(json.dumps({"query": args.query, "source": "arXiv", "fetched": len(incoming), "added": added, "duplicates_skipped": len(incoming) - added, "total_ideas": len(merged)}, ensure_ascii=False, indent=2))
             return 0
         if args.command == "import-openalex":
             incoming = fetch_openalex(args.query, args.limit)
