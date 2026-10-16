@@ -46,6 +46,12 @@ def save_records(records: list[dict[str, Any]], path: Path = BANK) -> None:
 
 def dedupe_key(record: dict[str, Any]) -> str:
     doi = (record.get("doi") or "").strip().lower()
+    if not doi:
+        for source in record.get("sources", []):
+            if isinstance(source, dict) and source.get("doi"):
+                doi = str(source["doi"]).strip().lower()
+                break
+    doi = re.sub(r"^https?://(dx\\.)?doi\\.org/", "", doi)
     return "doi:" + doi if doi else "title:" + normalize_title(str(record.get("title", "")))
 
 
