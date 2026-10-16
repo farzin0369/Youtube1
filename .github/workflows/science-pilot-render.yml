@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/science-video-render-run
+      - feat/science-black-hole-video
 
 permissions:
   contents: read
@@ -41,18 +41,18 @@ jobs:
         run: manim -ql --disable_caching science_engine/renderers/vector_pilot_fa.py VectorPilotFA
 
       - name: Generate Persian narration
-        run: python -m science_engine.audio --text-file science_engine/pilots/vector_addition_fa.txt --output media/science-vector-pilot-fa-narration.mp3 --voice fa-IR-FaridNeural --rate=-5%
+        run: python -m science_engine.audio --text-file science_engine/pilots/vector_addition_fa.txt --output media/science-black-hole-fa-narration.mp3 --voice fa-IR-FaridNeural --rate=-5%
 
       - name: Mix narration and burn Persian subtitles
         run: |
           mkdir -p science_engine/output
-          ffmpeg -y             -i media/videos/vector_pilot_fa/480p15/VectorPilotFA.mp4             -i media/science-vector-pilot-fa-narration.mp3             -vf "tpad=stop_mode=clone:stop_duration=30,subtitles=science_engine/pilots/vector_addition_fa.srt:force_style='FontName=Noto Sans Arabic,FontSize=24,Outline=2,Shadow=1,MarginV=42'"             -filter:a "apad=pad_dur=4"             -map 0:v:0 -map 1:a:0             -c:v libx264 -preset veryfast -crf 20             -c:a aac -b:a 192k -shortest             science_engine/output/science-vector-pilot-fa.mp4
+          ffmpeg -y             -i media/videos/vector_pilot_fa/480p15/VectorPilotFA.mp4             -i media/science-vector-pilot-fa-narration.mp3             -vf "tpad=stop_mode=clone:stop_duration=30,subtitles=science_engine/pilots/vector_addition_fa.srt:force_style='FontName=Noto Sans Arabic,FontSize=24,Outline=2,Shadow=1,MarginV=42'"             -filter:a "apad=pad_dur=4"             -map 0:v:0 -map 1:a:0             -c:v libx264 -preset veryfast -crf 20             -c:a aac -b:a 192k -shortest             science_engine/output/science-black-hole-fa.mp4
           ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 science_engine/output/science-vector-pilot-fa.mp4
 
       - name: Upload video preview artifact
         uses: actions/upload-artifact@v4
         with:
-          name: science-vector-pilot-persian-preview
+          name: science-black-hole-persian-preview
           path: |
             science_engine/output/science-vector-pilot-fa.mp4
             media/science-vector-pilot-fa-narration.mp3
