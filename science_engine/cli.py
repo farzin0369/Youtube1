@@ -8,6 +8,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +52,7 @@ def dedupe_key(record: dict[str, Any]) -> str:
             if isinstance(source, dict) and source.get("doi"):
                 doi = str(source["doi"]).strip().lower()
                 break
-    doi = re.sub(r"^https?://(dx\\.)?doi\\.org/", "", doi)
+    doi = re.sub(r"^https?://(dx\.)?doi\.org/", "", doi)
     return "doi:" + doi if doi else "title:" + normalize_title(str(record.get("title", "")))
 
 
