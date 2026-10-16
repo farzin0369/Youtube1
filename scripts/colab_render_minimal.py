@@ -119,8 +119,8 @@ def main() -> int:
             torch.cuda.empty_cache()
             out = pipe(
                 prompt=prompt,
-                width=576,
-                height=384,
+                width=384,
+                height=576,
                 num_frames=25,
                 num_inference_steps=20,
             )
