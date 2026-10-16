@@ -1,8 +1,8 @@
 name: Colab CLI GPU cinematic render
 
-# Secret: COLAB_CLI_TOKEN_JSON
-# Public Hugging Face model download is bounded; no token is printed or fetched
-# from Colab's UI-only secret vault.
+# Secrets: COLAB_CLI_TOKEN_JSON (required), HF_TOKEN (optional, recommended)
+# HF_TOKEN is passed to the remote kernel through the documented --env option;
+# its value is never echoed or written to an artifact.
 
 on:
   workflow_dispatch:
@@ -59,6 +59,7 @@ jobs:
         env:
           HF_HUB_DOWNLOAD_TIMEOUT: "30"
           HF_HUB_ETAG_TIMEOUT: "15"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p output/colab_cli
@@ -89,7 +90,7 @@ jobs:
 
           echo "Starting LTX render (max 22 minutes)" | tee -a output/colab_cli/run.log
           set +e
-          timeout 22m colab exec -s "$SESSION" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          timeout 22m colab exec -s "$SESSION" --env "HF_TOKEN=$HF_TOKEN" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
           render_rc=${PIPESTATUS[0]}
           set -e
           if [ "$render_rc" -ne 0 ]; then
