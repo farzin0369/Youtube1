@@ -5,7 +5,7 @@ from pathlib import Path
 
 from science_engine.cli import dedupe_key, load_records, merge_records, save_records, search_bank
 from science_engine.ranking import rank_idea, rank_ideas
-from science_engine.cli import parse_arxiv_feed
+from science_engine.cli import parse_arxiv_feed, parse_crossref_payload
 
 
 class ScienceIdeaBankTests(unittest.TestCase):
@@ -68,6 +68,20 @@ class ScienceIdeaBankTests(unittest.TestCase):
         result = rank_idea({"title": "Does mathematics exist independently?", "evidence_status": "philosophical_debate"})
         self.assertTrue(result["review_required"])
 
+
+
+    def test_parse_crossref_payload_keeps_doi_and_source(self):
+        payload = b'''{"message":{"items":[{"DOI":"10.1234/example","title":["A test paper"],"author":[{"given":"Ada","family":"Lovelace"}],"published-print":{"date-parts":[[2023,5,1]]},"container-title":["Journal of Tests"],"type":"journal-article","URL":"https://doi.org/10.1234/example","subject":["physics"],"is-referenced-by-count":12}]}}'''
+        records = parse_crossref_payload(payload, limit=10)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["title"], "A test paper")
+        self.assertEqual(records[0]["sources"][0]["doi"], "10.1234/example")
+        self.assertEqual(records[0]["sources"][0]["publication_year"], 2023)
+        self.assertEqual(records[0]["workflow_status"], "research_candidate")
+
+    def test_parse_crossref_payload_rejects_invalid_json(self):
+        with self.assertRaises(ValueError):
+            parse_crossref_payload(b"{not json}", limit=5)
 
     def test_parse_arxiv_feed_creates_review_candidate(self):
         xml_data = b'''<?xml version="1.0" encoding="UTF-8"?>
