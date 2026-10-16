@@ -1,7 +1,6 @@
 name: Colab CLI GPU cinematic render
 
-# Automatic when secret COLAB_CLI_TOKEN_JSON is set.
-# One-time setup: see docs/COLAB_CLI_SETUP.md
+# Needs secret COLAB_CLI_TOKEN_JSON (token.json from colab --auth=oauth2 whoami)
 
 on:
   workflow_dispatch:
@@ -14,7 +13,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     outputs:
       has_video: ${{ steps.done.outputs.has_video }}
     steps:
@@ -27,7 +26,7 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "Missing secret COLAB_CLI_TOKEN_JSON — see docs/COLAB_CLI_SETUP.md"
+            echo "Missing secret COLAB_CLI_TOKEN_JSON"
           fi
 
       - uses: actions/setup-python@v5
@@ -51,40 +50,54 @@ jobs:
           chmod 600 ~/.config/colab-cli/token.json
           echo "token restored ($(wc -c < ~/.config/colab-cli/token.json) bytes)"
 
-      - name: Run cinematic render on Colab T4
+      - name: Render on Colab T4 + download
         if: steps.check.outputs.ok == 'true'
         id: run
         continue-on-error: true
         run: |
           set -euo pipefail
           mkdir -p output/colab_cli
-          # Install deps inside the remote script environment via local bootstrap
-          colab run --gpu T4 scripts/colab_render_minimal.py 2>&1 | tee output/colab_cli/run.log || true
-          for p in \
-            /content/video_raw.mp4 \
-            output/colab_short/video_raw.mp4 \
-            video_raw.mp4 \
-            ./video_raw.mp4; do
-            if [ -f "$p" ] && [ "$(stat -c%s "$p" 2>/dev/null || echo 0)" -gt 1000 ]; then
-              cp "$p" output/colab_cli/video_raw.mp4
-              echo "found=$p"
-              break
-            fi
-          done
-          if [ ! -f output/colab_cli/video_raw.mp4 ]; then
-            colab download /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>/dev/null || true
+          SESSION="imamali-$(date +%s)"
+          echo "SESSION=$SESSION"
+
+          # Keep session alive so we can download even if exec times out on client
+          colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log
+
+          # Install deps on VM first (fast)
+          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers","transformers","accelerate","imageio-ffmpeg"])' \
+            | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
+
+          # Run renderer (may client-timeout after SUCCESS; video stays on VM)
+          set +e
+          colab exec -s "$SESSION" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          EXEC_RC=${PIPESTATUS[0]}
+          set -e
+          echo "exec_rc=$EXEC_RC" | tee -a output/colab_cli/run.log
+
+          # Always try download
+          colab download -s "$SESSION" /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+          colab download -s "$SESSION" /content/scene_00.mp4 output/colab_cli/scene_00.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+          colab download -s "$SESSION" /content/scene_01.mp4 output/colab_cli/scene_01.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+
+          colab stop -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
+
+          if [ -f output/colab_cli/video_raw.mp4 ]; then
+            ls -la output/colab_cli/video_raw.mp4
+          else
+            echo "download missed video_raw"
+            ls -la output/colab_cli/ || true
           fi
 
       - name: Mark result
         id: done
         run: |
-          if [ -f output/colab_cli/video_raw.mp4 ]; then
+          if [ -f output/colab_cli/video_raw.mp4 ] && [ "$(stat -c%s output/colab_cli/video_raw.mp4)" -gt 1000 ]; then
             echo "has_video=true" >> "$GITHUB_OUTPUT"
             ls -la output/colab_cli/video_raw.mp4
           else
             echo "has_video=false" >> "$GITHUB_OUTPUT"
-            echo "No video produced (auth/quota/GPU). Log:"
-            tail -n 80 output/colab_cli/run.log 2>/dev/null || true
+            echo "No video. Tail log:"
+            tail -n 60 output/colab_cli/run.log 2>/dev/null || true
           fi
 
       - uses: actions/upload-artifact@v4
