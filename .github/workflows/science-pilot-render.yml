@@ -54,8 +54,8 @@ jobs:
         with:
           name: science-black-hole-persian-preview
           path: |
-            science_engine/output/science-vector-pilot-fa.mp4
-            media/science-vector-pilot-fa-narration.mp3
+            science_engine/output/science-black-hole-fa.mp4
+            media/science-black-hole-fa-narration.mp3
             science_engine/pilots/vector_addition_fa.srt
           if-no-files-found: error
           retention-days: 7
