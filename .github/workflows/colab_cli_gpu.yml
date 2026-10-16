@@ -1,0 +1,98 @@
+name: Colab CLI GPU cinematic render
+
+# Automatic when secret COLAB_CLI_TOKEN_JSON is set.
+# One-time setup: see docs/COLAB_CLI_SETUP.md
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      has_video:
+        description: whether video_raw was produced
+        value: ${{ jobs.render.outputs.has_video }}
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      has_video: ${{ steps.done.outputs.has_video }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Colab token secret
+        id: check
+        run: |
+          if [ -n "${{ secrets.COLAB_CLI_TOKEN_JSON }}" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Missing secret COLAB_CLI_TOKEN_JSON — see docs/COLAB_CLI_SETUP.md"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.ok == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install Colab CLI
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          pip install -q google-colab-cli
+          colab version || true
+
+      - name: Restore Colab CLI token
+        if: steps.check.outputs.ok == 'true'
+        env:
+          COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
+        run: |
+          mkdir -p ~/.config/colab-cli
+          # Secret must be the full contents of ~/.config/colab-cli/token.json
+          printf '%s' "$COLAB_CLI_TOKEN_JSON" > ~/.config/colab-cli/token.json
+          chmod 600 ~/.config/colab-cli/token.json
+          echo "token restored ($(wc -c < ~/.config/colab-cli/token.json) bytes)"
+
+      - name: Run cinematic render on Colab T4
+        if: steps.check.outputs.ok == 'true'
+        id: run
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p output/colab_cli
+          # Prefer oauth2 token file path; CLI default reads ~/.config/colab-cli/token.json
+          colab run --gpu T4 scripts/colab_render_minimal.py 2>&1 | tee output/colab_cli/run.log
+          # Collect possible outputs
+          for p in \
+            /content/video_raw.mp4 \
+            output/colab_short/video_raw.mp4 \
+            video_raw.mp4 \
+            ./video_raw.mp4; do
+            if [ -f "$p" ] && [ "$(stat -c%s "$p" 2>/dev/null || echo 0)" -gt 1000 ]; then
+              cp "$p" output/colab_cli/video_raw.mp4
+              echo "found=$p"
+              break
+            fi
+          done
+          # Also try download from last session if CLI left remote file
+          if [ ! -f output/colab_cli/video_raw.mp4 ]; then
+            colab download /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>/dev/null || true
+          fi
+
+      - name: Mark result
+        id: done
+        run: |
+          if [ -f output/colab_cli/video_raw.mp4 ]; then
+            echo "has_video=true" >> "$GITHUB_OUTPUT"
+            ls -la output/colab_cli/video_raw.mp4
+          else
+            echo "has_video=false" >> "$GITHUB_OUTPUT"
+            echo "No video produced (auth/quota/GPU). Log:"
+            tail -n 80 output/colab_cli/run.log 2>/dev/null || true
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.check.outputs.ok == 'true'
+        with:
+          name: colab-cli-render
+          path: output/colab_cli/
+          if-no-files-found: warn
