@@ -1,7 +1,6 @@
 name: Colab CLI GPU cinematic render
 
 # Secret: COLAB_CLI_TOKEN_JSON
-# Produces: video_raw.mp4 + final_short.mp4 (Persian voice + captions)
 
 on:
   workflow_dispatch:
@@ -21,7 +20,6 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "Missing COLAB_CLI_TOKEN_JSON"
           fi
 
       - uses: actions/setup-python@v5
@@ -31,9 +29,7 @@ jobs:
 
       - name: Install Colab CLI
         if: steps.check.outputs.ok == 'true'
-        run: |
-          pip install -q google-colab-cli edge-tts
-          colab version || true
+        run: pip install -q google-colab-cli edge-tts
 
       - name: Restore Colab CLI token
         if: steps.check.outputs.ok == 'true'
@@ -44,18 +40,50 @@ jobs:
           printf '%s' "$COLAB_CLI_TOKEN_JSON" > ~/.config/colab-cli/token.json
           chmod 600 ~/.config/colab-cli/token.json
 
-      - name: GPU render on Colab T4
+      - name: Free stuck Colab sessions
         if: steps.check.outputs.ok == 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p output/colab_cli
+          colab sessions 2>&1 | tee output/colab_cli/sessions_before.txt || true
+          # Stop every listed session name (best-effort)
+          colab sessions 2>/dev/null | awk '{print $1}' | while read -r s; do
+            case "$s" in
+              SESSION|Name|----*|"") continue ;;
+            esac
+            echo "Stopping $s"
+            colab stop -s "$s" 2>&1 || true
+          done
+          sleep 15
+          colab sessions 2>&1 | tee output/colab_cli/sessions_after.txt || true
+
+      - name: GPU render on Colab T4 (LTX)
+        if: steps.check.outputs.ok == 'true'
+        id: gpu
         continue-on-error: true
         run: |
           set -euo pipefail
           mkdir -p output/colab_cli
           SESSION="imamali-$(date +%s)"
-          echo "SESSION=$SESSION" | tee output/colab_cli/run.log
+          echo "SESSION=$SESSION" | tee -a output/colab_cli/run.log
 
-          colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log
+          # Retry allocate up to 3 times (quota / capacity)
+          ok=0
+          for attempt in 1 2 3; do
+            echo "allocate attempt $attempt" | tee -a output/colab_cli/run.log
+            if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_cli/run.log; then
+              ok=1
+              break
+            fi
+            sleep 30
+            SESSION="imamali-$(date +%s)-$attempt"
+          done
+          if [ "$ok" != "1" ]; then
+            echo "GPU allocate failed after retries" | tee -a output/colab_cli/run.log
+            exit 1
+          fi
 
-          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers","transformers","accelerate","imageio-ffmpeg"])' \
+          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])' \
             | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
 
           set +e
@@ -66,15 +94,15 @@ jobs:
           colab stop -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
           ls -la output/colab_cli/ || true
 
-      - name: Finish short (Persian TTS + captions)
+      - name: Finish short (natural TTS + captions)
         if: steps.check.outputs.ok == 'true'
         run: |
           if [ -f output/colab_cli/video_raw.mp4 ]; then
             python scripts/finish_gpu_short.py output/colab_cli
             ls -la output/colab_cli/
           else
-            echo "No video_raw — skip finish"
-            tail -n 40 output/colab_cli/run.log || true
+            echo "No video_raw"
+            tail -n 50 output/colab_cli/run.log || true
             exit 1
           fi
 
