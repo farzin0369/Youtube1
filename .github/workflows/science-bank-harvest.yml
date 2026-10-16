@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  harvest-arxiv:
+  harvest-crossref:
     if: github.ref == 'refs/heads/feat/science-bank-harvest-run'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -28,11 +28,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Test science idea-bank logic
+        run: python -m unittest discover -s tests -p 'test_science_engine.py'
+
       - name: Harvest research metadata in controlled batches
         shell: bash
         run: |
           set +e
-          python -m science_engine.batch_import_arxiv --start-index 0 --topics-per-run 107 --limit-per-topic 100 --delay-seconds 3 > /tmp/science-harvest.log 2>&1
+          python -m science_engine.batch_import_crossref --start-index 0 --topics-per-run 107 --limit-per-topic 100 --delay-seconds 1 > /tmp/science-harvest.log 2>&1
           harvest_status=$?
           cat /tmp/science-harvest.log
           set -e
@@ -41,7 +44,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add science_engine/ideas.jsonl
           if ! git diff --cached --quiet; then
-            git commit -m "Harvest arXiv science research candidates"
+            git commit -m "Harvest Crossref science research candidates"
             git push origin HEAD:feat/science-bank-harvest-run
           else
             echo "No bank changes to commit."
