@@ -2,6 +2,11 @@ name: Science bank harvest (isolated branch only)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/science-bank-harvest-run
+    paths:
+      - .github/workflows/science-bank-harvest.yml
 
 permissions:
   contents: write
