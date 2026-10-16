@@ -118,5 +118,5 @@ class VectorPilotFA(ThreeDScene):
         ending.to_edge(DOWN, buff=0.42)
         self.add_fixed_in_frame_mobjects(ending)
         self.play(FadeIn(ending), run_time=0.7)
-        self.wait(5.4)
+        self.wait(7.0)
         self.stop_ambient_camera_rotation()
