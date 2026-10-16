@@ -66,8 +66,8 @@ jobs:
         env:
           VIDEO_FRAMES: "49"
           VIDEO_STEPS: "30"
-          VIDEO_H: "512"
-          VIDEO_W: "768"
+          VIDEO_H: "768"
+          VIDEO_W: "512"
         run: |
           set -Eeuo pipefail
           mkdir -p output/colab_cli
