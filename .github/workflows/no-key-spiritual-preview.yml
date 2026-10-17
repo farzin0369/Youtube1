@@ -44,7 +44,9 @@ jobs:
         run: |
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height -of json output/no_key_preview/imamali110_no_key_preview.mp4
           python -c "import json; d=json.load(open('output/no_key_preview/preview_manifest.json', encoding='utf-8')); assert d['published'] is False; print('Preview validated; publishing is disabled.')"
-      - name: Run hard technical quality gate\n        run: python scripts/validate_preview.py\n      - name: Upload preview, script, credits, and QC report
+      - name: Run hard technical quality gate
+        run: python scripts/validate_preview.py
+      - name: Upload preview, script, credits, and QC report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -66,8 +68,10 @@ jobs:
           print("QUALITY_GATE=" + q["status"])
           print(q["reason"])
           if q["status"] == "REJECTED_NOT_FOR_PUBLISHING":
-              print("Preview artifact was retained for inspection, but this workflow is intentionally marked failed.")
+              print("Preview artifact was retained for inspection; visual gate rejected this preview.")
               sys.exit(1)
-          if not q["approved_for_publishing"]:
+          if q["status"] != "PASS_PREVIEW_ONLY":
+              print("QUALITY_GATE=FAIL: unexpected status")
               sys.exit(1)
+          print("PREVIEW_ONLY: technical preview may be reviewed; publishing approval remains false.")
           PY
