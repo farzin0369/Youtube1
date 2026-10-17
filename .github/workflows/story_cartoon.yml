@@ -1,0 +1,27 @@
+name: Spiritual cartoon story short
+
+on:
+  workflow_dispatch:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q edge-tts
+      - name: Render story cartoon
+        run: python scripts/render_story_cartoon.py output/story_cartoon
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: story-cartoon
+          path: output/story_cartoon/
+          if-no-files-found: warn
