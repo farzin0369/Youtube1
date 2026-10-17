@@ -1,0 +1,35 @@
+name: Diego funny one-image meme Short
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/render_diego_funny_meme.py"
+      - ".github/workflows/diego_funny_meme_short.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install free system tools and Pillow
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install Pillow edge-tts
+      - name: Render one-image comedy Short
+        run: python scripts/render_diego_funny_meme.py output/diego_meme
+      - name: Upload video, image and voice as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: diego-funny-meme-short
+          path: output/diego_meme/
+          if-no-files-found: error
