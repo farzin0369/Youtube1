@@ -522,7 +522,7 @@ def render_video(
                 ]
             else:
                 raise RuntimeError(
-                    "Shorts visual-quality gate: four distinct portrait clips could not be matched "
+                    "Shorts visual-quality gate: portrait footage could not be obtained; four distinct portrait clips could not be matched "
                     "to all authored scenes. Add licensed clips under "
                     "assets/fallback_videos/<matching-topic>/ or provide four explicit scene stills "
                     "for a non-publishable dry-run preview."
