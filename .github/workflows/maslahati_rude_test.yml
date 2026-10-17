@@ -2,6 +2,12 @@ name: مشاوره انگیزشی — rude joke test Short
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - test/maslahati-rude-joke-short
+    paths:
+      - "scripts/render_maslahati_rude_test.py"
+      - ".github/workflows/maslahati_rude_test.yml"
   pull_request:
     paths:
       - "scripts/render_maslahati_rude_test.py"
