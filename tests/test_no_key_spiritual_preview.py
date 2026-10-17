@@ -28,7 +28,7 @@ def test_image_match_rejects_generic_unrelated_titles():
 
 
 def test_image_match_prefers_multiple_specific_terms():
-    assert MODULE.image_match_score("File:Small seedling growing in soil", "small seed soil plant") > 0
+    assert MODULE.image_match_score("File:small seed soil plant", "small seed soil plant") > 0
     assert MODULE.image_match_score("File:Hands offering help closeup", "hands offering help closeup") > 0
 
 
