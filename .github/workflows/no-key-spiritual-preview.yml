@@ -44,7 +44,7 @@ jobs:
         run: |
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height -of json output/no_key_preview/imamali110_no_key_preview.mp4
           python -c "import json; d=json.load(open('output/no_key_preview/preview_manifest.json', encoding='utf-8')); assert d['published'] is False; print('Preview validated; publishing is disabled.')"
-      - name: Upload preview, script, credits, and QC report
+      - name: Run hard technical quality gate\n        run: python scripts/validate_preview.py\n      - name: Upload preview, script, credits, and QC report
         if: always()
         uses: actions/upload-artifact@v4
         with:
