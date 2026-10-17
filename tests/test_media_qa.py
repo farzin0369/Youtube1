@@ -175,3 +175,43 @@ def test_shorts_quality_gate_rejects_missing_caption_animation_or_shaping(tmp_pa
     assert not result["ok"]
     assert "shorts_caption_animation_missing_or_invalid" in result["errors"]
     assert "shorts_persian_text_shaping_not_configured" in result["errors"]
+
+
+
+def test_local_topic_matched_portrait_clips_can_pass_shorts_qa(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    rows = []
+    for index, topic in enumerate(("sunrise", "mountain", "water", "walking")):
+        folder = tmp_path / "assets" / "fallback_videos" / topic
+        folder.mkdir(parents=True)
+        clip = folder / f"clip_{index}.mp4"
+        clip.write_bytes(b"test-clip")
+        rows.append({
+            "query": f"scene about {topic}",
+            "source": str(clip),
+            "topic": topic,
+            "portrait": True,
+            "topic_matched": True,
+        })
+    meta["visual_source"] = "local topic-matched portrait footage"
+    meta["scene_visuals"] = rows
+    meta["scene_query_match"] = True
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"]
+    assert "local clips" in result["checks"]["visual_source_note"]
+
+
+def test_local_topic_matched_footage_requires_four_existing_topic_files(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "local topic-matched portrait footage"
+    meta["scene_visuals"] = [{
+        "query": "sunrise",
+        "source": str(tmp_path / "missing.mp4"),
+        "topic": "sunrise",
+        "portrait": True,
+        "topic_matched": True,
+    }] * 4
+    meta["scene_query_match"] = True
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
