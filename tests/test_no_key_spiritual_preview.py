@@ -35,3 +35,15 @@ def test_image_match_prefers_multiple_specific_terms():
 def test_fallback_scenes_are_not_publish_approved():
     # This pipeline is preview-only; abstract backgrounds must never be considered publish approval.
     assert all(story.get("id") for story in MODULE.STORIES)
+
+
+def test_technical_validator_has_required_hard_checks():
+    validator = (SCRIPT.parent / "validate_preview.py").read_text(encoding="utf-8")
+    for required in [
+        "vertical_resolution_720x1280",
+        "audio_stream_present",
+        "duration_15_to_90_seconds",
+        "persian_script_has_content",
+        "manifest_explicitly_unpublished",
+    ]:
+        assert required in validator
