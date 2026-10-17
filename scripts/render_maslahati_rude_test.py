@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Create a one-image Persian rude comedy test Short using the existing mascot image design."""
+"""Create a one-image Persian rude comedy test Short using the existing mascot image design.
+
+Test-only output; never uploads to YouTube.
+"""
 from __future__ import annotations
 
 import asyncio
