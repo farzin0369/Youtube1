@@ -81,15 +81,15 @@ def run():
  OUT.mkdir(parents=True,exist_ok=True);(OUT/"scenes").mkdir(exist_ok=True);story=STORIES[date.today().toordinal()%len(STORIES)]
  script=" ".join([story["hook"],*(s[0] for s in story["scenes"]),story["ending"]])
  (OUT/"script_fa.txt").write_text(story["title"]+"\n\nقلاب: "+story["hook"]+"\n\n"+"\n".join(f"{i+1}. {s[0]}" for i,s in enumerate(story["scenes"]))+"\n\nپایان: "+story["ending"]+"\n",encoding="utf-8")
- credits=[];scenes=[]
+ credits=[];scenes=[];scene_qc=[]
  for i,(caption,query) in enumerate(story["scenes"],1):
   p=OUT/"scenes"/f"scene_{i:02d}.jpg";meta=commons(query,p)
   if meta:
-   meta["scene_number"]=i;credits.append(meta)
+   meta["scene_number"]=i;meta["requested_query"]=query;credits.append(meta);scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"Wikimedia Commons","image_title":meta.get("scene",""),"fallback":False,"status":"candidate_requires_visual_review"})
    try:
     im=Image.open(p).convert("RGB");ratio=max(W/im.width,H/im.height);im=im.resize((int(im.width*ratio),int(im.height*ratio)));x,y=(im.width-W)//2,(im.height-H)//2;im.crop((x,y,x+W,y+H)).save(p,quality=94)
    except Exception:fallback(p,i);credits[-1]["used_fallback"]=True
-  else:fallback(p,i);credits.append({"scene_number":i,"note":"Commons unavailable; abstract generated background used."})
+  else:fallback(p,i);credits.append({"scene_number":i,"requested_query":query,"note":"Commons unavailable; abstract generated background used."});scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"abstract fallback","image_title":"","fallback":True,"status":"rejected_no_relevant_image"})
   overlay(p,caption);scenes.append(p)
  audio=OUT/"narration_fa.mp3";asyncio.run(voice(script,audio))
  probe=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(audio)],capture_output=True,text=True,check=True,timeout=30)
@@ -99,6 +99,10 @@ def run():
  cmd+=["-filter_complex",filt,"-map","[v]","-map",f"{len(scenes)}:a:0","-c:v","libx264","-preset","veryfast","-crf","20","-r","24","-c:a","aac","-b:a","192k","-pix_fmt","yuv420p","-shortest","-movflags","+faststart",str(video)]
  subprocess.run(cmd,check=True,timeout=600)
  (OUT/"image_credits.json").write_text(json.dumps(credits,ensure_ascii=False,indent=2),encoding="utf-8")
+ external=sum(not item["fallback"] for item in scene_qc)
+ approved=external==len(scene_qc) and len(scene_qc)==4
+ quality={"status":"PASS_PREVIEW_ONLY" if approved else "REJECTED_NOT_FOR_PUBLISHING","approved_for_publishing":False,"reason":"All four scenes have external image candidates, but human visual review is still required." if approved else f"Only {external}/4 scenes have matching external image candidates; abstract fallbacks are not acceptable for publishing.","external_image_candidates":external,"scene_count":len(scene_qc),"scenes":scene_qc,"automated_checks":["Persian script generated","vertical 720x1280 video rendered","narration rendered","image credits emitted"],"manual_review_required":["verify each image semantically matches narration","check Persian typography and line wrapping","listen to narration for pronunciation and emotional pacing","confirm pacing and scene transitions"]}
+ (OUT/"quality_report.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2),encoding="utf-8")
  (OUT/"preview_manifest.json").write_text(json.dumps({"title":story["title"],"story_id":story["id"],"format":"720x1280 vertical Shorts preview","voice":"Microsoft Edge TTS fa-IR-FaridNeural","published":False,"source":"curated story bank; no Groq, Pexels, or API keys required","video":video.name,"credits_file":"image_credits.json"},ensure_ascii=False,indent=2),encoding="utf-8")
- print("PREVIEW_READY="+str(video));print("STORY_ID="+story["id"]);print(f"VOICE_SECONDS={duration:.1f}");print("EXTERNAL_IMAGES="+str(sum(bool(c.get("source_url")) for c in credits)));print("PUBLISHING=DISABLED")
+ print("PREVIEW_READY="+str(video));print("STORY_ID="+story["id"]);print(f"VOICE_SECONDS={duration:.1f}");print("EXTERNAL_IMAGES="+str(external));print("QUALITY_STATUS="+quality["status"]);print("PUBLISHING=DISABLED")
 if __name__=="__main__":run()
