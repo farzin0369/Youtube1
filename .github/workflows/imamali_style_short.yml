@@ -1,0 +1,32 @@
+name: ImamAli style short (AI stills + Ken Burns)
+
+# Free CPU: Pollinations images + Edge TTS + FFmpeg
+# Closest free match to per-phrase cinematic spiritual shorts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 5 * * *"
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q edge-tts
+      - name: Render ImamAli style short
+        run: python scripts/render_imamali_style.py output/imamali_style
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: imamali-style-short
+          path: output/imamali_style/
+          if-no-files-found: warn
