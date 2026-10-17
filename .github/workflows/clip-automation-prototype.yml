@@ -1,0 +1,40 @@
+name: Clip automation prototype smoke test
+
+on:
+  push:
+    branches:
+      - feat/ssemble-style-clip-automation-prototype
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-render-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Run focused unit tests
+        run: python -m unittest tests.test_clip_automation -v
+      - name: Generate synthetic input for pipeline smoke test
+        run: |
+          mkdir -p /tmp/clip-demo output/clip-automation-demo
+          ffmpeg -hide_banner -y -f lavfi -i 'testsrc2=size=1280x720:rate=24:duration=24' -f lavfi -i 'sine=frequency=440:duration=24' -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac /tmp/clip-demo/synthetic-source.mp4
+      - name: Render a vertical demonstration clip
+        run: |
+          python scripts/run_clip_automation.py --input /tmp/clip-demo/synthetic-source.mp4 --output output/clip-automation-demo --rights-confirmed --clip-seconds 12 --count 1
+      - name: Upload demo video and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: clip-automation-prototype-demo
+          path: output/clip-automation-demo/
+          if-no-files-found: error
+          retention-days: 3
