@@ -47,3 +47,16 @@ def test_technical_validator_has_required_hard_checks():
         "manifest_explicitly_unpublished",
     ]:
         assert required in validator
+
+def test_render_syncs_each_image_to_its_own_narration_segment():
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "separate Persian TTS per scene" in source
+    assert "image duration equals that segment audio duration" in source
+    assert "audio_visual_sync" in source
+    assert "each=duration/len(scenes)" not in source
+
+
+def test_missing_relevant_images_are_rejected():
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "rejected_no_relevant_image" in source
+    assert '"approved_for_publishing":False' in source
