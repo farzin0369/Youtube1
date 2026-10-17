@@ -255,9 +255,68 @@ def _fallback_still(path: Path, seed: int, *, width: int = WIDTH, height: int = 
     image.save(path)
 
 
-def _local_fallback_videos() -> list[Path]:
-    folder = Path("assets/fallback_videos")
-    return sorted(p for p in folder.glob("*") if p.suffix.lower() in {".mp4", ".mov", ".m4v"})
+def _local_fallback_videos(keyword: str | None = None) -> list[Path]:
+    """Return local footage, optionally restricted to a matching topic subfolder.
+
+    Layout: assets/fallback_videos/<topic>/*.{mp4,mov,m4v}
+    Matching uses whole words and a small bilingual alias map; it deliberately
+    avoids broad substring matches that could select unrelated scenes.
+    """
+    root = Path("assets/fallback_videos")
+    if not root.is_dir():
+        return []
+    suffixes = {".mp4", ".mov", ".m4v"}
+    if keyword is None:
+        return sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in suffixes)
+
+    query = str(keyword).strip().casefold()
+    if not query:
+        return []
+    aliases = {
+        "sunrise": ("sunrise", "dawn", "sun", "طلوع", "سپیده", "آفتاب", "خورشید", "نور"),
+        "mountain": ("mountain", "mountains", "hill", "hills", "کوه", "کوهستان", "قله", "طبیعت"),
+        "water": ("water", "ocean", "sea", "river", "rain", "دریا", "رودخانه", "باران", "آب"),
+        "walking": ("walking", "walk", "path", "journey", "road", "راه رفتن", "پیاده روی", "مسیر", "سفر"),
+        "sky": ("sky", "cloud", "clouds", "bird", "آسمان", "ابر", "پرنده"),
+        "forest": ("forest", "tree", "trees", "woodland", "جنگل", "درخت"),
+        "desert": ("desert", "sand", "کویر", "بیابان", "شن"),
+        "city": ("city", "street", "urban", "شهر", "خیابان"),
+        "meditation": ("meditation", "prayer", "reflection", "مدیتیشن", "دعا", "نیایش", "تأمل"),
+    }
+    def contains_term(text: str, term: str) -> bool:
+        term = term.strip().casefold()
+        if not term:
+            return False
+        if any("\u0600" <= char <= "\u06ff" for char in term):
+            return term in text
+        return re.search(r"(?<![a-z0-9])" + re.escape(term) + r"(?![a-z0-9])", text) is not None
+
+    matches: list[Path] = []
+    for topic_dir in sorted(root.iterdir()):
+        if not topic_dir.is_dir():
+            continue
+        topic = topic_dir.name.casefold().replace("_", " ").replace("-", " ")
+        terms = aliases.get(topic_dir.name.casefold(), (topic,))
+        if any(contains_term(query, term) for term in terms) or contains_term(query, topic):
+            matches.extend(sorted(p for p in topic_dir.iterdir() if p.is_file() and p.suffix.lower() in suffixes))
+    return matches
+
+
+def _is_portrait_video(path: Path) -> bool:
+    """Return True only when ffprobe confirms the source is portrait footage."""
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height", "-of", "json", str(path)],
+            capture_output=True, text=True, check=True, timeout=20,
+        )
+        streams = json.loads(result.stdout).get("streams") or []
+        if not streams:
+            return False
+        width, height = int(streams[0].get("width") or 0), int(streams[0].get("height") or 0)
+        return width > 0 and height > width
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
+        return False
 
 
 def _ambient_track(
@@ -427,12 +486,47 @@ def render_video(
         stock, credits = fetch_stock(
             queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
         )
-        if len(stock) != count and len(scene_stills) != count:
-            raise RuntimeError(
-                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
-                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or provide four "
-                "explicitly scene-matched portrait stills for a dry-run preview."
-            )
+        local_scene_sources: list[Path] = []
+        scene_visuals: list[dict[str, Any]] = []
+        if len(stock) == count:
+            scene_visuals = [
+                {"query": query, "source": str(path), "topic": "pexels", "portrait": True, "topic_matched": True}
+                for query, path in zip(queries, stock)
+            ]
+        elif len(scene_stills) == count:
+            # Explicit stills are permitted only for a non-publishable preview.
+            stock, credits = [], []
+        else:
+            # Do not mix a partial Pexels result with unrelated files: resolve all
+            # four authored scenes from the local topic library or fail closed.
+            selected: list[Path] = []
+            selected_topics: list[str] = []
+            used: set[Path] = set()
+            for query in queries:
+                candidates = [p for p in _local_fallback_videos(query) if _is_portrait_video(p)]
+                candidates = [p for p in candidates if p not in used]
+                if not candidates:
+                    selected = []
+                    break
+                chosen = candidates[0]
+                selected.append(chosen)
+                selected_topics.append(chosen.parent.name)
+                used.add(chosen)
+            if len(selected) == count:
+                local_scene_sources = selected
+                stock, credits = [], []
+                scene_visuals = [
+                    {"query": query, "source": str(path), "topic": topic,
+                     "portrait": True, "topic_matched": True}
+                    for query, path, topic in zip(queries, local_scene_sources, selected_topics)
+                ]
+            else:
+                raise RuntimeError(
+                    "Shorts visual-quality gate: portrait footage could not be obtained; four distinct portrait clips could not be matched "
+                    "to all authored scenes. Add licensed clips under "
+                    "assets/fallback_videos/<matching-topic>/ or provide four explicit scene stills "
+                    "for a non-publishable dry-run preview."
+                )
         if scene_timings and len(scene_timings) == count:
             durations = [
                 float(scene_timings[index + 1]["start_seconds"]) - float(row["start_seconds"])
@@ -446,13 +540,15 @@ def render_video(
         count = max(1, min(24, int(math.ceil(duration / 18.0))))
         stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
         durations = [duration / count] * count
-    local_fallbacks = _local_fallback_videos() if not stock else []
+    local_fallbacks = _local_fallback_videos() if not stock and video_format != "shorts" and not scene_stills else []
     scene_dir = out_dir / "scenes"
     scene_dir.mkdir(exist_ok=True)
     parts: list[Path] = []
     for index in range(count):
         part = scene_dir / f"scene_{index:03d}.mp4"
-        if stock:
+        if video_format == "shorts" and local_scene_sources:
+            _make_segment(local_scene_sources[index], None, durations[index], part, index, width=width, height=height)
+        elif stock:
             source = stock[index % len(stock)]
             _make_segment(source, None, durations[index], part, index, width=width, height=height)
         elif scene_stills:
@@ -513,7 +609,8 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "pexels" if stock else "local topic-matched portrait footage" if local_scene_sources else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "scene_visuals": scene_visuals if video_format == "shorts" else [],
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
@@ -525,7 +622,12 @@ def render_video(
         "burned_captions_path": str(subtitle_path) if video_format == "shorts" else str(captions_path),
         "scene_query_match": bool(
             video_format == "shorts" and len(queries) == count
-            and (len(stock) == count or len(scene_stills) == count)
+            and (
+                (len(stock) == count and len(scene_visuals) == count)
+                or (len(local_scene_sources) == count and len(scene_visuals) == count
+                    and all(row.get("topic_matched") and row.get("portrait") for row in scene_visuals))
+                or len(scene_stills) == count
+            )
         ),
         "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
         "music_ducking": True,
