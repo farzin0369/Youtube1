@@ -1,4 +1,4 @@
-name: Clip automation prototype smoke test
+name: Clip automation prototype integration test
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   test-and-render-demo:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,17 +24,53 @@ jobs:
           sudo apt-get install -y -qq ffmpeg
       - name: Run focused unit tests
         run: python -m unittest discover -s tests -p 'test_clip_automation.py' -v
-      - name: Generate synthetic input for pipeline smoke test
+      - name: Generate test source with video and audio
         run: |
           mkdir -p /tmp/clip-demo output/clip-automation-demo
-          ffmpeg -hide_banner -y -f lavfi -i 'testsrc2=size=1280x720:rate=24:duration=24' -f lavfi -i 'sine=frequency=440:duration=24' -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac /tmp/clip-demo/synthetic-source.mp4
-      - name: Render a vertical demonstration clip
+          ffmpeg -hide_banner -y \
+            -f lavfi -i 'testsrc2=size=1280x720:rate=24:duration=24' \
+            -f lavfi -i 'sine=frequency=440:sample_rate=44100:duration=24' \
+            -shortest -c:v libx264 -pix_fmt yuv420p -c:a aac \
+            /tmp/clip-demo/synthetic-source.mp4
+      - name: Run the actual clip rendering pipeline
         run: |
-          python scripts/run_clip_automation.py --input /tmp/clip-demo/synthetic-source.mp4 --output output/clip-automation-demo --rights-confirmed --clip-seconds 12 --count 1
-      - name: Upload demo video and manifest
+          python scripts/run_clip_automation.py \
+            --input /tmp/clip-demo/synthetic-source.mp4 \
+            --output output/clip-automation-demo \
+            --rights-confirmed --clip-seconds 12 --count 1
+      - name: Verify rendered media with ffprobe and manifest
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess, sys
+          out = pathlib.Path("output/clip-automation-demo")
+          videos = sorted(out.glob("*.mp4"))
+          assert len(videos) == 1, f"Expected one MP4, got {len(videos)}"
+          probe = subprocess.run([
+              "ffprobe", "-v", "error", "-show_entries",
+              "stream=codec_type,width,height,codec_name", "-show_entries",
+              "format=duration", "-of", "json", str(videos[0])
+          ], check=True, capture_output=True, text=True)
+          data = json.loads(probe.stdout)
+          streams = data["streams"]
+          video = next((s for s in streams if s["codec_type"] == "video"), None)
+          audio = next((s for s in streams if s["codec_type"] == "audio"), None)
+          assert video is not None, "No video stream"
+          assert (video["width"], video["height"]) == (1080, 1920), f"Wrong dimensions: {video}"
+          assert audio is not None, "No audio stream"
+          duration = float(data["format"]["duration"])
+          assert 11.5 <= duration <= 12.5, f"Unexpected clip duration: {duration}"
+          manifest_path = out / "manifest.json"
+          assert manifest_path.is_file(), "manifest.json missing"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          assert manifest["format"] == "1080x1920_vertical_h264_aac"
+          assert len(manifest["candidates"]) == 1
+          print(f"PASS: {videos[0]} | {video['codec_name']} 1080x1920 | audio={audio['codec_name']} | duration={duration:.2f}s")
+          print(f"PASS: manifest has {len(manifest['candidates'])} candidate")
+          PY
+      - name: Upload verified demo and manifest
         uses: actions/upload-artifact@v4
         with:
           name: clip-automation-prototype-demo
           path: output/clip-automation-demo/
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
