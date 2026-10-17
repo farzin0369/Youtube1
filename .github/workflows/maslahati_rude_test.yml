@@ -26,7 +26,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install Pillow edge-tts
       - name: Render one-image comedy Short
-        run: python scripts/render_maslahati_rude_test.py output/diego_meme
+        run: python scripts/render_maslahati_rude_test.py output/maslahati_test
       - name: Upload video, image and voice as artifacts
         uses: actions/upload-artifact@v4
         with:
