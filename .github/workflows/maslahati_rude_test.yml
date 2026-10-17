@@ -1,0 +1,41 @@
+name: مشاوره انگیزشی — rude joke test Short
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/maslahati-rude-joke-short
+    paths:
+      - "scripts/render_maslahati_rude_test.py"
+      - ".github/workflows/maslahati_rude_test.yml"
+  pull_request:
+    paths:
+      - "scripts/render_maslahati_rude_test.py"
+      - ".github/workflows/maslahati_rude_test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install free system tools and Pillow
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install Pillow edge-tts
+      - name: Render one-image comedy Short
+        run: python scripts/render_maslahati_rude_test.py output/maslahati_test
+      - name: Upload video, image and voice as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maslahati-rude-test-short
+          path: output/maslahati_test/
+          if-no-files-found: error
