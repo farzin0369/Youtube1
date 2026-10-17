@@ -84,36 +84,68 @@ def overlay(path,caption):
   d.text((W-90,y),line,font=f,fill="white",anchor="ra",direction="rtl",language="fa",stroke_width=1,stroke_fill=(0,0,0));y+=62
  Image.alpha_composite(im.convert("RGBA"),layer).convert("RGB").save(path,quality=94)
 async def voice(text,path):await edge_tts.Communicate(text,voice="fa-IR-FaridNeural",rate="-5%").save(str(path))
+def media_duration(path):
+ result=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(path)],capture_output=True,text=True,check=True,timeout=30)
+ return max(0.1,float(result.stdout.strip()))
+
 def run():
- OUT.mkdir(parents=True,exist_ok=True);(OUT/"scenes").mkdir(exist_ok=True);story=STORIES[date.today().toordinal()%len(STORIES)]
- script=" ".join([story["hook"],*(s[0] for s in story["scenes"]),story["ending"]])
- (OUT/"script_fa.txt").write_text(story["title"]+"\n\nقلاب: "+story["hook"]+"\n\n"+"\n".join(f"{i+1}. {s[0]}" for i,s in enumerate(story["scenes"]))+"\n\nپایان: "+story["ending"]+"\n",encoding="utf-8")
+ OUT.mkdir(parents=True,exist_ok=True);(OUT/"scenes").mkdir(exist_ok=True);(OUT/"audio_segments").mkdir(exist_ok=True)
+ story=STORIES[date.today().toordinal()%len(STORIES)]
+ segments=[("hook",story["hook"],0)]
+ segments += [(f"scene_{i}",caption,i) for i,(caption,query) in enumerate(story["scenes"],1)]
+ segments += [("ending",story["ending"],len(story["scenes"]))]
+ script=" ".join(text for _,text,_ in segments)
+ (OUT/"script_fa.txt").write_text(story["title"]+"\\n\\nقلاب: "+story["hook"]+"\\n\\n"+"\\n".join(f"{i+1}. {s[0]}" for i,s in enumerate(story["scenes"]))+"\\n\\nپایان: "+story["ending"]+"\\n",encoding="utf-8")
  credits=[];scenes=[];scene_qc=[]
  for i,(caption,query) in enumerate(story["scenes"],1):
   p=OUT/"scenes"/f"scene_{i:02d}.jpg";meta=commons(query,p)
   if meta:
-   meta["scene_number"]=i;meta["requested_query"]=query;credits.append(meta);scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"Wikimedia Commons","image_title":meta.get("scene",""),"fallback":False,"status":"candidate_requires_visual_review"})
+   meta["scene_number"]=i;meta["requested_query"]=query;meta["match_score"]=image_match_score(meta.get("scene",""),query);credits.append(meta)
+   scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"Wikimedia Commons","image_title":meta.get("scene",""),"match_score":meta["match_score"],"fallback":False,"status":"candidate_requires_visual_review"})
    try:
     im=Image.open(p).convert("RGB");ratio=max(W/im.width,H/im.height);im=im.resize((int(im.width*ratio),int(im.height*ratio)));x,y=(im.width-W)//2,(im.height-H)//2;im.crop((x,y,x+W,y+H)).save(p,quality=94)
    except Exception:
-    fallback(p,i);credits[-1]["used_fallback"]=True
-    scene_qc[-1]["fallback"]=True
-    scene_qc[-1]["image_source"]="abstract fallback"
-    scene_qc[-1]["status"]="rejected_image_processing_failed"
-  else:fallback(p,i);credits.append({"scene_number":i,"requested_query":query,"note":"Commons unavailable; abstract generated background used."});scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"abstract fallback","image_title":"","fallback":True,"status":"rejected_no_relevant_image"})
+    fallback(p,i);credits[-1]["used_fallback"]=True;scene_qc[-1]["fallback"]=True;scene_qc[-1]["image_source"]="abstract fallback";scene_qc[-1]["status"]="rejected_image_processing_failed"
+  else:
+   fallback(p,i);credits.append({"scene_number":i,"requested_query":query,"note":"No relevant Commons image found; abstract background is a rejected placeholder."})
+   scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"abstract fallback","image_title":"","match_score":0,"fallback":True,"status":"rejected_no_relevant_image"})
   overlay(p,caption);scenes.append(p)
- audio=OUT/"narration_fa.mp3";asyncio.run(voice(script,audio))
- probe=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(audio)],capture_output=True,text=True,check=True,timeout=30)
- duration=max(8.0,float(probe.stdout.strip()));each=duration/len(scenes)+0.3;video=OUT/"imamali110_no_key_preview.mp4";cmd=["ffmpeg","-y","-hide_banner","-loglevel","error"]
- for p in scenes:cmd+=["-loop","1","-t",f"{each:.3f}","-i",str(p)]
- cmd+=["-i",str(audio)];filt="".join(f"[{i}:v]scale={W}:{H},setsar=1,format=yuv420p[v{i}];" for i in range(len(scenes)))+"".join(f"[v{i}]" for i in range(len(scenes)))+f"concat=n={len(scenes)}:v=1:a=0[v]"
- cmd+=["-filter_complex",filt,"-map","[v]","-map",f"{len(scenes)}:a:0","-c:v","libx264","-preset","veryfast","-crf","20","-r","24","-c:a","aac","-b:a","192k","-pix_fmt","yuv420p","-shortest","-movflags","+faststart",str(video)]
+ # Hook and ending use the actual first/last scene image but their own text overlays.
+ hook_img=OUT/"scenes"/"hook.jpg";ending_img=OUT/"scenes"/"ending.jpg"
+ Image.open(scenes[0]).convert("RGB").save(hook_img,quality=94);overlay(hook_img,story["hook"])
+ Image.open(scenes[-1]).convert("RGB").save(ending_img,quality=94);overlay(ending_img,story["ending"])
+ image_for_segment=[hook_img,*scenes,ending_img]
+ audio_files=[];durations=[]
+ for idx,(label,text_value,scene_no) in enumerate(segments):
+  audio_path=OUT/"audio_segments"/f"{idx:02d}_{label}.mp3"
+  asyncio.run(voice(text_value,audio_path))
+  audio_files.append(audio_path);durations.append(media_duration(audio_path))
+ # Every scene's still image is held for exactly its own narration duration.
+ video=OUT/"imamali110_no_key_preview.mp4";cmd=["ffmpeg","-y","-hide_banner","-loglevel","error"]
+ for image_path,audio_path in zip(image_for_segment,audio_files):
+  cmd += ["-loop","1","-framerate","24","-i",str(image_path),"-i",str(audio_path)]
+ filters=[]
+ for i,dur in enumerate(durations):
+  filters.append(f"[{2*i}:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,format=yuv420p,trim=duration={dur:.4f},setpts=PTS-STARTPTS[v{i}]")
+  filters.append(f"[{2*i+1}:a]aresample=24000,asetpts=PTS-STARTPTS[a{i}]")
+ concat_inputs="".join(f"[v{i}][a{i}]" for i in range(len(segments)))
+ filters.append(concat_inputs+f"concat=n={len(segments)}:v=1:a=1[outv][outa]")
+ cmd += ["-filter_complex",";".join(filters),"-map","[outv]","-map","[outa]","-c:v","libx264","-preset","medium","-crf","18","-r","24","-c:a","aac","-b:a","192k","-pix_fmt","yuv420p","-movflags","+faststart",str(video)]
  subprocess.run(cmd,check=True,timeout=600)
+ (OUT/"narration_fa.mp3").write_bytes(b"")
+ concat_list=OUT/"audio_concat.txt"
+ concat_list.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\\n" for p in audio_files),encoding="utf-8")
+ subprocess.run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",str(concat_list),"-c:a","libmp3lame","-q:a","3",str(OUT/"narration_fa.mp3")],check=True,timeout=180)
  (OUT/"image_credits.json").write_text(json.dumps(credits,ensure_ascii=False,indent=2),encoding="utf-8")
- external=sum(not item["fallback"] for item in scene_qc)
+ external=sum(not item["fallback"] and item.get("match_score",0)>0 for item in scene_qc)
  approved=external==len(scene_qc) and len(scene_qc)==4
- quality={"status":"PASS_PREVIEW_ONLY" if approved else "REJECTED_NOT_FOR_PUBLISHING","approved_for_publishing":False,"reason":"All four scenes have external image candidates, but human visual review is still required." if approved else f"Only {external}/4 scenes have matching external image candidates; abstract fallbacks are not acceptable for publishing.","external_image_candidates":external,"scene_count":len(scene_qc),"scenes":scene_qc,"automated_checks":["Persian script generated","vertical 720x1280 video rendered","narration rendered","image credits emitted"],"manual_review_required":["verify each image semantically matches narration","check Persian typography and line wrapping","listen to narration for pronunciation and emotional pacing","confirm pacing and scene transitions"]}
+ quality={"status":"PASS_PREVIEW_ONLY" if approved else "REJECTED_NOT_FOR_PUBLISHING","approved_for_publishing":False,
+  "reason":"All scenes have keyword-matched external image candidates; human visual review is still required." if approved else f"Only {external}/4 scenes have relevant external image candidates. Fallback images are rejected; do not publish.",
+  "external_image_candidates":external,"scene_count":len(scene_qc),"scenes":scene_qc,
+  "audio_visual_sync":{"method":"separate TTS audio per narration segment; image duration equals that segment audio duration","segments":[{"segment":segments[i][0],"duration_seconds":round(durations[i],2),"image":image_for_segment[i].name} for i in range(len(segments))]},
+  "automated_checks":["separate Persian TTS per scene","image duration synced to each scene narration","vertical 720x1280 video rendered","image credits emitted"],
+  "manual_review_required":["verify each image semantically matches narration","check Persian typography and line wrapping","listen to narration for pronunciation and emotional pacing","confirm pacing and scene transitions"]}
  (OUT/"quality_report.json").write_text(json.dumps(quality,ensure_ascii=False,indent=2),encoding="utf-8")
- (OUT/"preview_manifest.json").write_text(json.dumps({"title":story["title"],"story_id":story["id"],"format":"720x1280 vertical Shorts preview","voice":"Microsoft Edge TTS fa-IR-FaridNeural","published":False,"source":"curated story bank; no Groq, Pexels, or API keys required","video":video.name,"credits_file":"image_credits.json"},ensure_ascii=False,indent=2),encoding="utf-8")
- print("PREVIEW_READY="+str(video));print("STORY_ID="+story["id"]);print(f"VOICE_SECONDS={duration:.1f}");print("EXTERNAL_IMAGES="+str(external));print("QUALITY_STATUS="+quality["status"]);print("PUBLISHING=DISABLED")
+ (OUT/"preview_manifest.json").write_text(json.dumps({"title":story["title"],"story_id":story["id"],"format":"720x1280 vertical Shorts preview","voice":"Microsoft Edge TTS fa-IR-FaridNeural, separately generated per scene","audio_visual_sync":"per-segment narration duration","published":False,"source":"curated story bank; no Groq, Pexels, or API keys required","video":video.name,"credits_file":"image_credits.json"},ensure_ascii=False,indent=2),encoding="utf-8")
+ print("PREVIEW_READY="+str(video));print("STORY_ID="+story["id"]);print("VOICE_SECONDS="+str(round(sum(durations),1)));print("EXTERNAL_IMAGES="+str(external));print("QUALITY_STATUS="+quality["status"]);print("PUBLISHING=DISABLED")
 if __name__=="__main__":run()
