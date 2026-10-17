@@ -95,7 +95,11 @@ def run():
    meta["scene_number"]=i;meta["requested_query"]=query;credits.append(meta);scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"Wikimedia Commons","image_title":meta.get("scene",""),"fallback":False,"status":"candidate_requires_visual_review"})
    try:
     im=Image.open(p).convert("RGB");ratio=max(W/im.width,H/im.height);im=im.resize((int(im.width*ratio),int(im.height*ratio)));x,y=(im.width-W)//2,(im.height-H)//2;im.crop((x,y,x+W,y+H)).save(p,quality=94)
-   except Exception:fallback(p,i);credits[-1]["used_fallback"]=True
+   except Exception:
+    fallback(p,i);credits[-1]["used_fallback"]=True
+    scene_qc[-1]["fallback"]=True
+    scene_qc[-1]["image_source"]="abstract fallback"
+    scene_qc[-1]["status"]="rejected_image_processing_failed"
   else:fallback(p,i);credits.append({"scene_number":i,"requested_query":query,"note":"Commons unavailable; abstract generated background used."});scene_qc.append({"scene_number":i,"caption":caption,"query":query,"image_source":"abstract fallback","image_title":"","fallback":True,"status":"rejected_no_relevant_image"})
   overlay(p,caption);scenes.append(p)
  audio=OUT/"narration_fa.mp3";asyncio.run(voice(script,audio))
