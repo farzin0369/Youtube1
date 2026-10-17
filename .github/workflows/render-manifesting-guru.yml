@@ -1,0 +1,38 @@
+name: Render Manifesting Guru Comedy Short
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "comedy/manifesting-guru/**"
+      - ".github/workflows/render-manifesting-guru.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render-short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install rendering tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng python3-pip
+          python -m pip install --upgrade pip pillow numpy
+
+      - name: Render vertical comedy short
+        run: |
+          python comedy/manifesting-guru/render_short.py
+          test -s output/manifesting_guru_comedy_short.mp4
+
+      - name: Upload rendered video
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifesting-guru-comedy-short
+          path: output/manifesting_guru_comedy_short.mp4
+          if-no-files-found: error
+          retention-days: 7
