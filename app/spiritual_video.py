@@ -287,7 +287,7 @@ def _local_fallback_videos(keyword: str | None = None) -> list[Path]:
         term = term.strip().casefold()
         if not term:
             return False
-        if re.search(r"[\\u0600-\\u06ff]", term):
+        if any("\u0600" <= char <= "\u06ff" for char in term):
             return term in text
         return re.search(r"(?<![a-z0-9])" + re.escape(term) + r"(?![a-z0-9])", text) is not None
 
