@@ -201,11 +201,25 @@ def main() -> int:
         img = imgs / f"p_{i:02d}.jpg"
         if not img.is_file() or img.stat().st_size < 20_000:
             if not fetch_image(prompt, img):
-                run([
-                    "ffmpeg", "-y", "-f", "lavfi",
-                    "-i", "color=c=0x14101f:s=720x1280:d=1",
-                    "-frames:v", "1", str(img),
-                ])
+                # Never silently ship a blank-color scene as if it were finished.
+                # Reuse the closest previously generated valid visual instead.
+                prior = [
+                    p for p in sorted(imgs.glob("p_*.jpg"))
+                    if p != img and p.stat().st_size > 20_000
+                ]
+                if not prior:
+                    raise RuntimeError(
+                        f"Image provider failed for {img.name}; no valid image exists "
+                        "for a safe fallback. Refusing to render a low-quality blank scene."
+                    )
+                import shutil
+                fallback = prior[-1]
+                shutil.copyfile(fallback, img)
+                print(
+                    f"[warn] image provider failed for {img.name}; reused "
+                    f"{fallback.name} instead of blank-color fallback",
+                    flush=True,
+                )
             time.sleep(2)
         seg = out / f"seg_{i:02d}.mp4"
         ken_burns(img, seg_dur, seg, seed=i)
