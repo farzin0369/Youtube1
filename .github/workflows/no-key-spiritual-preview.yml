@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: imamali-no-key-preview
+  group: imamali-no-key-preview-v2
   cancel-in-progress: false
 
 jobs:
@@ -29,7 +29,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install Pillow edge-tts
-          sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core fonts-noto-extra
       - name: Verify Persian text layout support
         run: |
