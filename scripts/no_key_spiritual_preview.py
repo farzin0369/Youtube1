@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 import edge_tts
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/"output"/"no_key_preview"; W,H=1280,720
+OUT=ROOT/"output"/"no_key_preview"; W,H=720,1280
 FONTS=["/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf","/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 STORIES=[
 {"id":"closed_door","title":"درِ بسته، پایان راه نیست","hook":"اگر دری بسته شد، شاید هنوز قصه تمام نشده باشد.","scenes":[("گاهی تمام تلاشمان را می‌کنیم و باز هم راهی باز نمی‌شود.","quiet mountain sunrise"),("مردی خسته، هر روز مقابل دری می‌ایستاد که باز نمی‌شد.","old wooden door nature"),("یک روز از انتظار دست کشید و صدای کمک‌خواهی همسایه‌اش را شنید.","person helping another person"),("فهمید بعضی درها بسته می‌مانند تا ما راهِ مهربانی را ببینیم.","sunlight forest path")],"ending":"از خدا فقط درِ باز نخواه؛ چشمِ دیدنِ راه‌های دیگر را هم بخواه."},
