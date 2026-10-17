@@ -44,7 +44,7 @@ jobs:
         run: |
           ffprobe -v error -show_entries format=duration,size -show_entries stream=codec_name,width,height -of json output/no_key_preview/imamali110_no_key_preview.mp4
           python -c "import json; d=json.load(open('output/no_key_preview/preview_manifest.json', encoding='utf-8')); assert d['published'] is False; print('Preview validated; publishing is disabled.')"
-      - name: Upload preview, script, and image credits
+      - name: Upload preview, script, credits, and QC report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -52,3 +52,22 @@ jobs:
           path: output/no_key_preview/
           retention-days: 7
           if-no-files-found: warn
+
+      - name: Enforce visual quality gate (preview artifact is retained)
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          p = pathlib.Path("output/no_key_preview/quality_report.json")
+          if not p.exists():
+              print("QUALITY_GATE=FAIL: report missing")
+              sys.exit(1)
+          q = json.loads(p.read_text(encoding="utf-8"))
+          print("QUALITY_GATE=" + q["status"])
+          print(q["reason"])
+          if q["status"] == "REJECTED_NOT_FOR_PUBLISHING":
+              print("Preview artifact was retained for inspection, but this workflow is intentionally marked failed.")
+              sys.exit(1)
+          if not q["approved_for_publishing"]:
+              sys.exit(1)
+          PY
