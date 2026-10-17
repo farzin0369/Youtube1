@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Spiritual cartoon story — each narrator line = unique matching scene + camera move.
+"""Spiritual 2D cartoon story — high relevance + camera motion (CPU).
 
-Critical UX rules:
-  - Scene MUST change with spoken content (look at sky → sky-looking frame)
-  - Camera always moves (Ken Burns zoom/pan), never a frozen still
-  - Per-line TTS so visual duration matches that line
+Improvements:
+  - Strict scene-action prompts (what is ON SCREEN must match the line)
+  - Same-boy character lock across scenes
+  - Reject tiny / solid / failed images and retry
+  - Stronger 2D storybook look (not photo, not 3d)
+  - Per-line TTS + always-moving camera
 """
 from __future__ import annotations
 
@@ -18,74 +20,84 @@ from pathlib import Path
 
 STORY_TITLE = "پسر کوهستان"
 
-# Unique visual per line — prompts are literal matches to the spoken action
+# Each prompt starts with the EXACT visual action so the model cannot drift
 BEATS = [
     {
         "line": "تو یه دهکده‌ی کوهستانی، پسری زندگی می‌کرد که فکر می‌کرد خدا خیلی دور است.",
         "prompt": (
-            "children storybook cartoon, wide establishing shot of small alpine village in green mountains, "
-            "tiny wooden houses, one small boy standing alone in foreground looking distant, "
-            "soft daylight, cute simple character design, warm colors, flat shading, vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: small alpine village with wooden houses "
+            "and ONE young boy standing alone in the foreground looking into the distance, "
+            "green mountain meadows, soft warm daylight, simple cute character design, "
+            "flat 2D coloring, clean outlines, vertical composition"
         ),
+        "must": "village boy standing",
     },
     {
         "line": "هر شب به آسمون پر ستاره نگاه می‌کرد و می‌گفت: کاش می‌تونستم بهش برسم.",
         "prompt": (
-            "children storybook cartoon, CLOSE-UP of young boy lying on grass LOOKING UP at huge starry night sky, "
-            "his face tilted upward toward stars, mountains silhouette, soft blue and gold, wonder expression, "
-            "camera angle from slightly below looking at boy and sky together, vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: young boy lying on grass looking UP "
+            "at a huge starry night sky, face tilted toward stars, mountain silhouette, "
+            "night blue and soft gold stars, wonder expression, flat 2D coloring, vertical"
         ),
+        "must": "boy looking up stars",
     },
     {
         "line": "یه روز طوفان اومد و بره‌ی کوچیکی از گله گم شد.",
         "prompt": (
-            "children storybook cartoon, stormy mountain pasture, wind and rain, flock of sheep, "
-            "ONE small lamb separated and lost alone near rocks, dramatic soft clouds, not scary for kids, "
-            "vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: rainy stormy pasture, flock of sheep, "
+            "ONE small lost lamb alone near rocks, wind and soft rain, not scary, "
+            "flat 2D coloring, vertical"
         ),
+        "must": "lost lamb storm",
     },
     {
         "line": "پسر بدون اینکه کسی ببینه، رفت دنبال بره؛ خیس و سرد، اما نترسید.",
         "prompt": (
-            "children storybook cartoon, boy WALKING through rain on mountain dirt path, searching, "
-            "wet hair, determined kind face, side view mid-stride, rainy atmosphere, soft drama, "
-            "vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: same young boy WALKING on a wet mountain "
+            "path in the rain, mid-stride, searching, wet hair, determined kind face, "
+            "rain drops, flat 2D coloring, vertical"
         ),
+        "must": "boy walking rain",
     },
     {
         "line": "پشت یه سنگ، بره رو پیدا کرد و بغلش کرد.",
         "prompt": (
-            "children storybook cartoon, boy KNEELING behind a large rock HUGGING a small lamb tightly, "
-            "relief and warmth on his face, golden light breaking through clouds onto them, "
-            "intimate medium shot, vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: boy kneeling behind a large rock "
+            "HUGGING a small white lamb, warm relief on face, golden light through clouds, "
+            "flat 2D coloring, vertical"
         ),
+        "must": "boy hugging lamb",
     },
     {
         "line": "همون لحظه فهمید: خدا دور نبود؛ تو همون کارِ مهربونش کنارش بود.",
         "prompt": (
-            "children storybook cartoon, boy and lamb sitting together under soft rainbow light on mountain slope, "
-            "peaceful hopeful faces looking forward, warm gold and soft green, spiritual calm mood, "
-            "vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: boy and lamb sitting together under soft "
+            "rainbow light on a green mountain slope, peaceful hopeful mood, warm gold green palette, "
+            "flat 2D coloring, vertical"
         ),
+        "must": "boy lamb rainbow light",
     },
     {
         "line": "گاهی نزدیک‌ترین راه به آسمان، یه قدم مهربونی روی زمینه.",
         "prompt": (
-            "children storybook cartoon, wide ending shot boy walking home toward alpine village at warm sunset, "
-            "lamb beside him, orange pink sky, hopeful path leading to houses, soft storybook ending frame, "
-            "vertical 9:16, no text"
+            "2D children's storybook illustration, MUST SHOW: wide ending shot of boy walking home "
+            "toward alpine village at warm sunset with lamb beside him, orange pink sky, "
+            "hopeful path, flat 2D coloring, vertical"
         ),
+        "must": "sunset village walk",
     },
 ]
 
-STYLE = (
-    ", consistent same boy character in every scene, children's picture book, soft rounded shapes, "
-    "gentle colors, alpine countryside, NOT photorealistic, NOT 3d, no watermark"
+STYLE_LOCK = (
+    ". Same boy character every scene: short brown hair, simple tunic, age about 10. "
+    "Pure 2D storybook, soft rounded shapes, gentle colors, alpine Heidi countryside mood. "
+    "NOT photorealistic, NOT 3D render, NOT anime, NOT dark horror, no text, no watermark, no logo"
 )
 
 VOICE = "fa-IR-FaridNeural"
 ROOT = Path(__file__).resolve().parents[1]
 FONTS_DIR = ROOT / "assets" / "fonts"
+MIN_IMG_BYTES = 30_000  # reject solid placeholders
 
 
 def run(cmd: list[str], timeout: int = 180) -> None:
@@ -132,57 +144,63 @@ async def tts_line(text: str, out: Path) -> None:
     await edge_tts.Communicate(text, VOICE, rate="-10%", pitch="-2Hz").save(str(out))
 
 
-def fetch_unique_image(prompt: str, dest: Path, seed: int) -> bool:
-    full = f"{prompt}{STYLE} seed:{seed}"
+def fetch_image(prompt: str, dest: Path, seed: int) -> bool:
+    """Fetch 2D storybook frame; reject tiny/irrelevant solids."""
+    full = prompt + STYLE_LOCK
     q = urllib.parse.quote(full)
-    # seed in query helps diversity when API supports it
-    url = f"https://image.pollinations.ai/prompt/{q}?width=768&height=1344&nologo=true&seed={1000 + seed}"
-    for attempt in range(4):
+    # Higher quality request: larger size, fixed seed per scene for retry consistency
+    for attempt in range(5):
+        seed_try = 2000 + seed * 17 + attempt * 3
+        url = (
+            f"https://image.pollinations.ai/prompt/{q}"
+            f"?width=864&height=1536&nologo=true&seed={seed_try}&model=flux"
+        )
         try:
-            print(f"[img] scene {seed + 1} try {attempt + 1}", flush=True)
+            print(f"[img] scene {seed + 1} try {attempt + 1} seed={seed_try}", flush=True)
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=90) as resp, dest.open("wb") as f:
+            with urllib.request.urlopen(req, timeout=100) as resp, dest.open("wb") as f:
                 while True:
                     chunk = resp.read(65536)
                     if not chunk:
                         break
                     f.write(chunk)
-            if dest.stat().st_size > 25_000:
+            size = dest.stat().st_size
+            if size >= MIN_IMG_BYTES:
+                print(f"[img] ok scene {seed + 1} bytes={size}", flush=True)
                 return True
+            print(f"[img] reject tiny {size} bytes", flush=True)
         except Exception as e:
             print(f"[img] {type(e).__name__}", flush=True)
-            time.sleep(15 + attempt * 12)
+            time.sleep(18 + attempt * 10)
         dest.unlink(missing_ok=True)
+        time.sleep(6)
     return False
 
 
 def camera_move(image: Path, duration: float, out: Path, seed: int) -> None:
-    """Always-moving camera: zoom + slight pan (never static)."""
     frames = max(30, int(duration * 24))
-    # Vary motion direction per scene so cuts feel different
     motions = [
-        # zoom in center
-        "min(1.18,1+0.00035*on)",
-        # zoom out
-        "if(eq(on,1),1.16,max(1.0,1.16-0.00035*on))",
-        # zoom in slower
-        "min(1.14,1+0.00022*on)",
-        # zoom out slower
-        "if(eq(on,1),1.12,max(1.0,1.12-0.00022*on))",
+        "min(1.16,1+0.00032*on)",
+        "if(eq(on,1),1.14,max(1.0,1.14-0.00032*on))",
+        "min(1.12,1+0.0002*on)",
+        "if(eq(on,1),1.12,max(1.0,1.12-0.0002*on))",
     ]
     z = motions[seed % len(motions)]
-    # slight vertical drift for "camera" feel
-    y_expr = "ih/2-(ih/zoom/2)+0.08*sin(on/40)*ih" if seed % 2 == 0 else "ih/2-(ih/zoom/2)-0.06*sin(on/35)*ih"
+    y_expr = (
+        "ih/2-(ih/zoom/2)+0.07*sin(on/38)*ih"
+        if seed % 2 == 0
+        else "ih/2-(ih/zoom/2)-0.05*sin(on/32)*ih"
+    )
     vf = (
-        f"scale=900:1600:force_original_aspect_ratio=increase,"
+        f"scale=960:1700:force_original_aspect_ratio=increase,"
         f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='{y_expr}':d={frames}:s=720x1280:fps=24,"
-        f"eq=contrast=1.06:saturation=1.14"
+        f"eq=contrast=1.05:saturation=1.12:brightness=0.01"
     )
     run([
         "ffmpeg", "-y", "-loop", "1", "-i", str(image),
         "-t", f"{duration:.3f}",
         "-vf", "".join(vf),
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p",
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-pix_fmt", "yuv420p",
         str(out),
     ], timeout=120)
 
@@ -224,6 +242,9 @@ def main() -> int:
     audio_dir = out / "audio_lines"
     audio_dir.mkdir(exist_ok=True)
 
+    # optional: force re-download weak images
+    force = "--force-images" in sys.argv
+
     font_file = ensure_vazirmatn()
     fonts_dir = font_file.parent.resolve()
 
@@ -232,14 +253,13 @@ def main() -> int:
     except ImportError:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "edge-tts"])
 
-    # Per-line TTS → accurate scene durations
     line_audios: list[Path] = []
     for i, beat in enumerate(BEATS):
         ap = audio_dir / f"line_{i:02d}.mp3"
         if not ap.is_file() or ap.stat().st_size < 1000:
             asyncio.run(tts_line(beat["line"], ap))
         line_audios.append(ap)
-        print(f"[tts] {i + 1}: {beat['line'][:36]}…", flush=True)
+        print(f"[tts] {i + 1}: {beat['line'][:40]}…", flush=True)
 
     segs: list[Path] = []
     caption_segments: list[tuple[float, float, str]] = []
@@ -249,23 +269,23 @@ def main() -> int:
         dur = max(1.2, media_duration(ap))
         img = imgs / f"scene_{i:02d}.jpg"
 
-        # Force unique image per beat — never reuse another scene's file
-        if not img.is_file() or img.stat().st_size < 25_000:
-            ok = fetch_unique_image(beat["prompt"], img, seed=i)
+        need = force or (not img.is_file()) or img.stat().st_size < MIN_IMG_BYTES
+        if need:
+            ok = fetch_image(beat["prompt"], img, seed=i)
             if not ok:
-                print(f"[warn] scene {i + 1} image failed — solid placeholder", flush=True)
+                print(f"[warn] scene {i + 1} still missing — soft color fallback", flush=True)
+                # soft gradient-like solid (better than pure black)
+                colors = ["87CEEB", "2c3e6b", "5a6a7a", "4a708b", "c4a574", "6bb3c0", "e8a87c"]
                 run([
                     "ffmpeg", "-y", "-f", "lavfi",
-                    "-i", f"color=c=0x{['87CEEB','1a2744','4a5568','5b7c99','c4a574','7ec8e3','e8a87c'][i]}:s=720x1280:d=1",
+                    "-i", f"color=c=0x{colors[i]}:s=720x1280:d=1",
                     "-frames:v", "1", str(img),
                 ])
-            time.sleep(8)  # free API pacing so next scene is different
+            time.sleep(10)
 
-        seg = out / f"seg_{i:02d}.mp4"
-        # video with camera motion
         video_only = out / f"seg_{i:02d}_v.mp4"
         camera_move(img, dur, video_only, seed=i)
-        # mux this line's audio onto this segment
+        seg = out / f"seg_{i:02d}.mp4"
         run([
             "ffmpeg", "-y", "-i", str(video_only), "-i", str(ap),
             "-map", "0:v:0", "-map", "1:a:0",
@@ -275,14 +295,14 @@ def main() -> int:
         segs.append(seg)
         caption_segments.append((t_cursor, t_cursor + dur, beat["line"]))
         t_cursor += dur
-        print(f"[ok] scene {i + 1}/{len(BEATS)} ({dur:.1f}s) UNIQUE + camera", flush=True)
+        print(f"[ok] scene {i + 1}/{len(BEATS)} ({dur:.1f}s) 2D+camera", flush=True)
 
     concat = out / "concat.txt"
     concat.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
     assembled = out / "assembled.mp4"
     run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-c:a", "aac", "-b:a", "192k",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p", str(assembled),
     ])
 
@@ -294,7 +314,7 @@ def main() -> int:
     run([
         "ffmpeg", "-y", "-i", str(assembled),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-movflags", "+faststart",
         str(final),
     ])
