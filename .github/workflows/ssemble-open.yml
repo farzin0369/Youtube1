@@ -1,0 +1,90 @@
+name: Ssemble-Open CPU clipper
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "URL of a video you own or are authorized to reuse"
+        required: true
+        type: string
+      start_seconds:
+        description: "Clip start time in seconds"
+        required: true
+        default: "0"
+        type: string
+      duration_seconds:
+        description: "Clip duration in seconds (1–90)"
+        required: true
+        default: "30"
+        type: string
+      confirm_rights:
+        description: "Enter yes only if you have download/reuse rights"
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssemble-open-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  make-clip:
+    if: ${{ inputs.confirm_rights == 'yes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install Python and FFmpeg
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip yt-dlp
+      - name: Validate inputs
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+          START_SECONDS: ${{ inputs.start_seconds }}
+          DURATION_SECONDS: ${{ inputs.duration_seconds }}
+        run: |
+          python - <<'PY'
+          import os
+          from urllib.parse import urlparse
+          p = urlparse(os.environ["VIDEO_URL"])
+          if p.scheme not in ("http", "https") or not p.netloc:
+              raise SystemExit("video_url must be a valid http(s) URL")
+          start = float(os.environ["START_SECONDS"])
+          duration = float(os.environ["DURATION_SECONDS"])
+          if start < 0 or not 1 <= duration <= 90:
+              raise SystemExit("start must be >= 0 and duration must be 1–90 seconds")
+          PY
+      - name: Download and render vertical clip
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+          START_SECONDS: ${{ inputs.start_seconds }}
+          DURATION_SECONDS: ${{ inputs.duration_seconds }}
+        run: |
+          python ssemble-open/clipper.py \
+            --url "$VIDEO_URL" \
+            --start "$START_SECONDS" \
+            --duration "$DURATION_SECONDS" \
+            --output ssemble-open-clip.mp4
+      - name: Upload MP4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssemble-open-clip
+          path: ssemble-open-clip.mp4
+          if-no-files-found: error
+          retention-days: 3
+  rights-not-confirmed:
+    if: ${{ inputs.confirm_rights != 'yes' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Stopped because download/reuse rights were not confirmed."
