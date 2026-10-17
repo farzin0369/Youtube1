@@ -1,0 +1,89 @@
+name: Real Persian video preview (no publishing)
+
+on:
+  push:
+    branches:
+      - feat/ssemble-style-clip-automation-prototype
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: imamali-real-preview
+  cancel-in-progress: false
+
+jobs:
+  render-real-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LLM_TIMEOUT_SECONDS: "180"
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      TTS_PROVIDER: ${{ vars.TTS_PROVIDER || 'edge-tts' }}
+      TTS_VOICE: fa-IR-FaridNeural
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
+      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_v4' }}
+      ELEVENLABS_STABILITY: ${{ vars.ELEVENLABS_STABILITY || '0.5' }}
+      ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
+      CHANNEL_BRAND: ImamAli110
+      # Do not install or start Ollama: this preview must use a cloud LLM or fail.
+      OLLAMA_BASE_URL: http://127.0.0.1:9
+      LOCAL_LLM_MODEL: disabled-for-real-preview
+      CHANNEL_HISTORY_PATH: state/history.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run regression tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -q
+      - name: Install FFmpeg and Persian fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Require cloud LLM and real portrait stock footage
+        run: |
+          python - <<'PY'
+          import os, sys
+          groq = bool(os.getenv("GROQ_API_KEY", "").strip())
+          generic = all(os.getenv(k, "").strip() for k in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"))
+          missing = []
+          if not (groq or generic):
+              missing.append("GROQ_API_KEY or all of LLM_BASE_URL + LLM_API_KEY + LLM_MODEL")
+          if not os.getenv("PEXELS_API_KEY", "").strip():
+              missing.append("PEXELS_API_KEY")
+          if missing:
+              print("Real preview stopped safely; required GitHub secrets/variables are not configured: " + "; ".join(missing))
+              sys.exit(1)
+          print("Preflight passed: cloud LLM and Pexels credentials are present (values hidden).")
+          PY
+      - name: Initialize history state
+        run: |
+          mkdir -p state output logs
+          test -f state/history.json || printf '{"recent": []}\n' > state/history.json
+      - name: Generate actual Persian video without uploading
+        run: python scripts/daily_run.py --dry-run
+      - name: Upload real preview for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: imamali-real-preview-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/spiritual/
+            logs/
+          retention-days: 7
+          if-no-files-found: warn
