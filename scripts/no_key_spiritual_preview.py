@@ -31,22 +31,29 @@ def brand_font(size):
  p="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
  try:return ImageFont.truetype(p,size)
  except OSError:return ImageFont.load_default()
-def relevant_image(title, query):
- stop={"the","and","for","with","from","under","over","into","small","person","closeup","close","light","warm"}
+def image_match_score(title, query):
+ stop={"the","and","for","with","from","under","over","into","small","person","closeup","close","light","warm","another","someone","image","photo","file","of","on","at","in","a","an","to","by"}
  words=lambda value:set(re.findall(r"[a-z]+",value.lower()))-stop
  q=words(query); t=words(title)
- return bool(q & t)
+ if not q or not t:return 0
+ overlap=q & t
+ required=min(2,len(q))
+ if len(overlap)<required:return 0
+ return len(overlap)/len(q) + 0.1*(len(overlap)/len(t))
+def relevant_image(title, query):
+ return image_match_score(title,query)>0
 def commons(query,path):
  params={"action":"query","format":"json","generator":"search","gsrsearch":"filetype:bitmap "+query,"gsrnamespace":6,"gsrlimit":8,"prop":"imageinfo","iiprop":"url|extmetadata","iiurlwidth":1600}
  try:
   req=Request("https://commons.wikimedia.org/w/api.php?"+urlencode(params),headers={"User-Agent":"ImamAli110Preview/1.0"})
   with urlopen(req,timeout=18) as r:data=json.loads(r.read().decode())
-  pages=list((data.get("query",{}).get("pages") or {}).values());random.Random(query).shuffle(pages)
+  pages=list((data.get("query",{}).get("pages") or {}).values())
+  pages.sort(key=lambda page:image_match_score(page.get("title",""),query),reverse=True)
   for page in pages:
    info=(page.get("imageinfo") or [{}])[0];url=info.get("thumburl") or info.get("url")
    if not url or not url.lower().split("?")[0].endswith((".jpg",".jpeg",".png",".webp")):continue
    title=page.get("title","")
-   if not relevant_image(title,query):continue
+   if image_match_score(title,query)<=0:continue
    try:
     with urlopen(Request(url,headers={"User-Agent":"ImamAli110Preview/1.0"}),timeout=20) as r:raw=r.read()
     if len(raw)<10000:continue
