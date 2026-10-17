@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """No-key Persian spiritual preview. Does not publish."""
-import asyncio, json, random, subprocess
+import asyncio, json, random, subprocess, re
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlencode
@@ -27,6 +27,15 @@ def font(size):
    try:return ImageFont.truetype(p,size)
    except OSError:pass
  return ImageFont.load_default()
+def brand_font(size):
+ p="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+ try:return ImageFont.truetype(p,size)
+ except OSError:return ImageFont.load_default()
+def relevant_image(title, query):
+ stop={"the","and","for","with","from","under","over","into","small","person","closeup","close","light","warm"}
+ words=lambda value:set(re.findall(r"[a-z]+",value.lower()))-stop
+ q=words(query); t=words(title)
+ return bool(q & t)
 def commons(query,path):
  params={"action":"query","format":"json","generator":"search","gsrsearch":"filetype:bitmap "+query,"gsrnamespace":6,"gsrlimit":8,"prop":"imageinfo","iiprop":"url|extmetadata","iiurlwidth":1600}
  try:
@@ -36,11 +45,13 @@ def commons(query,path):
   for page in pages:
    info=(page.get("imageinfo") or [{}])[0];url=info.get("thumburl") or info.get("url")
    if not url or not url.lower().split("?")[0].endswith((".jpg",".jpeg",".png",".webp")):continue
+   title=page.get("title","")
+   if not relevant_image(title,query):continue
    try:
     with urlopen(Request(url,headers={"User-Agent":"ImamAli110Preview/1.0"}),timeout=20) as r:raw=r.read()
     if len(raw)<10000:continue
     path.write_bytes(raw);m=info.get("extmetadata") or {}
-    return {"scene":page.get("title",""),"artist":m.get("Artist",{}).get("value","Not listed"),"license":m.get("LicenseShortName",{}).get("value","Check source page"),"license_url":m.get("LicenseUrl",{}).get("value",""),"source_url":info.get("descriptionurl","")}
+    return {"scene":title,"artist":m.get("Artist",{}).get("value","Not listed"),"license":m.get("LicenseShortName",{}).get("value","Check source page"),"license_url":m.get("LicenseUrl",{}).get("value",""),"source_url":info.get("descriptionurl","")}
    except Exception:pass
  except Exception:pass
  return None
@@ -52,7 +63,7 @@ def fallback(path,n):
 def overlay(path,caption):
  im=Image.open(path).convert("RGB").resize((W,H));layer=Image.new("RGBA",im.size,(0,0,0,0));d=ImageDraw.Draw(layer)
  d.rectangle((40,35,W-40,120),fill=(0,0,0,135));d.rounded_rectangle((55,H-250,W-55,H-60),radius=26,fill=(0,0,0,178))
- d.text((W-72,60),"ImamAli110",font=font(30),fill=(247,216,153),anchor="ra",direction="rtl",language="fa")
+ d.text((W-72,60),"ImamAli110",font=brand_font(30),fill=(247,216,153),anchor="ra")
  f=font(43);lines=[];cur=""
  for word in caption.split():
   cand=(cur+" "+word).strip()
@@ -88,6 +99,6 @@ def run():
  cmd+=["-filter_complex",filt,"-map","[v]","-map",f"{len(scenes)}:a:0","-c:v","libx264","-preset","veryfast","-crf","20","-r","24","-c:a","aac","-b:a","192k","-pix_fmt","yuv420p","-shortest","-movflags","+faststart",str(video)]
  subprocess.run(cmd,check=True,timeout=600)
  (OUT/"image_credits.json").write_text(json.dumps(credits,ensure_ascii=False,indent=2),encoding="utf-8")
- (OUT/"preview_manifest.json").write_text(json.dumps({"title":story["title"],"story_id":story["id"],"format":"1280x720 landscape preview","voice":"Microsoft Edge TTS fa-IR-FaridNeural","published":False,"source":"curated story bank; no Groq, Pexels, or API keys required","video":video.name,"credits_file":"image_credits.json"},ensure_ascii=False,indent=2),encoding="utf-8")
+ (OUT/"preview_manifest.json").write_text(json.dumps({"title":story["title"],"story_id":story["id"],"format":"720x1280 vertical Shorts preview","voice":"Microsoft Edge TTS fa-IR-FaridNeural","published":False,"source":"curated story bank; no Groq, Pexels, or API keys required","video":video.name,"credits_file":"image_credits.json"},ensure_ascii=False,indent=2),encoding="utf-8")
  print("PREVIEW_READY="+str(video));print("STORY_ID="+story["id"]);print(f"VOICE_SECONDS={duration:.1f}");print("EXTERNAL_IMAGES="+str(sum(bool(c.get("source_url")) for c in credits)));print("PUBLISHING=DISABLED")
 if __name__=="__main__":run()
