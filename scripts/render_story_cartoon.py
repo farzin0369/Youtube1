@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Spiritual 2D cartoon story — high relevance + camera motion (CPU).
+"""High-retention spiritual 2D story short (CPU).
 
-Improvements:
-  - Strict scene-action prompts (what is ON SCREEN must match the line)
-  - Same-boy character lock across scenes
-  - Reject tiny / solid / failed images and retry
-  - Stronger 2D storybook look (not photo, not 3d)
-  - Per-line TTS + always-moving camera
+Quality bar for watchability:
+  - Short spoken lines (easy to pronounce, easy to follow)
+  - Per-line TTS with slower rate + audio loudnorm
+  - Unique image locked to the action of THAT line
+  - Camera always moves
+  - Soft crossfade between scenes
+  - Large Vazirmatn captions timed to the same line
 """
 from __future__ import annotations
 
@@ -20,90 +21,84 @@ from pathlib import Path
 
 STORY_TITLE = "پسر کوهستان"
 
-# Each prompt starts with the EXACT visual action so the model cannot drift
+# Short lines = clearer speech + tighter image match
 BEATS = [
     {
-        "line": "تو یه دهکده‌ی کوهستانی، پسری زندگی می‌کرد که فکر می‌کرد خدا خیلی دور است.",
+        "line": "تو کوهستان، پسری فکر می‌کرد خدا خیلی دور است.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: small alpine village with wooden houses "
-            "and ONE young boy standing alone in the foreground looking into the distance, "
-            "green mountain meadows, soft warm daylight, simple cute character design, "
-            "flat 2D coloring, clean outlines, vertical composition"
+            "2D children's storybook, MUST SHOW one young boy standing alone in alpine village foreground, "
+            "wooden houses behind him, green mountains, he looks far away thoughtful, soft warm daylight, "
+            "flat 2D colors clean outlines vertical"
         ),
-        "must": "village boy standing",
     },
     {
-        "line": "هر شب به آسمون پر ستاره نگاه می‌کرد و می‌گفت: کاش می‌تونستم بهش برسم.",
+        "line": "هر شب به آسمان پر ستاره نگاه می‌کرد.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: young boy lying on grass looking UP "
-            "at a huge starry night sky, face tilted toward stars, mountain silhouette, "
-            "night blue and soft gold stars, wonder expression, flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW young boy lying on grass looking UP at huge starry sky, "
+            "face tilted to stars, mountain silhouette night, wonder expression, flat 2D vertical"
         ),
-        "must": "boy looking up stars",
     },
     {
-        "line": "یه روز طوفان اومد و بره‌ی کوچیکی از گله گم شد.",
+        "line": "می‌گفت کاش می‌تونستم به خدا برسم.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: rainy stormy pasture, flock of sheep, "
-            "ONE small lost lamb alone near rocks, wind and soft rain, not scary, "
-            "flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW close-up boy face looking at stars with longing hope, "
+            "starry night bokeh soft light on face, flat 2D vertical"
         ),
-        "must": "lost lamb storm",
     },
     {
-        "line": "پسر بدون اینکه کسی ببینه، رفت دنبال بره؛ خیس و سرد، اما نترسید.",
+        "line": "یه روز طوفان اومد و یه بره از گله گم شد.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: same young boy WALKING on a wet mountain "
-            "path in the rain, mid-stride, searching, wet hair, determined kind face, "
-            "rain drops, flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW small lost white lamb alone near rocks in soft rain storm, "
+            "sheep flock far away, windy pasture not scary, flat 2D vertical"
         ),
-        "must": "boy walking rain",
     },
     {
-        "line": "پشت یه سنگ، بره رو پیدا کرد و بغلش کرد.",
+        "line": "پسر رفت زیر باران دنبال بره.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: boy kneeling behind a large rock "
-            "HUGGING a small white lamb, warm relief on face, golden light through clouds, "
-            "flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW same boy walking mid-stride on wet mountain path in rain, "
+            "searching determined kind face wet hair, flat 2D vertical"
         ),
-        "must": "boy hugging lamb",
     },
     {
-        "line": "همون لحظه فهمید: خدا دور نبود؛ تو همون کارِ مهربونش کنارش بود.",
+        "line": "بره رو پیدا کرد و محکم بغلش کرد.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: boy and lamb sitting together under soft "
-            "rainbow light on a green mountain slope, peaceful hopeful mood, warm gold green palette, "
-            "flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW boy kneeling hugging small white lamb behind a rock, "
+            "relief warm golden light through clouds, flat 2D vertical"
         ),
-        "must": "boy lamb rainbow light",
     },
     {
-        "line": "گاهی نزدیک‌ترین راه به آسمان، یه قدم مهربونی روی زمینه.",
+        "line": "اون لحظه فهمید خدا تو مهربونی کنارشه.",
         "prompt": (
-            "2D children's storybook illustration, MUST SHOW: wide ending shot of boy walking home "
-            "toward alpine village at warm sunset with lamb beside him, orange pink sky, "
-            "hopeful path, flat 2D coloring, vertical"
+            "2D children's storybook, MUST SHOW boy and lamb together under soft rainbow light on green slope, "
+            "peaceful hopeful mood warm gold green, flat 2D vertical"
         ),
-        "must": "sunset village walk",
+    },
+    {
+        "line": "نزدیک‌ترین راه به آسمان، یه قدم مهربونیه.",
+        "prompt": (
+            "2D children's storybook, MUST SHOW boy walking home with lamb toward alpine village at warm sunset, "
+            "orange pink sky hopeful path, flat 2D vertical"
+        ),
     },
 ]
 
 STYLE_LOCK = (
-    ". Same boy character every scene: short brown hair, simple tunic, age about 10. "
-    "Pure 2D storybook, soft rounded shapes, gentle colors, alpine Heidi countryside mood. "
-    "NOT photorealistic, NOT 3D render, NOT anime, NOT dark horror, no text, no watermark, no logo"
+    ". Same boy every scene: short brown hair, simple earth-tone tunic, about 10 years old. "
+    "Pure 2D storybook illustration, soft rounded shapes, gentle alpine colors like classic children's book. "
+    "NOT photorealistic, NOT 3D, NOT dark, no text, no watermark"
 )
 
 VOICE = "fa-IR-FaridNeural"
 ROOT = Path(__file__).resolve().parents[1]
 FONTS_DIR = ROOT / "assets" / "fonts"
-MIN_IMG_BYTES = 30_000  # reject solid placeholders
+MIN_IMG_BYTES = 35_000
+CROSSFADE = 0.35  # seconds soft cut between scenes
 
 
-def run(cmd: list[str], timeout: int = 180) -> None:
+def run(cmd: list[str], timeout: int = 200) -> None:
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
-        raise RuntimeError((r.stderr or r.stdout)[-1400:])
+        raise RuntimeError((r.stderr or r.stdout)[-1600:])
 
 
 def media_duration(path: Path) -> float:
@@ -139,24 +134,42 @@ def ensure_vazirmatn() -> Path:
     raise RuntimeError("Vazirmatn download failed")
 
 
+def normalize_persian(text: str) -> str:
+    """Light TTS-friendly normalization."""
+    text = text.replace("می‌", "می ").replace("ها", "ها")
+    # keep meaning; spacing helps some neural voices
+    return " ".join(text.split())
+
+
 async def tts_line(text: str, out: Path) -> None:
     import edge_tts
-    await edge_tts.Communicate(text, VOICE, rate="-10%", pitch="-2Hz").save(str(out))
+    spoken = normalize_persian(text)
+    # slower + slightly lower = clearer, less robotic rush
+    await edge_tts.Communicate(
+        spoken, VOICE, rate="-18%", pitch="-4Hz", volume="+20%"
+    ).save(str(out))
+
+
+def loudnorm_audio(src: Path, dst: Path) -> None:
+    """Broadcast-ish loudness so phone speakers are clear."""
+    run([
+        "ffmpeg", "-y", "-i", str(src),
+        "-af", "loudnorm=I=-14:TP=-1.5:LRA=11,highpass=f=80,lowpass=f=12000",
+        "-ar", "48000", "-ac", "1", str(dst),
+    ], timeout=60)
 
 
 def fetch_image(prompt: str, dest: Path, seed: int) -> bool:
-    """Fetch 2D storybook frame; reject tiny/irrelevant solids."""
     full = prompt + STYLE_LOCK
     q = urllib.parse.quote(full)
-    # Higher quality request: larger size, fixed seed per scene for retry consistency
-    for attempt in range(5):
-        seed_try = 2000 + seed * 17 + attempt * 3
+    for attempt in range(6):
+        seed_try = 3100 + seed * 23 + attempt * 7
         url = (
             f"https://image.pollinations.ai/prompt/{q}"
             f"?width=864&height=1536&nologo=true&seed={seed_try}&model=flux"
         )
         try:
-            print(f"[img] scene {seed + 1} try {attempt + 1} seed={seed_try}", flush=True)
+            print(f"[img] scene {seed + 1} try {attempt + 1}", flush=True)
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=100) as resp, dest.open("wb") as f:
                 while True:
@@ -164,43 +177,42 @@ def fetch_image(prompt: str, dest: Path, seed: int) -> bool:
                     if not chunk:
                         break
                     f.write(chunk)
-            size = dest.stat().st_size
-            if size >= MIN_IMG_BYTES:
-                print(f"[img] ok scene {seed + 1} bytes={size}", flush=True)
+            if dest.stat().st_size >= MIN_IMG_BYTES:
+                print(f"[img] ok {dest.stat().st_size} bytes", flush=True)
                 return True
-            print(f"[img] reject tiny {size} bytes", flush=True)
+            print("[img] reject tiny", flush=True)
         except Exception as e:
             print(f"[img] {type(e).__name__}", flush=True)
-            time.sleep(18 + attempt * 10)
+            time.sleep(16 + attempt * 8)
         dest.unlink(missing_ok=True)
-        time.sleep(6)
+        time.sleep(5)
     return False
 
 
 def camera_move(image: Path, duration: float, out: Path, seed: int) -> None:
-    frames = max(30, int(duration * 24))
+    frames = max(36, int(duration * 24))
     motions = [
-        "min(1.16,1+0.00032*on)",
-        "if(eq(on,1),1.14,max(1.0,1.14-0.00032*on))",
-        "min(1.12,1+0.0002*on)",
-        "if(eq(on,1),1.12,max(1.0,1.12-0.0002*on))",
+        "min(1.15,1+0.00028*on)",
+        "if(eq(on,1),1.13,max(1.0,1.13-0.00028*on))",
+        "min(1.11,1+0.00018*on)",
+        "if(eq(on,1),1.11,max(1.0,1.11-0.00018*on))",
     ]
     z = motions[seed % len(motions)]
-    y_expr = (
-        "ih/2-(ih/zoom/2)+0.07*sin(on/38)*ih"
+    y = (
+        "ih/2-(ih/zoom/2)+0.06*sin(on/40)*ih"
         if seed % 2 == 0
-        else "ih/2-(ih/zoom/2)-0.05*sin(on/32)*ih"
+        else "ih/2-(ih/zoom/2)-0.05*sin(on/36)*ih"
     )
     vf = (
         f"scale=960:1700:force_original_aspect_ratio=increase,"
-        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='{y_expr}':d={frames}:s=720x1280:fps=24,"
-        f"eq=contrast=1.05:saturation=1.12:brightness=0.01"
+        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='{y}':d={frames}:s=720x1280:fps=24,"
+        f"eq=contrast=1.06:saturation=1.14:brightness=0.015"
     )
     run([
         "ffmpeg", "-y", "-loop", "1", "-i", str(image),
         "-t", f"{duration:.3f}",
         "-vf", "".join(vf),
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-pix_fmt", "yuv420p",
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
         str(out),
     ], timeout=120)
 
@@ -211,6 +223,7 @@ def write_ass(path: Path, segments: list[tuple[float, float, str]]) -> None:
         m, s = divmod(rem, 60)
         return f"{int(h)}:{int(m):02d}:{s:05.2f}"
 
+    # Larger, high-contrast captions for mobile
     header = """[Script Info]
 ScriptType: v4.00+
 WrapStyle: 0
@@ -220,7 +233,7 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Body,Vazirmatn,50,&H00FFFFFF,&H000000FF,&H00000000,&HBB000000,0,0,0,0,100,100,0,0,1,5,2,2,24,24,180,1
+Style: Body,Vazirmatn,56,&H00FFFFFF,&H000000FF,&H00000000,&HCC000000,0,0,0,0,100,100,0,0,1,6,3,2,22,22,170,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -229,9 +242,63 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for start, end, line in segments:
         text = line.replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}")
         events.append(
-            f"Dialogue: 0,{ts(start)},{ts(end)},Body,,0,0,0,,{{\fad(80,70)}}{text}"
+            f"Dialogue: 0,{ts(start)},{ts(end)},Body,,0,0,0,,{{\fad(90,80)}}{text}"
         )
     path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
+
+
+def concat_with_xfade(segs: list[Path], out: Path) -> None:
+    """Soft crossfade so cuts feel less harsh."""
+    if len(segs) == 1:
+        run(["ffmpeg", "-y", "-i", str(segs[0]), "-c", "copy", str(out)])
+        return
+    # Build xfade chain
+    durs = [media_duration(s) for s in segs]
+    args: list[str] = ["ffmpeg", "-y"]
+    for s in segs:
+        args += ["-i", str(s)]
+    n = len(segs)
+    # video xfade + acrossfade for audio
+    vfilters = []
+    afilters = []
+    # progressive labels
+    offset = 0.0
+    for i in range(n - 1):
+        offset += durs[i] - CROSSFADE
+        if i == 0:
+            vfilters.append(
+                f"[0:v][1:v]xfade=transition=fade:duration={CROSSFADE}:offset={offset:.3f}[v1]"
+            )
+            afilters.append(
+                f"[0:a][1:a]acrossfade=d={CROSSFADE}[a1]"
+            )
+        else:
+            vfilters.append(
+                f"[v{i}][{i+1}:v]xfade=transition=fade:duration={CROSSFADE}:offset={offset:.3f}[v{i+1}]"
+            )
+            afilters.append(
+                f"[a{i}][{i+1}:a]acrossfade=d={CROSSFADE}[a{i+1}]"
+            )
+    last = n - 1
+    fc = ";".join(vfilters + afilters)
+    args += [
+        "-filter_complex", fc,
+        "-map", f"[v{last}]", "-map", f"[a{last}]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        str(out),
+    ]
+    try:
+        run(args, timeout=240)
+    except Exception as e:
+        print(f"[warn] xfade failed ({e}); plain concat", flush=True)
+        clist = out.parent / "concat_plain.txt"
+        clist.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
+        run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(clist),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "14",
+            "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(out),
+        ])
 
 
 def main() -> int:
@@ -242,9 +309,7 @@ def main() -> int:
     audio_dir = out / "audio_lines"
     audio_dir.mkdir(exist_ok=True)
 
-    # optional: force re-download weak images
     force = "--force-images" in sys.argv
-
     font_file = ensure_vazirmatn()
     fonts_dir = font_file.parent.resolve()
 
@@ -255,56 +320,70 @@ def main() -> int:
 
     line_audios: list[Path] = []
     for i, beat in enumerate(BEATS):
+        raw = audio_dir / f"line_{i:02d}_raw.mp3"
         ap = audio_dir / f"line_{i:02d}.mp3"
         if not ap.is_file() or ap.stat().st_size < 1000:
-            asyncio.run(tts_line(beat["line"], ap))
+            asyncio.run(tts_line(beat["line"], raw))
+            loudnorm_audio(raw, ap)
         line_audios.append(ap)
-        print(f"[tts] {i + 1}: {beat['line'][:40]}…", flush=True)
+        print(f"[tts] {i + 1}: {beat['line']}", flush=True)
 
     segs: list[Path] = []
     caption_segments: list[tuple[float, float, str]] = []
     t_cursor = 0.0
 
     for i, (beat, ap) in enumerate(zip(BEATS, line_audios)):
-        dur = max(1.2, media_duration(ap))
+        dur = max(1.4, media_duration(ap))
+        # tiny breath after each line so image can land
+        vis_dur = dur + 0.25
         img = imgs / f"scene_{i:02d}.jpg"
 
         need = force or (not img.is_file()) or img.stat().st_size < MIN_IMG_BYTES
         if need:
             ok = fetch_image(beat["prompt"], img, seed=i)
             if not ok:
-                print(f"[warn] scene {i + 1} still missing — soft color fallback", flush=True)
-                # soft gradient-like solid (better than pure black)
-                colors = ["87CEEB", "2c3e6b", "5a6a7a", "4a708b", "c4a574", "6bb3c0", "e8a87c"]
+                print(f"[warn] scene {i + 1} image failed", flush=True)
+                colors = ["87CEEB", "1e3a5f", "4a5568", "3d5a6c", "c4a574", "5a8a9a", "6bb3c0", "e8a87c"]
                 run([
                     "ffmpeg", "-y", "-f", "lavfi",
-                    "-i", f"color=c=0x{colors[i]}:s=720x1280:d=1",
+                    "-i", f"color=c=0x{colors[i % len(colors)]}:s=720x1280:d=1",
                     "-frames:v", "1", str(img),
                 ])
-            time.sleep(10)
+            time.sleep(9)
 
         video_only = out / f"seg_{i:02d}_v.mp4"
-        camera_move(img, dur, video_only, seed=i)
+        camera_move(img, vis_dur, video_only, seed=i)
+
+        # pad audio with short silence at end for breathing room
+        padded = audio_dir / f"line_{i:02d}_pad.mp3"
+        run([
+            "ffmpeg", "-y", "-i", str(ap),
+            "-af", f"apad=pad_dur=0.25", "-t", f"{vis_dur:.3f}",
+            str(padded),
+        ])
+
         seg = out / f"seg_{i:02d}.mp4"
         run([
-            "ffmpeg", "-y", "-i", str(video_only), "-i", str(ap),
+            "ffmpeg", "-y", "-i", str(video_only), "-i", str(padded),
             "-map", "0:v:0", "-map", "1:a:0",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
             "-shortest", str(seg),
         ])
         segs.append(seg)
-        caption_segments.append((t_cursor, t_cursor + dur, beat["line"]))
-        t_cursor += dur
-        print(f"[ok] scene {i + 1}/{len(BEATS)} ({dur:.1f}s) 2D+camera", flush=True)
+        caption_segments.append((t_cursor, t_cursor + vis_dur, beat["line"]))
+        t_cursor += vis_dur
+        print(f"[ok] scene {i + 1}/{len(BEATS)} ({vis_dur:.1f}s)", flush=True)
 
-    concat = out / "concat.txt"
-    concat.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
     assembled = out / "assembled.mp4"
-    run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "15", "-c:a", "aac", "-b:a", "192k",
-        "-pix_fmt", "yuv420p", str(assembled),
-    ])
+    concat_with_xfade(segs, assembled)
+
+    # Recompute caption times roughly on final duration if xfade shortened
+    final_dur = media_duration(assembled)
+    if final_dur > 1 and abs(final_dur - t_cursor) > 1.0:
+        scale = final_dur / t_cursor
+        caption_segments = [
+            (a * scale, b * scale, line) for a, b, line in caption_segments
+        ]
 
     ass = out / "captions.ass"
     write_ass(ass, caption_segments)
@@ -314,11 +393,12 @@ def main() -> int:
     run([
         "ffmpeg", "-y", "-i", str(assembled),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
-        "-c:a", "copy", "-movflags", "+faststart",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
         str(final),
     ])
-    print(f"[SUCCESS] {final} bytes={final.stat().st_size} duration≈{t_cursor:.1f}s", flush=True)
+    print(f"[SUCCESS] {final} bytes={final.stat().st_size} ~{media_duration(final):.1f}s", flush=True)
     return 0
 
 
