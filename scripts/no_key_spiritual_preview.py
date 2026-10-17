@@ -95,7 +95,7 @@ def run():
  segments += [(f"scene_{i}",caption,i) for i,(caption,query) in enumerate(story["scenes"],1)]
  segments += [("ending",story["ending"],len(story["scenes"]))]
  script=" ".join(text for _,text,_ in segments)
- (OUT/"script_fa.txt").write_text(story["title"]+"\\n\\nقلاب: "+story["hook"]+"\\n\\n"+"\\n".join(f"{i+1}. {s[0]}" for i,s in enumerate(story["scenes"]))+"\\n\\nپایان: "+story["ending"]+"\\n",encoding="utf-8")
+ (OUT/"script_fa.txt").write_text(story["title"]+"\n\nقلاب: "+story["hook"]+"\n\n"+"\n".join(f"{i+1}. {s[0]}" for i,s in enumerate(story["scenes"]))+"\n\nپایان: "+story["ending"]+"\n",encoding="utf-8")
  credits=[];scenes=[];scene_qc=[]
  for i,(caption,query) in enumerate(story["scenes"],1):
   p=OUT/"scenes"/f"scene_{i:02d}.jpg";meta=commons(query,p)
@@ -134,7 +134,7 @@ def run():
  subprocess.run(cmd,check=True,timeout=600)
  (OUT/"narration_fa.mp3").write_bytes(b"")
  concat_list=OUT/"audio_concat.txt"
- concat_list.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\\n" for p in audio_files),encoding="utf-8")
+ concat_list.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\n" for p in audio_files),encoding="utf-8")
  subprocess.run(["ffmpeg","-y","-hide_banner","-loglevel","error","-f","concat","-safe","0","-i",str(concat_list),"-c:a","libmp3lame","-q:a","3",str(OUT/"narration_fa.mp3")],check=True,timeout=180)
  (OUT/"image_credits.json").write_text(json.dumps(credits,ensure_ascii=False,indent=2),encoding="utf-8")
  external=sum(not item["fallback"] and item.get("match_score",0)>0 for item in scene_qc)
