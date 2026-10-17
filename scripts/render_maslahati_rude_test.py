@@ -33,8 +33,7 @@ FULL_SCRIPT = (
     "و مشکلاتی که با هیچ ذکر و دعایی حل نمی‌شن! ... "
     "یادتون نره؛ اگه امروز همه‌چی به گا رفت... "
     "یعنی بالاخره دارید طبق برنامه پیش می‌رید! ... "
-    "برای شکایت، گزینهٔ یک؛ برای بدبختیِ بیشتر، گزینهٔ دو رو فشار بدید! ... "
-    "ها... ها... ها... هاااااا! خندهٔ سیستمی به پایان رسید!"
+    "برای شکایت، گزینهٔ یک؛ برای بدبختیِ بیشتر، گزینهٔ دو رو فشار بدید!"
 )
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "output/maslahati_test")
 OUT.mkdir(parents=True, exist_ok=True)
@@ -112,8 +111,28 @@ def make_image(path: Path) -> None:
 
 async def synthesize(path: Path) -> None:
     import edge_tts
-    # Slower, lower-pitched synthetic delivery; the spoken text ends with an exaggerated laugh.
-    await edge_tts.Communicate(FULL_SCRIPT, VOICE, rate="+8%", pitch="-8Hz", volume="+0%").save(str(path))
+    # Keep narration separate so the brand laugh can have its own unmistakable sound design.
+    await edge_tts.Communicate(FULL_SCRIPT, VOICE, rate="-8%", pitch="-8Hz", volume="+0%").save(str(path))
+
+
+async def synthesize_signature_laugh(path: Path) -> None:
+    import edge_tts
+    # Playful, deliberately non-verbal-ish robotic syllables; processed separately below.
+    await edge_tts.Communicate("هِ! هَ! هِ! هِ! هاااا!", VOICE, rate="-18%", pitch="+18Hz", volume="+0%").save(str(path))
+
+
+def build_signature_audio(narration: Path, laugh_raw: Path, output: Path) -> None:
+    # Distinctive signature: tiny pause, pitch-shifted synthetic laugh, short digital echo tail.
+    # This is an intentionally designed TTS effect, not a claim of real human laughter.
+    run([
+        "ffmpeg", "-y", "-i", str(narration), "-i", str(laugh_raw),
+        "-filter_complex",
+        "[0:a]aresample=44100,apad=pad_dur=0.32[n];"
+        "[1:a]asetrate=44100*1.14,aresample=44100,atempo=0.87719,"
+        "aecho=0.8:0.55:55|110:0.28|0.12,volume=1.15[l];"
+        "[n][l]concat=n=2:v=0:a=1[out]",
+        "-map", "[out]", "-c:a", "libmp3lame", "-b:a", "192k", str(output)
+    ])
 
 
 def duration(path: Path) -> float:
@@ -126,9 +145,15 @@ def duration(path: Path) -> float:
 def main() -> int:
     still = OUT / "maslahati_existing_mascot_style.png"
     audio = OUT / "maslahati_robotic_voice.mp3"
+    narration = OUT / "maslahati_narration_tmp.mp3"
+    laugh_raw = OUT / "maslahati_laugh_raw_tmp.mp3"
     video = OUT / "maslahati_rude_test_short.mp4"
     make_image(still)
-    asyncio.run(synthesize(audio))
+    asyncio.run(synthesize(narration))
+    asyncio.run(synthesize_signature_laugh(laugh_raw))
+    build_signature_audio(narration, laugh_raw, audio)
+    narration.unlink(missing_ok=True)
+    laugh_raw.unlink(missing_ok=True)
     secs = duration(audio) + 0.6
     run([
         "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", str(still),
