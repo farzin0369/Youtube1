@@ -50,3 +50,10 @@ content:
     - پاسخ خودکار به بحران، خودآسیبی، تهدید، نفرت یا درخواست فتوا
   source_policy: محتوای تأملی و آموزشی عمومی؛ ادعای دینیِ قابل‌راستی‌آزمایی فقط با منبع معتبر؛ عدم اختلاق نقل‌قول
   comment_policy: پاسخ کوتاه فقط به نظرهای روشن و بی‌خطر؛ مورد حساس یا نامطمئن بدون پاسخ خودکار
+
+# Optional local derivatives: only used when content.production_format is "long".
+# Derived clips are saved as workflow artifacts and are never auto-published.
+clip_derivatives:
+  enabled: true
+  clip_seconds: 30
+  count: 3
