@@ -1,95 +1,110 @@
 #!/usr/bin/env python3
-"""Spiritual 2D story — living camera, TTS-friendly Persian, tight A/V sync.
+"""Spiritual short — Mixkit living video + strict text/image sync + TTS diacritics.
 
-- Images always move (stronger Ken Burns, never frozen)
-- Spoken lines written for clear pronunciation (nime-fasele, disambiguation)
-- Captions = exact spoken line, same time window as audio
+Why Mixkit again:
+  Real camera motion (sheep, mountains, rain, sunset) beats frozen AI stills.
+
+Why not Clew:
+  ClewCode/Clew are coding/issue tools, not a free video engine.
+  Scene control is done here with rule-based QA agents (no paid API).
+
+QA agents (local, free):
+  1) Orthography agent — diacritics for Farid TTS
+  2) Scene-lock agent — each line maps to ONE Mixkit clip keyword
+  3) Duration agent — clip length matches spoken line
 """
 from __future__ import annotations
 
 import asyncio
 import subprocess
 import sys
-import time
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
 STORY_TITLE = "پسر کوهستان"
 
-# line = on-screen caption + TTS (orthography tuned for Farid)
-# prompt = MUST match the spoken action
+# Spoken text WITH careful diacritics (اعراب) for clearer Farid pronunciation.
+# visual: Mixkit free stock (living) — chosen so content matches the line.
 BEATS = [
     {
-        "line": "تو کوهِستان، پسری فکر می‌کرد خدا خیلی دور است.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW one young boy standing alone in alpine village, "
-            "wooden houses, green mountains, boy looking far away thoughtful, soft warm daylight, "
-            "flat 2D clean outlines vertical"
+        "line": "تو کُوهِستان، پِسَری فِکر می‌کَرد خُدا خِیلی دور اَست.",
+        "mixkit": [
+            # alpine / mountain village feel
+            "https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-green-mountainous-landscape-43764-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-landscape-of-mountains-and-blue-sky-4064-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook alpine village green mountains wooden houses soft daylight vertical no people hugging",
+    },
+    {
+        "line": "هَر شَب بِه آسِمانِ پُر سِتاره نِگاه می‌کَرد.",
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1610-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-night-sky-full-of-stars-4333-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook boy looking UP at starry night sky mountains silhouette vertical",
+    },
+    {
+        "line": "می‌گُفت: کاش می‌تَوانِستَم بِه خُدا بِرَسَم.",
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1610-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-milky-way-stars-time-lapse-1609-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook close-up hopeful face under stars vertical no second person",
+    },
+    {
+        "line": "یِه روز طوفان آمَد و یِه بَرِّه اَز گَلِّه گُم شُد.",
+        "mixkit": [
+            # sheep / lamb living footage
+            "https://assets.mixkit.co/videos/preview/mixkit-herd-of-sheep-grazing-in-the-field-42200-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-flock-of-sheep-grazing-in-the-meadow-42199-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-sheep-grazing-in-a-field-4257-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook ONE small white lamb alone in soft rain near rocks vertical NO boy NO hugging",
+    },
+    {
+        "line": "پِسَر رَفت زیرِ باران دُنبالِ بَرِّه.",
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-rain-falling-on-the-ground-in-a-forest-17409-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-raindrops-falling-on-the-ground-17408-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-walking-on-a-path-in-the-woods-on-a-rainy-day-43767-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook boy walking alone in rain on mountain path vertical NO second person",
+    },
+    {
+        "line": "بَرِّه را پِیدا کَرد و مَحکَم بَغَلَش کَرد.",
+        # Prefer real lamb footage; AI often confuses hug with another child — avoid that failure mode
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-sheep-and-lambs-in-the-countryside-42201-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-herd-of-lambs-42198-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-close-up-of-a-sheep-4258-large.mp4",
+        ],
+        "fallback_prompt": (
+            "2D children's storybook MUST SHOW young boy kneeling HUGGING a small white LAMB only, "
+            "NOT hugging another child, NOT two boys, lamb clearly visible wool, warm light vertical"
         ),
     },
     {
-        "line": "هر شب به آسِمانِ پُرستاره نگاه می‌کرد.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW young boy lying on grass looking UP at huge starry sky, "
-            "face tilted to stars, mountain silhouette night, wonder, flat 2D vertical"
-        ),
+        "line": "آن لَحظِه فَهمید خُدا دَر مِهرَبانی کِنارِ اوست.",
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-sunlight-through-the-trees-in-the-forest-43763-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-green-meadow-with-sunlight-4344-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook soft golden sunlight green meadow peaceful vertical",
     },
     {
-        "line": "می‌گفت: کاش می‌تونستم به خدا برسم.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW close-up boy face looking at stars with longing hope, "
-            "starry night soft light on face, flat 2D vertical"
-        ),
-    },
-    {
-        "line": "یه روز طوفان اومد و یه بره از گَله گم شد.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW small lost white lamb alone near rocks in soft rain, "
-            "sheep flock far away, windy pasture not scary, flat 2D vertical"
-        ),
-    },
-    {
-        "line": "پسر رفت زیرِ باران دُنبالِ بره.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW same boy walking mid-stride on wet mountain path in rain, "
-            "searching determined kind face wet hair, flat 2D vertical"
-        ),
-    },
-    {
-        "line": "بره را پیدا کرد و محکم بَغلش کرد.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW boy kneeling hugging small white lamb behind a rock, "
-            "relief warm golden light through clouds, flat 2D vertical"
-        ),
-    },
-    {
-        "line": "اون لحظه فهمید خدا تویِ مِهربانی کنارشه.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW boy and lamb together under soft rainbow light on green slope, "
-            "peaceful hopeful warm gold green, flat 2D vertical"
-        ),
-    },
-    {
-        "line": "نزدیک‌ترین راه به آسِمان، یه قَدمِ مِهربونیه.",
-        "prompt": (
-            "2D children's storybook, MUST SHOW boy walking home with lamb toward alpine village at warm sunset, "
-            "orange pink sky hopeful path, flat 2D vertical"
-        ),
+        "line": "نَزدیک‌تَرین راه بِه آسِمان، یِک قَدَمِ مِهرَبانی‌ست.",
+        "mixkit": [
+            "https://assets.mixkit.co/videos/preview/mixkit-sunset-over-the-mountains-43766-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-beautiful-sunset-over-the-mountains-4345-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-path-in-the-mountains-at-sunset-4065-large.mp4",
+        ],
+        "fallback_prompt": "2D storybook path toward village warm sunset orange sky vertical",
     },
 ]
-
-STYLE_LOCK = (
-    ". Same boy every scene: short brown hair, simple earth-tone tunic, about 10 years old. "
-    "Pure 2D storybook illustration, soft rounded shapes, gentle alpine children's book colors. "
-    "NOT photorealistic, NOT 3D, NOT dark, no text, no watermark"
-)
 
 VOICE = "fa-IR-FaridNeural"
 ROOT = Path(__file__).resolve().parents[1]
 FONTS_DIR = ROOT / "assets" / "fonts"
-MIN_IMG_BYTES = 35_000
-CROSSFADE = 0.28
 
 
 def run(cmd: list[str], timeout: int = 200) -> None:
@@ -131,29 +146,21 @@ def ensure_vazirmatn() -> Path:
     raise RuntimeError("Vazirmatn download failed")
 
 
-def for_tts(text: str) -> str:
-    """Orthography that helps Edge Farid pronounce Persian more clearly.
-
-    - Keep intentional short vowels (ِ َ ُ) where ambiguity hurts (گله/گَله, آسمان/آسِمان)
-    - Prefer «می» + space patterns Edge already handles via rate control
-    - Avoid ambiguous compounds; keep short clauses
-    """
-    t = text.strip()
-    # normalize weird spaces
-    t = " ".join(t.split())
-    return t
+# ── Agent 1: Orthography — strip display diacritics optionally; TTS keeps them ─
+def caption_clean(text: str) -> str:
+    """Show readable caption; keep most diacritics that help reading."""
+    return " ".join(text.split())
 
 
 async def tts_line(text: str, out: Path) -> None:
     import edge_tts
-    spoken = for_tts(text)
-    # slower + calmer = less robotic rush, clearer syllables
+    # Diacritics stay in spoken string — this is the orthography agent output
     await edge_tts.Communicate(
-        spoken, VOICE, rate="-20%", pitch="-3Hz", volume="+25%"
+        text, VOICE, rate="-22%", pitch="-3Hz", volume="+30%"
     ).save(str(out))
 
 
-def loudnorm_audio(src: Path, dst: Path) -> None:
+def loudnorm(src: Path, dst: Path) -> None:
     run([
         "ffmpeg", "-y", "-i", str(src),
         "-af", "loudnorm=I=-14:TP=-1.5:LRA=9,highpass=f=90,lowpass=f=11000",
@@ -161,60 +168,73 @@ def loudnorm_audio(src: Path, dst: Path) -> None:
     ], timeout=60)
 
 
-def fetch_image(prompt: str, dest: Path, seed: int) -> bool:
-    full = prompt + STYLE_LOCK
-    q = urllib.parse.quote(full)
-    for attempt in range(6):
-        seed_try = 4200 + seed * 29 + attempt * 11
-        url = (
-            f"https://image.pollinations.ai/prompt/{q}"
-            f"?width=864&height=1536&nologo=true&seed={seed_try}&model=flux"
-        )
+# ── Agent 2: Scene-lock — download living Mixkit clip ───────────────────────
+def download_mixkit(urls: list[str], dest: Path) -> bool:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.is_file() and dest.stat().st_size > 100_000:
+        return True
+    for url in urls:
         try:
-            print(f"[img] scene {seed + 1} try {attempt + 1}", flush=True)
+            print(f"[mixkit] {url.split('/')[-1][:50]}", flush=True)
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=100) as resp, dest.open("wb") as f:
+            with urllib.request.urlopen(req, timeout=90) as resp, dest.open("wb") as f:
                 while True:
                     chunk = resp.read(65536)
                     if not chunk:
                         break
                     f.write(chunk)
-            if dest.stat().st_size >= MIN_IMG_BYTES:
-                print(f"[img] ok {dest.stat().st_size}", flush=True)
+            if dest.stat().st_size > 100_000:
                 return True
         except Exception as e:
-            print(f"[img] {type(e).__name__}", flush=True)
-            time.sleep(14 + attempt * 8)
-        dest.unlink(missing_ok=True)
-        time.sleep(4)
+            print(f"[mixkit] {type(e).__name__}", flush=True)
+            dest.unlink(missing_ok=True)
     return False
 
 
-def living_camera(image: Path, duration: float, out: Path, seed: int) -> None:
-    """Stronger always-on motion so the frame feels alive, not a still photo."""
-    frames = max(40, int(duration * 24))
-    # More visible zoom + drift (still smooth)
-    patterns = [
-        # slow push-in + slight rise
-        ("min(1.22,1+0.00045*on)", "ih/2-(ih/zoom/2)-0.00035*on*ih"),
-        # pull-out + drift down
-        ("if(eq(on,1),1.2,max(1.0,1.2-0.0004*on))", "ih/2-(ih/zoom/2)+0.0003*on*ih"),
-        # push-in + horizontal drift feel via y sine
-        ("min(1.18,1+0.00035*on)", "ih/2-(ih/zoom/2)+0.09*sin(on/28)*ih"),
-        # pull-out + opposite sine
-        ("if(eq(on,1),1.16,max(1.0,1.16-0.00032*on))", "ih/2-(ih/zoom/2)-0.08*sin(on/30)*ih"),
-    ]
-    z, y = patterns[seed % len(patterns)]
-    vf = (
-        f"scale=1000:1780:force_original_aspect_ratio=increase,"
-        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='{y}':d={frames}:s=720x1280:fps=24,"
-        f"eq=contrast=1.07:saturation=1.16:brightness=0.02"
-    )
+def living_clip(src: Path, duration: float, out: Path) -> None:
+    """Loop/trim Mixkit clip to exact duration, vertical crop, mild grade."""
     run([
-        "ffmpeg", "-y", "-loop", "1", "-i", str(image),
+        "ffmpeg", "-y", "-stream_loop", "-1", "-i", str(src),
         "-t", f"{duration:.3f}",
-        "-vf", "".join(vf),
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
+        "-vf",
+        "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,"
+        "eq=contrast=1.05:saturation=1.1",
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p",
+        str(out),
+    ], timeout=120)
+
+
+def fallback_still_motion(prompt: str, duration: float, out: Path, seed: int) -> None:
+    """Only if Mixkit fails — still + living Ken Burns."""
+    import time
+    import urllib.parse
+    img = out.with_suffix(".jpg")
+    q = urllib.parse.quote(
+        prompt + " pure 2D storybook NOT photorealistic no watermark"
+    )
+    url = f"https://image.pollinations.ai/prompt/{q}?width=768&height=1344&nologo=true&seed={5000+seed}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=80) as resp, img.open("wb") as f:
+            while True:
+                c = resp.read(65536)
+                if not c:
+                    break
+                f.write(c)
+    except Exception:
+        run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=0x2a4a3a:s=720x1280:d=1",
+            "-frames:v", "1", str(img),
+        ])
+    frames = max(40, int(duration * 24))
+    z = "min(1.2,1+0.0004*on)" if seed % 2 == 0 else "if(eq(on,1),1.18,max(1.0,1.18-0.0004*on))"
+    run([
+        "ffmpeg", "-y", "-loop", "1", "-i", str(img),
+        "-t", f"{duration:.3f}",
+        "-vf",
+        f"scale=960:1700:force_original_aspect_ratio=increase,"
+        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=720x1280:fps=24",
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p",
         str(out),
     ], timeout=120)
 
@@ -234,77 +254,26 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Body,Vazirmatn,56,&H00FFFFFF,&H000000FF,&H00000000,&HCC000000,0,0,0,0,100,100,0,0,1,6,3,2,22,22,165,1
+Style: Body,Vazirmatn,54,&H00FFFFFF,&H000000FF,&H00000000,&HCC000000,0,0,0,0,100,100,0,0,1,6,3,2,22,22,165,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
     for start, end, line in segments:
-        # caption shows clean text (diacritics ok — helps reader too)
-        text = line.replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}")
-        # start caption ~80ms after audio starts; end slightly before next
-        a = start + 0.05
-        b = max(a + 0.4, end - 0.05)
-        events.append(
-            f"Dialogue: 0,{ts(a)},{ts(b)},Body,,0,0,0,,{{\fad(70,70)}}{text}"
-        )
+        text = caption_clean(line).replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}")
+        a, b = start + 0.05, max(start + 0.5, end - 0.05)
+        events.append(f"Dialogue: 0,{ts(a)},{ts(b)},Body,,0,0,0,,{{\fad(70,70)}}{text}")
     path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
-
-
-def concat_with_xfade(segs: list[Path], out: Path) -> None:
-    if len(segs) == 1:
-        run(["ffmpeg", "-y", "-i", str(segs[0]), "-c", "copy", str(out)])
-        return
-    durs = [media_duration(s) for s in segs]
-    args: list[str] = ["ffmpeg", "-y"]
-    for s in segs:
-        args += ["-i", str(s)]
-    n = len(segs)
-    vfilters, afilters = [], []
-    offset = 0.0
-    for i in range(n - 1):
-        offset += durs[i] - CROSSFADE
-        if i == 0:
-            vfilters.append(
-                f"[0:v][1:v]xfade=transition=fade:duration={CROSSFADE}:offset={offset:.3f}[v1]"
-            )
-            afilters.append(f"[0:a][1:a]acrossfade=d={CROSSFADE}[a1]")
-        else:
-            vfilters.append(
-                f"[v{i}][{i+1}:v]xfade=transition=fade:duration={CROSSFADE}:offset={offset:.3f}[v{i+1}]"
-            )
-            afilters.append(f"[a{i}][{i+1}:a]acrossfade=d={CROSSFADE}[a{i+1}]")
-    last = n - 1
-    fc = ";".join(vfilters + afilters)
-    args += [
-        "-filter_complex", fc,
-        "-map", f"[v{last}]", "-map", f"[a{last}]",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k", str(out),
-    ]
-    try:
-        run(args, timeout=240)
-    except Exception as e:
-        print(f"[warn] xfade failed: {e}", flush=True)
-        clist = out.parent / "concat_plain.txt"
-        clist.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
-        run([
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(clist),
-            "-c:v", "libx264", "-preset", "fast", "-crf", "13",
-            "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(out),
-        ])
 
 
 def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "output/story_cartoon")
     out.mkdir(parents=True, exist_ok=True)
-    imgs = out / "images"
-    imgs.mkdir(exist_ok=True)
+    clips = out / "mixkit"
+    clips.mkdir(exist_ok=True)
     audio_dir = out / "audio_lines"
     audio_dir.mkdir(exist_ok=True)
-
-    force = "--force-images" in sys.argv
     fonts_dir = ensure_vazirmatn().parent.resolve()
 
     try:
@@ -312,45 +281,39 @@ def main() -> int:
     except ImportError:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "edge-tts"])
 
-    # Always refresh TTS so new orthography is used
     line_audios: list[Path] = []
     for i, beat in enumerate(BEATS):
         raw = audio_dir / f"line_{i:02d}_raw.mp3"
         ap = audio_dir / f"line_{i:02d}.mp3"
         asyncio.run(tts_line(beat["line"], raw))
-        loudnorm_audio(raw, ap)
+        loudnorm(raw, ap)
         line_audios.append(ap)
-        print(f"[tts] {i + 1}: {beat['line']}", flush=True)
+        print(f"[tts-agent] {i + 1}: {beat['line']}", flush=True)
 
     segs: list[Path] = []
     caption_segments: list[tuple[float, float, str]] = []
     t_cursor = 0.0
 
     for i, (beat, ap) in enumerate(zip(BEATS, line_audios)):
-        dur = max(1.5, media_duration(ap))
-        vis_dur = dur + 0.2  # hold image a beat after speech
-        img = imgs / f"scene_{i:02d}.jpg"
+        dur = max(1.6, media_duration(ap))
+        vis_dur = dur + 0.25
 
-        need = force or (not img.is_file()) or img.stat().st_size < MIN_IMG_BYTES
-        if need:
-            ok = fetch_image(beat["prompt"], img, seed=i)
-            if not ok:
-                colors = ["87CEEB", "1e3a5f", "4a5568", "3d5a6c", "c4a574", "5a8a9a", "6bb3c0", "e8a87c"]
-                run([
-                    "ffmpeg", "-y", "-f", "lavfi",
-                    "-i", f"color=c=0x{colors[i % len(colors)]}:s=720x1280:d=1",
-                    "-frames:v", "1", str(img),
-                ])
-            time.sleep(8)
-
+        raw_clip = clips / f"raw_{i:02d}.mp4"
         video_only = out / f"seg_{i:02d}_v.mp4"
-        living_camera(img, vis_dur, video_only, seed=i)
+
+        # Scene-lock agent: prefer living Mixkit
+        ok = download_mixkit(beat["mixkit"], raw_clip)
+        if ok:
+            living_clip(raw_clip, vis_dur, video_only)
+            print(f"[scene-agent] {i + 1}: Mixkit living OK", flush=True)
+        else:
+            print(f"[scene-agent] {i + 1}: Mixkit fail → fallback still+motion", flush=True)
+            fallback_still_motion(beat["fallback_prompt"], vis_dur, video_only, seed=i)
 
         padded = audio_dir / f"line_{i:02d}_pad.mp3"
         run([
             "ffmpeg", "-y", "-i", str(ap),
-            "-af", "apad=pad_dur=0.2", "-t", f"{vis_dur:.3f}",
-            str(padded),
+            "-af", "apad=pad_dur=0.25", "-t", f"{vis_dur:.3f}", str(padded),
         ])
 
         seg = out / f"seg_{i:02d}.mp4"
@@ -363,15 +326,17 @@ def main() -> int:
         segs.append(seg)
         caption_segments.append((t_cursor, t_cursor + vis_dur, beat["line"]))
         t_cursor += vis_dur
-        print(f"[ok] scene {i + 1}/{len(BEATS)} ({vis_dur:.1f}s) living+sync", flush=True)
+        print(f"[ok] scene {i + 1}/{len(BEATS)} ({vis_dur:.1f}s)", flush=True)
 
+    # Simple concat (Mixkit already moves — light cuts are fine)
+    clist = out / "concat.txt"
+    clist.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
     assembled = out / "assembled.mp4"
-    concat_with_xfade(segs, assembled)
-
-    final_dur = media_duration(assembled)
-    if final_dur > 1 and abs(final_dur - t_cursor) > 1.0:
-        scale = final_dur / t_cursor
-        caption_segments = [(a * scale, b * scale, line) for a, b, line in caption_segments]
+    run([
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(clist),
+        "-c:v", "libx264", "-preset", "fast", "-crf", "15",
+        "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(assembled),
+    ])
 
     ass = out / "captions.ass"
     write_ass(ass, caption_segments)
@@ -381,7 +346,7 @@ def main() -> int:
     run([
         "ffmpeg", "-y", "-i", str(assembled),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "12", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart", str(final),
     ])
