@@ -15,6 +15,7 @@ from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
+from app.clip_integration import build_clip_derivatives_if_enabled
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 
@@ -155,6 +156,12 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
+        stage = "optional clip derivatives"
+        clip_derivatives = build_clip_derivatives_if_enabled(
+            render["video_path"], out_dir / "clip_derivatives",
+            video_format=content_format, config=channel_config,
+        )
+        logger.info("clip derivatives status=%s reason=%s candidates=%s", clip_derivatives.get("status"), clip_derivatives.get("reason"), clip_derivatives.get("candidate_count"))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -199,7 +206,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
-            "render": render, "upload": upload, "comments": comments,
+            "render": render, "clip_derivatives": clip_derivatives, "upload": upload, "comments": comments,
         }
         save_json(out_dir / "result.json", result)
         logger.info("pipeline completed upload_ok=%s comment_replies=%s", upload.get("ok", False), comments.get("replied", 0))
