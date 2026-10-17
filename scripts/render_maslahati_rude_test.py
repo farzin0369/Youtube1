@@ -117,22 +117,22 @@ async def synthesize(path: Path) -> None:
 
 async def synthesize_signature_laugh(path: Path) -> None:
     import edge_tts
-    # Playful, deliberately non-verbal-ish robotic syllables; processed separately below.
-    await edge_tts.Communicate("ها! ها! هَهاهاهاهاااا! هوهوهوهو!", VOICE, rate="+4%", pitch="+32Hz", volume="+18%").save(str(path))
+    # Faster, exaggerated robotic syllables for the intentionally silly fart-like signature laugh.
+    await edge_tts.Communicate("هِ! هَ! هِ! هِ! هاااا!", VOICE, rate="-18%", pitch="+18Hz", volume="+0%").save(str(path))
 
 
 def build_signature_audio(narration: Path, laugh_raw: Path, output: Path) -> None:
-    # Clearer signature laugh: keep the generated syllables intelligible, lift the voice,
-    # compress/normalize the ending, and use only a light short echo (not a fart-like wobble).
-    # This is an intentionally designed TTS effect, not a claim of real human laughter.
+    # Bring back the faster, more obvious cartoonish fart-like wobble the user preferred.
+    # Speed/pitch processing and a short multi-echo make the ending goofy and unmistakable.
+    # This is synthesized TTS sound design, not a real recorded human laugh.
     run([
         "ffmpeg", "-y", "-i", str(narration), "-i", str(laugh_raw),
         "-filter_complex",
         "[0:a]aresample=44100,apad=pad_dur=0.32[n];"
-        "[1:a]aresample=44100,highpass=f=140,lowpass=f=6500,"
-        "acompressor=threshold=0.10:ratio=3:attack=8:release=90,"
-        "loudnorm=I=-14:TP=-1.0:LRA=7,"
-        "aecho=0.75:0.22:85:0.10,volume=1.25[l];"
+        "[1:a]aresample=44100,asetrate=44100*1.14,atempo=0.87719,"
+        "highpass=f=100,lowpass=f=4200,acompressor=threshold=0.08:ratio=4:attack=5:release=80,"
+        "loudnorm=I=-12:TP=-1.0:LRA=7,"
+        "aecho=0.8:0.45:55|95|145:0.45|0.30|0.18,volume=1.35[l];"
         "[n][l]concat=n=2:v=0:a=1[out]",
         "-map", "[out]", "-c:a", "libmp3lame", "-b:a", "192k", str(output)
     ])
