@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Hybrid story short:
-  - Nature lines → Mixkit living video (real motion)
-  - Character action lines → AI 2D with STRICT subject lock
-  - TTS: light diacritics only (heavy diacritics can break Farid)
-  - Audio always muxed + loudnorm
+"""Pure AI spiritual story short — NO Mixkit.
+
+Every line → matching 2D storybook image (Pollinations flux)
+          → living Ken Burns camera
+          → Edge-TTS Farid (clear Persian)
+          → big Vazirmatn captions
 """
 from __future__ import annotations
 
@@ -15,78 +16,75 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-def mk(vid: int) -> str:
-    return f"https://assets.mixkit.co/videos/{vid}/{vid}-720.mp4"
-
-# mode: mixkit | ai
-# line: spoken + caption (light diacritics — only where needed)
 BEATS = [
     {
         "line": "تو کوهستان، پسری فکر می‌کرد خدا خیلی دور است.",
-        "mode": "ai",
         "prompt": (
-            "2D children's book illustration, ONE young Persian boy age 10 short brown hair "
-            "standing alone in alpine village foreground looking into distance, wooden houses, "
-            "green mountains, soft daylight, flat colors clean outlines vertical 9:16, "
-            "NO second person, NO text, NOT photo, NOT 3D"
+            "2D children's storybook illustration, ONE young boy age 10 short brown hair "
+            "standing alone in alpine village looking into distance, wooden houses green mountains "
+            "soft warm daylight, flat colors clean outlines vertical 9:16, "
+            "NO second person, NO text, NOT photo, NOT 3D, NOT Mixkit stock"
         ),
-        "mixkit": [mk(43764), mk(4064)],
     },
     {
         "line": "هر شب به آسمان پر ستاره نگاه می‌کرد.",
-        "mode": "ai",
         "prompt": (
-            "2D children's book, SAME boy lying on grass looking UP at huge starry night sky, "
-            "face tilted to stars, wonder expression, mountain silhouette, vertical 9:16, "
-            "NO second person, NO text, NOT photo"
+            "2D children's storybook, SAME boy lying on grass looking UP at huge starry night sky, "
+            "face tilted to stars wonder expression mountain silhouette night blue gold stars, "
+            "vertical 9:16, NO second person, NO text, NOT photo"
         ),
-        "mixkit": [mk(1610), mk(4333)],
     },
     {
         "line": "می‌گفت کاش می‌تونستم به خدا برسم.",
-        "mode": "mixkit",
-        "prompt": "starry night sky",  # unused if mixkit ok
-        "mixkit": [mk(1609), mk(1610)],
+        "prompt": (
+            "2D children's storybook close-up SAME boy face looking at stars with longing hope, "
+            "soft starlight on face, vertical 9:16, NO second person, NO text"
+        ),
     },
     {
         "line": "یه روز طوفان اومد و یه بره از گله گم شد.",
-        "mode": "mixkit",
-        "prompt": "lost lamb",
-        "mixkit": [mk(42200), mk(42199), mk(4257)],
+        "prompt": (
+            "2D children's storybook, ONE small white lamb alone near rocks in soft rain storm, "
+            "flock far away windy pasture not scary, vertical 9:16, "
+            "NO boy in this frame, NO hugging, NO text, NOT photo"
+        ),
     },
     {
         "line": "پسر رفت زیر باران دنبال بره.",
-        "mode": "ai",
         "prompt": (
-            "2D children's book, SAME young boy walking alone mid-stride on wet mountain path "
-            "in rain, determined face, wet hair, searching, vertical 9:16, "
+            "2D children's storybook, SAME boy walking alone mid-stride on wet mountain path in rain, "
+            "determined kind face wet hair searching, vertical 9:16, "
             "NO second person, NO hugging, NO text, NOT photo"
         ),
-        "mixkit": [mk(17409), mk(17408)],
     },
     {
         "line": "بره را پیدا کرد و محکم بغلش کرد.",
-        "mode": "ai",
         "prompt": (
-            "2D children's book CRITICAL: young boy kneeling hugging a small white LAMB sheep, "
-            "lamb wool clearly visible in his arms, warm relief on boy face, golden light, "
-            "vertical 9:16. FORBIDDEN: hugging another child, two boys, human baby, no lamb"
+            "2D children's storybook CRITICAL: young boy kneeling hugging a small white LAMB, "
+            "lamb wool clearly visible in his arms, warm relief on face golden light, vertical 9:16. "
+            "FORBIDDEN: hugging another child, two boys, human baby, missing lamb"
         ),
-        "mixkit": [mk(42198), mk(4258)],
     },
     {
         "line": "اون لحظه فهمید خدا در مهربانی کنار اوست.",
-        "mode": "mixkit",
-        "prompt": "sunlight meadow",
-        "mixkit": [mk(4344), mk(43763)],
+        "prompt": (
+            "2D children's storybook, SAME boy and white lamb sitting together under soft rainbow light "
+            "on green mountain slope, peaceful hopeful, vertical 9:16, NO text, NOT photo"
+        ),
     },
     {
         "line": "نزدیک‌ترین راه به آسمان، یک قدم مهربانی است.",
-        "mode": "mixkit",
-        "prompt": "sunset path",
-        "mixkit": [mk(43766), mk(4345), mk(4065)],
+        "prompt": (
+            "2D children's storybook, SAME boy walking home with lamb toward alpine village at warm sunset, "
+            "orange pink sky hopeful path, vertical 9:16, NO text, NOT photo"
+        ),
     },
 ]
+
+STYLE = (
+    " Same character every scene: short brown hair, simple earth-tone tunic, about 10 years old. "
+    "Pure 2D storybook, soft rounded shapes, gentle alpine children's book colors."
+)
 
 VOICE = "fa-IR-FaridNeural"
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,7 +133,6 @@ def ensure_vazirmatn() -> Path:
 
 async def tts_line(text: str, out: Path) -> None:
     import edge_tts
-    # Clear Persian, moderate pace, strong volume
     await edge_tts.Communicate(
         text, VOICE, rate="-15%", pitch="-2Hz", volume="+50%"
     ).save(str(out))
@@ -149,43 +146,11 @@ def loudnorm(src: Path, dst: Path) -> None:
     ], timeout=60)
 
 
-def download_mixkit(urls: list[str], dest: Path) -> bool:
-    if dest.is_file() and dest.stat().st_size > 200_000:
-        return True
-    for url in urls:
-        try:
-            print(f"[mixkit] {url}", flush=True)
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=120) as resp, dest.open("wb") as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-            if dest.stat().st_size > 200_000:
-                return True
-        except Exception as e:
-            print(f"[mixkit] {type(e).__name__}", flush=True)
-            dest.unlink(missing_ok=True)
-    return False
-
-
-def living_clip(src: Path, duration: float, out: Path) -> None:
-    run([
-        "ffmpeg", "-y", "-stream_loop", "-1", "-i", str(src),
-        "-t", f"{duration:.3f}",
-        "-vf",
-        "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,"
-        "eq=contrast=1.05:saturation=1.1",
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "16", "-pix_fmt", "yuv420p",
-        str(out),
-    ], timeout=120)
-
-
-def fetch_ai_image(prompt: str, dest: Path, seed: int) -> bool:
-    q = urllib.parse.quote(prompt)
-    for attempt in range(5):
-        s = 6000 + seed * 31 + attempt * 13
+def fetch_image(prompt: str, dest: Path, seed: int) -> bool:
+    full = prompt + STYLE
+    q = urllib.parse.quote(full)
+    for attempt in range(6):
+        s = 7000 + seed * 37 + attempt * 17
         url = (
             f"https://image.pollinations.ai/prompt/{q}"
             f"?width=768&height=1344&nologo=true&seed={s}&model=flux"
@@ -200,25 +165,39 @@ def fetch_ai_image(prompt: str, dest: Path, seed: int) -> bool:
                         break
                     f.write(chunk)
             if dest.stat().st_size >= MIN_IMG:
+                print(f"[ai] ok {dest.stat().st_size}", flush=True)
                 return True
+            print("[ai] reject tiny", flush=True)
         except Exception as e:
             print(f"[ai] {type(e).__name__}", flush=True)
-            time.sleep(12 + attempt * 6)
+            time.sleep(14 + attempt * 7)
         dest.unlink(missing_ok=True)
-        time.sleep(3)
+        time.sleep(4)
     return False
 
 
 def ken_burns(image: Path, duration: float, out: Path, seed: int) -> None:
     frames = max(40, int(duration * 24))
-    z = "min(1.18,1+0.00035*on)" if seed % 2 == 0 else "if(eq(on,1),1.16,max(1.0,1.16-0.00035*on))"
+    patterns = [
+        "min(1.2,1+0.0004*on)",
+        "if(eq(on,1),1.18,max(1.0,1.18-0.0004*on))",
+        "min(1.15,1+0.0003*on)",
+        "if(eq(on,1),1.14,max(1.0,1.14-0.0003*on))",
+    ]
+    z = patterns[seed % len(patterns)]
+    y = (
+        "ih/2-(ih/zoom/2)+0.06*sin(on/36)*ih"
+        if seed % 2 == 0
+        else "ih/2-(ih/zoom/2)-0.05*sin(on/32)*ih"
+    )
     run([
         "ffmpeg", "-y", "-loop", "1", "-i", str(image),
         "-t", f"{duration:.3f}",
         "-vf",
         f"scale=960:1700:force_original_aspect_ratio=increase,"
-        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=720x1280:fps=24",
-        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
+        f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='{y}':d={frames}:s=720x1280:fps=24,"
+        f"eq=contrast=1.06:saturation=1.12",
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
         str(out),
     ], timeout=120)
 
@@ -254,8 +233,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "output/story_cartoon")
     out.mkdir(parents=True, exist_ok=True)
-    clips = out / "clips"
-    clips.mkdir(exist_ok=True)
     imgs = out / "images"
     imgs.mkdir(exist_ok=True)
     audio_dir = out / "audio_lines"
@@ -273,11 +250,10 @@ def main() -> int:
         ap = audio_dir / f"line_{i:02d}.mp3"
         asyncio.run(tts_line(beat["line"], raw))
         loudnorm(raw, ap)
-        # verify audio not empty
         if ap.stat().st_size < 2000:
-            raise RuntimeError(f"TTS empty for line {i}")
+            raise RuntimeError(f"TTS empty line {i}")
         line_audios.append(ap)
-        print(f"[tts] {i+1} ok {ap.stat().st_size}b: {beat['line']}", flush=True)
+        print(f"[tts] {i+1}: {beat['line']}", flush=True)
 
     segs: list[Path] = []
     caption_segments: list[tuple[float, float, str]] = []
@@ -286,32 +262,13 @@ def main() -> int:
     for i, (beat, ap) in enumerate(zip(BEATS, line_audios)):
         dur = max(1.6, media_duration(ap))
         vis_dur = dur + 0.3
+        img = imgs / f"scene_{i:02d}.jpg"
         video_only = out / f"seg_{i:02d}_v.mp4"
 
-        if beat["mode"] == "mixkit":
-            raw = clips / f"mix_{i:02d}.mp4"
-            if not download_mixkit(beat["mixkit"], raw):
-                # fallback AI
-                img = imgs / f"scene_{i:02d}.jpg"
-                fetch_ai_image(beat.get("prompt", "nature landscape"), img, i)
-                ken_burns(img, vis_dur, video_only, i)
-            else:
-                living_clip(raw, vis_dur, video_only)
-                print(f"[scene {i+1}] Mixkit living", flush=True)
-        else:
-            img = imgs / f"scene_{i:02d}.jpg"
-            ok = fetch_ai_image(beat["prompt"], img, i)
-            if not ok:
-                # last resort mixkit
-                raw = clips / f"mix_{i:02d}.mp4"
-                if download_mixkit(beat["mixkit"], raw):
-                    living_clip(raw, vis_dur, video_only)
-                else:
-                    raise RuntimeError(f"No visual for scene {i+1}")
-            else:
-                ken_burns(img, vis_dur, video_only, i)
-                print(f"[scene {i+1}] AI character", flush=True)
-            time.sleep(6)
+        if not fetch_image(beat["prompt"], img, seed=i):
+            raise RuntimeError(f"Image failed scene {i+1}")
+        ken_burns(img, vis_dur, video_only, seed=i)
+        time.sleep(7)
 
         padded = audio_dir / f"line_{i:02d}_pad.mp3"
         run([
@@ -319,39 +276,33 @@ def main() -> int:
             "-af", "apad=pad_dur=0.3", "-t", f"{vis_dur:.3f}", str(padded),
         ])
 
-        # FORCE audio map — never silent video
         seg = out / f"seg_{i:02d}.mp4"
         run([
             "ffmpeg", "-y",
-            "-i", str(video_only),
-            "-i", str(padded),
-            "-map", "0:v:0",
-            "-map", "1:a:0",
-            "-c:v", "copy",
-            "-c:a", "aac", "-b:a", "192k",
-            "-shortest",
-            "-movflags", "+faststart",
-            str(seg),
+            "-i", str(video_only), "-i", str(padded),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-shortest", "-movflags", "+faststart", str(seg),
         ])
-        # verify segment has audio
         r = subprocess.run(
             ["ffprobe", "-v", "error", "-select_streams", "a",
              "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(seg)],
             capture_output=True, text=True,
         )
         if "audio" not in (r.stdout or ""):
-            raise RuntimeError(f"Segment {i} missing audio stream")
+            raise RuntimeError(f"No audio on segment {i}")
 
         segs.append(seg)
         caption_segments.append((t_cursor, t_cursor + vis_dur, beat["line"]))
         t_cursor += vis_dur
+        print(f"[ok] scene {i+1}/{len(BEATS)} pure-AI ({vis_dur:.1f}s)", flush=True)
 
     clist = out / "concat.txt"
     clist.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
     assembled = out / "assembled.mp4"
     run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(clist),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "15",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "14",
         "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(assembled),
     ])
 
@@ -362,18 +313,10 @@ def main() -> int:
     run([
         "ffmpeg", "-y", "-i", str(assembled),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
-        "-c:a", "copy",
-        "-movflags", "+faststart", str(final),
+        "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
+        "-c:a", "copy", "-movflags", "+faststart", str(final),
     ])
-
-    # final audio check
-    r = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a",
-         "-show_entries", "stream=codec_name", "-of", "csv=p=0", str(final)],
-        capture_output=True, text=True,
-    )
-    print(f"[SUCCESS] {final} bytes={final.stat().st_size} audio={r.stdout.strip()} ~{media_duration(final):.1f}s", flush=True)
+    print(f"[SUCCESS] NO-MIXKIT {final} bytes={final.stat().st_size} ~{media_duration(final):.1f}s", flush=True)
     return 0
 
 
