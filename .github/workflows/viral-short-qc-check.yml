@@ -38,7 +38,7 @@ jobs:
               passed, reason = module.qc_image(flat, min_bytes=1)
               assert not passed and reason.startswith("low_detail:"), (passed, reason)
               detailed = tmp / "detailed.png"
-              im = Image.effect_noise((512, 512), 80).convert("RGB")
+              im = Image.effect_noise((512, 768), 80).convert("RGB")
               im.save(detailed)
               passed, reason = module.qc_image(detailed, min_bytes=1)
               assert passed, (passed, reason)
