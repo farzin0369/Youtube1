@@ -1,0 +1,39 @@
+{
+  "id": "sapling_shade",
+  "title": "سایه نهال",
+  "voice": "fa-IR-FaridNeural",
+  "rate": "-15%",
+  "pitch": "-3Hz",
+  "style": "cinematic photoreal vertical 9:16, golden hour warm sunlight, soft shallow depth of field, natural skin texture, subtle film grain, emotional storytelling still, no text no watermark no logo no subtitle burn-in",
+  "negative": "cartoon, anime, illustration, 3d, blurry, deformed hands, extra fingers, different face, different age, text, watermark, logo, lowres, oversaturated",
+  "characters": {
+    "boy": "same 6-year-old Middle Eastern boy, soft dark brown hair, large dark eyes, beige kurta with brown suspenders, photoreal natural skin",
+    "elder": "same elderly Middle Eastern man, silver-white hair and full white beard, kind wrinkled eyes, beige scarf, brown vest over cream shirt, photoreal"
+  },
+  "beats": [
+    {
+      "line": "روزی مردی به کودکی گفت: این نهال کی سایه می‌ده؟",
+      "prompt": "close-up metal watering can pouring clear water onto small green sapling in dry brown soil, adult hands blurred, morning golden light, high detail water"
+    },
+    {
+      "line": "کودک به نهال نگاه کرد و چیزی نگفت.",
+      "prompt": "{boy} kneeling beside tiny green sapling, looking down thoughtfully, small metal bucket nearby, dry field, soft golden backlight"
+    },
+    {
+      "line": "پیرمرد خم شد و با مهربانی پرسید.",
+      "prompt": "{elder} crouching beside {boy}, both looking at small sapling between them, elder gesturing gently, warm sunset field, intimate two-shot"
+    },
+    {
+      "line": "کودک سر بلند کرد و گفت: من هم زیر سایه‌ی درختی نشستم",
+      "prompt": "{boy} looking up at {elder}, speaking with open expression, elder listening warmly, large oak tree soft bokeh background, golden hour"
+    },
+    {
+      "line": "که کسی پیش از من کاشته بود.",
+      "prompt": "close-up of {boy} face smiling softly while speaking, huge green oak tree blurred behind, warm sunlight on cheeks, emotional portrait"
+    },
+    {
+      "line": "خوبی کن؛ شاید روزی سایه‌اش به غریبه‌ای برسد.",
+      "prompt": "{boy} and {elder} both kneeling, hands near sapling, watering together, large mature oak tree filling background, hopeful smiles, golden hour cinematic"
+    }
+  ]
+}

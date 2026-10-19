@@ -1,9 +1,15 @@
 name: Colab photoreal story (SDXL + natural TTS)
 
 # Secret: COLAB_CLI_TOKEN_JSON
+# Engine: engine/viral_short.py  |  Story: stories/*.json
 
 on:
   workflow_dispatch:
+    inputs:
+      story:
+        description: "Story JSON path in repo"
+        required: false
+        default: "stories/sapling.json"
 
 jobs:
   render:
@@ -52,7 +58,7 @@ jobs:
           done
           sleep 12
 
-      - name: GPU photoreal render
+      - name: GPU viral engine render
         if: steps.check.outputs.ok == 'true'
         id: gpu
         continue-on-error: true
@@ -60,7 +66,9 @@ jobs:
           set -euo pipefail
           mkdir -p output/colab_photo
           SESSION="photo-$(date +%s)"
-          echo "SESSION=$SESSION" | tee output/colab_photo/run.log
+          STORY_PATH="${{ github.event.inputs.story || 'stories/sapling.json' }}"
+          echo "SESSION=$SESSION STORY=$STORY_PATH" | tee output/colab_photo/run.log
+
           ok=0
           for attempt in 1 2 3; do
             if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_photo/run.log; then
@@ -75,15 +83,15 @@ jobs:
             exit 1
           fi
 
-          # Force compatible stack (Colab preinstall is often broken)
-          printf '%s\n' \
-            'import subprocess,sys' \
-            'subprocess.check_call([sys.executable,"-m","pip","install","-q","--upgrade","transformers==4.46.3","diffusers==0.31.0","accelerate","safetensors","edge-tts","nest_asyncio","huggingface_hub"])' \
-            'import transformers,diffusers; print("deps", transformers.__version__, diffusers.__version__)' \
-            | colab exec -s "$SESSION" --timeout 1200 2>&1 | tee -a output/colab_photo/run.log || true
+          # Upload engine + story into /content via writing files
+          python3 - <<'PY' | colab exec -s "$SESSION" --timeout 120 2>&1 | tee -a output/colab_photo/run.log
+import pathlib, textwrap
+print("print('boot')")
+PY
 
+          # Ship engine as single file execution (self-contained)
           set +e
-          colab exec -s "$SESSION" -f scripts/colab_photoreal_story.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log
+          colab exec -s "$SESSION" -f engine/viral_short.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log
           set -e
 
           colab download -s "$SESSION" /content/final_story.mp4 output/colab_photo/final_story.mp4 2>&1 | tee -a output/colab_photo/run.log || true
