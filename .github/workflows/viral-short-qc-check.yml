@@ -1,0 +1,46 @@
+name: Viral short QC regression check
+
+on:
+  push:
+    branches:
+      - fix/viral-short-qc-recovery
+    paths:
+      - "engine/viral_short.py"
+      - ".github/workflows/viral-short-qc-check.yml"
+  workflow_dispatch:
+
+jobs:
+  qc-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lightweight test dependency
+        run: python -m pip install --quiet Pillow
+      - name: Check Python syntax
+        run: python -m py_compile engine/viral_short.py
+      - name: Test image QC on flat and detailed images
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import tempfile
+          from pathlib import Path
+          from PIL import Image
+          spec = importlib.util.spec_from_file_location("viral_short", "engine/viral_short.py")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          with tempfile.TemporaryDirectory() as tmp:
+              tmp = Path(tmp)
+              flat = tmp / "flat.png"
+              Image.new("RGB", (512, 512), (128, 128, 128)).save(flat)
+              passed, reason = module.qc_image(flat, min_bytes=1)
+              assert not passed and reason.startswith("low_detail:"), (passed, reason)
+              detailed = tmp / "detailed.png"
+              im = Image.effect_noise((512, 512), 80).convert("RGB")
+              im.save(detailed)
+              passed, reason = module.qc_image(detailed, min_bytes=1)
+              assert passed, (passed, reason)
+          print("QC regression checks passed")
+          PY
