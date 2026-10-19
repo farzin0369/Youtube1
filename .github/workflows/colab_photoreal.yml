@@ -75,12 +75,12 @@ jobs:
             exit 1
           fi
 
-          # Install deps via stdin (no -c flag on this CLI version)
+          # Force compatible stack (Colab preinstall is often broken)
           printf '%s\n' \
             'import subprocess,sys' \
-            'subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers==0.32.2","transformers","accelerate","safetensors","edge-tts","nest_asyncio"])' \
-            'print("deps_ok")' \
-            | colab exec -s "$SESSION" --timeout 900 2>&1 | tee -a output/colab_photo/run.log || true
+            'subprocess.check_call([sys.executable,"-m","pip","install","-q","--upgrade","transformers==4.46.3","diffusers==0.31.0","accelerate","safetensors","edge-tts","nest_asyncio","huggingface_hub"])' \
+            'import transformers,diffusers; print("deps", transformers.__version__, diffusers.__version__)' \
+            | colab exec -s "$SESSION" --timeout 1200 2>&1 | tee -a output/colab_photo/run.log || true
 
           set +e
           colab exec -s "$SESSION" -f scripts/colab_photoreal_story.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log

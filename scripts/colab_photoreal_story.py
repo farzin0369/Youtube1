@@ -80,21 +80,12 @@ BEATS = [
 
 
 def ensure_deps() -> None:
-    need = []
-    for mod, pkg in [
-        ("diffusers", "diffusers==0.32.2"),
-        ("transformers", "transformers"),
-        ("accelerate", "accelerate"),
-        ("edge_tts", "edge-tts"),
-        ("nest_asyncio", "nest_asyncio"),
-    ]:
-        try:
-            __import__(mod)
-        except Exception:
-            need.append(pkg)
-    if need:
-        print("[deps] installing", need, flush=True)
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", *need])
+    print("[deps] upgrading stack", flush=True)
+    subprocess.check_call([
+        sys.executable, "-m", "pip", "install", "-q", "--upgrade",
+        "transformers==4.46.3", "diffusers==0.31.0", "accelerate",
+        "safetensors", "edge-tts", "nest_asyncio", "huggingface_hub",
+    ])
 
 
 def run(cmd, timeout=180):
@@ -149,18 +140,20 @@ def main() -> int:
 
     print("[boot] photoreal SDXL-Turbo", flush=True)
     import torch
-    from diffusers import AutoPipelineForText2Image
+    # Prefer explicit pipeline to avoid AutoPipeline import chain issues
+    from diffusers import StableDiffusionXLPipeline
 
     if not torch.cuda.is_available():
         print("NO CUDA", flush=True)
         return 1
     print("[gpu]", torch.cuda.get_device_name(0), flush=True)
 
-    pipe = AutoPipelineForText2Image.from_pretrained(
+    pipe = StableDiffusionXLPipeline.from_pretrained(
         "stabilityai/sdxl-turbo",
         torch_dtype=torch.float16,
         variant="fp16",
     )
+    pipe.set_progress_bar_config(disable=True)
     pipe.to("cuda")
 
     images = []
