@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Viral Short Engine — JSON story in → vertical MP4 out (Colab GPU / local).
 
-Usage on Colab (via Actions):
-  python engine/viral_short.py --story stories/sapling.json --out /content/final_story.mp4
-
-Or with default embedded story if --story missing.
+Colab exec runs this under IPython and injects -f kernel.json into argv;
+we must ignore unknown args.
 """
 from __future__ import annotations
 
@@ -266,9 +264,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-movflags", "+faststart", str(out_path),
     ])
-    # aliases for workflow download paths
-    if out_path.name != "final_story.mp4":
-        pass
     alt = out_path.parent / "final_story.mp4"
     if alt.resolve() != out_path.resolve():
         subprocess.check_call(["cp", str(out_path), str(alt)])
@@ -284,7 +279,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--story", default=None, help="Path to story JSON")
     p.add_argument("--out", default="/content/final_story.mp4", help="Output mp4")
     p.add_argument("--work", default="/content/engine_work", help="Work directory")
-    args = p.parse_args(argv)
+    # Critical: Colab/IPython injects -f kernel.json — must not crash
+    args, _unknown = p.parse_known_args(argv)
     story = load_story(args.story)
     render(story, Path(args.out), Path(args.work))
     return 0
