@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Self-contained Colab GPU photoreal story: SDXL-Turbo + paced Edge TTS."""
+"""Colab GPU photoreal story: SDXL-Turbo + paced Edge TTS.
+
+v2: tighter per-line prompts (character lock), better TTS pauses.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -10,70 +13,88 @@ import sys
 import traceback
 from pathlib import Path
 
+# Character locks for visual consistency across scenes
+HAMZEH = (
+    "same young Middle Eastern man named Hamzeh, short neat beard, warm brown eyes, "
+    "simple beige linen shirt, kind face, photoreal"
+)
+BOY = (
+    "same small hungry Middle Eastern boy about 7 years old, thin face, dark messy hair, "
+    "worn brown shirt, bare feet, photoreal"
+)
+NARGES = (
+    "same young Middle Eastern woman Narges, mustard-yellow headscarf, gentle eyes, "
+    "modest dark dress, photoreal"
+)
+HAJ = (
+    "same elderly Middle Eastern baker Haj Reza, white full beard, wire glasses, "
+    "prayer beads, flour-dusted apron, wise calm face, photoreal"
+)
+STYLE = (
+    "cinematic photoreal, natural skin texture, golden-hour soft light, shallow depth of field, "
+    "35mm film look, high detail, vertical 9:16 composition, no text, no watermark, no logo"
+)
+NEG = (
+    "cartoon, anime, illustration, drawing, 3d render, blurry, deformed hands, extra fingers, "
+    "text, watermark, logo, low quality, duplicate faces, wrong age"
+)
+
 BEATS = [
     {
-        "line": "اگر فقط یک نان اضافه داشته باشی، آن را برای خودت نگه می‌داری، یا با کسی قسمت می‌کنی؟",
+        # Hook – question only; show the moment of choice with bread
+        "line": "اگر فقط یک نانِ اضافه داشته باشی… آن را برای خودت نگه می‌داری، یا با کسی قسمت می‌کنی؟",
         "prompt": (
-            "cinematic photoreal vertical frame, teenage Middle Eastern boy leaving stone bakery "
-            "with paper bag of fresh round bread loaves, one loaf falling mid-air, cobblestone street, "
-            "mosque dome soft focus background, golden morning sunlight, shallow depth of field, "
-            "natural skin texture, 35mm film look, no text no watermark"
+            f"{STYLE}, close-up of two warm round Iranian sangak breads in weathered hands, "
+            f"cobblestone bakery alley at sunrise, soft steam rising, decision moment, emotional"
         ),
     },
     {
-        "line": "صبح، یک نان تازه از کیسه‌ی حمزه افتاد و به سمت جوی آب غلتید.",
+        "line": "صبحِ زود، یک نانِ تازه از کیسه‌ی حمزه افتاد و روی سنگ‌فرشِ خیس غلتید.",
         "prompt": (
-            "cinematic photoreal close-up, round artisan bread loaf rolling on wet cobblestones, "
-            "reflection in puddle, bakery doorway warm light, beige sneaker at edge of frame, "
-            "golden hour, highly detailed crust texture, vertical composition, no text no watermark"
+            f"{STYLE}, {HAMZEH}, paper bag slipping from his hand, one round bread loaf mid-roll "
+            f"on wet cobblestones, bakery doorway behind, morning light, motion freeze"
         ),
     },
     {
-        "line": "حمزه نان را برداشت. همان نزدیکی کودکی را دید که از گرسنگی به دیوار تکیه داده بود.",
+        "line": "حمزه خم شد و نان را برداشت. کنار دیوار، کودکی از گرسنگی نشسته بود.",
         "prompt": (
-            "cinematic photoreal, kind bearded young Middle Eastern man kneeling on wet street "
-            "picking up bread loaf with both hands, soft smile, stone bakery behind, "
-            "natural daylight, emotional documentary style, vertical, no text"
+            f"{STYLE}, {HAMZEH} kneeling, picking up bread with both hands, soft concerned look, "
+            f"{BOY} sitting against stone wall in soft background, hunger, documentary emotion"
         ),
     },
     {
-        "line": "نرگس بی‌صدا نان دوم را از کیفش بیرون آورد.",
+        "line": "نرگس بی‌صدا نانِ دوم را از کیفش بیرون آورد و پیش آورد.",
         "prompt": (
-            "cinematic photoreal, young Middle Eastern girl in mustard yellow headscarf offering "
-            "warm flatbread to seated man, small hungry boy watching in background, "
-            "old city market, soft sunlight, compassionate expression, vertical, no text"
+            f"{STYLE}, {NARGES} offering a warm flatbread forward with both hands, "
+            f"market stall soft bokeh, compassionate expression, natural sunlight on scarf"
         ),
     },
     {
-        "line": "حاج رضا گفت: برکت وقتی تقسیم می‌شود کم نمی‌شود؛ راهش را پیدا می‌کند.",
+        "line": "حاج‌رضا گفت: برکت، وقتی تقسیم می‌شود کم نمی‌شود؛ راهش را پیدا می‌کند.",
         "prompt": (
-            "cinematic photoreal, elderly white-bearded baker with glasses and prayer beads "
-            "speaking warmly to family at bread stall, blue-tiled mosque dome behind, "
-            "golden sunset light, peaceful wisdom, vertical, no text no watermark"
+            f"{STYLE}, {HAJ} speaking gently at bread stall, blue-tiled mosque dome soft behind, "
+            f"flour on hands, warm sunset light, wisdom and peace"
         ),
     },
     {
-        "line": "حمزه نان را به کودک داد. لبخند کودک که نشست، انگار کوچه روشن‌تر شد.",
+        "line": "حمزه نان را به کودک داد. لبخندِ کودک که نشست، انگار کوچه روشن‌تر شد.",
         "prompt": (
-            "cinematic photoreal, kind man kneeling handing bread to smiling ragged little boy, "
-            "village courtyard, older couple watching warmly, golden hour backlight, "
-            "emotional heartwarming moment, vertical, no text"
+            f"{STYLE}, {HAMZEH} kneeling, placing bread into hands of {BOY}, boy smiling softly, "
+            f"golden backlight, emotional heartwarming moment, eye contact"
         ),
     },
     {
         "line": "ایثار از زیادی شروع نمی‌شود؛ از دلِ راضی شروع می‌شود.",
         "prompt": (
-            "cinematic photoreal close-up, antique brass key hanging from blue string on brown "
-            "woven vest pocket, soft bread emblem stitched nearby, blurred alley and sunset mosque, "
-            "symbolic hope, warm bokeh, vertical, no text no watermark"
+            f"{STYLE}, close-up antique brass key on blue string against woven brown vest, "
+            f"warm bokeh of alley and distant mosque at dusk, symbolic hope, shallow focus"
         ),
     },
     {
-        "line": "اگر می‌خواهی راز آن را بفهمی، قسمت بعد را از دست نده. سابسکرایب و لایک یادت نرود.",
+        "line": "اگر می‌خواهی رازِ آن را بفهمی، قسمتِ بعد را از دست نده. سابسکرایب کن و لایک یادت نرود.",
         "prompt": (
-            "cinematic photoreal, same brass key on vest in foreground, three people walking "
-            "into golden sunset alley toward mosque, hopeful ending frame, film grain, "
-            "vertical, no text no watermark"
+            f"{STYLE}, three silhouettes walking into golden sunset alley toward mosque, "
+            f"hopeful ending, film grain, warm orange sky, peaceful"
         ),
     },
 ]
@@ -116,15 +137,19 @@ def run_async(coro):
 
 async def tts_line(text: str, out: Path) -> None:
     import edge_tts
+    # Slightly slower + lower pitch for calmer, less robotic Persian male
     await edge_tts.Communicate(
-        text, "fa-IR-FaridNeural", rate="-12%", pitch="-2Hz", volume="+40%"
+        text, "fa-IR-FaridNeural", rate="-18%", pitch="-4Hz", volume="+35%"
     ).save(str(out))
 
 
 def process_audio(src: Path, dst: Path) -> None:
+    # Gentle denoise-ish eq + loudnorm for broadcast feel
     run([
         "ffmpeg", "-y", "-i", str(src),
-        "-af", "highpass=f=70,lowpass=f=10500,loudnorm=I=-14:TP=-1.5:LRA=9",
+        "-af",
+        "highpass=f=80,lowpass=f=10000,acompressor=threshold=-18dB:ratio=2:attack=20:release=200,"
+        "loudnorm=I=-14:TP=-1.5:LRA=11",
         "-ar", "48000", "-ac", "1", str(dst),
     ], timeout=60)
 
@@ -138,9 +163,8 @@ def main() -> int:
     audio_dir = content / "audio"
     audio_dir.mkdir(exist_ok=True)
 
-    print("[boot] photoreal SDXL-Turbo", flush=True)
+    print("[boot] photoreal SDXL-Turbo v2", flush=True)
     import torch
-    # Prefer explicit pipeline to avoid AutoPipeline import chain issues
     from diffusers import StableDiffusionXLPipeline
 
     if not torch.cuda.is_available():
@@ -161,17 +185,18 @@ def main() -> int:
         print(f"[img] {i+1}/{len(BEATS)}", flush=True)
         gc.collect()
         torch.cuda.empty_cache()
+        # 6 steps + tiny guidance often cleaner on turbo than pure 4-step
         image = pipe(
             prompt=beat["prompt"],
-            negative_prompt="cartoon, anime, illustration, drawing, blurry, text, watermark, logo, deformed",
-            width=576,
-            height=1024,
-            num_inference_steps=4,
-            guidance_scale=0.0,
-            generator=torch.Generator("cuda").manual_seed(4200 + i * 17),
+            negative_prompt=NEG,
+            width=768,
+            height=1344,
+            num_inference_steps=6,
+            guidance_scale=1.0,
+            generator=torch.Generator("cuda").manual_seed(9100 + i * 31),
         ).images[0]
         p = img_dir / f"scene_{i:02d}.jpg"
-        image.save(str(p), quality=92)
+        image.save(str(p), quality=94)
         print(f"[img] {p.stat().st_size} bytes", flush=True)
         images.append(p)
         del image
@@ -194,10 +219,10 @@ def main() -> int:
     captions = []
     t0 = 0.0
     for i, (beat, img, ap) in enumerate(zip(BEATS, images, line_audios)):
-        dur = max(2.0, media_duration(ap))
-        vis = dur + 0.3
-        frames = max(48, int(vis * 24))
-        z = "min(1.16,1+0.00035*on)" if i % 2 == 0 else "if(eq(on,1),1.14,max(1.0,1.14-0.00032*on))"
+        dur = max(2.2, media_duration(ap))
+        vis = dur + 0.35
+        frames = max(54, int(vis * 24))
+        z = "min(1.14,1+0.00028*on)" if i % 2 == 0 else "if(eq(on,1),1.12,max(1.0,1.12-0.00026*on))"
         vonly = content / f"v{i:02d}.mp4"
         run([
             "ffmpeg", "-y", "-loop", "1", "-i", str(img),
@@ -205,12 +230,12 @@ def main() -> int:
             "-vf",
             f"scale=900:1600:force_original_aspect_ratio=increase,"
             f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=720x1280:fps=24,"
-            f"eq=contrast=1.05:saturation=1.08",
-            "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
+            f"eq=contrast=1.06:saturation=1.1:brightness=0.02",
+            "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
             str(vonly),
         ], timeout=90)
         padded = audio_dir / f"l{i:02d}_pad.mp3"
-        run(["ffmpeg", "-y", "-i", str(ap), "-af", "apad=pad_dur=0.3", "-t", f"{vis:.3f}", str(padded)])
+        run(["ffmpeg", "-y", "-i", str(ap), "-af", "apad=pad_dur=0.35", "-t", f"{vis:.3f}", str(padded)])
         seg = content / f"s{i:02d}.mp4"
         run([
             "ffmpeg", "-y", "-i", str(vonly), "-i", str(padded),
@@ -227,7 +252,7 @@ def main() -> int:
     assembled = content / "assembled.mp4"
     run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(clist),
-        "-c:v", "libx264", "-preset", "fast", "-crf", "14",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "13",
         "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", str(assembled),
     ])
 
@@ -243,21 +268,21 @@ PlayResX: 720
 PlayResY: 1280
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Body,Arial,50,&H00FFFFFF,&H000000FF,&H00000000,&HCC000000,0,0,0,0,100,100,0,0,1,5,2,2,28,28,160,1
+Style: Body,Arial,52,&H00FFFFFF,&H000000FF,&H00000000,&HCC000000,0,0,0,0,100,100,0,0,1,5,2,2,30,30,150,1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     ev = []
     for a, b, line in captions:
         t = line.replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}")
-        ev.append(f"Dialogue: 0,{ts(a+0.05)},{ts(max(a+0.5,b-0.05))},Body,,0,0,0,,{t}")
+        ev.append(f"Dialogue: 0,{ts(a+0.08)},{ts(max(a+0.6,b-0.08))},Body,,0,0,0,,{t}")
     ass.write_text(header + "\n".join(ev) + "\n", encoding="utf-8")
 
     final = content / "final_story.mp4"
     run([
         "ffmpeg", "-y", "-i", str(assembled),
         "-vf", f"ass={ass.as_posix()}",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "13", "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-movflags", "+faststart", str(final),
     ])
     subprocess.check_call(["cp", str(final), str(content / "video_raw.mp4")])
