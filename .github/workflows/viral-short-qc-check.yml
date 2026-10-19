@@ -34,7 +34,7 @@ jobs:
           with tempfile.TemporaryDirectory() as tmp:
               tmp = Path(tmp)
               flat = tmp / "flat.png"
-              Image.new("RGB", (512, 512), (128, 128, 128)).save(flat)
+              Image.new("RGB", (512, 768), (128, 128, 128)).save(flat)
               passed, reason = module.qc_image(flat, min_bytes=1)
               assert not passed and reason.startswith("low_detail:"), (passed, reason)
               detailed = tmp / "detailed.png"
