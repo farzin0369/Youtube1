@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Viral Short Engine v3.1 — quality + QC, CLIP-safe short prompts.
+"""Viral Short Engine v3.2 — robust QC recovery, CLIP-safe short prompts.
 
 SDXL CLIP truncates at 77 tokens — put the most important words first.
 """
@@ -133,15 +133,16 @@ def qc_image(path: Path, min_bytes: int = 40_000) -> tuple[bool, str]:
             return False, f"not_vertical:{w}x{h}"
         stat = ImageStat.Stat(im)
         mean = sum(stat.mean) / 3.0
-        rms = sum(stat.rms) / 3.0
-        variance_proxy = abs(rms - mean)
+        # Use the actual per-channel standard deviation. The old RMS-minus-mean
+        # proxy could reject legitimate SDXL images and did not explain the QC.
+        detail = sum(stat.stddev) / 3.0
         if mean < 12:
             return False, f"too_dark:{mean:.1f}"
         if mean > 250:
             return False, f"too_bright:{mean:.1f}"
-        if variance_proxy < 4:
-            return False, f"flat:{variance_proxy:.1f}"
-        return True, f"ok:mean={mean:.0f}"
+        if detail < 3.0:
+            return False, f"low_detail:{detail:.1f}"
+        return True, f"ok:mean={mean:.0f},detail={detail:.1f}"
     except Exception as e:
         return False, f"pil_err:{e}"
 
@@ -177,7 +178,7 @@ def load_story(path: str | None) -> dict[str, Any]:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         print(f"[engine] story file {path}", flush=True)
         return data
-    print("[engine] default embedded story v3.1", flush=True)
+    print("[engine] default embedded story v3.2", flush=True)
     return DEFAULT_STORY
 
 
@@ -226,8 +227,15 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
             gc.collect()
             torch.cuda.empty_cache()
             seed = 12000 + i * 97 + attempt * 1009
+            # On retries, vary the composition request as well as the seed;
+            # repeating the identical prompt often reproduces the same failure.
+            retry_prompt = prompt
+            if attempt == 1:
+                retry_prompt += ", rich environmental detail, layered background, visible natural textures"
+            elif attempt >= 2:
+                retry_prompt += ", dynamic cinematic composition, detailed foreground and background, nuanced lighting"
             image = pipe(
-                prompt=prompt,
+                prompt=retry_prompt,
                 negative_prompt=neg,
                 width=768,
                 height=1344,
@@ -250,8 +258,12 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
             best_path = p
             last_reason = reason
         if not ok:
-            # Soft fail: keep last attempt rather than kill whole job
-            print(f"[qc-img] WARN soft-accept scene {i+1}: {last_reason}", flush=True)
+            # Image QC is advisory after bounded retries: preserve the best
+            # generated image instead of aborting the entire story. Fail only
+            # if no image was generated at all.
+            if best_path is None or not best_path.is_file():
+                raise RuntimeError(f"Image generation produced no file for scene {i+1}")
+            print(f"[qc-img] WARN soft-accept scene {i+1} after {max_tries} attempts: {last_reason}", flush=True)
             final_p = img_dir / f"scene_{i:02d}.jpg"
             subprocess.check_call(["cp", str(best_path), str(final_p)])
             images.append(final_p)
@@ -369,14 +381,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "sec": final_dur,
         "beats": len(beats),
         "qc_events": len(qc_log),
-        "version": "v3.1-quality",
+        "version": "v3.2-qc-recovery",
     }
     print(json.dumps(meta), flush=True)
     return meta
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Viral short engine v3.1")
+    p = argparse.ArgumentParser(description="Viral short engine v3.2")
     p.add_argument("--story", default=None)
     p.add_argument("--out", default="/content/final_story.mp4")
     p.add_argument("--work", default="/content/engine_work")
