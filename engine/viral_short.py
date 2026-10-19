@@ -399,8 +399,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception:
-        traceback.print_exc()
-        raise SystemExit(1)
+    # Let the original exception propagate. Wrapping it in SystemExit inside
+    # Colab's IPython runner caused a second, misleading traceback (TypeError).
+    main()
