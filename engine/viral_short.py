@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Viral Short Engine v3.2 — robust QC recovery, CLIP-safe short prompts.
+"""Cinematic Persian Short Engine v3.3 — quality-first scene generation.
 
-SDXL CLIP truncates at 77 tokens — put the most important words first.
+Uses SDXL base rather than Turbo, with deliberate composition and stricter anatomy prompts.
 """
 from __future__ import annotations
 
@@ -27,8 +27,10 @@ STYLE = (
     "shallow depth of field, no text no watermark"
 )
 NEG = (
-    "cartoon, anime, illustration, 3d, blurry, deformed hands, extra fingers, "
-    "text, watermark, logo, lowres, bad anatomy, duplicate face"
+    "cartoon, anime, illustration, 3d render, blurry, deformed anatomy, malformed face, "
+    "extra head, two heads, duplicate person, duplicate face, extra face, extra limbs, "
+    "long neck, stretched neck, disfigured, fused bodies, fused faces, bad proportions, "
+    "deformed hands, extra fingers, text, watermark, logo, lowres, plastic skin"
 )
 
 DEFAULT_STORY: dict[str, Any] = {
@@ -46,27 +48,27 @@ DEFAULT_STORY: dict[str, Any] = {
     "beats": [
         {
             "line": "روزی مردی به کودکی گفت: این نهال کی سایه می‌ده؟",
-            "prompt": "metal watering can pouring water on tiny green sapling dry soil golden sunrise close-up",
+            "prompt": "cinematic macro close-up, one small green sapling in dry soil, metal watering can pouring water, no people visible, golden sunrise, realistic photography",
         },
         {
             "line": "کودک به نهال نگاه کرد و چیزی نگفت.",
-            "prompt": "{boy} kneeling looking at tiny sapling metal bucket dry field golden backlight",
+            "prompt": "single boy only, medium shot, the same boy kneels beside a tiny sapling and looks at it, one head, natural neck and shoulders, empty simple background, golden backlight",
         },
         {
             "line": "پیرمرد خم شد و با مهربانی پرسید.",
-            "prompt": "{elder} crouching beside {boy} both looking at sapling warm sunset field",
+            "prompt": "exactly two people only: one elderly man and one young boy, both shown in a clean medium-wide side view, each with one head and natural neck, both looking down at one sapling, clear space between their bodies, simple uncluttered field, warm sunset",
         },
         {
             "line": "کودک سر بلند کرد و گفت: من هم زیر سایه‌ی درختی نشستم",
-            "prompt": "{boy} looking up speaking to {elder} oak tree bokeh golden hour eye contact",
+            "prompt": "single boy only in close-up, looking slightly upward while speaking, one head, natural neck, realistic child proportions, oak tree bokeh, golden hour; do not show another person",
         },
         {
             "line": "که کسی پیش از من کاشته بود.",
-            "prompt": "close-up {boy} soft smile speaking warm light oak tree background emotional",
+            "prompt": "single boy only, natural close-up portrait, soft smile, one head, normal neck proportions, warm light, oak tree background, emotional realism; no other people",
         },
         {
             "line": "خوبی کن؛ شاید روزی سایه‌اش به غریبه‌ای برسد.",
-            "prompt": "{boy} and {elder} watering sapling together large oak behind hopeful golden hour",
+            "prompt": "exactly two people only: one elderly man and one young boy, both standing naturally side by side watering one small sapling, full upper bodies visible, one head each, normal neck proportions, clear separation between faces, large oak in distant background, hopeful golden hour",
         },
     ],
 }
@@ -207,7 +209,7 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
     print("[engine] gpu", torch.cuda.get_device_name(0), flush=True)
 
     pipe = StableDiffusionXLPipeline.from_pretrained(
-        "stabilityai/sdxl-turbo",
+        "stabilityai/stable-diffusion-xl-base-1.0",
         torch_dtype=torch.float16,
         variant="fp16",
     )
@@ -231,16 +233,16 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
             # repeating the identical prompt often reproduces the same failure.
             retry_prompt = prompt
             if attempt == 1:
-                retry_prompt += ", rich environmental detail, layered background, visible natural textures"
+                retry_prompt += ", editorial cinematic photography, natural human anatomy, anatomically correct faces, balanced composition"
             elif attempt >= 2:
-                retry_prompt += ", dynamic cinematic composition, detailed foreground and background, nuanced lighting"
+                retry_prompt += ", simple composition, anatomically correct single subjects, natural proportions, no duplicate heads or faces, documentary realism"
             image = pipe(
                 prompt=retry_prompt,
                 negative_prompt=neg,
                 width=768,
                 height=1344,
-                num_inference_steps=6,
-                guidance_scale=1.2,
+                num_inference_steps=28,
+                guidance_scale=5.5,
                 generator=torch.Generator("cuda").manual_seed(seed),
             ).images[0]
             p = img_dir / f"scene_{i:02d}_a{attempt}.jpg"
@@ -381,14 +383,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "sec": final_dur,
         "beats": len(beats),
         "qc_events": len(qc_log),
-        "version": "v3.2-qc-recovery",
+        "version": "v3.3-quality-first-sdxl-base",
     }
     print(json.dumps(meta), flush=True)
     return meta
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Viral short engine v3.2")
+    p = argparse.ArgumentParser(description="Cinematic Persian short engine v3.3")
     p.add_argument("--story", default=None)
     p.add_argument("--out", default="/content/final_story.mp4")
     p.add_argument("--work", default="/content/engine_work")
