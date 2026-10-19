@@ -1,15 +1,7 @@
 name: Colab photoreal story (SDXL + natural TTS)
 
-# Secret: COLAB_CLI_TOKEN_JSON
-# Engine: engine/viral_short.py  |  Story: stories/*.json
-
 on:
   workflow_dispatch:
-    inputs:
-      story:
-        description: "Story JSON path in repo"
-        required: false
-        default: "stories/sapling.json"
 
 jobs:
   render:
@@ -66,9 +58,7 @@ jobs:
           set -euo pipefail
           mkdir -p output/colab_photo
           SESSION="photo-$(date +%s)"
-          STORY_PATH="${{ github.event.inputs.story || 'stories/sapling.json' }}"
-          echo "SESSION=$SESSION STORY=$STORY_PATH" | tee output/colab_photo/run.log
-
+          echo "SESSION=$SESSION" | tee output/colab_photo/run.log
           ok=0
           for attempt in 1 2 3; do
             if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_photo/run.log; then
@@ -82,18 +72,9 @@ jobs:
             echo "allocate failed" | tee -a output/colab_photo/run.log
             exit 1
           fi
-
-          # Upload engine + story into /content via writing files
-          python3 - <<'PY' | colab exec -s "$SESSION" --timeout 120 2>&1 | tee -a output/colab_photo/run.log
-import pathlib, textwrap
-print("print('boot')")
-PY
-
-          # Ship engine as single file execution (self-contained)
           set +e
           colab exec -s "$SESSION" -f engine/viral_short.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log
           set -e
-
           colab download -s "$SESSION" /content/final_story.mp4 output/colab_photo/final_story.mp4 2>&1 | tee -a output/colab_photo/run.log || true
           colab download -s "$SESSION" /content/video_raw.mp4 output/colab_photo/video_raw.mp4 2>&1 | tee -a output/colab_photo/run.log || true
           colab stop -s "$SESSION" 2>&1 | tee -a output/colab_photo/run.log || true
@@ -107,7 +88,6 @@ PY
             ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/colab_photo/final_story.mp4 || true
           elif [ -f output/colab_photo/video_raw.mp4 ]; then
             echo "only video_raw"
-            ls -la output/colab_photo/
           else
             echo "no video"
             tail -n 120 output/colab_photo/run.log || true
