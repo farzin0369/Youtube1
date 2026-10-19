@@ -2,6 +2,7 @@
 """Self-contained Colab GPU photoreal story: SDXL-Turbo + paced Edge TTS.
 
 No local repo paths required on the remote kernel.
+Fixes: asyncio.run under IPython (use nest_asyncio).
 """
 from __future__ import annotations
 
@@ -97,6 +98,23 @@ def media_duration(path: Path) -> float:
     return float(r.stdout.strip() or "0")
 
 
+def run_async(coro):
+    """Works under IPython/Colab (already has a running loop)."""
+    try:
+        import nest_asyncio
+        nest_asyncio.apply()
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "nest_asyncio"])
+        import nest_asyncio
+        nest_asyncio.apply()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+
 async def tts_line(text: str, out: Path) -> None:
     import edge_tts
     await edge_tts.Communicate(
@@ -159,6 +177,7 @@ def main() -> int:
     del pipe
     gc.collect()
     torch.cuda.empty_cache()
+    print("[img] all scenes done", flush=True)
 
     try:
         import edge_tts  # noqa: F401
@@ -169,7 +188,7 @@ def main() -> int:
     for i, beat in enumerate(BEATS):
         raw = audio_dir / f"l{i:02d}_raw.mp3"
         ap = audio_dir / f"l{i:02d}.mp3"
-        asyncio.run(tts_line(beat["line"], raw))
+        run_async(tts_line(beat["line"], raw))
         process_audio(raw, ap)
         line_audios.append(ap)
         print(f"[tts] line {i+1}", flush=True)
@@ -204,6 +223,7 @@ def main() -> int:
         segs.append(seg)
         captions.append((t0, t0 + vis, beat["line"]))
         t0 += vis
+        print(f"[mux] scene {i+1}", flush=True)
 
     clist = content / "concat.txt"
     clist.write_text("\n".join(f"file '{p.resolve()}'" for p in segs), encoding="utf-8")
@@ -243,7 +263,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "-c:v", "libx264", "-preset", "fast", "-crf", "14", "-pix_fmt", "yuv420p",
         "-c:a", "copy", "-movflags", "+faststart", str(final),
     ])
-    # compatibility
     subprocess.check_call(["cp", str(final), str(content / "video_raw.mp4")])
     print(json.dumps({"ok": True, "bytes": final.stat().st_size, "sec": media_duration(final)}), flush=True)
     return 0
