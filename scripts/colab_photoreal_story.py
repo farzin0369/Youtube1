@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Self-contained Colab GPU photoreal story: SDXL-Turbo + paced Edge TTS.
-
-No local repo paths required on the remote kernel.
-Fixes: asyncio.run under IPython (use nest_asyncio).
-"""
+"""Self-contained Colab GPU photoreal story: SDXL-Turbo + paced Edge TTS."""
 from __future__ import annotations
 
 import asyncio
@@ -83,6 +79,24 @@ BEATS = [
 ]
 
 
+def ensure_deps() -> None:
+    need = []
+    for mod, pkg in [
+        ("diffusers", "diffusers==0.32.2"),
+        ("transformers", "transformers"),
+        ("accelerate", "accelerate"),
+        ("edge_tts", "edge-tts"),
+        ("nest_asyncio", "nest_asyncio"),
+    ]:
+        try:
+            __import__(mod)
+        except Exception:
+            need.append(pkg)
+    if need:
+        print("[deps] installing", need, flush=True)
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", *need])
+
+
 def run(cmd, timeout=180):
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
@@ -99,14 +113,8 @@ def media_duration(path: Path) -> float:
 
 
 def run_async(coro):
-    """Works under IPython/Colab (already has a running loop)."""
-    try:
-        import nest_asyncio
-        nest_asyncio.apply()
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "nest_asyncio"])
-        import nest_asyncio
-        nest_asyncio.apply()
+    import nest_asyncio
+    nest_asyncio.apply()
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
@@ -131,6 +139,7 @@ def process_audio(src: Path, dst: Path) -> None:
 
 
 def main() -> int:
+    ensure_deps()
     content = Path("/content")
     content.mkdir(parents=True, exist_ok=True)
     img_dir = content / "scenes"
@@ -178,11 +187,6 @@ def main() -> int:
     gc.collect()
     torch.cuda.empty_cache()
     print("[img] all scenes done", flush=True)
-
-    try:
-        import edge_tts  # noqa: F401
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "edge-tts"])
 
     line_audios = []
     for i, beat in enumerate(BEATS):
