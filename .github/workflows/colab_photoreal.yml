@@ -8,7 +8,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -27,9 +27,9 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Colab CLI + deps
+      - name: Install Colab CLI
         if: steps.check.outputs.ok == 'true'
-        run: pip install -q google-colab-cli edge-tts
+        run: pip install -q google-colab-cli
 
       - name: Restore token
         if: steps.check.outputs.ok == 'true'
@@ -50,9 +50,9 @@ jobs:
             case "$s" in SESSION|Name|----*|"") continue ;; esac
             colab stop -s "$s" 2>&1 || true
           done
-          sleep 10
+          sleep 12
 
-      - name: GPU photoreal render
+      - name: GPU photoreal render (long timeout)
         if: steps.check.outputs.ok == 'true'
         id: gpu
         continue-on-error: true
@@ -75,8 +75,15 @@ jobs:
             exit 1
           fi
 
-          # upload repo scripts into session cwd via exec from file
-          colab exec -s "$SESSION" -f scripts/colab_photoreal_story.py 2>&1 | tee -a output/colab_photo/run.log
+          # deps first (short)
+          colab exec -s "$SESSION" --timeout 600 -c \
+            'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.30.0","transformers","accelerate","safetensors","edge-tts"])' \
+            2>&1 | tee -a output/colab_photo/run.log || true
+
+          # main render — up to 55 minutes
+          set +e
+          colab exec -s "$SESSION" -f scripts/colab_photoreal_story.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log
+          set -e
 
           colab download -s "$SESSION" /content/final_story.mp4 output/colab_photo/final_story.mp4 2>&1 | tee -a output/colab_photo/run.log || true
           colab download -s "$SESSION" /content/video_raw.mp4 output/colab_photo/video_raw.mp4 2>&1 | tee -a output/colab_photo/run.log || true
@@ -90,11 +97,11 @@ jobs:
             ls -la output/colab_photo/final_story.mp4
             ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/colab_photo/final_story.mp4 || true
           elif [ -f output/colab_photo/video_raw.mp4 ]; then
-            echo "only video_raw present"
+            echo "only video_raw"
             ls -la output/colab_photo/
           else
             echo "no video"
-            tail -n 80 output/colab_photo/run.log || true
+            tail -n 100 output/colab_photo/run.log || true
             exit 1
           fi
 
