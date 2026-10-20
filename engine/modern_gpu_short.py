@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Modern GPU story-short engine — CogVideoX-2B (Apache-2.0).
-No Pexels. Real text-to-video on Colab T4 + Persian Edge-TTS + captions.
+"""Modern GPU story-short — CogVideoX-2B, Colab-T4 safe (fast settings).
+Fewer frames/steps/beats so free Colab does not drop the connection.
 """
 from __future__ import annotations
 
@@ -14,50 +14,43 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+# 3 beats only — reliable on free Colab; expand later once stable
 DEFAULT_STORY: dict[str, Any] = {
-    "id": "sapling_cogvideox",
+    "id": "sapling_cogvideox_fast",
     "voice": "fa-IR-FaridNeural",
     "rate": "-10%",
     "beats": [
         {
             "line": "روزی مردی به کودکی گفت: این نهال کی سایه می‌ده؟",
             "prompt": (
-                "Cinematic shot of clear water pouring from a metal watering can onto a tiny green "
-                "seedling in dry cracked earth, golden sunrise light, photoreal nature documentary"
-            ),
-        },
-        {
-            "line": "کودک به نهال نگاه کرد و چیزی نگفت.",
-            "prompt": (
-                "Wide cinematic view of a dry rural field at golden hour, small green seedling in center, "
-                "gentle wind on dry grass, hopeful atmosphere, photoreal documentary"
-            ),
-        },
-        {
-            "line": "پیرمرد خم شد و با مهربانی پرسید.",
-            "prompt": (
-                "Cinematic medium shot elderly Middle Eastern man white beard crouching in field "
-                "beside young boy looking at small plant, warm sunset, photoreal film grain"
+                "Cinematic shot clear water pouring from metal watering can onto tiny green "
+                "seedling dry earth golden sunrise photoreal nature documentary"
             ),
         },
         {
             "line": "کودک گفت: من هم زیر سایه‌ی درختی نشستم که کسی پیش از من کاشته بود.",
             "prompt": (
-                "Camera slowly tilting up a massive ancient oak tree, sunlight through leaves, "
-                "peaceful park, deep green canopy, cinematic nature shot photoreal"
+                "Camera slowly tilting up massive ancient oak tree sunlight through leaves "
+                "peaceful park deep green canopy cinematic photoreal"
             ),
         },
         {
             "line": "خوبی کن؛ شاید روزی سایه‌اش به غریبه‌ای برسد.",
             "prompt": (
-                "Cinematic wide shot people planting young tree together golden hour, "
-                "hopeful community moment soft wind warm color grade photoreal documentary"
+                "Cinematic wide shot people planting young tree golden hour soft wind "
+                "hopeful warm color grade photoreal documentary"
             ),
         },
     ],
 }
 
 NEG = "blurry, distorted, jittery, deformed, text, watermark, logo, low quality, cartoon, anime"
+
+# Fast settings for free Colab T4 stability
+NUM_FRAMES = 25
+NUM_STEPS = 20
+GUIDANCE = 6.0
+FPS = 8
 
 
 def run(cmd: list[str], timeout: int = 300) -> None:
@@ -76,21 +69,15 @@ def media_duration(path: Path) -> float:
 
 
 def ensure_deps() -> None:
-    print("[engine] fixing torchao/diffusers for Colab", flush=True)
-    # Colab ships a broken torchao that breaks CogVideoX import
+    print("[engine] deps", flush=True)
     subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "torchao"], stdout=subprocess.DEVNULL)
     subprocess.check_call([
         sys.executable, "-m", "pip", "install", "-q", "--upgrade",
         "torchao>=0.7.0",
         "diffusers==0.32.2",
         "transformers==4.46.3",
-        "accelerate",
-        "sentencepiece",
-        "imageio",
-        "imageio-ffmpeg",
-        "edge-tts",
-        "nest_asyncio",
-        "protobuf",
+        "accelerate", "sentencepiece",
+        "imageio", "imageio-ffmpeg", "edge-tts", "nest_asyncio", "protobuf",
     ])
 
 
@@ -119,19 +106,19 @@ def load_story(path: str | None) -> dict[str, Any]:
 def generate_clip(pipe, prompt: str, out: Path, seed: int) -> None:
     import torch
     from diffusers.utils import export_to_video
-    print(f"[t2v] {prompt[:90]}...", flush=True)
+    print(f"[t2v] frames={NUM_FRAMES} steps={NUM_STEPS} | {prompt[:70]}...", flush=True)
     gc.collect()
     torch.cuda.empty_cache()
     video = pipe(
         prompt=prompt,
         negative_prompt=NEG,
         num_videos_per_prompt=1,
-        num_inference_steps=30,
-        num_frames=49,
-        guidance_scale=6.0,
+        num_inference_steps=NUM_STEPS,
+        num_frames=NUM_FRAMES,
+        guidance_scale=GUIDANCE,
         generator=torch.Generator(device="cpu").manual_seed(seed),
     ).frames[0]
-    export_to_video(video, str(out), fps=8)
+    export_to_video(video, str(out), fps=FPS)
     print(f"[t2v] ok {out.stat().st_size // 1024}KB", flush=True)
 
 
@@ -178,15 +165,17 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
         run_async(tts(beat["line"], raw, voice, rate))
         run(["ffmpeg", "-y", "-i", str(raw), "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-ac", "1", str(ap)], timeout=60)
         dur = max(3.0, media_duration(ap))
-        vis = dur + 0.2
+        vis = dur + 0.15
 
         raw_vid = clip_dir / f"raw_{i:02d}.mp4"
         generate_clip(pipe, beat["prompt"], raw_vid, seed=42 + i * 11)
+        # checkpoint after each scene
+        print(f"[ckpt] scene {i+1} video ready", flush=True)
+
         vclip = clip_dir / f"v{i:02d}.mp4"
         to_vertical(raw_vid, vclip, vis)
-
         padded = audio_dir / f"a{i:02d}_pad.mp3"
-        run(["ffmpeg", "-y", "-i", str(ap), "-af", "apad=pad_dur=0.2", "-t", f"{vis:.3f}", str(padded)])
+        run(["ffmpeg", "-y", "-i", str(ap), "-af", "apad=pad_dur=0.15", "-t", f"{vis:.3f}", str(padded)])
         seg = clip_dir / f"s{i:02d}.mp4"
         run([
             "ffmpeg", "-y", "-i", str(vclip), "-i", str(padded),
@@ -243,8 +232,15 @@ def render(story: dict[str, Any], out_path: Path, work: Path) -> dict[str, Any]:
         alt = out_path.parent / name
         if alt.resolve() != out_path.resolve():
             subprocess.check_call(["cp", str(out_path), str(alt)])
-    meta = {"ok": True, "bytes": out_path.stat().st_size, "sec": media_duration(out_path),
-            "beats": len(beats), "engine": "cogvideox-2b"}
+    meta = {
+        "ok": True,
+        "bytes": out_path.stat().st_size,
+        "sec": media_duration(out_path),
+        "beats": len(beats),
+        "engine": "cogvideox-2b-fast",
+        "frames": NUM_FRAMES,
+        "steps": NUM_STEPS,
+    }
     print(json.dumps(meta), flush=True)
     return meta
 
