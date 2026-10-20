@@ -6,7 +6,7 @@ on:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +50,7 @@ jobs:
           done
           sleep 12
 
-      - name: GPU viral engine render
+      - name: GPU viral engine v4 (SDXL + SVD I2V)
         if: steps.check.outputs.ok == 'true'
         id: gpu
         continue-on-error: true
@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           mkdir -p output/colab_photo
           SESSION="photo-$(date +%s)"
-          echo "SESSION=$SESSION" | tee output/colab_photo/run.log
+          echo "SESSION=$SESSION v4-svd" | tee output/colab_photo/run.log
           ok=0
           for attempt in 1 2 3; do
             if colab new -s "$SESSION" --gpu T4 2>&1 | tee -a output/colab_photo/run.log; then
@@ -73,7 +73,7 @@ jobs:
             exit 1
           fi
           set +e
-          colab exec -s "$SESSION" -f engine/viral_short.py --timeout 3300 2>&1 | tee -a output/colab_photo/run.log
+          colab exec -s "$SESSION" -f engine/viral_short.py --timeout 7200 2>&1 | tee -a output/colab_photo/run.log
           set -e
           colab download -s "$SESSION" /content/final_story.mp4 output/colab_photo/final_story.mp4 2>&1 | tee -a output/colab_photo/run.log || true
           colab download -s "$SESSION" /content/video_raw.mp4 output/colab_photo/video_raw.mp4 2>&1 | tee -a output/colab_photo/run.log || true
