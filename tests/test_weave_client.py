@@ -48,3 +48,24 @@ def test_missing_prompt_input_fails_closed():
     }
     with pytest.raises(WeaveError):
         WeaveClient._inputs_for_prompt(inspect, "test prompt")
+
+
+def test_client_refuses_missing_token(monkeypatch):
+    monkeypatch.delenv("WEAVE_API_TOKEN", raising=False)
+    with pytest.raises(WeaveError, match="WEAVE_API_TOKEN"):
+        WeaveClient()
+
+
+def test_generation_is_disabled_by_default(monkeypatch, tmp_path):
+    from app.weave_client import generate_scene_stills
+
+    monkeypatch.setenv("WEAVE_TOOL_ID", "published-tool")
+    monkeypatch.setenv("WEAVE_AUTO_RUN", "false")
+    monkeypatch.setenv("WEAVE_API_TOKEN", "test-token")
+    assert generate_scene_stills(["A calm forest at sunrise"], tmp_path) == []
+    assert list(tmp_path.rglob("*")) == []
+
+
+def test_unknown_format_uses_landscape_prompt():
+    prompt = scene_prompt("A candle burning beside an open book", format_name="long")
+    assert "16:9 landscape" in prompt
