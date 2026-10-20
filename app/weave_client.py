@@ -177,10 +177,16 @@ class WeaveClient:
             raise WeaveError("Weave returned a non-HTTPS asset URL; refusing download.")
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        target = output_dir / f"weave_scene_{int(time.time() * 1000)}.png"
+        # Asset URLs are separate CDN resources: do not forward the workspace API token.
+        target = output_dir / f"weave_scene_{int(time.time() * 1000)}.img"
         try:
-            response = self.session.get(url, timeout=(10, 90), stream=True)
+            response = requests.get(url, timeout=(10, 90), stream=True)
             response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
+            suffix = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" }.get(content_type)
+            if not suffix:
+                raise WeaveError("Weave returned an unsupported image content type.")
+            target = target.with_suffix(suffix)
             total = 0
             with target.open("wb") as stream:
                 for chunk in response.iter_content(1024 * 1024):
