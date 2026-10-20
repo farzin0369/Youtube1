@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 
 from PIL import Image, ImageDraw, ImageFont
 from app.utils import env
+from app.weave_client import generate_scene_stills
 
 WIDTH, HEIGHT, FPS = 1280, 720, 24
 
@@ -424,9 +425,18 @@ def render_video(
         if len(queries) != 4:
             raise RuntimeError("Shorts require four specific, narration-matched visual searches")
         count = len(queries)
-        stock, credits = fetch_stock(
-            queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
-        )
+        if not scene_stills and os.getenv("WEAVE_TOOL_ID", "").strip():
+            # Weave is opt-in and cost-capped inside the adapter. Prefer a complete
+            # Weave still set over stock footage so visuals match authored narration.
+            scene_stills = generate_scene_stills(
+                queries, out_dir / "weave", format_name="shorts",
+            )
+        if len(scene_stills) == count:
+            stock, credits = [], []
+        else:
+            stock, credits = fetch_stock(
+                queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
+            )
         if len(stock) != count and len(scene_stills) != count:
             raise RuntimeError(
                 "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
@@ -444,8 +454,20 @@ def render_video(
     else:
         # Long-form legacy mode keeps its landscape behavior and broad scene cadence.
         count = max(1, min(24, int(math.ceil(duration / 18.0))))
-        stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
         durations = [duration / count] * count
+        if not scene_stills and os.getenv("WEAVE_TOOL_ID", "").strip():
+            # Use the section/query list as the visual brief; repeat only when there
+            # are fewer authored prompts than the planned long-form scene count.
+            prompts = (keywords or [title])[:count]
+            if prompts:
+                expanded = [prompts[index % len(prompts)] for index in range(count)]
+                scene_stills = generate_scene_stills(
+                    expanded, out_dir / "weave", format_name="long",
+                )
+        if len(scene_stills) == count:
+            stock, credits = [], []
+        else:
+            stock, credits = fetch_stock(keywords, out_dir / "stock", count=count, orientation="landscape")
     local_fallbacks = _local_fallback_videos() if not stock else []
     scene_dir = out_dir / "scenes"
     scene_dir.mkdir(exist_ok=True)
