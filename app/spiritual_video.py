@@ -532,10 +532,11 @@ def render_video(
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(900, int(duration * 8)))
     if not final_path.exists() or final_path.stat().st_size < 100_000:
         raise RuntimeError("FFmpeg produced an empty final video")
+    weave_stills = bool(scene_stills) and all("weave" in Path(path).parts for path in scene_stills)
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": "figma_weave" if weave_stills else "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
@@ -549,7 +550,7 @@ def render_video(
             video_format == "shorts" and len(queries) == count
             and (len(stock) == count or len(scene_stills) == count)
         ),
-        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
+        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count and not weave_stills),
         "music_ducking": True,
         "ok": True,
     }
