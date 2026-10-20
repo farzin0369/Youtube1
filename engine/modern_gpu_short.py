@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Modern GPU story-short engine — CogVideoX-2B (Apache-2.0, open source).
+"""Modern GPU story-short engine — CogVideoX-2B (Apache-2.0).
 No Pexels. Real text-to-video on Colab T4 + Persian Edge-TTS + captions.
 """
 from __future__ import annotations
@@ -76,11 +76,21 @@ def media_duration(path: Path) -> float:
 
 
 def ensure_deps() -> None:
-    print("[engine] deps", flush=True)
+    print("[engine] fixing torchao/diffusers for Colab", flush=True)
+    # Colab ships a broken torchao that breaks CogVideoX import
+    subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "torchao"], stdout=subprocess.DEVNULL)
     subprocess.check_call([
         sys.executable, "-m", "pip", "install", "-q", "--upgrade",
-        "diffusers>=0.31.0", "transformers", "accelerate", "sentencepiece",
-        "imageio", "imageio-ffmpeg", "edge-tts", "nest_asyncio", "protobuf",
+        "torchao>=0.7.0",
+        "diffusers==0.32.2",
+        "transformers==4.46.3",
+        "accelerate",
+        "sentencepiece",
+        "imageio",
+        "imageio-ffmpeg",
+        "edge-tts",
+        "nest_asyncio",
+        "protobuf",
     ])
 
 
