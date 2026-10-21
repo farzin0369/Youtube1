@@ -18,3 +18,15 @@ def test_cloud_required_keeps_configured_groq(monkeypatch):
     chain = llm_provider.provider_chain()
     assert len(chain) == 1
     assert chain[0][0] == "groq:test-model"
+
+ 
+def test_gemini_configured_is_selected_in_cloud_only_mode(monkeypatch):
+    values = {
+        "LLM_REQUIRE_CLOUD": "true",
+        "GEMINI_API_KEY": "fake-test-key",
+        "GEMINI_MODEL": "gemini-2.5-flash",
+    }
+    monkeypatch.setattr(llm_provider, "env", lambda name: values.get(name, ""))
+    chain = llm_provider.provider_chain()
+    assert chain
+    assert chain[0][0] == "gemini:gemini-2.5-flash"
