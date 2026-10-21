@@ -20,13 +20,14 @@ def test_cloud_required_keeps_configured_groq(monkeypatch):
     assert chain[0][0] == "groq:test-model"
 
  
-def test_gemini_configured_is_selected_in_cloud_only_mode(monkeypatch):
+def test_cloudflare_configured_is_selected_in_cloud_only_mode(monkeypatch):
     values = {
         "LLM_REQUIRE_CLOUD": "true",
-        "GEMINI_API_KEY": "fake-test-key",
-        "GEMINI_MODEL": "gemini-2.5-flash",
+        "CLOUDFLARE_API_TOKEN": "fake-test-token",
+        "CLOUDFLARE_ACCOUNT_ID": "fake-account",
+        "CLOUDFLARE_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     }
     monkeypatch.setattr(llm_provider, "env", lambda name: values.get(name, ""))
     chain = llm_provider.provider_chain()
     assert chain
-    assert chain[0][0] == "gemini:gemini-2.5-flash"
+    assert chain[0][0] == "cloudflare:@cf/meta/llama-3.3-70b-instruct-fp8-fast"
