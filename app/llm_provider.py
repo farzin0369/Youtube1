@@ -139,7 +139,7 @@ def _ollama_call(
 
 
 
-def _gemini_call(
+def _cloudflare_call(
     system: str,
     prompt: str,
     *,
@@ -148,53 +148,49 @@ def _gemini_call(
     json_mode: bool,
     timeout: float,
 ) -> str:
-    """Call Google's Gemini Developer API using its native REST interface."""
-    key = (env("GEMINI_API_KEY") or "").strip()
-    if not key:
-        raise LLMUnavailable("Gemini API key is not configured")
-    model = (env("GEMINI_MODEL") or "gemini-2.5-flash").strip()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-    generation_config: dict[str, Any] = {
-        "temperature": temperature,
-        "maxOutputTokens": max_tokens,
-    }
+    """Call Cloudflare Workers AI on its free daily allocation."""
+    account_id = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
+    if not account_id or not token:
+        raise LLMUnavailable("Cloudflare Workers AI credentials are not configured")
+    model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
+    user_prompt = prompt
     if json_mode:
-        generation_config["responseMimeType"] = "application/json"
+        user_prompt += "\\nReturn only valid JSON, without markdown fences."
     payload = json.dumps({
-        "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": generation_config,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
     }, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         url, data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         method="POST",
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Do not include request URL or key in errors/logs.
-        raise LLMUnavailable(f"Gemini API failed (HTTP {exc.code})") from exc
-    candidates = result.get("candidates") or []
-    if not candidates:
-        raise LLMUnavailable("Gemini API returned no candidates")
-    parts = ((candidates[0].get("content") or {}).get("parts") or [])
-    content = "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
-    if not content.strip():
-        raise LLMUnavailable("Gemini API returned empty content")
-    return content
+        raise LLMUnavailable(f"Cloudflare Workers AI failed (HTTP {exc.code})") from exc
+    body = result.get("result") or {}
+    content = body.get("response") or body.get("text") or ""
+    if not str(content).strip():
+        raise LLMUnavailable("Cloudflare Workers AI returned empty content")
+    return str(content)
+
 
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
-    gemini_key = (env("GEMINI_API_KEY") or "").strip()
-    if gemini_key:
-        gemini_model = (env("GEMINI_MODEL") or "gemini-2.5-flash").strip()
-        chain.append((
-            f"gemini:{gemini_model}",
-            _gemini_call,
-        ))
+    cf_token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
+    cf_account = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    if cf_token and cf_account:
+        cf_model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+        chain.append((f"cloudflare:{cf_model}", _cloudflare_call))
     groq = _groq_config()
     if groq:
         base, key, model = groq
