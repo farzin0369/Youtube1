@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feat/atlas-ai-mobile-assistant-clean
+      - feat/hamrah-backend-tests
     paths:
       - "mobile-assistant/**"
       - ".github/workflows/validate-mobile-assistant.yml"
@@ -27,6 +28,9 @@ jobs:
         run: node --check mobile-assistant/app.js
       - name: Check backend JavaScript syntax
         run: node --input-type=module --check < mobile-assistant/backend/src/index.js
+      - name: Run backend security and Gateway tests
+        working-directory: mobile-assistant/backend
+        run: npm test
       - name: Validate manifest JSON
         run: node -e "JSON.parse(require('fs').readFileSync('mobile-assistant/manifest.webmanifest','utf8')); console.log('Manifest JSON valid')"
       - name: Check required app files
