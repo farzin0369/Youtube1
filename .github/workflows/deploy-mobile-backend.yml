@@ -12,6 +12,19 @@ jobs:
     steps:
       - name: Checkout selected branch
         uses: actions/checkout@v4
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG="mobile-assistant/backend/wrangler.toml"
+          if ! grep -Eq '^[[:space:]]*ALLOWED_ORIGIN[[:space:]]*=[[:space:]]*"https://[^"]+"[[:space:]]*$' "$CONFIG"; then
+            echo "::error::ALLOWED_ORIGIN must be set to the exact HTTPS origin of the deployed mobile app in $CONFIG before deploying."
+            exit 1
+          fi
+          if [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ] || [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then
+            echo "::error::Configure CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID as GitHub Actions secrets before deploying."
+            exit 1
+          fi
       - name: Deploy Cloudflare Worker
         uses: cloudflare/wrangler-action@v3
         with:
