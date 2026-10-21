@@ -155,7 +155,10 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
-    chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
+    # Production can explicitly forbid low-quality/local fallback models.
+    require_cloud = (env("LLM_REQUIRE_CLOUD") or "").strip().lower() in {"1", "true", "yes", "on"}
+    if not require_cloud:
+        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 
