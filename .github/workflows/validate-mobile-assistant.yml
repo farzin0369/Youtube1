@@ -5,6 +5,7 @@ on:
     paths:
       - "mobile-assistant/**"
       - ".github/workflows/validate-mobile-assistant.yml"
+      - ".github/workflows/deploy-mobile-backend.yml"
   push:
     branches:
       - feat/atlas-ai-mobile-assistant-clean
@@ -12,6 +13,7 @@ on:
     paths:
       - "mobile-assistant/**"
       - ".github/workflows/validate-mobile-assistant.yml"
+      - ".github/workflows/deploy-mobile-backend.yml"
 
 permissions:
   contents: read
