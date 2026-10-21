@@ -35,6 +35,8 @@ jobs:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_MODEL: ${{ vars.LLM_MODEL }}
       LLM_TIMEOUT_SECONDS: "180"
+      # Never silently downgrade production scripts to a local model.
+      LLM_REQUIRE_CLOUD: "true"
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
