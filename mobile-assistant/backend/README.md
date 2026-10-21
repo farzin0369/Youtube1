@@ -17,6 +17,7 @@ This is a restricted backend scaffold for the mobile PWA. It is not deployed aut
 2. Deploy this directory using Wrangler from a trusted development environment, or paste `src/index.js` into the Worker editor.
 3. Add Worker secrets:
    - `GITHUB_TOKEN` (fine-grained PAT with the minimum permissions above)
+   - `APP_ACCESS_SECRET` (long random secret; required as a Bearer token for all endpoints except health)
    - `AI_API_URL` (base URL for an OpenAI-compatible provider)
    - `AI_MODEL` (provider's exact model ID)
    - `AI_API_KEY` (provider key)
@@ -33,4 +34,4 @@ This is a restricted backend scaffold for the mobile PWA. It is not deployed aut
 
 ## Important limitations
 
-This scaffold has not been deployed or live-tested. No GitHub token or model key is included. The PWA UI has not yet been connected to these endpoints. GitHub write actions only propose draft PRs, and every change still requires review. This is not device-wide control of Android apps or an unrestricted autonomous agent.
+This scaffold has not been deployed or live-tested. No GitHub token, access secret, or model key is included. The PWA UI has not yet been connected to these endpoints. GitHub write actions only propose draft PRs, and every change still requires review. This is not device-wide control of Android apps or an unrestricted autonomous agent.
