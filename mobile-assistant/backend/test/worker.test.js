@@ -24,8 +24,8 @@ function request(path, { method = "GET", auth = true, origin = ORIGIN, body, hea
   });
 }
 
-test("health endpoint reports restricted mode without credentials", async () => {
-  const response = await worker.fetch(request("/health", { auth: false }), {});
+test("health endpoint reports restricted mode without app credentials", async () => {
+  const response = await worker.fetch(request("/health", { auth: false }), { ALLOWED_ORIGIN: ORIGIN });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).mode, "restricted");
 });
