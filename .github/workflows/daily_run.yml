@@ -46,6 +46,7 @@ jobs:
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       TTS_PROVIDER: ${{ vars.TTS_PROVIDER || 'edge-tts' }}
+      REQUIRE_OWNER_VOICE: ${{ vars.REQUIRE_OWNER_VOICE || 'false' }}
       TTS_VOICE: fa-IR-FaridNeural
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
       ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
