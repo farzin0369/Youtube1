@@ -55,16 +55,7 @@
         <input id="backend-secret" type="password" placeholder="APP_ACCESS_SECRET" autocomplete="off">
       </label>
       <p class="settings-warning">اگر بک‌اند را راه‌اندازی کردی، این دو مقدار برای اتصال امن‌تر به آن است. رمز دسترسی فقط تا پایان نشست مرورگر نگهداری می‌شود.</p>
-      <label>نشانی API سازگار با OpenAI
-        <input id="api-url" type="url" inputmode="url" placeholder="https://api.example.com/v1" autocomplete="url">
-      </label>
-      <label>نام مدل
-        <input id="model-name" type="text" placeholder="نام مدل، مثلاً مدل ارائه‌دهنده" autocomplete="off">
-      </label>
-      <label>کلید API
-        <input id="api-key" type="password" placeholder="کلید را فقط روی دستگاه خودت وارد کن" autocomplete="off">
-      </label>
-      <p class="settings-warning">کلید در حافظه محلی همین مرورگر ذخیره می‌شود؛ این برنامه فعلاً بک‌اند امن اختصاصی ندارد. از دستگاه مشترک استفاده نکن و کلید را داخل مخزن ننویس.</p>
+      <p class="settings-warning">چت فقط از مسیر بک‌اند امن و متصل به OpenClaw انجام می‌شود. کلید مدل را داخل مرورگر وارد نکن؛ توکن Gateway باید فقط در Secrets سرویس Cloudflare نگهداری شود.</p>
       <button id="save-settings" class="primary-button" value="default">ذخیره تنظیمات</button>
       <button id="clear-settings" class="secondary-button" type="button">پاک کردن کلید و تنظیمات</button>
     </form>
