@@ -115,17 +115,36 @@ export default {
       }
 
       if (url.pathname === "/chat" && request.method === "POST") {
-        if (!env.AI_API_URL || !env.AI_MODEL || !env.AI_API_KEY)
-          return respond(request, env, { error: "AI provider is not configured on the server." }, 503);
+        // Primary route is the user's own OpenClaw Gateway, not a third-party model API.
+        // Configure OPENCLAW_CHAT_URL as the complete OpenAI-compatible chat-completions URL,
+        // and keep OPENCLAW_GATEWAY_TOKEN in Worker secrets.
+        if (!env.OPENCLAW_CHAT_URL || !env.OPENCLAW_GATEWAY_TOKEN)
+          return respond(request, env, {
+            error: "OpenClaw is not connected. Configure OPENCLAW_CHAT_URL and OPENCLAW_GATEWAY_TOKEN as Worker settings/secrets."
+          }, 503);
         const body = await request.json();
-        if (!Array.isArray(body.messages) || body.messages.length > 30) return respond(request, env, { error: "Invalid messages." }, 400);
-        const upstream = await fetch(env.AI_API_URL.replace(/\/$/, "") + "/chat/completions", {
+        if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > 30)
+          return respond(request, env, { error: "Invalid messages." }, 400);
+        const upstream = await fetch(env.OPENCLAW_CHAT_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + env.AI_API_KEY },
-          body: JSON.stringify({ model: env.AI_MODEL, messages: body.messages, temperature: 0.6 })
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + env.OPENCLAW_GATEWAY_TOKEN
+          },
+          body: JSON.stringify({
+            model: env.OPENCLAW_MODEL || "openclaw",
+            messages: body.messages,
+            temperature: 0.6,
+            stream: false
+          })
         });
         const result = await upstream.text();
-        return new Response(result, { status: upstream.status, headers: { ...JSON_HEADERS, ...(cors(request, env) || {}) } });
+        const headers = cors(request, env);
+        if (!headers) return json({ error: "Origin is not allowed." }, 403);
+        return new Response(result, {
+          status: upstream.status,
+          headers: { ...JSON_HEADERS, ...headers, "Cache-Control": "no-store" }
+        });
       }
       return respond(request, env, { error: "Not found." }, 404);
     } catch (error) {
