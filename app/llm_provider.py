@@ -138,9 +138,63 @@ def _ollama_call(
     )
 
 
+
+def _gemini_call(
+    system: str,
+    prompt: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    json_mode: bool,
+    timeout: float,
+) -> str:
+    """Call Google's Gemini Developer API using its native REST interface."""
+    key = (env("GEMINI_API_KEY") or "").strip()
+    if not key:
+        raise LLMUnavailable("Gemini API key is not configured")
+    model = (env("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+    generation_config: dict[str, Any] = {
+        "temperature": temperature,
+        "maxOutputTokens": max_tokens,
+    }
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+    payload = json.dumps({
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": generation_config,
+    }, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # Do not include request URL or key in errors/logs.
+        raise LLMUnavailable(f"Gemini API failed (HTTP {exc.code})") from exc
+    candidates = result.get("candidates") or []
+    if not candidates:
+        raise LLMUnavailable("Gemini API returned no candidates")
+    parts = ((candidates[0].get("content") or {}).get("parts") or [])
+    content = "".join(str(part.get("text", "")) for part in parts if isinstance(part, dict))
+    if not content.strip():
+        raise LLMUnavailable("Gemini API returned empty content")
+    return content
+
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
+    gemini_key = (env("GEMINI_API_KEY") or "").strip()
+    if gemini_key:
+        gemini_model = (env("GEMINI_MODEL") or "gemini-2.5-flash").strip()
+        chain.append((
+            f"gemini:{gemini_model}",
+            _gemini_call,
+        ))
     groq = _groq_config()
     if groq:
         base, key, model = groq
