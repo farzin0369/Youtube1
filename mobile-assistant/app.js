@@ -105,7 +105,7 @@ async function askAI(text, assistantNode) {
     } else {
       if (!s.url || !s.model || !s.key) {
         assistantNode.classList.add("error");
-        assistantNode.lastChild.textContent = "برای پاسخ واقعی، بک‌اند را در تنظیمات وصل کن؛ یا موقتاً URL، نام مدل و کلید یک API سازگار را وارد کن. هیچ مدل ابری رایگانی به‌صورت داخلی متصل نیست.";
+        assistantNode.lastChild.textContent = "برای پاسخ واقعی، بک‌اندی را وصل کن که به Gateway خود OpenClaw متصل شده باشد. این نسخه به‌طور پیش‌فرض مدل داخلی یا Gateway را خودش اجرا نمی‌کند.";
         return;
       }
       const endpoint = s.url.endsWith("/chat/completions") ? s.url : s.url + "/chat/completions";
