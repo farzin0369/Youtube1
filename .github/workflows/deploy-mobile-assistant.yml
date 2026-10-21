@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/atlas-ai-mobile-assistant
+      - feat/atlas-ai-mobile-assistant-clean
     paths:
       - "mobile-assistant/**"
       - ".github/workflows/deploy-mobile-assistant.yml"
