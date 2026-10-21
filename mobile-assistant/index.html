@@ -35,6 +35,7 @@
         <button data-action="google">＋ گوگل</button>
         <button data-action="github">＋ GitHub</button>
         <button data-action="inspect">بررسی فایل‌های مخزن</button>
+        <button data-action="propose">پیشنهاد تغییر GitHub</button>
       </div>
       <form id="chat-form" class="composer">
         <textarea id="prompt" rows="1" maxlength="12000" placeholder="پیامت را بنویس..." aria-label="پیام" required></textarea>
@@ -47,6 +48,13 @@
   <dialog id="settings-dialog">
     <form method="dialog" class="settings-form" id="settings-form">
       <div class="settings-heading"><h2>تنظیمات هوش مصنوعی</h2><button class="icon-button" value="cancel" aria-label="بستن">✕</button></div>
+      <label>نشانی بک‌اند همراه (Cloudflare Worker)
+        <input id="backend-url" type="url" inputmode="url" placeholder="https://your-worker.workers.dev" autocomplete="url">
+      </label>
+      <label>رمز دسترسی بک‌اند
+        <input id="backend-secret" type="password" placeholder="APP_ACCESS_SECRET" autocomplete="off">
+      </label>
+      <p class="settings-warning">اگر بک‌اند را راه‌اندازی کردی، این دو مقدار برای اتصال امن‌تر به آن است. رمز دسترسی فقط تا پایان نشست مرورگر نگهداری می‌شود.</p>
       <label>نشانی API سازگار با OpenAI
         <input id="api-url" type="url" inputmode="url" placeholder="https://api.example.com/v1" autocomplete="url">
       </label>
