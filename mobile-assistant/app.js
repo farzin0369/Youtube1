@@ -103,17 +103,9 @@ async function askAI(text, assistantNode) {
         body: JSON.stringify({ messages: [systemMessage, ...conversation] })
       });
     } else {
-      if (!s.url || !s.model || !s.key) {
-        assistantNode.classList.add("error");
-        assistantNode.lastChild.textContent = "برای پاسخ واقعی، بک‌اندی را وصل کن که به Gateway خود OpenClaw متصل شده باشد. این نسخه به‌طور پیش‌فرض مدل داخلی یا Gateway را خودش اجرا نمی‌کند.";
-        return;
-      }
-      const endpoint = s.url.endsWith("/chat/completions") ? s.url : s.url + "/chat/completions";
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + s.key },
-        body: JSON.stringify({ model: s.model, messages: [systemMessage, ...conversation], temperature: 0.7 })
-      });
+      assistantNode.classList.add("error");
+      assistantNode.lastChild.textContent = "برای استفاده از OpenClaw، نشانی بک‌اند مستقرشده و رمز دسترسی را در تنظیمات وارد کن. اتصال مستقیم به API عمومی غیرفعال است تا کلید مدل در مرورگر ذخیره نشود.";
+      return;
     }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error?.message || data.error || ("خطای سرویس HTTP " + response.status));
