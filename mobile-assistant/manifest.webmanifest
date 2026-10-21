@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "همراه هوشمند - دستیار فارسی",
+  "short_name": "همراه هوشمند",
+  "description": "دستیار چت فارسی با میانبرهای وب و GitHub",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1020",
+  "theme_color": "#101322",
+  "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
