@@ -1,6 +1,6 @@
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
 const REPO = "farzin0369/Youtube1";
-const ALLOWED_PREFIXES = ["mobile-assistant/", "docs/", "scripts/", ".github/workflows/"];
+const ALLOWED_PREFIXES = ["mobile-assistant/", "docs/", "scripts/"];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
