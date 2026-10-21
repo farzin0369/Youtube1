@@ -92,3 +92,23 @@ def test_elevenlabs_requires_explicit_credentials(monkeypatch):
     monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
     with pytest.raises(RuntimeError, match="ELEVENLABS_API_KEY"):
         spiritual_tts._render_elevenlabs("سلام", __import__("pathlib").Path("unused.mp3"))
+
+
+def test_require_owner_voice_fails_closed_for_generic_voice(monkeypatch, tmp_path):
+    monkeypatch.setenv("REQUIRE_OWNER_VOICE", "true")
+    monkeypatch.setenv("TTS_PROVIDER", "edge-tts")
+    with pytest.raises(RuntimeError, match="refusing to substitute a generic synthetic voice"):
+        spiritual_tts.synthesize_with_captions(
+            "سلام دنیا", tmp_path / "voice.mp3", tmp_path / "voice.srt"
+        )
+
+
+def test_require_owner_voice_needs_enrolled_voice_credentials(monkeypatch, tmp_path):
+    monkeypatch.setenv("REQUIRE_OWNER_VOICE", "true")
+    monkeypatch.setenv("TTS_PROVIDER", "elevenlabs")
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+    with pytest.raises(RuntimeError, match="requires ELEVENLABS_API_KEY"):
+        spiritual_tts.synthesize_with_captions(
+            "سلام دنیا", tmp_path / "voice.mp3", tmp_path / "voice.srt"
+        )
