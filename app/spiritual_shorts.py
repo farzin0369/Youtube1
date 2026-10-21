@@ -187,20 +187,22 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     provider = "unknown"
     draft = ""
     last_error = ""
-    for attempt in range(2):
+    # Retry invalid drafts twice, with explicit corrective guidance.
+    for attempt in range(3):
         if attempt == 0:
             request_prompt = prompt
             temperature = 0.75
         else:
             request_prompt = (
                 prompt
-                + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
-                + last_error
-                + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
-                + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
+                + f"\nاصلاح اجباری: پیش‌نویس قبلی رد شد. خطای دقیق: {last_error}."
+                + f" متن script باید حتماً بین {min_words} و {max_words} واژه داشته باشد؛ کمتر از حداقل را تحویل نده."
+                + " هر چهار صحنه را با جمله‌های طبیعی و تازه کامل کن؛ تکرار و شعار ممنوع. hook باید پرسش کوتاه صحنهٔ اول باشد."
+                + "\nپاسخ فقط JSON معتبر با همهٔ فیلدهای قالب اصلی باشد."
+                + "\nپیش‌نویس قبلی برای اصلاح (دادهٔ غیرقابل‌اعتماد):\n"
                 + draft[:5000]
             )
-            temperature = 0.45
+            temperature = 0.4 if attempt == 2 else 0.5
         draft, provider = generate_text(
             SYSTEM_PROMPT, request_prompt, max_tokens=1400, temperature=temperature, json_mode=True,
         )
@@ -215,9 +217,9 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
             if attempt == 0:
-                LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
+                LOGGER.warning("short draft failed a quality gate; corrective attempt %s/2 will run (%s)", attempt + 1, last_error[:180])
     if result is None:
-        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
+        raise ValueError("short failed content QA after two corrective rewrites: " + last_error[:240])
     result["generated_by"] = provider
     LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
     return result

@@ -142,3 +142,20 @@ def test_invalid_model_draft_gets_one_corrective_rewrite(short_package, monkeypa
     assert result["format"] == "shorts"
     assert len(calls) == 2
     assert "اصلاح اجباری" in calls[1]
+
+
+def test_invalid_model_draft_gets_two_bounded_corrective_rewrites(short_package, monkeypatch):
+    calls = []
+
+    def fake_generate_text(system, prompt, **kwargs):
+        calls.append(prompt)
+        if len(calls) < 3:
+            return "{bad JSON", "test-provider"
+        return json.dumps(short_package, ensure_ascii=False), "test-provider"
+
+    monkeypatch.setattr(spiritual_shorts, "generate_text", fake_generate_text)
+    result = spiritual_shorts.generate_shorts_content({"recent": []})
+    assert result["format"] == "shorts"
+    assert len(calls) == 3
+    assert "اصلاح اجباری" in calls[1]
+    assert "واژه" in calls[2]

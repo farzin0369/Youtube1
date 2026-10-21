@@ -138,9 +138,59 @@ def _ollama_call(
     )
 
 
+
+def _cloudflare_call(
+    system: str,
+    prompt: str,
+    *,
+    max_tokens: int,
+    temperature: float,
+    json_mode: bool,
+    timeout: float,
+) -> str:
+    """Call Cloudflare Workers AI on its free daily allocation."""
+    account_id = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
+    if not account_id or not token:
+        raise LLMUnavailable("Cloudflare Workers AI credentials are not configured")
+    model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
+    user_prompt = prompt
+    if json_mode:
+        user_prompt += "\\nReturn only valid JSON, without markdown fences."
+    payload = json.dumps({
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        url, data=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise LLMUnavailable(f"Cloudflare Workers AI failed (HTTP {exc.code})") from exc
+    body = result.get("result") or {}
+    content = body.get("response") or body.get("text") or ""
+    if not str(content).strip():
+        raise LLMUnavailable("Cloudflare Workers AI returned empty content")
+    return str(content)
+
+
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
+    cf_token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
+    cf_account = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    if cf_token and cf_account:
+        cf_model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+        chain.append((f"cloudflare:{cf_model}", _cloudflare_call))
     groq = _groq_config()
     if groq:
         base, key, model = groq
@@ -155,7 +205,10 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
-    chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
+    # Production can explicitly forbid low-quality/local fallback models.
+    require_cloud = (env("LLM_REQUIRE_CLOUD") or "").strip().lower() in {"1", "true", "yes", "on"}
+    if not require_cloud:
+        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 
