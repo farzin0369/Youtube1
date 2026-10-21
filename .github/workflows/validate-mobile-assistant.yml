@@ -25,6 +25,8 @@ jobs:
           node-version: "20"
       - name: Check JavaScript syntax
         run: node --check mobile-assistant/app.js
+      - name: Check backend JavaScript syntax
+        run: node --input-type=module --check < mobile-assistant/backend/src/index.js
       - name: Validate manifest JSON
         run: node -e "JSON.parse(require('fs').readFileSync('mobile-assistant/manifest.webmanifest','utf8')); console.log('Manifest JSON valid')"
       - name: Check required app files
