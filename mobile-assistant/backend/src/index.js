@@ -54,6 +54,10 @@ export default {
       if (url.pathname === "/health" && request.method === "GET")
         return respond(request, env, { ok: true, service: "hamrah-github-backend", repo: REPO, mode: "restricted" });
 
+      // CORS is not authentication. Require a separate secret for all non-health routes.
+      if (!env.APP_ACCESS_SECRET || request.headers.get("Authorization") !== "Bearer " + env.APP_ACCESS_SECRET)
+        return respond(request, env, { error: "Unauthorized." }, 401);
+
       if (url.pathname === "/github/tree" && request.method === "GET") {
         const branch = url.searchParams.get("branch") || "main";
         if (!/^(main|feat\/[a-zA-Z0-9._-]+)$/.test(branch)) return respond(request, env, { error: "Invalid branch." }, 400);
@@ -84,10 +88,18 @@ export default {
         const base = await gh("/git/ref/heads/main", env);
         const commit = await gh("/git/commits/" + base.object.sha, env);
         const created = await gh("/git/refs", env, { method: "POST", body: JSON.stringify({ ref: "refs/heads/" + branch, sha: commit.sha }) });
+        const filePath = "/contents/" + path.split("/").map(encodeURIComponent).join("/");
+        let existingSha;
+        try {
+          const existing = await gh(filePath + "?ref=main", env);
+          if (!Array.isArray(existing) && existing.sha) existingSha = existing.sha;
+        } catch (error) {
+          if (!String(error.message).includes("HTTP 404")) throw error;
+        }
         const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(content)));
-        await gh("/contents/" + path.split("/").map(encodeURIComponent).join("/"), env, {
+        await gh(filePath, env, {
           method: "PUT",
-          body: JSON.stringify({ message: message.trim(), content: encoded, branch })
+          body: JSON.stringify({ message: message.trim(), content: encoded, branch, ...(existingSha ? { sha: existingSha } : {}) })
         });
         const pr = await gh("/pulls", env, {
           method: "POST",
