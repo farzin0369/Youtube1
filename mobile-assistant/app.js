@@ -5,22 +5,16 @@ const messages = $("#messages");
 const welcome = $("#welcome");
 const sendButton = $("#send");
 const settingsDialog = $("#settings-dialog");
-const keys = { url: "hamrah.apiUrl", model: "hamrah.model", key: "hamrah.apiKey", backend: "hamrah.backendUrl" };
+const keys = { backend: "hamrah.backendUrl" };
 
 function settings() {
   return {
-    url: localStorage.getItem(keys.url) || "",
-    model: localStorage.getItem(keys.model) || "",
-    key: localStorage.getItem(keys.key) || "",
     backend: localStorage.getItem(keys.backend) || "",
     backendSecret: sessionStorage.getItem("hamrah.backendSecret") || ""
   };
 }
 function loadSettings() {
   const s = settings();
-  $("#api-url").value = s.url;
-  $("#model-name").value = s.model;
-  $("#api-key").value = s.key;
   $("#backend-url").value = s.backend;
   $("#backend-secret").value = s.backendSecret;
 }
@@ -58,9 +52,6 @@ document.querySelectorAll("[data-prompt]").forEach(button => button.addEventList
 }));
 $("#settings-open").addEventListener("click", () => { loadSettings(); settingsDialog.showModal(); });
 $("#save-settings").addEventListener("click", () => {
-  localStorage.setItem(keys.url, $("#api-url").value.trim().replace(/\/$/, ""));
-  localStorage.setItem(keys.model, $("#model-name").value.trim());
-  localStorage.setItem(keys.key, $("#api-key").value.trim());
   localStorage.setItem(keys.backend, $("#backend-url").value.trim().replace(/\/$/, ""));
   const secret = $("#backend-secret").value.trim();
   if (secret) sessionStorage.setItem("hamrah.backendSecret", secret);
@@ -68,6 +59,9 @@ $("#save-settings").addEventListener("click", () => {
 });
 $("#clear-settings").addEventListener("click", () => {
   Object.values(keys).forEach(key => localStorage.removeItem(key));
+  localStorage.removeItem("hamrah.apiUrl");
+  localStorage.removeItem("hamrah.model");
+  localStorage.removeItem("hamrah.apiKey");
   sessionStorage.removeItem("hamrah.backendSecret");
   loadSettings();
 });
