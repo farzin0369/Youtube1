@@ -18,3 +18,22 @@ const endpoint=s.url.endsWith("/chat/completions")?s.url:s.url+"/chat/completion
 try{const res=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+s.key},body:JSON.stringify({model:s.model,messages:[{role:"system",content:"تو یک دستیار دقیق، مودب و توانمند هستی. به زبان کاربر پاسخ بده. درباره توانایی اجرای کارها صادق باش. اگر کار نیازمند اقدام بیرونی است، توضیح بده چه چیزی را واقعاً می‌توانی انجام بدهی و بدون تأیید ادعا نکن."},...history,{role:"user",content:text}],temperature:0.7})});if(!res.ok)throw new Error("خطای سرویس: HTTP "+res.status+"؛ نشانی، کلید و مدل را بررسی کن.");const data=await res.json();const answer=data.choices?.[0]?.message?.content;if(!answer)throw new Error("پاسخ قابل‌خواندن از API دریافت نشد.");history.push({role:"user",content:text},{role:"assistant",content:answer});if(history.length>24)history=history.slice(-24);assistantNode.lastChild.textContent=answer}catch(err){assistantNode.classList.add("error");assistantNode.lastChild.textContent="اتصال برقرار نشد: "+(err.message||"خطای ناشناخته")+". اگر مرورگر خطای CORS نشان دهد، سرویس API باید دسترسی مرورگر را فعال کند."}}
 chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=promptBox.value.trim();if(!text||sendButton.disabled)return;appendMessage("user",text);promptBox.value="";promptBox.style.height="auto";sendButton.disabled=true;const reply=appendMessage("assistant","در حال آماده‌سازی پاسخ…");await askAI(text,reply);sendButton.disabled=false;promptBox.focus()});
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+
+
+// Safe GitHub repository inspection: read-only; never edits or merges code.
+async function inspectRepository(){
+  const userNode=appendMessage("user","مخزن GitHub را بررسی کن");
+  const reply=appendMessage("assistant","در حال خواندن فهرست فایل‌های مخزن به‌صورت فقط‌خواندنی…");
+  try{
+    const response=await fetch("https://api.github.com/repos/farzin0369/Youtube1/git/trees/main?recursive=1",{headers:{"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});
+    if(!response.ok)throw new Error("GitHub API پاسخ HTTP "+response.status+" داد.");
+    const data=await response.json();
+    const paths=(data.tree||[]).filter(x=>x.type==="blob").map(x=>x.path);
+    const relevant=paths.filter(p=>/^(app|scripts|mobile-assistant|\.github\/workflows|docs)\//.test(p)).slice(0,90);
+    reply.lastChild.textContent="بررسی فقط‌خواندنی مخزن انجام شد. تعداد فایل‌های قابل مشاهده: "+paths.length+"\n\nفایل‌های مهم (حداکثر ۹۰ مورد):\n"+(relevant.length?relevant.map(p=>"• "+p).join("\n"):"فایلی در مسیرهای منتخب پیدا نشد.")+"\n\nاین قابلیت فقط فایل‌های شاخه main را می‌خواند؛ هنوز کدی را تغییر نمی‌دهد، تست اجرا نمی‌کند و Pull Request نمی‌سازد.";
+  }catch(err){
+    reply.classList.add("error");
+    reply.lastChild.textContent="نتوانستم مخزن را از GitHub بخوانم: "+err.message+"\nبررسی به دسترسی شبکه و عمومی بودن مخزن وابسته است. این ابزار هیچ تغییری در مخزن ایجاد نمی‌کند.";
+  }
+}
+document.querySelectorAll('[data-action="inspect"]').forEach(b=>b.addEventListener("click",inspectRepository));
