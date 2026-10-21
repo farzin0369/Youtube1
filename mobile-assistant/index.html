@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101322">
+  <meta name="description" content="دستیار هوش مصنوعی فارسی با چت و میانبرهای وب و گیت‌هاب">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>همراه هوشمند</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div class="brand"><strong>همراه هوشمند</strong><small>دستیار شخصی فارسی</small></div>
+      <button id="settings-open" class="icon-button" aria-label="تنظیمات" title="تنظیمات">⚙</button>
+    </header>
+    <main id="chat" class="chat-area" aria-live="polite">
+      <section class="welcome" id="welcome">
+        <div class="welcome-orb">✧</div>
+        <h1>سلام! چطور کمک کنم؟</h1>
+        <p>سؤال بپرس، ایده‌پردازی کن یا یکی از میانبرها را انتخاب کن.</p>
+        <div class="suggestions">
+          <button class="suggestion" data-prompt="این موضوع را ساده و مرحله‌به‌مرحله توضیح بده: هوش مصنوعی">🧠 یک موضوع را توضیح بده</button>
+          <button class="suggestion" data-action="google">🔎 جست‌وجو در گوگل</button>
+          <button class="suggestion" data-action="github">🧰 باز کردن پروژه GitHub من</button>
+        </div>
+      </section>
+      <div id="messages" class="messages"></div>
+    </main>
+    <div class="composer-wrap">
+      <div class="quick-actions">
+        <button data-action="google">＋ گوگل</button>
+        <button data-action="github">＋ GitHub</button>
+      </div>
+      <form id="chat-form" class="composer">
+        <textarea id="prompt" rows="1" maxlength="12000" placeholder="پیامت را بنویس..." aria-label="پیام" required></textarea>
+        <button id="send" class="send-button" type="submit" aria-label="ارسال">➤</button>
+      </form>
+      <p class="privacy-note">برای پاسخ هوش مصنوعی، سرویس سازگار را در تنظیمات وصل کن. کلید API را در مخزن GitHub قرار نده.</p>
+    </div>
+  </div>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" class="settings-form" id="settings-form">
+      <div class="settings-heading"><h2>تنظیمات هوش مصنوعی</h2><button class="icon-button" value="cancel" aria-label="بستن">✕</button></div>
+      <label>نشانی API سازگار با OpenAI
+        <input id="api-url" type="url" inputmode="url" placeholder="https://api.example.com/v1" autocomplete="url">
+      </label>
+      <label>نام مدل
+        <input id="model-name" type="text" placeholder="نام مدل، مثلاً مدل ارائه‌دهنده" autocomplete="off">
+      </label>
+      <label>کلید API
+        <input id="api-key" type="password" placeholder="کلید را فقط روی دستگاه خودت وارد کن" autocomplete="off">
+      </label>
+      <p class="settings-warning">کلید در حافظه محلی همین مرورگر ذخیره می‌شود؛ این برنامه فعلاً بک‌اند امن اختصاصی ندارد. از دستگاه مشترک استفاده نکن و کلید را داخل مخزن ننویس.</p>
+      <button id="save-settings" class="primary-button" value="default">ذخیره تنظیمات</button>
+      <button id="clear-settings" class="secondary-button" type="button">پاک کردن کلید و تنظیمات</button>
+    </form>
+  </dialog>
+  <script src="./app.js" defer></script>
+</body>
+</html>
