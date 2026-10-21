@@ -281,6 +281,18 @@ def synthesize_with_captions(
     scene_timings: list[dict[str, float]] = []
     delivery_log: list[dict[str, str]] = []
     provider = _provider()
+    require_owner_voice = str(env("REQUIRE_OWNER_VOICE") or "false").strip().lower() in {"1", "true", "yes", "on"}
+    if require_owner_voice:
+        if provider != "elevenlabs":
+            raise RuntimeError(
+                "REQUIRE_OWNER_VOICE=true requires TTS_PROVIDER=elevenlabs; "
+                "refusing to substitute a generic synthetic voice"
+            )
+        if not str(env("ELEVENLABS_API_KEY") or "").strip() or not str(env("ELEVENLABS_VOICE_ID") or "").strip():
+            raise RuntimeError(
+                "REQUIRE_OWNER_VOICE=true requires ELEVENLABS_API_KEY and "
+                "ELEVENLABS_VOICE_ID for the owner's previously enrolled voice"
+            )
 
     if scenes:
         scene_texts = [re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip() for scene in scenes]
