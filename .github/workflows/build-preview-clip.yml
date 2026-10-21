@@ -1,0 +1,44 @@
+name: Build Persian spiritual preview clip
+
+on:
+  push:
+    branches:
+      - feat/self-voice-automation
+    paths:
+      - '.github/workflows/build-preview-clip.yml'
+      - 'scripts/render_free_cinematic_short.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install FFmpeg and Persian fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-noto-core
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Render Persian spiritual short
+        run: python scripts/render_free_cinematic_short.py output/preview
+      - name: Verify video output
+        run: |
+          test -s output/preview/final_short.mp4
+          ffprobe -v error -show_entries stream=codec_type,width,height -of json output/preview/final_short.mp4
+      - name: Upload finished MP4 and subtitles
+        uses: actions/upload-artifact@v4
+        with:
+          name: imamali110-spiritual-preview
+          path: |
+            output/preview/final_short.mp4
+            output/preview/captions.ass
+          if-no-files-found: error
+          retention-days: 7
