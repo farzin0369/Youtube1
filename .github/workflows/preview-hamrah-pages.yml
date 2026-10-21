@@ -1,0 +1,50 @@
+name: Preview Hamrah mobile app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/hamrah-backend-tests
+    paths:
+      - "mobile-assistant/**"
+      - ".github/workflows/preview-hamrah-pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: hamrah-pages-preview
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare static PWA preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R mobile-assistant/. _site/
+          touch _site/.nojekyll
+          test -s _site/index.html
+          test -s _site/app.js
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
