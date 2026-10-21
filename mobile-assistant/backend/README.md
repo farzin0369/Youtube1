@@ -6,7 +6,7 @@ This is a restricted backend scaffold for the mobile PWA. It is not deployed aut
 
 - Keep `GITHUB_TOKEN` and AI credentials in Cloudflare Worker Secrets, never in Git or the PWA.
 - Create a fine-grained GitHub PAT limited to **only** `farzin0369/Youtube1`, with Contents: Read and write and Pull requests: Read and write. Do not grant administration, workflows, Actions, secrets, or organization permissions.
-- `/github/tree` and `/github/file` are read-only.
+- `/github/tree` and `/github/file` are read-only. Writes are limited to `mobile-assistant/`, `docs/`, and `scripts/`; GitHub workflow files cannot be changed by the assistant.
 - `/github/propose-change` requires the explicit `X-Confirm-Action: I_APPROVE_WRITE` header, restricts editable paths, creates a new branch, and opens a **draft PR**. It never writes to `main` or merges.
 - The AI endpoint does not get GitHub credentials or tool access automatically. Model output must not be treated as trusted code.
 - Configure `ALLOWED_ORIGIN` to the exact HTTPS origin serving the PWA. Do not use wildcard origins in production.
