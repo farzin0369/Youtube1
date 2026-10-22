@@ -21,6 +21,13 @@ code = next(n for n in nodes if n["name"] == "Validate and deduplicate")["parame
 for marker in ("title_required", "topic_required", "duplicate_in_batch", "duplicate_topic_history", "uploadEnabled:false", "publishEnabled:false"):
     assert marker in code, f"Missing safety/validation marker: {marker}"
 assert not any("youtube" in n.get("type","").lower() and "trigger" not in n.get("type","").lower() for n in nodes), "No YouTube action is allowed in draft-only workflow"
+
+# The existing production workflow in this branch must be manual-only.
+production = pathlib.Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8")
+assert "\n  schedule:" not in production, "Scheduled production publishing must stay disabled in this branch"
+assert "\n  workflow_dispatch:" in production, "Manual workflow dispatch must remain available"
+assert "default: false" in production, "Publishing must default to false"
+
 # Deterministic fixtures mirror the intended validation contract.
 def validate(row, prior_topics=(), prior_ids=(), batch_topics=()):
     title = row.get("title", "").strip() if isinstance(row.get("title", ""), str) else ""
@@ -38,4 +45,4 @@ assert "title_required" in validate({"title":"","topic":"hope"}), "Invalid input
 assert "duplicate_topic_history" in validate({"title":"Again","topic":"hope"}, prior_topics=["Hope"]), "Historical duplicate missed"
 assert "duplicate_video_id" in validate({"title":"Again","topic":"other","videoId":"abc"}, prior_ids=["abc"]), "Duplicate ID missed"
 assert "duplicate_in_batch" in validate({"title":"Second","topic":"hope"}, batch_topics=["hope"]), "Batch duplicate missed"
-print("PASS: workflow JSON structure; inactive state; valid, invalid, historical duplicate, ID duplicate, and batch duplicate fixtures.")
+print("PASS: JSON structure, inactive n8n state, manual-only production guard, and valid/invalid/duplicate fixtures.")
