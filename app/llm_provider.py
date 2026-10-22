@@ -24,7 +24,9 @@ from typing import Any, Callable
 from app.utils import env
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+DEFAULT_OPENROUTER_MODEL = "minimax/minimax-m3.1-flash:free"
 DEFAULT_LOCAL_MODEL = "qwen2.5:3b"
 
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
@@ -39,6 +41,15 @@ def _groq_config() -> tuple[str, str, str] | None:
     if not key:
         return None
     return GROQ_BASE_URL, key, (env("GROQ_MODEL") or DEFAULT_GROQ_MODEL).strip()
+
+
+def _openrouter_config() -> tuple[str, str, str] | None:
+    """Use OpenRouter's OpenAI-compatible API when its secret is configured."""
+    key = (env("OPENROUTER_API_KEY") or "").strip()
+    if not key:
+        return None
+    model = (env("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL).strip()
+    return OPENROUTER_BASE_URL, key, model
 
 
 def _generic_config() -> tuple[str, str, str] | None:
@@ -146,6 +157,13 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
         base, key, model = groq
         chain.append((
             f"groq:{model}",
+            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+        ))
+    openrouter = _openrouter_config()
+    if openrouter:
+        base, key, model = openrouter
+        chain.append((
+            f"openrouter:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
     generic = _generic_config()
