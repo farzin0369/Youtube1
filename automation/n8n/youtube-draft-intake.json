@@ -1,0 +1,173 @@
+{
+  "name": "ImamAli110 — safe video draft intake",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Safe intake validator. No network calls, credentials, uploads, or publishing.\nconst items = $input.all();\nconst seen = new Set();\nreturn items.map((item, index) => {\n  const d = item.json ?? {};\n  const title = typeof d.title === 'string' ? d.title.trim() : '';\n  const topic = typeof d.topic === 'string' ? d.topic.trim().toLowerCase() : '';\n  const videoId = typeof d.videoId === 'string' ? d.videoId.trim() : '';\n  const priorIds = Array.isArray(d.existingVideoIds) ? d.existingVideoIds : [];\n  const priorTopics = Array.isArray(d.topicHistory) ? d.topicHistory.map(x => String(x).trim().toLowerCase()) : [];\n  const problems = [];\n  if (!title) problems.push('title_required');\n  if (!topic) problems.push('topic_required');\n  if (title.length > 100) problems.push('title_too_long');\n  if (videoId && priorIds.includes(videoId)) problems.push('duplicate_video_id');\n  if (topic && priorTopics.includes(topic)) problems.push('duplicate_topic_history');\n  const key = topic || title.toLowerCase();\n  if (key && seen.has(key)) problems.push('duplicate_in_batch');\n  if (key) seen.add(key);\n  return {json:{index, title, topic, videoId: videoId || null, valid: problems.length === 0, status: problems.length === 0 ? 'DRAFT_READY_FOR_REVIEW' : 'REJECTED', problems, uploadEnabled:false, publishEnabled:false}};\n});"
+      },
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000002",
+      "name": "Validate and deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000003",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000004",
+      "name": "Valid draft?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000005",
+              "name": "reviewState",
+              "value": "READY_FOR_HUMAN_REVIEW",
+              "type": "string"
+            },
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000006",
+              "name": "notice",
+              "value": "Draft metadata only. No video upload or publication is performed.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000007",
+      "name": "Mark ready for review",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        940,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000008",
+              "name": "reviewState",
+              "value": "REJECTED_FIX_INPUT",
+              "type": "string"
+            },
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000009",
+              "name": "notice",
+              "value": "Fix the validation problems before proceeding.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000010",
+      "name": "Return validation errors",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        940,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate and deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and deduplicate": {
+      "main": [
+        [
+          {
+            "node": "Valid draft?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid draft?": {
+      "main": [
+        [
+          {
+            "node": "Mark ready for review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return validation errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c10b4d6a-7c11-4a5a-a001-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
