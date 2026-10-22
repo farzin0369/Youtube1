@@ -1,0 +1,72 @@
+name: Jarvis Agent
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'پیام شما به جارویس'
+        required: true
+        type: string
+      history:
+        description: 'گفتگوی قبلی به صورت JSON'
+        required: false
+        default: '[]'
+        type: string
+permissions:
+  contents: read
+  checks: write
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Generate Jarvis response
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROMPT: ${{ inputs.prompt }}
+          HISTORY: ${{ inputs.history }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+            echo "Missing required repository secret: OPENROUTER_API_KEY" >&2
+            exit 1
+          fi
+          python - <<'PY'
+          import json, os, urllib.request
+          history = json.loads(os.environ.get("HISTORY", "[]"))
+          if not isinstance(history, list):
+              history = []
+          messages = [{"role":"system","content":"You are Jarvis, a helpful Persian-speaking assistant. Answer clearly and honestly. Do not claim actions were completed unless verified."}]
+          for item in history[-12:]:
+              if isinstance(item, dict) and item.get("role") in ("user","assistant") and isinstance(item.get("content"),str):
+                  messages.append({"role":item["role"],"content":item["content"][-3000:]})
+          messages.append({"role":"user","content":os.environ["PROMPT"]})
+          body = json.dumps({"model":"minimax/minimax-m3.1-flash:free","messages":messages}).encode()
+          req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=body, headers={"Authorization":"Bearer "+os.environ["OPENROUTER_API_KEY"],"Content-Type":"application/json","HTTP-Referer":"https://github.com/farzin0369/Youtube1","X-Title":"Jarvis"})
+          with urllib.request.urlopen(req, timeout=90) as response:
+              data = json.load(response)
+          answer = data["choices"][0]["message"]["content"]
+          if not isinstance(answer,str) or not answer.strip():
+              raise RuntimeError("Provider returned an empty response")
+          with open("jarvis-response.md","w",encoding="utf-8") as f:
+              f.write(answer.strip()+"\n")
+          PY
+      - name: Publish response as a GitHub Check
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          if [ "$JOB_STATUS" = "success" ] && [ -f jarvis-response.md ]; then
+            SUMMARY="$(cat jarvis-response.md)"
+            printf '## پاسخ Jarvis\n\n%s\n' "$SUMMARY" > check-summary.md
+            CONCLUSION=success
+          else
+            printf 'اجرای Jarvis ناموفق بود. تنظیم secret با نام OPENROUTER_API_KEY و لاگ workflow را بررسی کن.\n' > check-summary.md
+            CONCLUSION=failure
+          fi
+          jq -n --arg name "Jarvis response" --arg sha "$SHA" --arg external_id "$RUN_ID" --arg conclusion "$CONCLUSION" --rawfile summary check-summary.md '{name:$name,head_sha:$sha,external_id:$external_id,status:"completed",conclusion:$conclusion,output:{title:"Jarvis response",summary:$summary}}' > check.json
+          gh api --method POST "repos/$REPOSITORY/check-runs" --input check.json
