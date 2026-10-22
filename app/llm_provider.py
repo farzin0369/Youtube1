@@ -41,6 +41,15 @@ def _groq_config() -> tuple[str, str, str] | None:
     return GROQ_BASE_URL, key, (env("GROQ_MODEL") or DEFAULT_GROQ_MODEL).strip()
 
 
+def _openrouter_config() -> tuple[str, str, str] | None:
+    """OpenRouter's OpenAI-compatible endpoint; credentials come only from env/secrets."""
+    key = (env("OPENROUTER_API_KEY") or "").strip()
+    if not key:
+        return None
+    model = (env("OPENROUTER_MODEL") or "minimax/minimax-m3.1-flash:free").strip()
+    return "https://openrouter.ai/api/v1", key, model
+
+
 def _generic_config() -> tuple[str, str, str] | None:
     base = (env("LLM_BASE_URL") or "").strip()
     key = (env("LLM_API_KEY") or "").strip()
@@ -146,6 +155,13 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
         base, key, model = groq
         chain.append((
             f"groq:{model}",
+            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+        ))
+    openrouter = _openrouter_config()
+    if openrouter:
+        base, key, model = openrouter
+        chain.append((
+            f"openrouter:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
     generic = _generic_config()

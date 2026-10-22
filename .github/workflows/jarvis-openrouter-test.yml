@@ -1,0 +1,62 @@
+name: Jarvis OpenRouter model test
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "Prompt to send to the configured OpenRouter model"
+        required: true
+        default: "در یک جمله فارسی بگو چطور امید را در روز سخت حفظ کنیم."
+      model:
+        description: "OpenRouter model slug"
+        required: true
+        default: "minimax/minimax-m3.1-flash:free"
+
+permissions:
+  contents: read
+
+jobs:
+  model-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call OpenRouter without exposing credentials
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROMPT: ${{ inputs.prompt }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.error, urllib.request
+          key = (os.environ.get("OPENROUTER_API_KEY") or "").strip()
+          if not key:
+              raise SystemExit("OPENROUTER_API_KEY secret is missing. Add it in repository Settings > Secrets and variables > Actions.")
+          payload = json.dumps({
+              "model": os.environ["MODEL"],
+              "messages": [
+                  {"role": "system", "content": "You are Jarvis, a helpful assistant. Answer clearly in the language of the user."},
+                  {"role": "user", "content": os.environ["PROMPT"]},
+              ],
+              "temperature": 0.4,
+              "max_tokens": 400,
+          }).encode()
+          req = urllib.request.Request(
+              "https://openrouter.ai/api/v1/chat/completions",
+              data=payload,
+              headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://github.com/farzin0369/Youtube1", "X-Title": "Jarvis OpenRouter smoke test"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=45) as response:
+                  data = json.loads(response.read().decode())
+          except urllib.error.HTTPError as exc:
+              # Never print response headers or request credentials.
+              raise SystemExit(f"OpenRouter request failed with HTTP {exc.code}; check model availability and secret validity.") from None
+          choices = data.get("choices") or []
+          answer = ((choices[0].get("message") or {}).get("content") or "").strip() if choices else ""
+          if not answer:
+              raise SystemExit("OpenRouter returned no text completion.")
+          print("## Jarvis model response")
+          print()
+          print(answer)
+          PY

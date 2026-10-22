@@ -1,0 +1,58 @@
+name: Jarvis OpenRouter Chat
+run-name: Jarvis chat / ${{ inputs.request_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 'شناسه یکتای درخواست برای تطبیق پاسخ'
+        required: true
+        type: string
+      prompt:
+        description: 'پیام شما به Jarvis'
+        required: true
+        type: string
+      history:
+        description: 'سابقه گفتگو'
+        required: false
+        default: '[]'
+        type: string
+permissions:
+  contents: read
+  checks: write
+concurrency:
+  group: jarvis-chat-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install API client
+        run: python -m pip install --disable-pip-version-check 'openai>=1.50,<3'
+      - name: Ask Jarvis
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROMPT: ${{ inputs.prompt }}
+          HISTORY: ${{ inputs.history }}
+        run: |
+          set -euo pipefail
+          python scripts/jarvis_chat.py 2>jarvis.log | tee response.txt
+          { echo '## پاسخ Jarvis'; echo; cat response.txt; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish response for chat UI
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const response = fs.readFileSync('response.txt', 'utf8');
+            await github.rest.checks.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              name: 'Jarvis response', head_sha: context.sha,
+              external_id: String(context.runId), status: 'completed',
+              conclusion: 'success',
+              output: { title: 'پاسخ Jarvis', summary: response.slice(0, 60000) }
+            });
