@@ -1,5 +1,11 @@
 name: Jarvis Agent
 on:
+  push:
+    branches:
+      - feat/jarvis-chat-openrouter-integration
+    paths:
+      - 'jarvis/**'
+      - '.github/workflows/jarvis-agent.yml'
   workflow_dispatch:
     inputs:
       prompt:
