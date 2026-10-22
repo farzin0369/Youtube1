@@ -1,7 +1,12 @@
 name: Jarvis OpenRouter Chat
+run-name: Jarvis chat / ${{ inputs.request_id }}
 on:
   workflow_dispatch:
     inputs:
+      request_id:
+        description: 'شناسه یکتای درخواست برای تطبیق پاسخ'
+        required: true
+        type: string
       prompt:
         description: 'پیام شما به Jarvis'
         required: true
