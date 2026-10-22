@@ -22,7 +22,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        460,
+        680,
         300
       ]
     },
@@ -56,7 +56,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        700,
+        900,
         300
       ]
     },
@@ -85,7 +85,7 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        940,
+        1140,
         220
       ]
     },
@@ -114,8 +114,37 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        940,
+        1140,
         400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000011",
+              "name": "title",
+              "value": "نمونه پیش‌نویس — برای تغییر ویرایش کنید",
+              "type": "string"
+            },
+            {
+              "id": "b10b4d6a-7c11-4a5a-a001-000000000012",
+              "name": "topic",
+              "value": "نمونه امید",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b10b4d6a-7c11-4a5a-a001-000000000013",
+      "name": "Edit draft metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
       ]
     }
   ],
@@ -124,7 +153,7 @@
       "main": [
         [
           {
-            "node": "Validate and deduplicate",
+            "node": "Edit draft metadata",
             "type": "main",
             "index": 0
           }
@@ -154,6 +183,17 @@
         [
           {
             "node": "Return validation errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit draft metadata": {
+      "main": [
+        [
+          {
+            "node": "Validate and deduplicate",
             "type": "main",
             "index": 0
           }
