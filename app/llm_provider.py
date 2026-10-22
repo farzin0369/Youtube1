@@ -23,6 +23,8 @@ from typing import Any, Callable
 
 from app.utils import env
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_OPENROUTER_MODEL = "minimax/minimax-m3.1-flash:free"
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
 DEFAULT_LOCAL_MODEL = "qwen2.5:3b"
@@ -32,6 +34,16 @@ RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
 
 class LLMUnavailable(RuntimeError):
     """Raised when no configured provider could return a usable completion."""
+
+
+def _openrouter_config() -> tuple[str, str, str] | None:
+    """Return OpenRouter config, preferring explicit settings but requiring a secret."""
+    key = (env("OPENROUTER_API_KEY") or "").strip()
+    if not key:
+        return None
+    base = (env("OPENROUTER_BASE_URL") or OPENROUTER_BASE_URL).strip().rstrip("/")
+    model = (env("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL).strip()
+    return base, key, model
 
 
 def _groq_config() -> tuple[str, str, str] | None:
@@ -141,6 +153,13 @@ def _ollama_call(
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
+    openrouter = _openrouter_config()
+    if openrouter:
+        base, key, model = openrouter
+        chain.append((
+            f"openrouter:{model}",
+            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+        ))
     groq = _groq_config()
     if groq:
         base, key, model = groq
