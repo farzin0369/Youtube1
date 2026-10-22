@@ -1,13 +1,11 @@
 name: Persian spiritual channel — daily Shorts
 
 on:
-  # Start at exactly 18:00 Tehran (14:30 UTC); generate the next day's 18:00 episode.
-  schedule:
-    - cron: "30 14 * * *"
+  # Deliberately manual-only: no scheduled public uploads.
   workflow_dispatch:
     inputs:
       publish:
-        description: Upload and schedule publicly for 18:00 Tehran
+        description: Upload and schedule publicly for 18:00 Tehran (explicit approval required)
         required: true
         type: boolean
         default: false
@@ -95,7 +93,7 @@ jobs:
           curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
           ollama pull "$LOCAL_LLM_MODEL"
       - name: Verify YouTube credentials before any production work
-        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+        if: inputs.publish == true || inputs.upload_private == true
         run: |
           python - <<'PY'
           from app.youtube_client import probe_youtube_auth
@@ -107,10 +105,9 @@ jobs:
           PY
       - name: Run Persian spiritual video pipeline
         env:
-          EVENT_NAME: ${{ github.event_name }}
           PUBLISH_INPUT: ${{ inputs.publish }}
         run: |
-          if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
+          if [ "$PUBLISH_INPUT" = "true" ]; then
             python scripts/daily_run.py --publish
           elif [ "${{ inputs.upload_private }}" = "true" ]; then
             python scripts/daily_run.py --upload-private
