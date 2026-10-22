@@ -1,23 +1,24 @@
 # Free YouTube visual automation — draft-only starter
 
-This folder adds an **inactive n8n import file** and an offline validator. It does not install a server, connect accounts, render videos, upload to YouTube, or publish anything.
+This branch prepares a **manual-only, draft-first** path. It does not activate n8n, connect accounts, render or upload a video automatically, or publish anything by itself.
 
 ## What is included
-- `automation/n8n/youtube-draft-intake.json`: importable draft-only workflow. Manual Trigger → validation/deduplication → review-ready/rejected output. It has no credentials, external calls, upload node, schedule, or webhook. It is explicitly inactive.
-- `scripts/check_n8n_draft_workflow.py`: standard-library structural checks and fixtures for valid, invalid, historical duplicate, duplicate video ID, and duplicate-in-batch inputs.
-- `.github/workflows/check-n8n-draft.yml`: runs only those checks on pushes/PRs affecting these files. It never runs the video pipeline or uploads.
+- `automation/n8n/youtube-draft-intake.json`: importable n8n workflow, explicitly inactive. Manual Trigger → validation/deduplication → review-ready/rejected output. No credentials, external calls, upload node, schedule, or webhook.
+- `scripts/check_n8n_draft_workflow.py`: standard-library structural checks and fixtures for valid, invalid, historical duplicate, duplicate video ID, and duplicate-in-batch inputs. It also guards against a scheduled publishing trigger in the production workflow on this branch.
+- `.github/workflows/check-n8n-draft.yml`: runs only validator tests on matching pushes/PRs. It never runs the video pipeline or uploads.
+- `.github/workflows/daily_run.yml`: on this branch only, the automatic daily schedule has been removed. Manual dispatch remains, with both publishing and private upload defaulting to false. This is a proposed safety change and does not affect `main` until merged.
 
 ## Free-first architecture
-1. **Visual editor:** try Activepieces Cloud's free tier at https://cloud.activepieces.com/ . Check current limits before relying on it. Alternatively import the JSON into a self-hosted n8n instance; n8n Community is free software, but a continuously running host is not included.
-2. **Video rendering:** reuse this repository's existing pipeline through GitHub Actions where available, or Colab for manual GPU sessions. GitHub-hosted runner minutes, GPU access, free AI services, and Colab GPUs are limited/not guaranteed.
+1. **Visual editor:** try Activepieces Cloud at https://cloud.activepieces.com/ and check current free-tier limits. Alternatively import the JSON into self-hosted n8n Community; the software is free, but an always-on host is not included.
+2. **Video rendering:** reuse this repository's existing pipeline through GitHub Actions where available, or Colab for manual GPU sessions. Runner minutes, GPU access, free AI services, and Colab availability are limited/not guaranteed.
 3. **YouTube:** use YouTube Data API OAuth only after separately configuring credentials. Never place tokens in workflow JSON or source code.
-4. **Approval gate:** first create metadata/drafts and QC reports only. Add upload as a separate workflow only after explicit approval; keep videos private until manually reviewed.
+4. **Approval gate:** begin with metadata and QC reports only. Upload/public scheduling remains an explicit manual choice in GitHub Actions and is never enabled by the n8n draft workflow.
 
 ## Import on Android
-1. Open your chosen n8n editor in the browser.
-2. Create a workflow and choose **Import from File** (or paste the JSON through the editor's import option). The file is at `automation/n8n/youtube-draft-intake.json`.
-3. Keep the workflow inactive. The current starter uses Manual Trigger only and does not upload.
-4. Run tests locally only if you have Python; otherwise GitHub Actions can run the validator after the branch files are committed.
+1. Open your n8n editor in the browser.
+2. Import `automation/n8n/youtube-draft-intake.json`.
+3. Keep it inactive. It only validates incoming title/topic metadata; it is a safe starter, not yet a full renderer/uploader.
+4. GitHub Actions can run the validator after branch pushes. Do not merge the branch until you have reviewed its changes.
 
-## Important repository safety note
-The existing `.github/workflows/daily_run.yml` and current `main` configuration are not modified by this starter. The repository README describes an existing daily pipeline that may publicly schedule videos when its publish path and secrets are enabled. This branch does **not** disable or change that pre-existing workflow. Before enabling any new automation, review the current Actions schedules and secrets and decide whether the existing public-publishing schedule should be paused. No new schedule is enabled by these files.
+## Critical note about main
+I inspected `.github/workflows/daily_run.yml` on `main`. It contains a daily cron trigger and its scheduled path calls `python scripts/daily_run.py --publish`, which can publicly schedule a video if required credentials are configured. This branch removes that automatic schedule as a proposed change, but **main remains unchanged until you merge it**. If you want to prevent the existing schedule immediately, the main workflow itself must be disabled or changed in GitHub; I have not changed main or merged this branch.
