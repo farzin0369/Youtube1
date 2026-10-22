@@ -3,12 +3,12 @@
 این پوشه نسخهٔ جداشدهٔ رابط چت Jarvis و عامل OpenRouter را برای مخزن Youtube1 نگه می‌دارد؛ فایل‌های خط تولید ویدیوی موجود دست‌نخورده می‌مانند.
 
 ## راه‌اندازی
-1. در Settings → Secrets and variables → Actions، secret با نام `OPENROUTER_API_KEY` را تعریف کنید.
-2. از Actions، workflow با نام **Jarvis Agent** را اجرا کنید یا رابط `chat.html` را از GitHub Pages منتشر کنید.
-3. برای استفاده از رابط، یک GitHub fine-grained token را فقط در مرورگر خود وارد کنید. مجوزهای لازم: Actions **Read and write**، Checks **Read-only** و Metadata **Read-only**. توکن در مرورگر ذخیره می‌شود؛ هرگز آن را در فایل‌های مخزن قرار ندهید.
+1. مطمئن شوید در Settings → Secrets and variables → Actions secret با نام `OPENROUTER_API_KEY` موجود است؛ مقدار آن نباید در کد یا workflow input وارد شود.
+2. رابط `chat.html` را فقط پس از پیکربندی و تأیید واقعی GitHub Pages منتشر کنید. در زمان این بررسی Pages برای `Youtube1` فعال نبود.
+3. رابط به Fine-grained token محدود به همین مخزن نیاز دارد: Actions **Read and write** و Checks **Read-only**. توکن فقط در `sessionStorage` نشست مرورگر می‌ماند و برای GitHub API ارسال می‌شود؛ هرگز آن را در فایل مخزن نگذارید.
 
 ## نکتهٔ امنیتی
 - کلید OpenRouter فقط در GitHub Actions secret قرار می‌گیرد و به مرورگر فرستاده نمی‌شود.
-- رابط چت از workflow dispatch و Check Run دارای `external_id` دقیقاً برابر شناسهٔ اجرای workflow استفاده می‌کند.
-- مدل‌ها فقط از فهرست رایگان `:free` امتحان می‌شوند؛ دسترسی و سهمیهٔ رایگان تابع شرایط روز OpenRouter است.
-- برای انتشار رابط از پوشهٔ `jarvis` در GitHub Pages استفاده کنید، یا `chat.html` را در مسیر ریشهٔ شاخهٔ انتشار قرار دهید.
+- رابط برای هر dispatch شناسهٔ یکتا می‌فرستد و فقط workflow run و Check Run همان درخواست را می‌خواند.
+- مدل ثابت `minimax/minimax-m3.1-flash:free` انتخاب شده است؛ نبود مدل، quota یا rate limit خطای واقعی می‌دهد و به مدل محلی یا پولی fallback نمی‌شود.
+- پیام‌ها و پاسخ‌ها در Actions و Check Run مخزن عمومی قابل مشاهده‌اند؛ اطلاعات حساس نفرستید.

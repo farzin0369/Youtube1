@@ -1,14 +1,16 @@
 # Jarvis Chat در مخزن Youtube1
 
-این شاخه رابط چت فارسی را به GitHub Actions و مدل‌های رایگان OpenRouter متصل می‌کند. کلید API در کد یا مرورگر قرار نمی‌گیرد.
+این شاخه رابط چت فارسی را به GitHub Actions و یک مدل رایگان OpenRouter متصل می‌کند. کلید OpenRouter فقط در GitHub Actions Secret استفاده می‌شود. Pages مخزن Youtube1 در زمان بررسی فعال نبود؛ بنابراین این رابط هنوز نسخهٔ عمومی مستقرشده‌ای ندارد.
 
 ## راه‌اندازی لازم
-1. در Settings → Secrets and variables → Actions، یک Repository secret با نام دقیق OPENROUTER_API_KEY بسازید. کلید را فقط در فرم امن GitHub وارد کنید.
-2. برای اجرای رابط، GitHub Pages را از این شاخه و پوشه root فعال کنید یا تغییرات را پس از بازبینی با PR ادغام کنید.
-3. رابط برای dispatch و خواندن نتیجه، یک Fine-grained PAT لازم دارد که فقط به مخزن Youtube1 محدود باشد: Actions Read and write و Checks Read-only. توکن را در چت یا کد عمومی ننویسید.
+1. وجود Repository secret با نام دقیق `OPENROUTER_API_KEY` را در Settings → Secrets and variables → Actions بررسی کنید؛ مقدار آن را هیچ‌گاه در کد، workflow input یا پیام وارد نکنید.
+2. پیش از انتشار UI، GitHub Pages را جداگانه برای مسیر/شاخهٔ موردنظر پیکربندی و با deployment موفق بررسی کنید. صفحات ایستا نمی‌توانند Secret سروری را مخفی کنند.
+3. رابط برای dispatch و خواندن پاسخ به Fine-grained PAT محدود به `Youtube1` نیاز دارد: Actions Read and write و Checks Read-only. توکن فقط در `sessionStorage` نشست فعلی مرورگر قرار می‌گیرد و به API گیت‌هاب فرستاده می‌شود؛ کد public حاوی خود توکن نیست.
+4. پیام و پاسخ روی مخزن عمومی در Actions و Check Run قابل مشاهده‌اند؛ اطلاعات حساس نفرستید.
 
 ## محدودیت‌ها
 - فقط با ارسال پیام، workflow دستی اجرا می‌شود؛ هیچ ویدیویی منتشر نمی‌شود.
-- سه مدل رایگان OpenRouter به ترتیب امتحان می‌شوند.
-- اگر secret غایب باشد یا مدل‌ها شکست بخورند، workflow با خطا متوقف می‌شود و پاسخ جعلی/محلی تولید نمی‌شود.
+- مدل ثابت `minimax/minimax-m3.1-flash:free` استفاده می‌شود؛ در صورت نبود دسترسی یا سهمیه، خطا نمایش داده می‌شود و مدل محلی یا پولی جایگزین نمی‌شود.
+- هر پیام شناسهٔ درخواست یکتا دارد؛ UI فقط اجرای دارای همان شناسه و Check Run دارای `external_id` دقیقاً برابر شناسهٔ همان اجرا را می‌پذیرد.
+- اگر Secret غایب باشد یا درخواست شکست بخورد، workflow با خطا متوقف می‌شود و پاسخ جعلی/محلی تولید نمی‌شود.
 - اجرای مدل روی GitHub-hosted CPU است، نه GPU.
