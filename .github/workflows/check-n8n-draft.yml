@@ -1,0 +1,27 @@
+name: Check n8n draft workflow
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "automation/n8n/youtube-draft-intake.json"
+      - "scripts/check_n8n_draft_workflow.py"
+      - ".github/workflows/check-n8n-draft.yml"
+  pull_request:
+    paths:
+      - "automation/n8n/youtube-draft-intake.json"
+      - "scripts/check_n8n_draft_workflow.py"
+      - ".github/workflows/check-n8n-draft.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON structure and test fixtures
+        run: python scripts/check_n8n_draft_workflow.py
