@@ -1,0 +1,69 @@
+name: Jarvis Agent (OpenRouter)
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'پیام شما به جارویس'
+        required: false
+        default: 'سلام جارویس، یک گزارش روزانه کوتاه بده.'
+        type: string
+      history:
+        description: 'سابقه گفتگو برای رابط چت'
+        required: false
+        default: '[]'
+        type: string
+  repository_dispatch:
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: jarvis/requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install -r jarvis/requirements.txt
+      - name: Ask Jarvis
+        id: jarvis
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PROMPT: ${{ inputs.prompt || github.event.client_payload.prompt || 'سلام جارویس، یک گزارش روزانه کوتاه بده.' }}
+          HISTORY: ${{ inputs.history || '[]' }}
+        run: |
+          set -o pipefail
+          python jarvis/main.py | tee response.txt
+          {
+            echo '## پاسخ Jarvis'
+            echo
+            cat response.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish response for chat
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const response = fs.readFileSync('response.txt', 'utf8');
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Jarvis response',
+              head_sha: context.sha,
+              external_id: String(context.runId),
+              status: 'completed',
+              conclusion: 'success',
+              output: {
+                title: 'پاسخ Jarvis',
+                summary: response
+              }
+            });
