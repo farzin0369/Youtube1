@@ -4,8 +4,8 @@
 
 ## راه‌اندازی
 1. مطمئن شوید در Settings → Secrets and variables → Actions secret با نام `OPENROUTER_API_KEY` موجود است؛ مقدار آن نباید در کد یا workflow input وارد شود.
-2. رابط `chat.html` را فقط پس از پیکربندی و تأیید واقعی GitHub Pages منتشر کنید. در زمان این بررسی Pages برای `Youtube1` فعال نبود.
-3. رابط به Fine-grained token محدود به همین مخزن نیاز دارد: Actions **Read and write** و Checks **Read-only**. توکن فقط در `sessionStorage` نشست مرورگر می‌ماند و برای GitHub API ارسال می‌شود؛ هرگز آن را در فایل مخزن نگذارید.
+2. رابط فعال GitHub Pages در `https://farzin0369.github.io/Youtube1/jarvis/chat.html` منتشر شده است؛ source شاخهٔ `feat/jarvis-chat-openrouter-integration` و مسیر `/` است.
+3. رابط به Fine-grained token محدود به همین مخزن نیاز دارد: Actions **Read and write** و Checks **Read-only**. توکن فقط در `sessionStorage` تب فعلی می‌ماند و برای GitHub API ارسال می‌شود؛ آن را در فایل یا مخزن نگذارید. برای استفادهٔ مجدد از Android/Chrome Password Manager و تکمیل خودکار استفاده کنید.
 
 ## نکتهٔ امنیتی
 - کلید OpenRouter فقط در GitHub Actions secret قرار می‌گیرد و به مرورگر فرستاده نمی‌شود.
