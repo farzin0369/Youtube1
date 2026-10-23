@@ -189,20 +189,26 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     provider = "unknown"
     draft = ""
     last_error = ""
-    for attempt in range(2):
+    for attempt in range(3):
         if attempt == 0:
             request_prompt = prompt
             temperature = 0.75
         else:
-            request_prompt = (
-                prompt
-                + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
+            repair_note = (
+                "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
                 + last_error
                 + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
                 + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
                 + draft[:5000]
             )
-            temperature = 0.45
+            if attempt == 1 and "word_count_outside" in last_error:
+                repair_note += (
+                    "\nمهم: تعداد واژه‌های گفتاری خارج از محدوده است. دقیقاً چهار صحنه بده و مجموع spoken_text "
+                    f"صحنه‌ها باید بین {min_words} و {max_words} واژه باشد. هر صحنه را با یک جملهٔ طبیعیِ مرتبط "
+                    "گسترش بده؛ تکرار، شعار و مقدمهٔ اضافی ممنوع. فیلد script باید اتصال دقیق متن چهار صحنه باشد."
+                )
+            request_prompt = prompt + repair_note
+            temperature = 0.35 if attempt == 1 else 0.45
         draft, provider = generate_text(
             SYSTEM_PROMPT, request_prompt, max_tokens=1400, temperature=temperature, json_mode=True,
         )
