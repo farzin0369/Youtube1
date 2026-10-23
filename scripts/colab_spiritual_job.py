@@ -131,6 +131,12 @@ def main() -> int:
     if apt.returncode:
         raise RuntimeError("FFmpeg/font installation failed: " + (apt.stderr or "")[-1200:])
 
+    if shutil.which("ollama") is None:
+        print("[colab-job] Installing the free local Ollama runtime.", flush=True)
+        install_ollama = _run(["bash", "-lc", "curl -fsSL https://ollama.com/install.sh | sh"], timeout=600)
+        if install_ollama.returncode:
+            raise RuntimeError("Ollama installation failed: " + (install_ollama.stderr or "")[-1200:])
+
     ollama_log = open("/content/ollama.log", "w", encoding="utf-8")
     ollama_env = os.environ.copy()
     ollama_env["OLLAMA_NUM_GPU"] = "0"
