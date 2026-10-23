@@ -184,13 +184,12 @@ def _cloudflare_call(
 
 
 def provider_chain() -> list[tuple[str, Callable[..., str]]]:
-    """Ordered provider candidates for the current environment."""
+    """Ordered provider candidates for the current environment.
+
+    Prefer Groq when GROQ_API_KEY is configured; Cloudflare and generic
+    OpenAI-compatible gateways are fallbacks. Credentials are never logged.
+    """
     chain: list[tuple[str, Callable[..., str]]] = []
-    cf_token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
-    cf_account = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
-    if cf_token and cf_account:
-        cf_model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
-        chain.append((f"cloudflare:{cf_model}", _cloudflare_call))
     groq = _groq_config()
     if groq:
         base, key, model = groq
@@ -198,6 +197,11 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"groq:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
+    cf_token = (env("CLOUDFLARE_API_TOKEN") or "").strip()
+    cf_account = (env("CLOUDFLARE_ACCOUNT_ID") or "").strip()
+    if cf_token and cf_account:
+        cf_model = (env("CLOUDFLARE_AI_MODEL") or "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+        chain.append((f"cloudflare:{cf_model}", _cloudflare_call))
     generic = _generic_config()
     if generic:
         base, key, model = generic
@@ -210,7 +214,6 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     if not require_cloud:
         chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
-
 
 def generate_text(
     system: str,
