@@ -111,7 +111,8 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     try:
         history = _load_state(state_path)
         channel_config = load_channel_config()
-        content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
+        content_format = str(os.getenv("PRODUCTION_FORMAT") or (channel_config.get("content") or {}).get("production_format") or "long").lower()
+        content_format = {"short": "shorts"}.get(content_format, content_format)
         if content_format not in {"shorts", "long"}:
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
         content = generate_shorts_content(history) if content_format == "shorts" else generate_content(history)
@@ -145,19 +146,19 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
             stage = "YouTube upload and scheduling"
-            scheduled_at = None if upload_private else next_publish_at()
+            scheduled_at = None  # all uploads remain private; no automatic public scheduling
             cfg = load_channel_config()
             category_id = str((cfg.get("publishing") or {}).get("category_id") or "22")
-            logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
+            logger.info("uploading video mode=private-draft; public publishing is disabled")
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
-                description=description, tags=content["tags"], privacy="private" if upload_private else "public",
+                description=description, tags=content["tags"], privacy="private",
                 thumbnail_path=Path(render["thumbnail_path"]), category_id=category_id,
                 publish_at=scheduled_at,
             )
             if not upload.get("ok"):
                 raise RuntimeError(str(upload.get("error") or "YouTube upload/scheduling failed"))
-            logger.info("YouTube upload complete mode=%s video_id=%s slot=%s", "private-draft" if upload_private else "scheduled-public", upload.get("video_id"), upload.get("scheduled_for"))
+            logger.info("YouTube private draft upload complete video_id=%s", upload.get("video_id"))
             recent = history.get("recent") if isinstance(history.get("recent"), list) else []
             recent.append({
                 "title": content["title"],
