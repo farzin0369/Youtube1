@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -107,11 +108,70 @@ def _write_edge(text: str, out_path: Path) -> dict | None:
         return None
 
 
+
+
+def _write_kitten(text: str, out_path: Path) -> dict:
+    """Optional Kitten-TTS 2 backend for its documented languages (not Persian)."""
+    spoken = " ".join(text.strip().split())
+    if not spoken:
+        raise ValueError("Kitten-TTS received empty text.")
+    # The currently published Kitten-TTS 2 voice list does not include Persian.
+    # Fail clearly instead of generating misleading, poor-quality fa narration.
+    if re.search(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", spoken):
+        raise RuntimeError(
+            "Kitten-TTS 2 currently does not list Persian/Farsi as a supported language. "
+            "Keep TTS_PROVIDER=edge-tts for Persian narration; Kitten is an explicit "
+            "optional backend for supported languages only."
+        )
+
+    try:
+        from kittenml import KittenTTS
+    except ImportError as exc:
+        raise RuntimeError(
+            "TTS_PROVIDER=kitten requires the optional dependencies: "
+            "pip install -r requirements-kitten.txt"
+        ) from exc
+
+    try:
+        import numpy as np
+        import soundfile as sf
+    except ImportError as exc:
+        raise RuntimeError(
+            "Kitten-TTS audio output dependencies are missing; install requirements-kitten.txt."
+        ) from exc
+
+    model_name = (env("KITTEN_TTS_MODEL") or "KittenML/kitten-tts-2").strip()
+    weights = (env("KITTEN_TTS_WEIGHTS") or "emb4").strip()
+    voice = (env("KITTEN_TTS_VOICE") or "Bruno").strip()
+    preset = (env("KITTEN_TTS_PRESET") or "expressive").strip()
+    # KittenTTS detects CPU/GPU itself. The emb4 option cuts the default download
+    # size roughly in half, at a small potential quality cost.
+    model = KittenTTS(model_name, weights=weights)
+    audio = np.asarray(model.generate(spoken[:8000], voice=voice, preset=preset), dtype=np.float32)
+    audio = np.squeeze(audio)
+    if audio.ndim != 1 or audio.size < 1024 or not np.isfinite(audio).all():
+        raise RuntimeError("Kitten-TTS returned invalid or empty audio.")
+    sample_rate = int(getattr(model, "sample_rate", 24000))
+    path = out_path.with_suffix(".wav")
+    sf.write(str(path), audio, sample_rate, subtype="PCM_16")
+    if not path.is_file() or path.stat().st_size < 1024:
+        raise RuntimeError("Kitten-TTS did not create a usable WAV file.")
+    return {
+        "path": str(path), "provider": "kitten-tts-2", "voice": voice,
+        "model": model_name, "sample_rate": sample_rate,
+        "narrator_locked": True, "ok": True,
+    }
+
+
 def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     provider = (env("TTS_PROVIDER") or "auto").lower()
     piper_model = env("PIPER_MODEL")
+
+    if provider in {"kitten", "kitten-tts", "kittenml", "kitten-tts-2"}:
+        # Explicit selection only: do not load/download a large model on ordinary runs.
+        return _write_kitten(text, out_path)
 
     if provider == "piper":
         from app.local_ai import piper_synthesize
