@@ -10,8 +10,8 @@ channel:
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge-tts
-  visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
-  ai_engine: groq-optional-local-ollama
+  visual_style: انیمیشن سینمایی سه‌بعدی تولیدشده با LTX-Video؛ Shorts عمودی ۹:۱۶ با چهار صحنهٔ متناسب با روایت و زیرنویس فارسی خوانا؛ ویدئوی بلند افقی ۱۶:۹
+  ai_engine: local-ollama-only
   llm_model: openai/gpt-oss-20b
   local_llm_model: qwen2.5:7b
 
