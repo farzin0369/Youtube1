@@ -38,13 +38,11 @@ jobs:
       COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
       PRODUCTION_FORMAT: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 * * *' && 'long' || (github.event_name == 'schedule' && 'shorts' || inputs.format) }}
       UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || inputs.upload_private }}
-      GIT_REF: feat/youtube-agent-skill-integration
+      GIT_REF: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
       LOCAL_LLM_MODEL: qwen2.5:7b
       LTX_VIDEO_STEPS: "20"
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feat/youtube-agent-skill-integration
 
       - uses: actions/setup-python@v5
         with:
