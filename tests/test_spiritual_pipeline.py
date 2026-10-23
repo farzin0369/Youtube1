@@ -103,6 +103,30 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     assert content["target_word_count"] == "28-44"
 
 
+
+def test_production_config_targets_long_and_shorts_and_private_only():
+    config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
+    assert config["schedule"]["long_form_utc"] == "0 14 * * *"
+    assert config["schedule"]["shorts_utc"] == "0 17 * * *"
+    assert config["publishing"]["mode"] == "private"
+    assert config["publishing"]["public_publish_enabled"] is False
+
+
+def test_alternate_video_engine_workflows_are_disabled():
+    paths = [
+        ".github/workflows/free_cinematic_short.yml",
+        ".github/workflows/imamali_style_short.yml",
+        ".github/workflows/stock_shorts.yml",
+        ".github/workflows/story_cartoon.yml",
+        ".github/workflows/modern_gpu.yml",
+        ".github/workflows/colab_photoreal.yml",
+        ".github/workflows/mpt-private-video-test.yml",
+    ]
+    for raw_path in paths:
+        workflow = yaml.load(Path(raw_path).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        first_job = next(iter(workflow["jobs"].values()))
+        assert first_job.get("if") == "false", raw_path
+
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
