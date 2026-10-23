@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+import os
 from typing import Any
 
 
@@ -13,11 +14,22 @@ def fetch_recent_video_analytics(*, days: int = 28, max_results: int = 50) -> di
     try:
         from googleapiclient.discovery import build
         from googleapiclient.errors import HttpError
-        from app.youtube_client import _build_credentials, has_youtube_creds
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from app.youtube_client import _build_credentials
 
-        if not has_youtube_creds():
-            return {"ok": False, "reason": "youtube_oauth_not_configured", "videos": []}
-        credentials = _build_credentials()
+        client_id = (os.getenv("YOUTUBE_CLIENT_ID") or "").strip()
+        client_secret = (os.getenv("YOUTUBE_CLIENT_SECRET") or "").strip()
+        analytics_refresh = (os.getenv("YOUTUBE_ANALYTICS_REFRESH_TOKEN") or "").strip()
+        if not client_id or not client_secret or not analytics_refresh:
+            return {"ok": False, "reason": "analytics_refresh_token_not_configured", "videos": []}
+        credentials = Credentials(
+            token=None, refresh_token=analytics_refresh,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id, client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/yt-analytics.readonly"],
+        )
+        credentials.refresh(Request())
         service = build("youtubeAnalytics", "v2", credentials=credentials, cache_discovery=False)
         end_date = date.today() - timedelta(days=2)  # Analytics data can lag by 1–2 days.
         start_date = end_date - timedelta(days=max(7, min(int(days), 90)))
@@ -47,9 +59,12 @@ def fetch_recent_video_analytics(*, days: int = 28, max_results: int = 50) -> di
         video_ids = [str(row.get("video") or "") for row in raw_rows if row.get("video")]
         metadata = {}
         if video_ids:
-            data_api = build("youtube", "v3", credentials=credentials, cache_discovery=False)
-            details = data_api.videos().list(part="snippet", id=",".join(video_ids[:50])).execute()
-            metadata = {str(item.get("id")): item.get("snippet") or {} for item in details.get("items") or []}
+            try:
+                data_api = build("youtube", "v3", credentials=_build_credentials(), cache_discovery=False)
+                details = data_api.videos().list(part="snippet", id=",".join(video_ids[:50])).execute()
+                metadata = {str(item.get("id")): item.get("snippet") or {} for item in details.get("items") or []}
+            except Exception:
+                metadata = {}
         videos = []
         for record in raw_rows:
             video_id = str(record.get("video") or "")
@@ -126,9 +141,9 @@ def fetch_competitor_signals(query: str, *, max_results: int = 5, days: int = 90
     try:
         from datetime import datetime, timezone
         from googleapiclient.discovery import build
-        from app.youtube_client import _build_credentials, has_youtube_creds
+        from app.youtube_client import _build_credentials
 
-        if not has_youtube_creds():
+        if not all((os.getenv(key) or "").strip() for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")):
             return {"ok": False, "reason": "youtube_oauth_not_configured", "query": query, "videos": []}
         service = build("youtube", "v3", credentials=_build_credentials(), cache_discovery=False)
         published_after = (datetime.now(timezone.utc) - timedelta(days=max(7, min(int(days), 180)))).isoformat().replace("+00:00", "Z")
