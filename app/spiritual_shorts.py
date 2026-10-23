@@ -202,10 +202,27 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
                 + draft[:5000]
             )
             if "word_count_outside" in last_error:
+                count_match = re.search(r"word_count_outside_\\d+_\\d+:(\\d+)", last_error)
+                actual_words = int(count_match.group(1)) if count_match else None
+                target_words = (min_words + max_words) // 2
+                if actual_words is not None and actual_words < min_words:
+                    adjustment = (
+                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {target_words - actual_words} واژهٔ معنادار اضافه کن."
+                        " به هر صحنه فقط به‌اندازهٔ لازم جزئیات طبیعی و مرتبط اضافه کن؛ متن را بی‌جهت طولانی نکن."
+                    )
+                elif actual_words is not None and actual_words > max_words:
+                    adjustment = (
+                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {actual_words - target_words} واژه حذف کن."
+                        " جمله‌های تکراری و توضیحات فرعی را کوتاه کن و پیام اصلی هر صحنه را نگه دار."
+                    )
+                else:
+                    adjustment = "متن گفتاری را در محدودهٔ تعیین‌شده نگه دار."
                 repair_note += (
-                    "\nمهم: تعداد واژه‌های گفتاری خارج از محدوده است. دقیقاً چهار صحنه بده و مجموع spoken_text "
-                    f"صحنه‌ها باید بین {min_words} و {max_words} واژه باشد. هر صحنه را با یک جملهٔ طبیعیِ مرتبط "
-                    "گسترش بده؛ تکرار، شعار و مقدمهٔ اضافی ممنوع. فیلد script باید اتصال دقیق متن چهار صحنه باشد."
+                    "\nمهم: اصلاح تعداد واژه‌ها؛ هدف مجموع دقیقاً نزدیک " + str(target_words) + " واژه باشد. "
+                    + adjustment
+                    + f" مجموع چهار spoken_text باید بین {min_words} و {max_words} واژه بماند. "
+                    "دقیقاً چهار صحنه، قلاب پرسشی کوتاه، و script برابر اتصال دقیق spoken_text چهار صحنه باشد. "
+                    "تکرار، شعار و مقدمهٔ اضافی ممنوع."
                 )
             request_prompt = prompt + repair_note
             temperature = 0.35 if attempt == 1 else 0.45
@@ -235,9 +252,9 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
             if attempt == 0:
-                LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
+                LOGGER.warning("short draft failed quality gate on attempt %s/3; corrective rewrite will run (%s)", attempt + 1, last_error[:180])
     if result is None:
-        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
+        raise ValueError("short failed content QA after 3 attempts: " + last_error[:240])
     result["generated_by"] = provider
     LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
     return result
