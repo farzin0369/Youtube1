@@ -14,7 +14,7 @@ from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.youtube_growth_agent import review_package
-from app.youtube_analytics import fetch_recent_video_analytics, performance_notes
+from app.youtube_analytics import (fetch_recent_video_analytics, performance_notes, fetch_competitor_signals, competitor_notes)
 from app.spiritual_tts import synthesize_with_captions
 from app.ltx_spiritual_renderer import render_ltx_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
@@ -113,9 +113,13 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     try:
         history = _load_state(state_path)
         channel_analytics = fetch_recent_video_analytics(days=28, max_results=50)
-        history["performance_notes"] = performance_notes(channel_analytics, history)
+        query_pool = ["حکمت امام علی فارسی", "توکل و آرامش معنوی فارسی", "عادت‌های رشد فردی فارسی", "سواد مالی و رشد فردی فارسی"]
+        recent_count = len(history.get("recent") or []) if isinstance(history.get("recent"), list) else 0
+        competitor_research = fetch_competitor_signals(query_pool[recent_count % len(query_pool)], max_results=5, days=90)
+        history["performance_notes"] = performance_notes(channel_analytics, history) + competitor_notes(competitor_research)
         save_json(out_dir / "analytics.json", channel_analytics)
-        logger.info("channel analytics available=%s videos=%s", channel_analytics.get("ok", False), len(channel_analytics.get("videos") or []))
+        save_json(out_dir / "competitor_research.json", competitor_research)
+        logger.info("channel analytics available=%s videos=%s competitor_search=%s results=%s", channel_analytics.get("ok", False), len(channel_analytics.get("videos") or []), competitor_research.get("ok", False), len(competitor_research.get("videos") or []))
         channel_config = load_channel_config()
         content_format = str(os.getenv("PRODUCTION_FORMAT") or (channel_config.get("content") or {}).get("production_format") or "long").lower()
         content_format = {"short": "shorts"}.get(content_format, content_format)
@@ -197,7 +201,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
-            "render": render, "growth_review": growth_review, "channel_analytics": channel_analytics, "upload": upload, "comments": comments,
+            "render": render, "growth_review": growth_review, "channel_analytics": channel_analytics, "competitor_research": competitor_research, "upload": upload, "comments": comments,
         }
         save_json(out_dir / "result.json", result)
         logger.info("pipeline completed upload_ok=%s comment_replies=%s", upload.get("ok", False), comments.get("replied", 0))
