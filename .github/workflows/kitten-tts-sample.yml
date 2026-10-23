@@ -1,0 +1,49 @@
+name: Kitten-TTS 2 CPU sample
+
+on:
+  pull_request:
+    paths:
+      - "app/tts.py"
+      - "requirements-kitten.txt"
+      - "scripts/kittentts2_sample.py"
+      - "tests/test_kitten_tts.py"
+      - "docs/NATURAL_TTS.md"
+      - ".github/workflows/kitten-tts-sample.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kitten-tts-sample
+  cancel-in-progress: true
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install optional Kitten-TTS dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-kitten.txt
+      - name: Generate supported-language CPU sample
+        run: |
+          mkdir -p output
+          python scripts/kittentts2_sample.py \
+            --output output/kitten_tts2_sample.wav \
+            --voice Bruno \
+            --preset expressive \
+            --weights emb4
+      - name: Upload sample audio
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitten-tts-2-sample
+          path: output/kitten_tts2_sample.wav
+          if-no-files-found: error
+          retention-days: 7
