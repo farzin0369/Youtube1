@@ -202,7 +202,7 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
                 + draft[:5000]
             )
             if "word_count_outside" in last_error:
-                count_match = re.search(r"word_count_outside_\\d+_\\d+:(\\d+)", last_error)
+                count_match = re.search(r"word_count_outside_\d+_\d+:(\d+)", last_error)
                 actual_words = int(count_match.group(1)) if count_match else None
                 target_words = (min_words + max_words) // 2
                 if actual_words is not None and actual_words < min_words:
