@@ -43,14 +43,23 @@ def fetch_recent_video_analytics(*, days: int = 28, max_results: int = 50) -> di
                 maxResults=max(1, min(int(max_results), 200)),
             ).execute()
         headers = [str(item.get("name") or "") for item in response.get("columnHeaders") or []]
+        raw_rows = [dict(zip(headers, row)) for row in response.get("rows") or []]
+        video_ids = [str(row.get("video") or "") for row in raw_rows if row.get("video")]
+        metadata = {}
+        if video_ids:
+            data_api = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+            details = data_api.videos().list(part="snippet", id=",".join(video_ids[:50])).execute()
+            metadata = {str(item.get("id")): item.get("snippet") or {} for item in details.get("items") or []}
         videos = []
-        for row in response.get("rows") or []:
-            record = dict(zip(headers, row))
+        for record in raw_rows:
             video_id = str(record.get("video") or "")
+            snippet = metadata.get(video_id) or ""
             if not video_id:
                 continue
             videos.append({
                 "video_id": video_id,
+                "title": str(snippet.get("title") or "")[:180] if isinstance(snippet, dict) else "",
+                "published_at": str(snippet.get("publishedAt") or "") if isinstance(snippet, dict) else "",
                 "views": int(record.get("views") or 0),
                 "estimated_minutes_watched": float(record.get("estimatedMinutesWatched") or 0),
                 "average_view_duration_seconds": float(record.get("averageViewDuration") or 0),
@@ -96,7 +105,7 @@ def performance_notes(
     winners = []
     for row in rows:
         linked = by_id.get(str(row.get("video_id")))
-        title = str((linked or {}).get("title") or "")
+        title = str((linked or {}).get("title") or row.get("title") or "")
         if int(row.get("views") or 0) < median_views and float(row.get("average_view_percentage") or 0) < median_retention:
             underperformers.append(title or str(row.get("video_id")))
         elif int(row.get("views") or 0) >= median_views and float(row.get("average_view_percentage") or 0) >= median_retention:
