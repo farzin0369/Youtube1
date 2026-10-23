@@ -109,10 +109,11 @@ def render_ltx_video(
         str(content["script"]), str(content["title"]), raw_video,
         kind=kind, seed=110, scene_plan=plan, target_duration_seconds=audio_seconds,
     )
+    safe_hook = " ".join(str(hook_overlay or content.get("scenes", [{}])[0].get("on_screen_text") or "").split()[:5]) if kind == "short" else ""
     if kind == "short":
         _write_shorts_ass(
             captions_path, ass_path,
-            hook=hook_overlay or str(content.get("scenes", [{}])[0].get("on_screen_text") or ""),
+            hook=safe_hook,
             duration=audio_seconds,
         )
         escaped_ass = str(ass_path.resolve()).replace("\\\\", "/")
@@ -173,7 +174,7 @@ def render_ltx_video(
         "caption_font_size": 48 if kind == "short" else 38,
         "caption_animation_profile": "phrase-pop-fade-v1" if kind == "short" else "static-readable",
         "persian_text_shaping": "noto-naskh-unicode-rtl" if kind == "short" else "ffmpeg-libass",
-        "hook_overlay": hook_overlay or (str(content.get("scenes", [{}])[0].get("on_screen_text") or "") if kind == "short" else ""),
+        "hook_overlay": safe_hook,
         "background_music_used": False,
         "music_ducking": False,
         "pexels_credits": [],
