@@ -2,6 +2,9 @@ name: Verify Groq and Persian CPU TTS
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/persian-piper-tts
 
 permissions:
   contents: read
