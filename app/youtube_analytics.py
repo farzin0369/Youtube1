@@ -110,3 +110,71 @@ def performance_notes(
     if winners:
         notes.append("از موضوع/زاویهٔ این ویدئوهای نسبتاً بهتر فقط به‌عنوان سرنخ استفاده کن؛ متن و هوک را کپی نکن: " + "؛ ".join(winners[:5]))
     return notes
+
+
+def fetch_competitor_signals(query: str, *, max_results: int = 5, days: int = 90) -> dict[str, Any]:
+    """Use the free YouTube Data API to find recent public videos; never copy their scripts."""
+    try:
+        from datetime import datetime, timezone
+        from googleapiclient.discovery import build
+        from app.youtube_client import _build_credentials, has_youtube_creds
+
+        if not has_youtube_creds():
+            return {"ok": False, "reason": "youtube_oauth_not_configured", "query": query, "videos": []}
+        service = build("youtube", "v3", credentials=_build_credentials(), cache_discovery=False)
+        published_after = (datetime.now(timezone.utc) - timedelta(days=max(7, min(int(days), 180)))).isoformat().replace("+00:00", "Z")
+        search = service.search().list(
+            part="snippet", q=str(query)[:100], type="video", order="viewCount",
+            publishedAfter=published_after, relevanceLanguage="fa", regionCode="IR",
+            maxResults=max(1, min(int(max_results), 10)),
+        ).execute()
+        items = search.get("items") or []
+        ids = [str(item.get("id", {}).get("videoId") or "") for item in items]
+        ids = [video_id for video_id in ids if video_id]
+        stats = {}
+        if ids:
+            response = service.videos().list(part="statistics", id=",".join(ids[:50])).execute()
+            stats = {str(item.get("id")): item.get("statistics") or {} for item in response.get("items") or []}
+        videos = []
+        for item in items:
+            snippet = item.get("snippet") or {}
+            video_id = str(item.get("id", {}).get("videoId") or "")
+            if not video_id:
+                continue
+            metrics = stats.get(video_id) or {}
+            videos.append({
+                "video_id": video_id,
+                "title": str(snippet.get("title") or "")[:180],
+                "channel_title": str(snippet.get("channelTitle") or "")[:100],
+                "published_at": str(snippet.get("publishedAt") or ""),
+                "view_count": int(metrics.get("viewCount") or 0),
+                "like_count": int(metrics.get("likeCount") or 0),
+                "comment_count": int(metrics.get("commentCount") or 0),
+                "url": "https://www.youtube.com/watch?v=" + video_id,
+            })
+        return {
+            "ok": True, "query": str(query), "published_after": published_after,
+            "videos": videos, "source": "YouTube Data API public search",
+        }
+    except Exception as exc:
+        return {
+            "ok": False, "reason": "competitor_search_unavailable",
+            "error_type": type(exc).__name__, "query": str(query), "videos": [],
+        }
+
+
+def competitor_notes(signals: dict[str, Any]) -> list[str]:
+    """Summarize only retrieved competitor facts and forbid copying."""
+    if not signals.get("ok"):
+        return ["جست‌وجوی عمومی رقبا در این اجرا در دسترس نبود؛ عنوان یا آمار رقیب را نساز."]
+    videos = signals.get("videos") or []
+    if not videos:
+        return ["برای عبارت جست‌وجوی انتخاب‌شده نتیجهٔ قابل‌استفاده‌ای برنگشت؛ دربارهٔ رقبا نتیجه‌گیری نکن."]
+    notes = [f"جست‌وجوی عمومی YouTube برای «{signals.get('query', '')}» نمونه‌های زیر را برگرداند؛ فقط برای کشف زاویهٔ تازه استفاده کن و متن/عنوان را کپی نکن."]
+    for video in videos[:5]:
+        notes.append(
+            f"عنوان عمومی: «{video.get('title', '')}»؛ کانال: {video.get('channel_title', '')}؛ "
+            f"بازدید ثبت‌شده: {int(video.get('view_count') or 0)}؛ تاریخ انتشار: {video.get('published_at') or 'نامشخص'}؛ "
+            f"پیوند: {video.get('url', '')}"
+        )
+    return notes
