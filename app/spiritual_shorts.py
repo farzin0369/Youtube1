@@ -23,7 +23,7 @@ SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌
 
 USER_TEMPLATE = """برای کانال ImamAli110 یک Short فارسی بساز. هدف خوانش {target_duration_seconds} ثانیه و حدود {min_words} تا {max_words} واژهٔ گفتاری است؛ کم‌گویی را با تکرار و شعار جبران نکن.
 روایت دقیقاً چهار صحنه داشته باشد: ۱) hook کنجکاوی‌برانگیز و مشخص، ۲) همدلی/آرام‌شدن، ۳) یک اقدام کوچک برای همین امروز، ۴) پایان امیدوارکننده و انگیزشی. حالت احساسی هر صحنه به‌ترتیب hook، calm، reassuring، motivational باشد. جمله‌ها با علائم نگارشی طبیعی مکث بسازند.
-برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک جست‌وجوی کوتاه و مشخصِ انگلیسی برای فیلم عمودیِ واقعیِ مرتبط با همان جمله باشد: حداقل دو واژهٔ تصویریِ دقیق و مشخص (مثل "woman writing journal"؛ نه کلمهٔ تنها، استعارهٔ نامربوط یا عبارت کلی)؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
+برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک راهنمای تصویریِ مشخص به انگلیسی برای صحنهٔ سه‌بعدی سینمایی LTX باشد (مثل "hands planting a seed at sunrise")؛ با معنای همان جمله مرتبط باشد و از متن/لوگو/واترمارک پرهیز کند؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
 عنوان روشن، دقیق و بدون کلیک‌بیت باشد؛ توضیح کوتاه و ۳ تا ۶ برچسب مرتبط بده. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
 سیاست محتوا: {policy}
 خروجی فقط این قالب را داشته باشد:
@@ -179,6 +179,7 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     prompt = USER_TEMPLATE.format(
         recent="؛ ".join(topics)[:1200] or "هنوز موضوع قبلی ثبت نشده است",
         policy=json.dumps(policy, ensure_ascii=False),
+        performance_feedback="؛ ".join(str(note) for note in (history.get("performance_notes") or []) if str(note).strip()) or "آمار واقعی در دسترس نیست؛ از نتیجه‌گیری دربارهٔ بازدید خودداری کن",
         target_duration_seconds=duration_target,
         min_words=min_words,
         max_words=max_words,
