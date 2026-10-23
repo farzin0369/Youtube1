@@ -14,7 +14,7 @@ from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
-from app.spiritual_video import render_video
+from app.ltx_spiritual_renderer import render_ltx_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 
@@ -129,27 +129,13 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         logger.info("TTS ready voice=%s duration_seconds=%.2f caption_count=%s", tts["voice"], tts["duration_seconds"], tts["caption_count"])
 
         stage = "video render and QA"
-        preview_stills: list[Path] = []
-        preview_stills_dir = os.getenv("SHORTS_PREVIEW_STILLS_DIR", "").strip()
-        if dry_run and content_format == "shorts" and preview_stills_dir:
-            preview_stills = sorted(
-                path for path in Path(preview_stills_dir).glob("*")
-                if path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
-            )
-            if len(preview_stills) != 4:
-                raise RuntimeError("dry-run preview requires exactly four scene-matched still images")
-            logger.info("using four explicitly supplied preview stills; this test path cannot upload")
-        render = render_video(
-            title=content["title"], thumbnail_text=content["thumbnail_text"],
-            keywords=content["visual_keywords"], audio_path=audio_path,
-            captions_path=captions_path, out_dir=out_dir, run_id=run_id,
-            video_format=content_format,
-            scene_queries=[scene["visual_query"] for scene in content.get("scenes", [])] if content_format == "shorts" else None,
-            scene_timings=tts.get("scene_timings") if content_format == "shorts" else None,
+        stage = "LTX-Video render and QA"
+        render = render_ltx_video(
+            content=content, audio_path=audio_path, captions_path=captions_path,
+            out_dir=out_dir, run_id=run_id, video_format=content_format,
+            scene_timings=tts.get("scene_timings"),
             hook_overlay=content["scenes"][0]["on_screen_text"] if content_format == "shorts" else "",
-            scene_stills=preview_stills,
         )
-        render["test_visuals_only"] = bool(preview_stills and dry_run)
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
         media_quality = validate_render_package(render, audio_path, video_format=content_format)
         if not media_quality.get("ok"):
