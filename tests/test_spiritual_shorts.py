@@ -142,3 +142,19 @@ def test_invalid_model_draft_gets_one_corrective_rewrite(short_package, monkeypa
     assert result["format"] == "shorts"
     assert len(calls) == 2
     assert "اصلاح اجباری" in calls[1]
+
+
+
+def test_generator_rebuilds_redundant_script_from_four_scene_narration(short_package, monkeypatch):
+    calls = []
+
+    def fake_generate_text(system, prompt, **kwargs):
+        calls.append(prompt)
+        draft = copy.deepcopy(short_package)
+        draft["script"] = "متن متفاوتی که مدل اشتباهاً در فیلد تکراری نوشت."
+        return json.dumps(draft, ensure_ascii=False), "test-provider"
+
+    monkeypatch.setattr(spiritual_shorts, "generate_text", fake_generate_text)
+    result = spiritual_shorts.generate_shorts_content({"recent": []})
+    assert len(calls) == 1
+    assert result["script"] == " ".join(scene["spoken_text"] for scene in result["scenes"])
