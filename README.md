@@ -14,7 +14,13 @@
 - تعامل کانال: پاسخ محدود به نظرهای بی‌خطر و روشن پس از آپلود؛ موارد حساس برای پاسخ خودکار کنار گذاشته می‌شوند.
 - انتشار: مسیر اصلی **فقط Private** است. انتشار عمومی غیرفعال است.
 
-## اجرای GPU
+## اجرای GPU و زمان‌بندی
+
+`.github/workflows/daily_run.yml` هر روز ساعت 14:00 UTC مسیر Long و ساعت 17:00 UTC مسیر Shorts را از طریق Google Colab CLI و یک نشست تازهٔ T4 اجرا می‌کند. workflow خروجی MP4، گزارش QA و تاریخچهٔ کانال را به‌عنوان artifact برمی‌گرداند و فقط همان نشست Colab را می‌بندد. زمان‌بندی در صورت نبود GPU/سهمیهٔ Colab یا Secret لازم تضمین نمی‌شود.
+
+برای این مسیر، در GitHub → Settings → Secrets and variables → Actions باید `COLAB_CLI_TOKEN_JSON` تنظیم شده باشد. برای آپلود خصوصی زمان‌بندی‌شده، این سه Secret نیز لازم‌اند: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`. اگر Colab T4 در دسترس نباشد، job fail-closed می‌شود و هیچ موتور جایگزین یا انتشار عمومی انجام نمی‌شود.
+
+
 
 LTX-Video به GPU CUDA سازگار و VRAM کافی نیاز دارد. GitHub-hosted `ubuntu-latest` در این مخزن GPU ندارد و نشست رایگان Colab را نمی‌توان از GitHub به‌شکل قابل‌اعتماد هر روز بیدار کرد. به همین علت workflow زمان‌بندی‌شدهٔ CPU غیرفعال است؛ این کار از جایگزین‌شدن ناخواستهٔ LTX با stock footage و انتشار خروجی ناقص جلوگیری می‌کند.
 
