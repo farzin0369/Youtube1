@@ -1,0 +1,78 @@
+name: Verify Groq and Persian CPU TTS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
+      LLM_REQUIRE_CLOUD: "true"
+      LLM_TIMEOUT_SECONDS: "90"
+      TTS_PROVIDER: persian-piper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Validate Groq secret is available (never print its value)
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "::error::GROQ_API_KEY is not available to this workflow. Check repository Actions secrets and workflow branch."
+            exit 1
+          fi
+          echo "GROQ_API_KEY is present."
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run regression tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -q
+      - name: Test Groq text generation and Persian TTS sample
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          mkdir -p output/tts-smoke
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from app.llm_provider import generate_text
+          from app.tts import synthesize
+
+          if not os.environ.get("GROQ_API_KEY", "").strip():
+              raise SystemExit("GROQ_API_KEY missing")
+          text, provider = generate_text(
+              "You are a concise Persian narrator. Return only one natural Persian sentence.",
+              "یک جمله کوتاه فارسی درباره امید بنویس.",
+              max_tokens=120,
+              temperature=0.4,
+              timeout=90,
+          )
+          if not text.strip():
+              raise SystemExit("Groq returned empty text")
+          print(f"Groq completion passed; provider selected: {provider}")
+          print(f"Persian text length: {len(text)} characters")
+          sample = "گاهی یک قدم کوچک، آغاز تغییری بزرگ در زندگی است."
+          result = synthesize(sample, Path("output/tts-smoke/persian-tts-sample.wav"))
+          audio_path = Path(result["path"])
+          if not audio_path.exists() or audio_path.stat().st_size < 1024:
+              raise SystemExit("Persian TTS failed to produce a valid audio file")
+          print(f"TTS passed; provider: {result.get('provider')}; file size: {audio_path.stat().st_size} bytes")
+          PY
+      - name: Upload Persian sample audio and test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: groq-persian-tts-smoke-${{ github.run_id }}
+          path: output/tts-smoke/
+          if-no-files-found: warn
+          retention-days: 7
