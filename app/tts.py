@@ -1,4 +1,4 @@
-"""Persian narration: Persian Piper -> ElevenLabs -> Azure Speech -> Edge TTS -> local Piper."""
+"""Persian narration: Edge male Farid (natural) -> ElevenLabs -> Azure -> Mana Piper offline."""
 from __future__ import annotations
 
 import html
@@ -18,6 +18,14 @@ def _voice_settings() -> tuple[str, str]:
         return str(voice), str(model)
     except Exception:
         return "fa-IR-FaridNeural", "neural"
+
+
+def _edge_prosody() -> tuple[str, str, str]:
+    """Warm, calm male narration: slightly slower and lower than default neural."""
+    rate = (env("TTS_RATE") or "-7%").strip() or "-7%"
+    pitch = (env("TTS_PITCH") or "-2Hz").strip() or "-2Hz"
+    volume = (env("TTS_VOLUME") or "+0%").strip() or "+0%"
+    return rate, pitch, volume
 
 
 def _write_elevenlabs(text: str, out_path: Path) -> dict | None:
@@ -43,9 +51,14 @@ def _write_elevenlabs(text: str, out_path: Path) -> dict | None:
             raise RuntimeError("ElevenLabs returned an empty audio file")
         path = out_path.with_suffix(".mp3")
         path.write_bytes(audio)
-        return {"path": str(path), "provider": "elevenlabs", "voice": voice_id,
-                "model": env("ELEVENLABS_MODEL_ID") or "eleven_multilingual_v2",
-                "narrator_locked": True, "ok": True}
+        return {
+            "path": str(path),
+            "provider": "elevenlabs",
+            "voice": voice_id,
+            "model": env("ELEVENLABS_MODEL_ID") or "eleven_multilingual_v2",
+            "narrator_locked": True,
+            "ok": True,
+        }
     except Exception as exc:
         print(f"[tts] ElevenLabs unavailable ({type(exc).__name__}: {exc}); trying fallback.")
         return None
@@ -81,15 +94,21 @@ def _write_azure(text: str, out_path: Path) -> dict | None:
             raise RuntimeError("Azure Speech returned an empty audio file")
         path = out_path.with_suffix(".mp3")
         path.write_bytes(audio)
-        return {"path": str(path), "provider": "azure-speech", "voice": voice,
-                "model": "neural", "narrator_locked": True, "ok": True}
+        return {
+            "path": str(path),
+            "provider": "azure-speech",
+            "voice": voice,
+            "model": "neural",
+            "narrator_locked": True,
+            "ok": True,
+        }
     except Exception as exc:
         print(f"[tts] Azure Speech unavailable ({type(exc).__name__}: {exc}); trying fallback.")
         return None
 
 
 def _write_persian_speech(text: str, out_path: Path) -> dict | None:
-    """Offline Persian Piper/ONNX voice (Mana); CPU inference, no API key."""
+    """Offline Persian Piper/ONNX (Mana). Note: ManaTTS speaker is female."""
     try:
         from persian_speech_runtime import talk
 
@@ -103,6 +122,7 @@ def _write_persian_speech(text: str, out_path: Path) -> dict | None:
             "provider": "persian-speech-piper",
             "voice": "fa-IR-Mana",
             "model": "Mana-Persian-Piper",
+            "gender": "female",
             "narrator_locked": True,
             "ok": True,
         }
@@ -115,17 +135,27 @@ def _write_persian_speech(text: str, out_path: Path) -> dict | None:
 
 
 def _write_edge(text: str, out_path: Path) -> dict | None:
+    """Male neural Persian (Farid) with calm narration prosody. Free, no API key."""
     voice = env("TTS_VOICE") or "fa-IR-FaridNeural"
+    rate, pitch, volume = _edge_prosody()
     try:
         import asyncio
 
         import edge_tts
 
+        # Keep punctuation; only collapse excessive whitespace so pauses stay natural.
         spoken = " ".join(text.strip().split())
         mp3_path = out_path.with_suffix(".mp3")
 
         async def _save_edge():
-            await edge_tts.Communicate(spoken[:8000], voice=voice, rate="-5%").save(str(mp3_path))
+            communicate = edge_tts.Communicate(
+                spoken[:8000],
+                voice=voice,
+                rate=rate,
+                pitch=pitch,
+                volume=volume,
+            )
+            await communicate.save(str(mp3_path))
 
         asyncio.run(_save_edge())
         if not mp3_path.exists() or mp3_path.stat().st_size < 1024:
@@ -135,6 +165,10 @@ def _write_edge(text: str, out_path: Path) -> dict | None:
             "provider": "edge-tts",
             "voice": voice,
             "model": "neural",
+            "gender": "male",
+            "rate": rate,
+            "pitch": pitch,
+            "volume": volume,
             "narrator_locked": True,
             "ok": True,
         }
@@ -150,12 +184,23 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
     piper_model = env("PIPER_MODEL")
     allow_fallback = env("TTS_ALLOW_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
 
+    # Channel default narrator is male (Farid). Prefer Edge male for natural speech.
+    if provider in {"edge", "farid", "male"}:
+        result = _write_edge(text, out_path)
+        if result:
+            return result
+        if allow_fallback:
+            result = _write_persian_speech(text, out_path)
+            if result:
+                return result
+        raise RuntimeError("Edge male Farid TTS failed and no fallback succeeded.")
+
     if provider in {"persian-piper", "persian_speech", "mana"}:
         result = _write_persian_speech(text, out_path)
         if result:
             return result
         if allow_fallback:
-            print("[tts] Explicit Persian Piper failed; falling back to Edge TTS (free Persian).")
+            print("[tts] Explicit Persian Piper failed; falling back to Edge male Farid.")
             result = _write_edge(text, out_path)
             if result:
                 return result
@@ -169,9 +214,9 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
 
         return piper_synthesize(text, out_path)
 
-    # Priority chain for auto / named providers
-    if provider in {"auto", "persian-piper", "persian_speech", "mana"}:
-        result = _write_persian_speech(text, out_path)
+    # auto: male Edge Farid first (matches channel narrator), then paid, then offline Mana
+    if provider in {"auto", "edge", "farid", "male"}:
+        result = _write_edge(text, out_path)
         if result:
             return result
     if provider in {"auto", "elevenlabs"}:
@@ -182,8 +227,8 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
         result = _write_azure(text, out_path)
         if result:
             return result
-    if provider in {"auto", "edge", "elevenlabs", "azure", "azure-speech", "persian-piper", "persian_speech", "mana"}:
-        result = _write_edge(text, out_path)
+    if provider in {"auto", "persian-piper", "persian_speech", "mana"}:
+        result = _write_persian_speech(text, out_path)
         if result:
             return result
 
@@ -225,6 +270,6 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
                 print(f"[tts] Optional OpenAI TTS unavailable ({type(exc).__name__}: {exc}).")
 
     raise RuntimeError(
-        "No usable TTS provider. Configure Persian Piper (persian-speech), "
-        "ElevenLabs, Azure Speech, Edge TTS, or PIPER_MODEL."
+        "No usable TTS provider. Configure Edge TTS (fa-IR-FaridNeural), "
+        "ElevenLabs, Azure Speech, Persian Piper, or PIPER_MODEL."
     )

@@ -18,9 +18,13 @@ jobs:
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
       LLM_REQUIRE_CLOUD: "false"
       LLM_TIMEOUT_SECONDS: "90"
-      TTS_PROVIDER: persian-piper
-      TTS_ALLOW_FALLBACK: "1"
+      # Male neural Persian narrator (channel default)
+      TTS_PROVIDER: edge
       TTS_VOICE: fa-IR-FaridNeural
+      TTS_RATE: "-7%"
+      TTS_PITCH: "-2Hz"
+      TTS_VOLUME: "+0%"
+      TTS_ALLOW_FALLBACK: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -73,7 +77,7 @@ jobs:
           PY
           echo "skipped=false" >> "$GITHUB_OUTPUT"
 
-      - name: Persian TTS sample from real project text
+      - name: Male Farid natural Persian TTS sample
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
@@ -86,14 +90,14 @@ jobs:
 
           from app.tts import synthesize
 
-          # Real spiritual / motivational narration style (~120 words), not synthetic test filler.
+          # Real spiritual narration; punctuation keeps natural pauses for Farid.
           SAMPLE = (
-              "گاهی زندگی مثل جاده‌ای تاریک به نظر می‌رسد و قدم برداشتن سخت می‌شود. "
+              "گاهی زندگی مثل جاده‌ای تاریک به نظر می‌رسد، و قدم برداشتن سخت می‌شود. "
               "اما همان لحظه‌ای که تصمیم می‌گیری یک قدم کوچک برداری، نور کوچکی در دلت روشن می‌شود. "
               "توکل یعنی این‌که با وجود ابهام، به مسیر ادامه بدهی و امید را رها نکنی. "
               "هر روز یک عادت آرام بساز: چند دقیقه سکوت، یک نفس عمیق، و یادآوری این‌که ارزش تو به نتیجهٔ فوری وابسته نیست. "
               "اگر امروز فقط یک کار کوچک برای رشد خودت انجام دادی، همان کافی است. "
-              "فردا دوباره شروع کن؛ مسیر طولانی از همین قدم‌های کوتاه ساخته می‌شود."
+              "فردا دوباره شروع کن. مسیر طولانی، از همین قدم‌های کوتاه ساخته می‌شود."
           )
 
           out_dir = Path("output/tts-smoke")
@@ -102,7 +106,7 @@ jobs:
           script_path.write_text(SAMPLE, encoding="utf-8")
 
           report_lines = []
-          report_lines.append("Persian TTS smoke report")
+          report_lines.append("Persian TTS smoke report (male natural Farid)")
           report_lines.append(f"script_chars={len(SAMPLE)}")
           report_lines.append(f"script_words≈{len(SAMPLE.split())}")
 
@@ -119,6 +123,9 @@ jobs:
           report_lines.append(f"provider={result.get('provider')}")
           report_lines.append(f"voice={result.get('voice')}")
           report_lines.append(f"model={result.get('model')}")
+          report_lines.append(f"gender={result.get('gender', 'n/a')}")
+          report_lines.append(f"rate={result.get('rate', 'n/a')}")
+          report_lines.append(f"pitch={result.get('pitch', 'n/a')}")
           report_lines.append(f"audio_path={audio_path}")
           report_lines.append(f"audio_bytes={size}")
 
@@ -128,7 +135,6 @@ jobs:
               print("\n".join(report_lines))
               sys.exit(1)
 
-          # Prefer stable names in the artifact
           preferred = out_dir / ("persian-tts-sample" + audio_path.suffix)
           if audio_path.resolve() != preferred.resolve():
               preferred.write_bytes(audio_path.read_bytes())
@@ -136,8 +142,6 @@ jobs:
               report_lines.append(f"normalized_path={audio_path}")
 
           duration = 0.0
-          sample_rate = ""
-          channels = ""
           try:
               probe = subprocess.run(
                   [
@@ -155,13 +159,10 @@ jobs:
               duration = float((meta.get("format") or {}).get("duration") or 0)
               streams = meta.get("streams") or []
               if streams:
-                  sample_rate = str(streams[0].get("sample_rate") or "")
-                  channels = str(streams[0].get("channels") or "")
-                  codec = str(streams[0].get("codec_name") or "")
-                  report_lines.append(f"codec={codec}")
+                  report_lines.append(f"codec={streams[0].get('codec_name')}")
+                  report_lines.append(f"sample_rate={streams[0].get('sample_rate')}")
+                  report_lines.append(f"channels={streams[0].get('channels')}")
               report_lines.append(f"duration_seconds={duration:.3f}")
-              report_lines.append(f"sample_rate={sample_rate}")
-              report_lines.append(f"channels={channels}")
           except Exception as exc:
               report_lines.append(f"ffprobe_error={type(exc).__name__}: {exc}")
 
