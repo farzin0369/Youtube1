@@ -212,6 +212,18 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             except json.JSONDecodeError:
                 cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", draft.strip(), flags=re.I)
                 item = json.loads(cleaned)
+            # The four scene utterances are the canonical narration. Small local models
+            # often paraphrase or omit punctuation in the redundant "script" field;
+            # rebuild that field from the scenes before QA so narration, captions and
+            # visuals share one exact source of truth. The validator still checks all
+            # scene content, word count, hook, pacing and emotional-arc gates.
+            if isinstance(item, dict) and isinstance(item.get("scenes"), list) and len(item["scenes"]) == 4:
+                scene_lines = [
+                    re.sub(r"\\s+", " ", str(scene.get("spoken_text") or "")).strip()
+                    for scene in item["scenes"] if isinstance(scene, dict)
+                ]
+                if len(scene_lines) == 4 and all(scene_lines):
+                    item["script"] = " ".join(scene_lines)
             result = validate_short_content(item, titles, min_words=min_words, max_words=max_words)
             break
         except (ValueError, TypeError) as exc:
