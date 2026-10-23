@@ -1,18 +1,39 @@
-# ادغام YouTube Agent Skill در مخزن ImamAli110
+# ادغام مهارت‌های YouTube Agent با کانال ImamAli110
 
-## وضعیت فعلی این شاخه
-نسخهٔ کامل ۱۱ دستور/مهارت بالادستی به همراه شش ابزار Python و فایل مجوز MIT در `.claude/skills/yt-*/` قرار گرفته است. فهرست و مثال اجرا: [`.claude/skills/README.md`](../.claude/skills/README.md). بررسی موتور موجود: [`docs/YOUTUBE_ENGINE_AUDIT.md`](YOUTUBE_ENGINE_AUDIT.md).
+## وضعیت شاخه
 
-## یازده مهارت
-`yt-script`, `yt-package`, `yt-edit`, `yt-comment`, `yt-plan`, `yt-viral`, `yt-retention`, `yt-shorts`, `yt-seo`, `yt-chapters`, `yt-audit`.
+تمام ۱۱ دستور/مهارت بالادستی، شش ابزار Python و مجوز MIT در `.claude/skills/yt-*/` قرار دارند. فهرست مهارت‌ها در [README مهارت‌ها](../.claude/skills/README.md) است.
 
-این‌ها برای تولید/بازبینی متن، بسته‌بندی عنوان و کاور، تدوین مبتنی بر transcript، دسته‌بندی کامنت و پیش‌نویس پاسخ، برنامه‌ریزی، بررسی ویدئوهای عمومی رقبا، تحلیل retention، پیشنهاد Shorts، SEO، فصل‌بندی و ممیزی کانال هستند.
+## مسیر تولید اصلی
 
-## موتور ساخت ویدئوی فعلی
-مسیر زمان‌بندی روزانه `daily_run.yml → scripts/daily_run.py → app/spiritual_pipeline.py` است. این مسیر در حال حاضر از Pexels footage عمودی، Edge TTS پیش‌فرض، FFmpeg، زیرنویس و QA استفاده می‌کند؛ CogVideoX در این workflow روزانه اجرا نمی‌شود. موتور CogVideoX جداگانه در `app/local_video_engine.py` قرار دارد و از مسیر قدیمی‌تر `app/pipeline.py` با انتخاب صریح `VIDEO_ENGINE=cogvideox` قابل انتخاب است. جزئیات، محدودیت‌ها و پیش‌نیازها در گزارش معماری آمده‌اند.
+`scripts/daily_run.py → app/spiritual_pipeline.py → app/ltx_spiritual_renderer.py → app/ltx_video_engine.py`
 
-## مرز مهم
-این تغییرها تمام ۱۱ مهارت را به مخزن اضافه می‌کند، اما به‌تنهایی باعث اجرای خودکار مهارت‌ها در GitHub Actions نمی‌شود؛ Actions فایل‌های `SKILL.md` را اجرا نمی‌کند و عامل Claude Code نیز در workflow فعلی نصب/فراخوانی نشده است. مهارت‌ها هم خودشان MP4 نمی‌سازند یا ویدئو منتشر نمی‌کنند. برای اتصال خودکار، باید بعداً قابلیت‌های مشخص را با تست به pipeline متصل کرد و quality gateها و OAuth موجود را حفظ کرد.
+- LTX-Video تنها موتور تولید صحنهٔ ویدئو در مسیر اصلی است؛ fallback به Pexels، تصویر ثابت یا CogVideoX وجود ندارد.
+- متن و گویندگی فارسی، زیرنویس، کاور، نسبت تصویر، QA و checkpoint صحنه‌ها حفظ شده‌اند.
+- `app/youtube_growth_agent.py` یک بازبینی رایگان پیش از آپلود انجام می‌دهد و نتیجه را در `growth_review.json` ذخیره می‌کند.
+- بارگذاری مسیر اصلی فقط `private` است. انتشار عمومی غیرفعال است.
+- تست‌های جدید در `tests/test_ltx_video_engine.py` و `tests/test_youtube_growth_agent.py` بدون نیاز به GPU قواعد برنامه‌ریزی صحنه و گیت کیفیت را بررسی می‌کنند.
 
-## آزمون
-`tests/test_youtube_agent_skills.py` وجود هر ۱۱ مهارت، قابل‌کامپایل بودن شش ابزار Python و معتبر بودن `hooks.json` را بررسی می‌کند. این فایل به مجموعه آزمون موجود افزوده شده است، اما تا زمانی که CI اجرا نشده، نتیجهٔ سبز اعلام نمی‌شود.
+## وضعیت یازده قابلیت
+
+| مهارت | اتصال فعلی |
+|---|---|
+| `yt-script` | تولید متن فارسی، کنترل هوک، تکرار و سیاست محتوا |
+| `yt-package` | عنوان، کاور، توضیحات و تگ‌ها |
+| `yt-edit` | تدوین FFmpeg و زیرنویس؛ ابزار dead-air مستقل نیز موجود است |
+| `yt-comment` | پاسخ محدود و امن به نظرهای تازه |
+| `yt-plan` | تاریخچهٔ موضوع و جلوگیری از تکرار |
+| `yt-viral` | بازبینی هوک/بسته‌بندی؛ تحلیل رقبا زنده هنوز نیازمند دادهٔ تازه است |
+| `yt-retention` | گیت ساختار/هوک؛ تحلیل واقعی retention نیازمند export از YouTube Analytics است |
+| `yt-shorts` | تولید Short چهارصحنه‌ای با روایت دقیق |
+| `yt-seo` | بررسی عنوان، توضیحات و تگ‌ها |
+| `yt-chapters` | فصل‌بندی ویدئوی بلند در توضیحات |
+| `yt-audit` | گزارش QA، رشد و نتیجهٔ هر اجرا |
+
+فایل‌های `SKILL.md` به‌تنهایی توسط GitHub Actions اجرا نمی‌شوند. قابلیت‌هایی که به دادهٔ خارجی مانند نمودار retention یا ویدئوهای رقیب نیاز دارند، تا زمان اتصال دادهٔ مربوطه صرفاً بازبینی مقدماتی‌اند؛ هیچ امتیازی تضمین‌کنندهٔ وایرال‌شدن نیست.
+
+## GPU، زمان‌بندی و اجرا
+
+زمان‌های هدف در `config/channel.yaml` ثبت شده‌اند: ویدئوی بلند ۱۴:۰۰ UTC و Shorts ساعت ۱۷:۰۰ UTC. GitHub-hosted runner در این مخزن GPU ندارد و نشست رایگان Colab از راه GitHub قابل بیدارکردنِ قابل‌اعتماد نیست. بنابراین workflow زمان‌بندی‌شدهٔ CPU غیرفعال است تا مسیر stock جایگزین موتور LTX نشود و انتشار اشتباهی رخ ندهد.
+
+دفترچهٔ اجرای GPU: [Colab ImamAli110](../colab/ImamAli110_Cinematic_Production.ipynb). پیش‌فرض notebook، dry-run است؛ بارگذاری خصوصی تنها با تغییر صریح `UPLOAD_PRIVATE = True` انجام می‌شود. تا قبل از CI سبز و رندر واقعی Colab، عملکرد واقعی مدل/VRAM تأییدشده محسوب نمی‌شود.
