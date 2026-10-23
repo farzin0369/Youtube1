@@ -86,11 +86,13 @@ def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
     assert next_publish_at(late) == "2026-10-12T14:30:00Z"
 
 
-def test_cpu_workflow_does_not_schedule_gpu_production():
+def test_ltx_daily_workflow_schedules_long_and_shorts_through_colab():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert "schedule" not in workflow["on"]
-    assert "workflow_dispatch" in workflow["on"]
-    assert "No render or upload was attempted" in "\\n".join(step.get("run", "") for step in workflow["jobs"]["validate"]["steps"])
+    assert [entry["cron"] for entry in workflow["on"]["schedule"]] == ["0 14 * * *", "0 17 * * *"]
+    assert "COLAB_CLI_TOKEN_JSON" in workflow["jobs"]["produce"]["env"]
+    remote_steps = "\\n".join(step.get("run", "") for step in workflow["jobs"]["produce"]["steps"])
+    assert "scripts/colab_spiritual_job.py" in remote_steps
+    assert "No alternate engine was used" in remote_steps
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
