@@ -13,6 +13,7 @@ from typing import Any
 from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
+from app.youtube_growth_agent import review_package
 from app.spiritual_tts import synthesize_with_captions
 from app.ltx_spiritual_renderer import render_ltx_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
@@ -142,6 +143,11 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
+        growth_review = review_package(content, render, media_quality, history)
+        save_json(out_dir / "growth_review.json", growth_review)
+        logger.info("growth review hook=%s/5 seo=%s/5 warnings=%s", growth_review["hook_score"], growth_review["seo_pack_score"], len(growth_review["warnings"]))
+        if not growth_review["publish_allowed"]:
+            raise RuntimeError("growth review blocked upload: " + ", ".join(growth_review["blockers"]))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -186,7 +192,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
-            "render": render, "upload": upload, "comments": comments,
+            "render": render, "growth_review": growth_review, "upload": upload, "comments": comments,
         }
         save_json(out_dir / "result.json", result)
         logger.info("pipeline completed upload_ok=%s comment_replies=%s", upload.get("ok", False), comments.get("replied", 0))
