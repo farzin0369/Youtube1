@@ -116,14 +116,14 @@ jobs:
           GIT_REF: ${{ env.GIT_REF }}
           LOCAL_LLM_MODEL: ${{ env.LOCAL_LLM_MODEL }}
           LTX_VIDEO_STEPS: ${{ env.LTX_VIDEO_STEPS }}
-          GITHUB_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          RUN_TOKEN: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python - <<'PY'
           import json, os
           keys = [
               "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
               "PRODUCTION_FORMAT", "UPLOAD_PRIVATE", "GIT_REF", "LOCAL_LLM_MODEL",
-              "LTX_VIDEO_STEPS", "GITHUB_RUN_ID",
+              "LTX_VIDEO_STEPS", "RUN_TOKEN",
           ]
           path = os.path.join(os.environ["RUNNER_TEMP"], "imamali110-secrets.json")
           with open(path, "w", encoding="utf-8") as f:
