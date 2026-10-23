@@ -23,7 +23,9 @@
 The repository includes an **opt-in** adapter via \`TTS_PROVIDER=kitten\` and a standalone sample script:
 
 \`\`\`bash
-pip install -r requirements-kitten.txt
+# Install CPU-only PyTorch first; plain PyPI install can pull multi-GB CUDA wheels.
+python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchaudio
+python -m pip install -r requirements-kitten.txt
 python scripts/kittentts2_sample.py --output output/kitten_tts2_sample.wav
 \`\`\`
 
