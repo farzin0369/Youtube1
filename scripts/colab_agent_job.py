@@ -1,4 +1,4 @@
-"""Remote Colab GPU job: local-model writing, CogVideoX rendering, YouTube publishing and bounded self-review."""
+"""Remote Colab GPU job: local-model writing, LTX-Video rendering, YouTube publishing and bounded self-review."""
 from __future__ import annotations
 
 import json
@@ -128,15 +128,14 @@ def main():
          "diffusers>=0.32,<0.42", "transformers>=4.46", "accelerate>=1.0",
          "safetensors", "imageio-ffmpeg", "piper-tts", "edge-tts"])
 
-    print("[agent] Repairing only known incompatible TorchAO packages and validating CogVideoX.")
-    run([sys.executable, "scripts/repair_colab_cogvideox.py"])
+    print("[agent] LTX-Video is the selected renderer; skipping CogVideoX-specific repair.")
 
     if shutil.which("ollama") is None:
         print("[agent] Ollama is missing; installing with captured diagnostics.")
         install_ollama()
     ollama_log = open("/tmp/ollama.log", "w", encoding="utf-8")
     ollama_env = os.environ.copy()
-    # Keep llama on CPU. A T4 cannot hold Ollama and CogVideoX at the same time.
+    # Keep the language model on CPU so the GPU remains available to LTX-Video.
     ollama_env["OLLAMA_NUM_GPU"] = "0"
     ollama_env["CUDA_VISIBLE_DEVICES"] = ""
     ollama_env["OLLAMA_KEEP_ALIVE"] = "0"
@@ -183,8 +182,8 @@ def main():
         "AI_ENGINE": "local",
         "LOCAL_LLM_MODEL": model,
         "OLLAMA_BASE_URL": base,
-        "VIDEO_ENGINE": "cogvideox",
-        "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
+        "VIDEO_ENGINE": "ltx",
+        "LTX_MODEL": "Lightricks/LTX-Video",
         "TTS_PROVIDER": "auto",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "PIPER_MODEL": str(piper_model) if piper_model.exists() and piper_json.exists() else "",
