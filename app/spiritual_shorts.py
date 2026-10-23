@@ -23,8 +23,9 @@ SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌
 
 USER_TEMPLATE = """برای کانال ImamAli110 یک Short فارسی بساز. هدف خوانش {target_duration_seconds} ثانیه و حدود {min_words} تا {max_words} واژهٔ گفتاری است؛ کم‌گویی را با تکرار و شعار جبران نکن.
 روایت دقیقاً چهار صحنه داشته باشد: ۱) hook کنجکاوی‌برانگیز و مشخص، ۲) همدلی/آرام‌شدن، ۳) یک اقدام کوچک برای همین امروز، ۴) پایان امیدوارکننده و انگیزشی. حالت احساسی هر صحنه به‌ترتیب hook، calm، reassuring، motivational باشد. جمله‌ها با علائم نگارشی طبیعی مکث بسازند.
-برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک جست‌وجوی کوتاه و مشخصِ انگلیسی برای فیلم عمودیِ واقعیِ مرتبط با همان جمله باشد: حداقل دو واژهٔ تصویریِ دقیق و مشخص (مثل "woman writing journal"؛ نه کلمهٔ تنها، استعارهٔ نامربوط یا عبارت کلی)؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
+برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک راهنمای تصویریِ مشخص به انگلیسی برای صحنهٔ سه‌بعدی سینمایی LTX باشد (مثل "hands planting a seed at sunrise")؛ با معنای همان جمله مرتبط باشد و از متن/لوگو/واترمارک پرهیز کند؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
 عنوان روشن، دقیق و بدون کلیک‌بیت باشد؛ توضیح کوتاه و ۳ تا ۶ برچسب مرتبط بده. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
+بازخورد مبتنی بر آمار واقعی کانال و نتایج جست‌وجوی عمومی YouTube، اگر موجود است: {performance_feedback}. فقط از آن برای کشف زاویهٔ تازه استفاده کن؛ عدد یا علت بازدید را حدس نزن و عنوان/متن رقبا را کپی نکن.
 سیاست محتوا: {policy}
 خروجی فقط این قالب را داشته باشد:
 {{"topic":"...","title":"...","hook":"عین متن گفتاری صحنهٔ اول","description":"...","thumbnail_text":"۲ تا ۴ واژهٔ کوتاه","tags":["..."],"scenes":[{{"spoken_text":"...","mood":"hook","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"calm","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"reassuring","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"motivational","visual_query":"...","on_screen_text":"..."}}],"script":"اتصال عین spoken_text چهار صحنه با یک فاصله"}}
@@ -179,6 +180,7 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     prompt = USER_TEMPLATE.format(
         recent="؛ ".join(topics)[:1200] or "هنوز موضوع قبلی ثبت نشده است",
         policy=json.dumps(policy, ensure_ascii=False),
+        performance_feedback="؛ ".join(str(note) for note in (history.get("performance_notes") or []) if str(note).strip()) or "آمار واقعی در دسترس نیست؛ از نتیجه‌گیری دربارهٔ بازدید خودداری کن",
         target_duration_seconds=duration_target,
         min_words=min_words,
         max_words=max_words,
@@ -187,20 +189,43 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     provider = "unknown"
     draft = ""
     last_error = ""
-    for attempt in range(2):
+    for attempt in range(3):
         if attempt == 0:
             request_prompt = prompt
             temperature = 0.75
         else:
-            request_prompt = (
-                prompt
-                + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
+            repair_note = (
+                "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
                 + last_error
                 + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
                 + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
                 + draft[:5000]
             )
-            temperature = 0.45
+            if "word_count_outside" in last_error:
+                count_match = re.search(r"word_count_outside_\d+_\d+:(\d+)", last_error)
+                actual_words = int(count_match.group(1)) if count_match else None
+                target_words = (min_words + max_words) // 2
+                if actual_words is not None and actual_words < min_words:
+                    adjustment = (
+                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {target_words - actual_words} واژهٔ معنادار اضافه کن."
+                        " به هر صحنه فقط به‌اندازهٔ لازم جزئیات طبیعی و مرتبط اضافه کن؛ متن را بی‌جهت طولانی نکن."
+                    )
+                elif actual_words is not None and actual_words > max_words:
+                    adjustment = (
+                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {actual_words - target_words} واژه حذف کن."
+                        " جمله‌های تکراری و توضیحات فرعی را کوتاه کن و پیام اصلی هر صحنه را نگه دار."
+                    )
+                else:
+                    adjustment = "متن گفتاری را در محدودهٔ تعیین‌شده نگه دار."
+                repair_note += (
+                    "\nمهم: اصلاح تعداد واژه‌ها؛ هدف مجموع دقیقاً نزدیک " + str(target_words) + " واژه باشد. "
+                    + adjustment
+                    + f" مجموع چهار spoken_text باید بین {min_words} و {max_words} واژه بماند. "
+                    "دقیقاً چهار صحنه، قلاب پرسشی کوتاه، و script برابر اتصال دقیق spoken_text چهار صحنه باشد. "
+                    "تکرار، شعار و مقدمهٔ اضافی ممنوع."
+                )
+            request_prompt = prompt + repair_note
+            temperature = 0.35 if attempt == 1 else 0.45
         draft, provider = generate_text(
             SYSTEM_PROMPT, request_prompt, max_tokens=1400, temperature=temperature, json_mode=True,
         )
@@ -210,14 +235,26 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             except json.JSONDecodeError:
                 cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", draft.strip(), flags=re.I)
                 item = json.loads(cleaned)
+            # The four scene utterances are the canonical narration. Small local models
+            # often paraphrase or omit punctuation in the redundant "script" field;
+            # rebuild that field from the scenes before QA so narration, captions and
+            # visuals share one exact source of truth. The validator still checks all
+            # scene content, word count, hook, pacing and emotional-arc gates.
+            if isinstance(item, dict) and isinstance(item.get("scenes"), list) and len(item["scenes"]) == 4:
+                scene_lines = [
+                    re.sub(r"\\s+", " ", str(scene.get("spoken_text") or "")).strip()
+                    for scene in item["scenes"] if isinstance(scene, dict)
+                ]
+                if len(scene_lines) == 4 and all(scene_lines):
+                    item["script"] = " ".join(scene_lines)
             result = validate_short_content(item, titles, min_words=min_words, max_words=max_words)
             break
         except (ValueError, TypeError) as exc:
             last_error = str(exc)
             if attempt == 0:
-                LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
+                LOGGER.warning("short draft failed quality gate on attempt %s/3; corrective rewrite will run (%s)", attempt + 1, last_error[:180])
     if result is None:
-        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
+        raise ValueError("short failed content QA after 3 attempts: " + last_error[:240])
     result["generated_by"] = provider
     LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
     return result

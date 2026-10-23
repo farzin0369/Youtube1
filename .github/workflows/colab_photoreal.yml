@@ -1,10 +1,11 @@
-name: Colab photoreal story (SDXL + natural TTS)
+name: "Deprecated SDXL/SVD renderer — disabled; use LTX-Video"
 
 on:
   workflow_dispatch:
 
 jobs:
   render:
+    if: false # Disabled: production video generation is LTX-Video only.
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:

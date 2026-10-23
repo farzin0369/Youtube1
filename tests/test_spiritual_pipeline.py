@@ -86,9 +86,13 @@ def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
     assert next_publish_at(late) == "2026-10-12T14:30:00Z"
 
 
-def test_github_schedule_triggers_at_18_tehran():
+def test_ltx_daily_workflow_schedules_long_and_shorts_through_colab():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"
+    assert [entry["cron"] for entry in workflow["on"]["schedule"]] == ["0 14 * * *", "0 17 * * *"]
+    assert "COLAB_CLI_TOKEN_JSON" in workflow["jobs"]["produce"]["env"]
+    remote_steps = "\\n".join(step.get("run", "") for step in workflow["jobs"]["produce"]["steps"])
+    assert "scripts/colab_spiritual_job.py" in remote_steps
+    assert "No alternate engine was used" in remote_steps
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
@@ -99,10 +103,34 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     assert content["target_word_count"] == "28-44"
 
 
+
+def test_production_config_targets_long_and_shorts_and_private_only():
+    config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
+    assert config["schedule"]["long_form_utc"] == "0 14 * * *"
+    assert config["schedule"]["shorts_utc"] == "0 17 * * *"
+    assert config["publishing"]["mode"] == "private"
+    assert config["publishing"]["public_publish_enabled"] is False
+
+
+def test_alternate_video_engine_workflows_are_disabled():
+    paths = [
+        ".github/workflows/free_cinematic_short.yml",
+        ".github/workflows/imamali_style_short.yml",
+        ".github/workflows/stock_shorts.yml",
+        ".github/workflows/story_cartoon.yml",
+        ".github/workflows/modern_gpu.yml",
+        ".github/workflows/colab_photoreal.yml",
+        ".github/workflows/mpt-private-video-test.yml",
+    ]
+    for raw_path in paths:
+        workflow = yaml.load(Path(raw_path).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        first_job = next(iter(workflow["jobs"].values()))
+        assert first_job.get("if") == "false", raw_path
+
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
-    assert "Daily Persian spiritual video pipeline" in result.stdout
+    assert "ImamAli110 LTX-Video production pipeline" in result.stdout
 
 
 def test_word_boundaries_are_grouped_into_phrase_captions():

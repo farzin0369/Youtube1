@@ -1,10 +1,11 @@
-name: Stock Shorts (YouTube-safe Pexels + TTS)
+name: "Deprecated Pexels stock renderer — disabled; use LTX-Video"
 
 on:
   workflow_dispatch:
 
 jobs:
   render:
+    if: false # Disabled: production video generation is LTX-Video only.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

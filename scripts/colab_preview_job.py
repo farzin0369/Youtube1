@@ -1,4 +1,4 @@
-"""Colab GPU quality preview: cinematic render only, no YouTube upload.
+"""Colab GPU quality preview for ImamAli110 using LTX-Video; no YouTube upload.
 Copies final MP4 + thumbnail + script to /tmp for GitHub artifact download.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ def load_json(path: Path, default):
 def main():
     secrets = load_json(SECRETS_FILE, {})
     rid = str(secrets.get("PIPELINE_RUN_ID") or ("preview_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")))
-    model = str(secrets.get("LOCAL_LLM_MODEL") or "llama3.2:3b")
+    model = str(secrets.get("LOCAL_LLM_MODEL") or "qwen2.5:7b")
 
     print("[preview] Checking GPU.")
     probe = subprocess.run(
@@ -89,7 +89,7 @@ def main():
     run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements.txt",
          "diffusers>=0.32,<0.42", "transformers>=4.46", "accelerate>=1.0",
          "safetensors", "imageio-ffmpeg", "piper-tts", "edge-tts"])
-    run([sys.executable, "scripts/repair_colab_cogvideox.py"])
+    print("[preview] LTX-Video selected; skipping CogVideoX-specific repair.")
 
     if shutil.which("ollama") is None:
         install_ollama()
@@ -120,15 +120,13 @@ def main():
         "AI_ENGINE": "local",
         "LOCAL_LLM_MODEL": model,
         "OLLAMA_BASE_URL": base,
-        "VIDEO_ENGINE": "cogvideox",
-        "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
-        "TTS_PROVIDER": "edge",
+        "VIDEO_ENGINE": "ltx",
+        "LTX_MODEL": "Lightricks/LTX-Video",
+        "TTS_PROVIDER": "edge-tts",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "PIPELINE_RUN_ID": rid,
-        "VIDEO_FRAMES": str(secrets.get("VIDEO_FRAMES") or "17"),
-        "VIDEO_STEPS": str(secrets.get("VIDEO_STEPS") or "8"),
-        "VIDEO_CLIPS_SHORT": str(secrets.get("VIDEO_CLIPS_SHORT") or "3"),
+        "LTX_VIDEO_STEPS": str(secrets.get("LTX_VIDEO_STEPS") or "20"),
         "OLLAMA_NUM_GPU": "0",
         "OLLAMA_KEEP_ALIVE": "0",
         "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
@@ -138,23 +136,23 @@ def main():
     print("[preview] Starting pipeline with --dry-run (no YouTube upload).")
     with PIPELINE_LOG.open("w", encoding="utf-8") as logf:
         pipeline = subprocess.run(
-            [sys.executable, "-m", "app.pipeline", "--kind", "short", "--publish-mode", "private", "--dry-run"],
+            [sys.executable, "scripts/daily_run.py", "--format", "shorts", "--dry-run"],
             cwd=REPO, env=env, check=False, text=True,
             stdout=logf, stderr=subprocess.STDOUT,
         )
     log_tail = PIPELINE_LOG.read_text(encoding="utf-8", errors="replace")[-12000:]
     print("[pipeline log tail]\n" + log_tail)
 
-    audit_path = REPO / "output" / "audit" / (rid + ".json")
+    audit_path = REPO / "output" / "spiritual" / rid / "result.json"
     audit = load_json(audit_path, {})
-    qa = ((audit.get("steps") or {}).get("media_quality") or {})
-    render = ((audit.get("steps") or {}).get("render") or {})
-    script_step = ((audit.get("steps") or {}).get("script") or {})
+    qa = audit.get("media_qa") or {}
+    render = audit.get("render") or {}
+    script_step = {"title": audit.get("title") or ""}
 
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     video_src = Path(render.get("video_path") or "")
     thumb_src = Path(render.get("thumbnail_path") or "")
-    out_run = REPO / "output" / rid
+    out_run = REPO / "output" / "spiritual" / rid
     copied = []
     if video_src.exists() and video_src.stat().st_size > 1024:
         dest = PREVIEW_DIR / "video.mp4"
