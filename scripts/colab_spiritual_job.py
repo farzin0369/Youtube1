@@ -91,7 +91,7 @@ def main() -> int:
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "CHANNEL_HISTORY_PATH": "state/history.json",
     })
-    for key in required:
+    for key in required + ("YOUTUBE_ANALYTICS_REFRESH_TOKEN",):
         if secrets.get(key):
             os.environ[key] = str(secrets[key])
     for key in ("GROQ_API_KEY", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "PEXELS_API_KEY", "ELEVENLABS_API_KEY"):
