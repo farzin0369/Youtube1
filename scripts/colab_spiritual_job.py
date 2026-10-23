@@ -66,7 +66,7 @@ def main() -> int:
     if upload_private and missing:
         raise RuntimeError("Private upload requested but YouTube OAuth settings are missing: " + ", ".join(missing))
 
-    run_token = str(secrets.get("GITHUB_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"))
+    run_token = str(secrets.get("RUN_TOKEN") or secrets.get("GITHUB_RUN_ID") or datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"))
     run_id = "".join(ch if ch.isalnum() or ch in "_-" else "_" for ch in f"{run_token}_{kind}")[:80]
     ref = str(secrets.get("GIT_REF") or "feat/youtube-agent-skill-integration")
     gpu = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"], text=True, capture_output=True)
