@@ -1,10 +1,11 @@
-name: Modern GPU CogVideoX story short
+name: "Deprecated CogVideoX renderer — disabled; use LTX-Video"
 
 on:
   workflow_dispatch:
 
 jobs:
   render:
+    if: false # Disabled: production video generation is LTX-Video only.
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
