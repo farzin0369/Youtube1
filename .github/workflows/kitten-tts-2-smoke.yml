@@ -1,0 +1,38 @@
+# KittenTTS 2 exact-model smoke test
+# This workflow installs the current KittenTTS 2 package and loads the exact model ID
+# shown in the official KittenML README. It does not use the legacy 0.8 ONNX model.
+name: KittenTTS 2 exact model smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/kitten-tts-2-exact
+    paths:
+      - ".github/workflows/kitten-tts-2-smoke.yml"
+      - "scripts/kitten_tts2_smoke.py"
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install KittenTTS 2
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install kittenml soundfile
+      - name: Generate sample using exact KittenTTS 2 model
+        run: python scripts/kitten_tts2_smoke.py
+      - name: Upload generated audio and diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitten-tts-2-smoke-output
+          path: output/kitten-tts-2/
+          if-no-files-found: warn
+          retention-days: 7
