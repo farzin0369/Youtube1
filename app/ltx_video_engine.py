@@ -19,6 +19,15 @@ def _frames_for_duration(seconds: float, fps: int = 8) -> int:
     return 8 * n + 1
 
 
+def _probe_clip_duration(path: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    return float(result.stdout.strip())
+
+
 def _normalize_scene_durations(scenes: list[dict[str, Any]], target_seconds: float) -> None:
     """Allocate whole-second scene lengths whose sum matches the narration duration."""
     if not scenes:
@@ -109,7 +118,11 @@ def generate_ltx_film(
             idx = int(scene["index"])
             clip = clips_dir / f"{scene['scene_id']}.mp4"
             if scene.get("status") == "complete" and clip.exists() and clip.stat().st_size > 80_000:
-                continue
+                try:
+                    if abs(_probe_clip_duration(clip) - float(scene["duration_hint_seconds"])) <= 0.35:
+                        continue
+                except (OSError, ValueError, subprocess.CalledProcessError):
+                    pass  # Stale or unreadable checkpoint: regenerate this scene.
             spoken = str(scene["spoken_text"])
             prompt = str(scene.get("visual_prompt") or "").strip()
             if not prompt:
