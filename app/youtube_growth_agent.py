@@ -86,11 +86,6 @@ def review_package(
         blockers.append("shorts_scene_count_must_be_four")
     if fmt in {"shorts", "short"} and render.get("visual_source") != "ltx-video":
         blockers.append("shorts_not_rendered_by_ltx")
-    if render.get("visual_scene_count") != len(render.get("scene_plan_path") and scenes or scenes):
-        # Render plans for long videos are sentence-level, while content sections are grouped.
-        if fmt not in {"long"}:
-            warnings.append("visual_scene_count_differs_from_script_scene_count")
-
     recent = (history or {}).get("recent") or []
     for row in recent[-30:]:
         old_title = str(row.get("title") or "") if isinstance(row, dict) else str(row)
