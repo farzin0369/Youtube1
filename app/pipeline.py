@@ -8,7 +8,7 @@ from app.research import build_research_brief, pick_topic
 from app.script_gen import generate_script
 from app.tts import synthesize
 from app.local_ai import local_enabled
-from app.local_video_engine import generate_film
+from app.ltx_video_engine import generate_ltx_film
 from app.utils import OUTPUT_DIR, ensure_dirs, has_openai, has_youtube_creds, load_channel_config, run_id as make_run_id, save_json, utc_now_iso
 from app.video_render import render_video, make_thumbnail, write_srt
 from app.youtube_client import upload_video
@@ -29,7 +29,7 @@ def _probe_duration(path:Path)->float:
 
 def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str,rid:str)->dict:
     out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; muxed=out/"video_muxed.mp4"; final=out/"video.mp4"
-    meta=generate_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan)
+    meta=generate_ltx_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan)
     audio_seconds=_probe_duration(audio)
     video_seconds=_probe_duration(raw)
     scene_plan_path=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
@@ -63,15 +63,13 @@ def main()->None:
         publish_mode="private"
     rid=make_run_id(args.kind); out=OUTPUT_DIR/rid; out.mkdir(parents=True,exist_ok=True)
     audit={"run_id":rid,"started_at":utc_now_iso(),"kind":args.kind,"publish_mode":publish_mode,"channel":cfg.get("channel",{}),"steps":{}}
-    print(f"=== {rid} | {args.kind} | {publish_mode} | engine={'local' if local_enabled() else 'legacy'} ===")
+    print(f"=== {rid} | {args.kind} | {publish_mode} | video_engine=ltx-video | script_engine={'local' if local_enabled() else 'legacy'} ===")
     topic=pick_topic(args.kind,seed=rid); brief=build_research_brief(topic); audit["steps"]["research"]={"topic":topic}; save_json(out/"topic.json",topic)
     script_data=generate_script(topic,args.kind,brief); script_data=enforce(script_data,args.kind); audit["steps"]["script"]={"title":script_data.get("title"),"generated_by":script_data.get("generated_by"),"quality_gate":script_data.get("quality_gate")}; save_json(out/"script.json",script_data); (out/"script.txt").write_text(script_data["script"],encoding="utf-8")
     print(f"[1] script={script_data.get('generated_by')}")
     audio=synthesize(script_data["script"],out/"narration",kind=args.kind); audit["steps"]["tts"]=audio; print(f"[2] tts={audio.get('provider')}")
-    if __import__("os").environ.get("VIDEO_ENGINE", "cpu").lower() == "cogvideox":
-        render_meta=_local_render(script_data.get("scene_plan"),script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
-    else:
-        render_meta=render_video(script=script_data["script"],audio_path=Path(audio["path"]),title=script_data["title"],kind=args.kind,run_id=rid,scene_plan_path=out/"script_scene_plan.json")
+    # LTX-Video is the sole production video-generation engine. No static/stock fallback.
+    render_meta=_local_render(script_data.get("scene_plan"),script_data["script"],script_data["title"],Path(audio["path"]),args.kind,rid)
     audit["steps"]["render"]=render_meta; print(f"[3] render={render_meta.get('provider',render_meta.get('style'))}")
     media_qa=validate_render_package(render_meta,Path(audio["path"]) if audio.get("path") else None)
     audit["steps"]["media_quality"]=media_qa
