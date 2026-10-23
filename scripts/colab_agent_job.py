@@ -41,6 +41,8 @@ def main() -> int:
     config = {
         key: str(legacy[key]) for key in required
     }
+    if legacy.get("YOUTUBE_ANALYTICS_REFRESH_TOKEN"):
+        config["YOUTUBE_ANALYTICS_REFRESH_TOKEN"] = str(legacy["YOUTUBE_ANALYTICS_REFRESH_TOKEN"])
     config.update({
         "PRODUCTION_FORMAT": kind,
         "UPLOAD_PRIVATE": "true",  # This wrapper never permits public publishing.
