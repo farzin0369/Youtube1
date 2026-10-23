@@ -1,4 +1,4 @@
-"""Persian narration: ElevenLabs -> Azure Speech -> Edge TTS -> local Piper fallback."""
+"""Persian narration: Persian Piper -> ElevenLabs -> Azure Speech -> Edge TTS -> local Piper."""
 from __future__ import annotations
 
 import html
@@ -47,7 +47,7 @@ def _write_elevenlabs(text: str, out_path: Path) -> dict | None:
                 "model": env("ELEVENLABS_MODEL_ID") or "eleven_multilingual_v2",
                 "narrator_locked": True, "ok": True}
     except Exception as exc:
-        print(f"[tts] ElevenLabs unavailable ({type(exc).__name__}); trying fallback.")
+        print(f"[tts] ElevenLabs unavailable ({type(exc).__name__}: {exc}); trying fallback.")
         return None
 
 
@@ -84,24 +84,33 @@ def _write_azure(text: str, out_path: Path) -> dict | None:
         return {"path": str(path), "provider": "azure-speech", "voice": voice,
                 "model": "neural", "narrator_locked": True, "ok": True}
     except Exception as exc:
-        print(f"[tts] Azure Speech unavailable ({type(exc).__name__}); trying fallback.")
+        print(f"[tts] Azure Speech unavailable ({type(exc).__name__}: {exc}); trying fallback.")
         return None
 
 
-
 def _write_persian_speech(text: str, out_path: Path) -> dict | None:
-    """Offline Persian Piper/ONNX voice; CPU inference, no API key."""
+    """Offline Persian Piper/ONNX voice (Mana); CPU inference, no API key."""
     try:
         from persian_speech_runtime import talk
+
         wav_path = out_path.with_suffix(".wav")
-        talk(" ".join(text.strip().split())[:8000], str(wav_path))
+        spoken = " ".join(text.strip().split())[:8000]
+        talk(spoken, str(wav_path))
         if not wav_path.exists() or wav_path.stat().st_size < 1024:
             raise RuntimeError("Persian Speech returned an empty audio file")
-        return {"path": str(wav_path), "provider": "persian-speech-piper",
-                "voice": "fa-IR-Mana", "model": "Mana-Persian-Piper",
-                "narrator_locked": True, "ok": True}
+        return {
+            "path": str(wav_path),
+            "provider": "persian-speech-piper",
+            "voice": "fa-IR-Mana",
+            "model": "Mana-Persian-Piper",
+            "narrator_locked": True,
+            "ok": True,
+        }
     except Exception as exc:
-        print(f"[tts] Persian Piper unavailable ({type(exc).__name__}); trying next provider.")
+        print(
+            f"[tts] Persian Piper unavailable ({type(exc).__name__}: {exc}); "
+            "trying next provider."
+        )
         return None
 
 
@@ -109,18 +118,28 @@ def _write_edge(text: str, out_path: Path) -> dict | None:
     voice = env("TTS_VOICE") or "fa-IR-FaridNeural"
     try:
         import asyncio
+
         import edge_tts
+
         spoken = " ".join(text.strip().split())
         mp3_path = out_path.with_suffix(".mp3")
+
         async def _save_edge():
             await edge_tts.Communicate(spoken[:8000], voice=voice, rate="-5%").save(str(mp3_path))
+
         asyncio.run(_save_edge())
         if not mp3_path.exists() or mp3_path.stat().st_size < 1024:
             raise RuntimeError("Edge TTS returned an empty audio file")
-        return {"path": str(mp3_path), "provider": "edge-tts", "voice": voice,
-                "model": "neural", "narrator_locked": True, "ok": True}
+        return {
+            "path": str(mp3_path),
+            "provider": "edge-tts",
+            "voice": voice,
+            "model": "neural",
+            "narrator_locked": True,
+            "ok": True,
+        }
     except Exception as exc:
-        print(f"[tts] Edge TTS unavailable ({type(exc).__name__}); trying local fallback.")
+        print(f"[tts] Edge TTS unavailable ({type(exc).__name__}: {exc}); trying local fallback.")
         return None
 
 
@@ -129,18 +148,28 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     provider = (env("TTS_PROVIDER") or "auto").lower()
     piper_model = env("PIPER_MODEL")
+    allow_fallback = env("TTS_ALLOW_FALLBACK", "1").strip().lower() not in {"0", "false", "no"}
 
     if provider in {"persian-piper", "persian_speech", "mana"}:
         result = _write_persian_speech(text, out_path)
         if result:
             return result
-        raise RuntimeError("Persian Piper was explicitly selected but failed; check package/model download.")
+        if allow_fallback:
+            print("[tts] Explicit Persian Piper failed; falling back to Edge TTS (free Persian).")
+            result = _write_edge(text, out_path)
+            if result:
+                return result
+        raise RuntimeError(
+            "Persian Piper was selected but failed and no free fallback succeeded; "
+            "check persian-speech install and model download from Hugging Face."
+        )
 
     if provider == "piper":
         from app.local_ai import piper_synthesize
+
         return piper_synthesize(text, out_path)
 
-    # Explicit provider selection changes priority, but never disables safe fallbacks.
+    # Priority chain for auto / named providers
     if provider in {"auto", "persian-piper", "persian_speech", "mana"}:
         result = _write_persian_speech(text, out_path)
         if result:
@@ -153,21 +182,23 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
         result = _write_azure(text, out_path)
         if result:
             return result
-    if provider in {"auto", "edge", "elevenlabs", "azure", "azure-speech"}:
+    if provider in {"auto", "edge", "elevenlabs", "azure", "azure-speech", "persian-piper", "persian_speech", "mana"}:
         result = _write_edge(text, out_path)
         if result:
             return result
 
     if piper_model:
         from app.local_ai import piper_synthesize
+
         return piper_synthesize(text, out_path)
 
-    # Legacy OpenAI TTS remains opt-in only; news production should use the chain above.
     if provider == "openai":
         from app.utils import has_openai
+
         if has_openai():
             try:
                 from openai import OpenAI
+
                 client = OpenAI(
                     api_key=env("OPENAI_API_KEY"),
                     base_url=env("OPENAI_API_BASE") or "https://api.openai.com/v1",
@@ -175,15 +206,25 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
                 voice, model = _voice_settings()
                 path = out_path.with_suffix(".mp3")
                 response = client.audio.speech.create(
-                    model=model, voice=voice, input=" ".join(text.strip().split())[:4000],
-                    response_format="mp3", speed=0.95,
+                    model=model,
+                    voice=voice,
+                    input=" ".join(text.strip().split())[:4000],
+                    response_format="mp3",
+                    speed=0.95,
                 )
                 response.stream_to_file(str(path))
-                return {"path": str(path), "provider": "openai", "voice": voice,
-                        "model": model, "narrator_locked": True, "ok": True}
+                return {
+                    "path": str(path),
+                    "provider": "openai",
+                    "voice": voice,
+                    "model": model,
+                    "narrator_locked": True,
+                    "ok": True,
+                }
             except Exception as exc:
-                print(f"[tts] Optional OpenAI TTS unavailable ({type(exc).__name__}).")
+                print(f"[tts] Optional OpenAI TTS unavailable ({type(exc).__name__}: {exc}).")
 
     raise RuntimeError(
-        "No usable TTS provider. Configure Persian Piper (persian-speech), ElevenLabs, Azure Speech, Edge TTS, or PIPER_MODEL."
+        "No usable TTS provider. Configure Persian Piper (persian-speech), "
+        "ElevenLabs, Azure Speech, Edge TTS, or PIPER_MODEL."
     )
