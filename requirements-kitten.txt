@@ -1,0 +1,4 @@
+# Optional Kitten-TTS 2 backend. Not installed in the default pipeline.
+# Model weights download on first use; the model can run on CPU.
+kittenml>=0.9.4
+soundfile>=0.12.1
