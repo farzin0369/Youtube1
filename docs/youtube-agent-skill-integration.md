@@ -36,7 +36,7 @@
 
 زمان‌های هدف در `config/channel.yaml` ثبت شده‌اند: ویدئوی بلند ۱۴:۰۰ UTC و Shorts ساعت ۱۷:۰۰ UTC. workflow اصلی با Google Colab CLI یک نشست تازهٔ T4 می‌سازد، `scripts/colab_spiritual_job.py` را اجرا می‌کند، MP4 و گزارش QA را برمی‌گرداند و نشست خودش را می‌بندد. این مسیر به `COLAB_CLI_TOKEN_JSON` و دسترسی/سهمیهٔ واقعی Colab T4 وابسته است؛ دسترسی رایگان و تخصیص GPU تضمین‌شده نیست. نبود GPU باعث توقف امن می‌شود، نه تغییر موتور.
 
-دفترچهٔ Colab: [Colab ImamAli110](../colab/ImamAli110_Cinematic_Production.ipynb). پیش‌فرض notebook، dry-run است؛ بارگذاری خصوصی تنها با تغییر صریح `UPLOAD_PRIVATE = True` انجام می‌شود. برای دسترسی به آمار واقعی YouTube Analytics، توکن OAuth باید مجوز `yt-analytics.readonly` هم داشته باشد؛ اگر مجوز موجود نباشد، تولید ادامه می‌یابد اما از آمار حدس زده نمی‌شود.
+دفترچهٔ Colab: [Colab ImamAli110](../colab/ImamAli110_Cinematic_Production.ipynb). پیش‌فرض notebook، dry-run است؛ بارگذاری خصوصی تنها با تغییر صریح `UPLOAD_PRIVATE = True` انجام می‌شود. برای آمار واقعی YouTube Analytics باید Secret جداگانهٔ `YOUTUBE_ANALYTICS_REFRESH_TOKEN` با مجوز `yt-analytics.readonly` تنظیم شود؛ توکن آپلود فعلی تغییر نمی‌کند. اگر Secret موجود نباشد، تولید ادامه می‌یابد اما از آمار حدس زده نمی‌شود.
 
 
 
