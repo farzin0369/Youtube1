@@ -29,8 +29,8 @@ def _probe_duration(path:Path)->float:
 
 def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str,rid:str)->dict:
     out=OUTPUT_DIR/rid; raw=out/"ai_video.mp4"; muxed=out/"video_muxed.mp4"; final=out/"video.mp4"
-    meta=generate_ltx_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan)
     audio_seconds=_probe_duration(audio)
+    meta=generate_ltx_film(script,title,raw,kind=kind,seed=110,scene_plan=scene_plan,target_duration_seconds=audio_seconds)
     video_seconds=_probe_duration(raw)
     scene_plan_path=Path(meta["scene_plan_path"]) if meta.get("scene_plan_path") else None
     srt=write_srt(script,out/"captions.srt",audio_seconds,scene_plan_path=scene_plan_path)
@@ -53,14 +53,9 @@ def _local_render(scene_plan:list[dict],script:str,title:str,audio:Path,kind:str
     return {**meta,"video_path":str(final),"thumbnail_path":str(thumb),"captions_path":str(srt),"duration":seconds,"audio_duration":audio_seconds,"source_video_duration":video_seconds,"on_screen_captions":True,"ok":True}
 
 def main()->None:
-    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private","unlisted","public"],default=None); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--kind",choices=["short","long"],required=True); p.add_argument("--publish-mode",choices=["private"],default="private",help="Uploads are private-only; public publishing is disabled."); p.add_argument("--dry-run",action="store_true"); args=p.parse_args()
     ensure_dirs(); cfg=load_channel_config()
-    publishing_cfg=cfg.get("publishing") or {}
-    configured=str(publishing_cfg.get("mode") or "private").lower()
-    publish_mode=args.publish_mode or (configured if configured in ("private","unlisted","public") else "private")
-    if publish_mode=="public" and not bool(publishing_cfg.get("public_publish_enabled",False)):
-        print("[safety] public publishing is disabled by config; forcing private upload",flush=True)
-        publish_mode="private"
+    publish_mode="private"  # hard safety boundary: never auto-publish publicly
     rid=make_run_id(args.kind); out=OUTPUT_DIR/rid; out.mkdir(parents=True,exist_ok=True)
     audit={"run_id":rid,"started_at":utc_now_iso(),"kind":args.kind,"publish_mode":publish_mode,"channel":cfg.get("channel",{}),"steps":{}}
     print(f"=== {rid} | {args.kind} | {publish_mode} | video_engine=ltx-video | script_engine={'local' if local_enabled() else 'legacy'} ===")
