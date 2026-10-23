@@ -35,6 +35,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      YOUTUBE_ANALYTICS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_ANALYTICS_REFRESH_TOKEN }}
       COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
       PRODUCTION_FORMAT: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 * * *' && 'long' || (github.event_name == 'schedule' && 'shorts' || inputs.format) }}
       UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || inputs.upload_private }}
@@ -109,6 +110,7 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_ANALYTICS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_ANALYTICS_REFRESH_TOKEN }}
           PRODUCTION_FORMAT: ${{ env.PRODUCTION_FORMAT }}
           UPLOAD_PRIVATE: ${{ env.UPLOAD_PRIVATE }}
           GIT_REF: ${{ env.GIT_REF }}
@@ -119,7 +121,7 @@ jobs:
           python - <<'PY'
           import json, os
           keys = [
-              "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
+              "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "YOUTUBE_ANALYTICS_REFRESH_TOKEN",
               "PRODUCTION_FORMAT", "UPLOAD_PRIVATE", "GIT_REF", "LOCAL_LLM_MODEL",
               "LTX_VIDEO_STEPS", "RUN_TOKEN",
           ]
