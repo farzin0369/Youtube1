@@ -1,14 +1,13 @@
-name: Free cinematic short (no GPU)
+name: "Deprecated CPU stock renderer — disabled; use LTX-Video"
 
 # Mixkit + Edge-TTS + FFmpeg — runs on GitHub Actions CPU, no Colab
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"  # daily ~06:00 UTC
 
 jobs:
   render:
+    if: false # Disabled: production video generation is LTX-Video only.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
