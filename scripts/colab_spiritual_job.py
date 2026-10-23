@@ -131,6 +131,13 @@ def main() -> int:
     if apt.returncode:
         raise RuntimeError("FFmpeg/font installation failed: " + (apt.stderr or "")[-1200:])
 
+    if upload_private:
+        from app.youtube_client import probe_youtube_auth
+        auth = probe_youtube_auth()
+        if not auth.get("ok"):
+            raise RuntimeError("YouTube OAuth preflight failed; private upload blocked before rendering.")
+        print("[colab-job] YouTube OAuth preflight passed.", flush=True)
+
     if shutil.which("ollama") is None:
         print("[colab-job] Installing the free local Ollama runtime.", flush=True)
         install_ollama = _run(["bash", "-lc", "curl -fsSL https://ollama.com/install.sh | sh"], timeout=600)
