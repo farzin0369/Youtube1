@@ -56,6 +56,7 @@ def _zip_state() -> None:
 
 def main() -> int:
     secrets = _read_json(SECRETS_FILE, {})
+    SECRETS_FILE.unlink(missing_ok=True)
     kind = str(secrets.get("PRODUCTION_FORMAT") or "shorts").lower()
     if kind not in {"shorts", "long"}:
         raise ValueError("PRODUCTION_FORMAT must be 'shorts' or 'long'")
@@ -107,6 +108,7 @@ def main() -> int:
 
     if STATE_ARCHIVE.exists():
         state_unpack = _run(["unzip", "-o", str(STATE_ARCHIVE), "-d", str(REPO)], timeout=120)
+        STATE_ARCHIVE.unlink(missing_ok=True)
         if state_unpack.returncode:
             raise RuntimeError("Could not restore channel history: " + (state_unpack.stderr or "")[-800:])
     (REPO / "state").mkdir(parents=True, exist_ok=True)
