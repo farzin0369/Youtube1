@@ -1,4 +1,4 @@
-"""Colab GPU quality preview: cinematic render only, no YouTube upload.
+"""Colab GPU quality preview using LTX-Video: render only, no YouTube upload.
 Copies final MP4 + thumbnail + script to /tmp for GitHub artifact download.
 """
 from __future__ import annotations
@@ -89,7 +89,7 @@ def main():
     run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements.txt",
          "diffusers>=0.32,<0.42", "transformers>=4.46", "accelerate>=1.0",
          "safetensors", "imageio-ffmpeg", "piper-tts", "edge-tts"])
-    run([sys.executable, "scripts/repair_colab_cogvideox.py"])
+    print("[preview] LTX-Video selected; skipping CogVideoX-specific repair.")
 
     if shutil.which("ollama") is None:
         install_ollama()
@@ -120,8 +120,8 @@ def main():
         "AI_ENGINE": "local",
         "LOCAL_LLM_MODEL": model,
         "OLLAMA_BASE_URL": base,
-        "VIDEO_ENGINE": "cogvideox",
-        "LOCAL_VIDEO_MODEL": "THUDM/CogVideoX-2b",
+        "VIDEO_ENGINE": "ltx",
+        "LTX_MODEL": "Lightricks/LTX-Video",
         "TTS_PROVIDER": "edge",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
