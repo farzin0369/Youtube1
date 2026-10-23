@@ -86,9 +86,11 @@ def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
     assert next_publish_at(late) == "2026-10-12T14:30:00Z"
 
 
-def test_github_schedule_triggers_at_18_tehran():
+def test_cpu_workflow_does_not_schedule_gpu_production():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"
+    assert "schedule" not in workflow["on"]
+    assert "workflow_dispatch" in workflow["on"]
+    assert "No render or upload was attempted" in "\\n".join(step.get("run", "") for step in workflow["jobs"]["validate"]["steps"])
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
@@ -102,7 +104,7 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
     result = subprocess.run([sys.executable, str(cli), "--help"], cwd=tmp_path, capture_output=True, text=True, check=True)
-    assert "Daily Persian spiritual video pipeline" in result.stdout
+    assert "ImamAli110 LTX-Video production pipeline" in result.stdout
 
 
 def test_word_boundaries_are_grouped_into_phrase_captions():
