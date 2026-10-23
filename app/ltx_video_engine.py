@@ -20,16 +20,40 @@ def _frames_for_duration(seconds: float, fps: int = 8) -> int:
 
 
 def _normalize_scene_durations(scenes: list[dict[str, Any]], target_seconds: float) -> None:
-    """Scale scene durations to the actual narration length while preserving ratios."""
+    """Allocate whole-second scene lengths whose sum matches the narration duration."""
     if not scenes:
         raise ValueError("scene plan must contain at least one scene")
     target = float(target_seconds)
     if target <= 0:
         raise ValueError("target_seconds must be positive")
+    total_seconds = max(len(scenes), int(round(target)))
     weights = [max(0.5, float(scene.get("duration_hint_seconds") or 1.0)) for scene in scenes]
-    total = sum(weights)
-    for scene, weight in zip(scenes, weights):
-        scene["duration_hint_seconds"] = round(target * weight / total, 3)
+    allocations = [0] * len(scenes)
+    active = set(range(len(scenes)))
+    remaining = total_seconds
+
+    # Reserve at least one second for each scene; re-apportion the rest by narration weight.
+    while active:
+        weight_sum = sum(weights[index] for index in active)
+        proposed = {index: remaining * weights[index] / weight_sum for index in active}
+        too_short = [index for index, seconds in proposed.items() if seconds < 1.0]
+        if too_short:
+            for index in too_short:
+                allocations[index] = 1
+                active.remove(index)
+                remaining -= 1
+            continue
+        floors = {index: int(math.floor(seconds)) for index, seconds in proposed.items()}
+        for index, seconds in floors.items():
+            allocations[index] = seconds
+        remaining -= sum(floors.values())
+        ranked = sorted(active, key=lambda index: proposed[index] - floors[index], reverse=True)
+        for index in ranked[:remaining]:
+            allocations[index] += 1
+        break
+
+    for scene, seconds in zip(scenes, allocations):
+        scene["duration_hint_seconds"] = float(seconds)
 
 
 def generate_ltx_film(
