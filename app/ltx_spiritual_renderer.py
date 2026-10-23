@@ -115,7 +115,8 @@ def render_ltx_video(
             hook=hook_overlay or str(content.get("scenes", [{}])[0].get("on_screen_text") or ""),
             duration=audio_seconds,
         )
-        caption_filter = f"subtitles='{str(ass_path.resolve()).replace(':', r'\\:').replace(chr(39), r\"\\'\")}':fontsdir='/usr/share/fonts/truetype/noto'"
+        escaped_ass = str(ass_path.resolve()).replace("\\\\", "/").replace(":", "\\\\:").replace("'", "\\\\'")
+        caption_filter = f"subtitles='{escaped_ass}':fontsdir='/usr/share/fonts/truetype/noto'"
     else:
         escaped = str(captions_path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
         caption_filter = (
