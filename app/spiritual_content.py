@@ -758,7 +758,7 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
     system += "\nسیاست تکمیلی پروژه (باید رعایت شود):\n" + json.dumps(policy, ensure_ascii=False)
     performance_notes = history.get("performance_notes") if isinstance(history, dict) else []
     if performance_notes:
-        system += "\nبازخورد مبتنی بر آمار واقعی YouTube، فقط برای بهبود زاویه/هوک و جلوگیری از تکرار؛ هیچ عدد یا علت بازدید را حدس نزن:\n" + json.dumps(performance_notes, ensure_ascii=False)
+        system += "\nبازخورد مبتنی بر آمار واقعی کانال و نتایج جست‌وجوی عمومی YouTube؛ فقط برای زاویهٔ اصیل و جلوگیری از تکرار استفاده کن و هیچ عنوان/متن رقیب را کپی نکن یا علت بازدید را حدس نزن:\n" + json.dumps(performance_notes, ensure_ascii=False)
 
     outline = plan_outline(system, topics)
     headings = list(outline["headings"])
