@@ -123,8 +123,10 @@ def generate_ltx_film(
             scene["visual_prompt"] = prompt
             mark_scene(plan, idx, status="running", clip_path=str(clip), error=None)
             atomic_write_json(plan_path, plan)
-            frames = _frames_for_duration(float(scene["duration_hint_seconds"]), fps)
-            print(f"[ltx] scene {idx + 1}/{len(plan['scenes'])}: {frames} frames at {fps} fps", flush=True)
+            scene_seconds = max(1.0, float(scene["duration_hint_seconds"]))
+            frames = _frames_for_duration(scene_seconds, fps)
+            scene_fps = frames / scene_seconds
+            print(f"[ltx] scene {idx + 1}/{len(plan['scenes'])}: {frames} frames, target {scene_seconds:.0f}s", flush=True)
             gc.collect()
             torch.cuda.empty_cache()
             call_kwargs: dict[str, Any] = {
@@ -147,7 +149,7 @@ def generate_ltx_film(
                 pass
             result = pipe(**call_kwargs)
             clip_frames = result.frames[0]
-            export_to_video(clip_frames, str(clip), fps=fps)
+            export_to_video(clip_frames, str(clip), fps=scene_fps)
             del result, clip_frames
             if not clip.exists() or clip.stat().st_size < 80_000:
                 mark_scene(plan, idx, status="failed", clip_path=str(clip), error="clip missing or too small")
