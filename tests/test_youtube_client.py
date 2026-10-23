@@ -45,3 +45,4 @@ def test_public_upload_requires_a_custom_thumbnail_before_api_upload(tmp_path, m
     result = youtube_client.upload_video(video, "title", "description", [], privacy="public")
     assert not result["ok"]
     assert "thumbnail" in result["error"].lower()
+\n\ndef test_ltx_defaults_to_synthetic_media_disclosure(monkeypatch):\n    monkeypatch.setenv("VIDEO_ENGINE", "ltx")\n    monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)\n    assert _contains_synthetic_media() is True\n
