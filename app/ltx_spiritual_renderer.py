@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from app.ltx_video_engine import generate_ltx_film
-from app.spiritual_video import _write_shorts_ass, make_thumbnail
+from app.spiritual_video import _ambient_track, _write_shorts_ass, make_thumbnail
 
 
 def _probe(path: Path) -> float:
@@ -127,11 +127,31 @@ def render_ltx_video(
 
     pad = max(0.0, audio_seconds - _probe(raw_video))
     pad_filter = f"tpad=stop_mode=clone:stop_duration={pad:.3f},fps=24,format=yuv420p"
+    plan_data = json.loads(Path(str(ltx_meta["scene_plan_path"])).read_text(encoding="utf-8"))
+    scene_durations = [float(scene.get("duration_hint_seconds") or 1.0) for scene in plan_data.get("scenes") or []]
+    music = _ambient_track(
+        out_dir / "ambient.wav", audio_seconds, 110,
+        profile="shorts" if kind == "short" else "long",
+        scene_durations=scene_durations if kind == "short" else None,
+    )
+    fade_duration = min(1.8, max(0.6, audio_seconds * 0.12))
+    fade_start = max(0.0, audio_seconds - fade_duration)
+    mix = (
+        "[1:a]highpass=f=70,acompressor=threshold=0.16:ratio=2:attack=12:release=220,"
+        "loudnorm=I=-16:TP=-2:LRA=8,asetpts=PTS-STARTPTS,asplit=2[voice][voice_key];"
+        "[2:a]volume=0.16,asetpts=PTS-STARTPTS[bed];"
+        "[bed][voice_key]sidechaincompress=threshold=0.035:ratio=5:attack=12:release=280,"
+        f"apad=whole_dur={audio_seconds:.3f},atrim=duration={audio_seconds:.3f},asetpts=PTS-STARTPTS,"
+        f"afade=t=out:st={fade_start:.3f}:d={fade_duration:.3f}[ducked];"
+        "[voice][ducked]amix=inputs=2:duration=longest:dropout_transition=0,"
+        f"alimiter=limit=0.96,apad=pad_dur=0.25,atrim=duration={audio_seconds:.3f}[aout]"
+    )
     subprocess.run([
         "ffmpeg", "-y", "-i", str(raw_video), "-i", str(audio_path),
-        "-vf", pad_filter, "-t", f"{audio_seconds:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
-        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+        "-stream_loop", "-1", "-i", str(music), "-filter_complex", mix,
+        "-map", "0:v:0", "-map", "[aout]", "-vf", pad_filter,
+        "-t", f"{audio_seconds:.3f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+        "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
         "-movflags", "+faststart", str(muxed_video),
     ], check=True, capture_output=True, text=True)
     subprocess.run([
@@ -175,8 +195,9 @@ def render_ltx_video(
         "caption_animation_profile": "phrase-pop-fade-v1" if kind == "short" else "static-readable",
         "persian_text_shaping": "noto-naskh-unicode-rtl" if kind == "short" else "ffmpeg-libass",
         "hook_overlay": safe_hook,
-        "background_music_used": False,
-        "music_ducking": False,
+        "background_music_used": True,
+        "music_ducking": True,
+        "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "pexels_credits": [],
         "test_visuals_only": False,
         "scene_plan_path": ltx_meta.get("scene_plan_path"),
