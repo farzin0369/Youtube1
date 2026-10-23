@@ -115,13 +115,17 @@ def _write_kitten(text: str, out_path: Path) -> dict:
     spoken = " ".join(text.strip().split())
     if not spoken:
         raise ValueError("Kitten-TTS received empty text.")
-    # The currently published Kitten-TTS 2 voice list does not include Persian.
-    # Fail clearly instead of generating misleading, poor-quality fa narration.
-    if re.search(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", spoken):
+    # Persian/Farsi is not in the published voice list. Allow Arabic script only
+    # when the caller explicitly selected Kitten's Arabic voice, and reject Persian-
+    # specific letters even in that case to avoid silently mangling Farsi narration.
+    voice = (env("KITTEN_TTS_VOICE") or "Bruno").strip()
+    has_arabic_script = re.search(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", spoken)
+    has_persian_specific_letters = re.search(r"[\u067E\u0686\u0698\u06AF\u06A9\u06CC\u06C0\u06D2]", spoken)
+    if has_persian_specific_letters or (has_arabic_script and voice.lower() != "arabic"):
         raise RuntimeError(
             "Kitten-TTS 2 currently does not list Persian/Farsi as a supported language. "
-            "Keep TTS_PROVIDER=edge-tts for Persian narration; Kitten is an explicit "
-            "optional backend for supported languages only."
+            "For Persian narration keep TTS_PROVIDER=edge-tts. For Arabic text, explicitly "
+            "set KITTEN_TTS_VOICE=Arabic."
         )
 
     try:
@@ -142,7 +146,6 @@ def _write_kitten(text: str, out_path: Path) -> dict:
 
     model_name = (env("KITTEN_TTS_MODEL") or "KittenML/kitten-tts-2").strip()
     weights = (env("KITTEN_TTS_WEIGHTS") or "emb4").strip()
-    voice = (env("KITTEN_TTS_VOICE") or "Bruno").strip()
     preset = (env("KITTEN_TTS_PRESET") or "expressive").strip()
     # KittenTTS detects CPU/GPU itself. The emb4 option cuts the default download
     # size roughly in half, at a small potential quality cost.
