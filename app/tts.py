@@ -88,6 +88,23 @@ def _write_azure(text: str, out_path: Path) -> dict | None:
         return None
 
 
+
+def _write_persian_speech(text: str, out_path: Path) -> dict | None:
+    """Offline Persian Piper/ONNX voice; CPU inference, no API key."""
+    try:
+        from persian_speech_runtime import talk
+        wav_path = out_path.with_suffix(".wav")
+        talk(" ".join(text.strip().split())[:8000], str(wav_path))
+        if not wav_path.exists() or wav_path.stat().st_size < 1024:
+            raise RuntimeError("Persian Speech returned an empty audio file")
+        return {"path": str(wav_path), "provider": "persian-speech-piper",
+                "voice": "fa-IR-Mana", "model": "Mana-Persian-Piper",
+                "narrator_locked": True, "ok": True}
+    except Exception as exc:
+        print(f"[tts] Persian Piper unavailable ({type(exc).__name__}); trying next provider.")
+        return None
+
+
 def _write_edge(text: str, out_path: Path) -> dict | None:
     voice = env("TTS_VOICE") or "fa-IR-FaridNeural"
     try:
@@ -113,11 +130,21 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
     provider = (env("TTS_PROVIDER") or "auto").lower()
     piper_model = env("PIPER_MODEL")
 
+    if provider in {"persian-piper", "persian_speech", "mana"}:
+        result = _write_persian_speech(text, out_path)
+        if result:
+            return result
+        raise RuntimeError("Persian Piper was explicitly selected but failed; check package/model download.")
+
     if provider == "piper":
         from app.local_ai import piper_synthesize
         return piper_synthesize(text, out_path)
 
     # Explicit provider selection changes priority, but never disables safe fallbacks.
+    if provider in {"auto", "persian-piper", "persian_speech", "mana"}:
+        result = _write_persian_speech(text, out_path)
+        if result:
+            return result
     if provider in {"auto", "elevenlabs"}:
         result = _write_elevenlabs(text, out_path)
         if result:
@@ -158,5 +185,5 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
                 print(f"[tts] Optional OpenAI TTS unavailable ({type(exc).__name__}).")
 
     raise RuntimeError(
-        "No usable TTS provider. Configure ElevenLabs, Azure Speech, Edge TTS, or PIPER_MODEL."
+        "No usable TTS provider. Configure Persian Piper (persian-speech), ElevenLabs, Azure Speech, Edge TTS, or PIPER_MODEL."
     )
