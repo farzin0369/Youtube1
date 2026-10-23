@@ -178,6 +178,64 @@ jobs:
           print(report)
           PY
 
+      - name: Experimental KittenTTS Persian compatibility test
+        id: kitten_tts
+        continue-on-error: true
+        run: |
+          mkdir -p output/tts-smoke/kitten
+          python -m pip install "https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl"
+          python - <<'PY'
+          import json
+          import subprocess
+          import traceback
+          from pathlib import Path
+
+          out = Path("output/tts-smoke/kitten")
+          out.mkdir(parents=True, exist_ok=True)
+          script = (
+              "گاهی زندگی سخت می‌شود، اما امید می‌تواند چراغی در مسیر ما باشد. "
+              "هر روز با یک قدم کوچک، به سوی آرامش و رشد حرکت کن."
+          )
+          (out / "kitten-persian-script.txt").write_text(script, encoding="utf-8")
+          report = [
+              "KittenTTS Persian compatibility experiment",
+              "Purpose: test actual official KittenTTS 0.8.1 API with Persian text.",
+              "Important: a valid WAV file does not prove Persian-language support or intelligible Persian pronunciation.",
+              f"script_chars={len(script)}",
+          ]
+          wav = out / "kitten-persian-sample.wav"
+          try:
+              from kittentts import KittenTTS
+              model = KittenTTS("KittenML/kitten-tts-mini-0.8")
+              voices = list(getattr(model, "available_voices", []))
+              report.append("model_loaded=true")
+              report.append("available_voices=" + ",".join(map(str, voices)))
+              voice = next((v for v in ("Jasper", "Bruno", "Luna", "Bella") if v in voices), None)
+              if voice is None:
+                  raise RuntimeError("No documented default voice was found in available_voices")
+              model.generate_to_file(script, str(wav), voice=voice)
+              if not wav.exists() or wav.stat().st_size < 2048:
+                  raise RuntimeError("KittenTTS did not create a non-empty WAV file")
+              probe = subprocess.run(
+                  ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                   "-of", "json", str(wav)],
+                  check=True, capture_output=True, text=True, timeout=30,
+              )
+              duration = float(json.loads(probe.stdout)["format"]["duration"])
+              report.append(f"voice={voice}")
+              report.append(f"audio_bytes={wav.stat().st_size}")
+              report.append(f"duration_seconds={duration:.3f}")
+              report.append("STATUS=GENERATED_BUT_PERSIAN_UNVERIFIED")
+              report.append("Human listening/native-speaker review is required before treating this as usable Persian narration.")
+          except Exception as exc:
+              report.append(f"STATUS=FAILED")
+              report.append(f"error={type(exc).__name__}: {exc}")
+              report.append(traceback.format_exc())
+          finally:
+              (out / "kitten-test-report.txt").write_text("\n".join(report) + "\n", encoding="utf-8")
+              print("\n".join(report))
+          PY
+
       - name: Upload Persian sample audio and test report
         if: always()
         uses: actions/upload-artifact@v4
