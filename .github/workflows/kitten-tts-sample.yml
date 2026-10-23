@@ -28,10 +28,13 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install optional Kitten-TTS dependencies
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+      - name: Install CPU-only PyTorch first (avoid multi-GB CUDA wheels)
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-kitten.txt
+          python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchaudio
+      - name: Install optional Kitten-TTS dependencies
+        run: python -m pip install --no-cache-dir -r requirements-kitten.txt
       - name: Generate supported-language CPU sample
         run: |
           mkdir -p output
