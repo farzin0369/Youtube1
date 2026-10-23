@@ -201,7 +201,7 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
                 + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
                 + draft[:5000]
             )
-            if attempt == 1 and "word_count_outside" in last_error:
+            if "word_count_outside" in last_error:
                 repair_note += (
                     "\nمهم: تعداد واژه‌های گفتاری خارج از محدوده است. دقیقاً چهار صحنه بده و مجموع spoken_text "
                     f"صحنه‌ها باید بین {min_words} و {max_words} واژه باشد. هر صحنه را با یک جملهٔ طبیعیِ مرتبط "
