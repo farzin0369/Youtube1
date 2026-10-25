@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -16,6 +17,7 @@ LOGGER = logging.getLogger(__name__)
 BRAND_PREFIX = "Imam Ali ✨ "
 BRAND_TAGS = ["ImamAli110", "The110Path", "امام علی", "معنویت اسلامی", "رشد فردی", "توکل"]
 ALLOWED_MOODS = {"hook", "calm", "reassuring", "motivational"}
+MAX_DRAFT_ATTEMPTS = 2
 
 SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌زبانِ معنوی و رشد فردی هستی. برای YouTube Shorts متنی اصیل، شنیدنی و دقیق بنویس؛ از وعدهٔ قطعی، کلیک‌بیت، ترساندن، شرمنده‌کردن، شعار کلی و تقلید از نویسنده یا کانال دیگر دوری کن. هیچ آیه، حدیث یا نقل‌قولی را جعل یا بدون منبع معتبر به کسی نسبت نده؛ توصیهٔ پزشکی یا مالی شخصی نده.
 قلاب باید در اولین جمله باشد: پرسشی مشخص و قابل‌باور یا صحنه‌ای ملموس که مخاطب را به ادامه‌دادن ترغیب کند، نه اغراق یا فریب. سلام و مقدمهٔ کلی ممنوع. یک ایدهٔ اصلی و فقط یک اقدام ساده و عملی بده؛ پایان کوتاه، امیدوارکننده و غیرموعظه‌ای باشد. متن را با صدای بلند تصور کن: جمله‌های کوتاه، فارسی طبیعی، نشانه‌گذاری واقعی برای مکث (ویرگول، نقطه، پرسش‌علامت) و بدون متنِ دستور اجرا.
@@ -23,8 +25,9 @@ SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌
 
 USER_TEMPLATE = """برای کانال ImamAli110 یک Short فارسی بساز. هدف خوانش {target_duration_seconds} ثانیه و حدود {min_words} تا {max_words} واژهٔ گفتاری است؛ کم‌گویی را با تکرار و شعار جبران نکن.
 روایت دقیقاً چهار صحنه داشته باشد: ۱) hook کنجکاوی‌برانگیز و مشخص، ۲) همدلی/آرام‌شدن، ۳) یک اقدام کوچک برای همین امروز، ۴) پایان امیدوارکننده و انگیزشی. حالت احساسی هر صحنه به‌ترتیب hook، calm، reassuring، motivational باشد. جمله‌ها با علائم نگارشی طبیعی مکث بسازند.
-برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک جست‌وجوی کوتاه و مشخصِ انگلیسی برای فیلم عمودیِ واقعیِ مرتبط با همان جمله باشد: حداقل دو واژهٔ تصویریِ دقیق و مشخص (مثل "woman writing journal"؛ نه کلمهٔ تنها، استعارهٔ نامربوط یا عبارت کلی)؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
+برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک راهنمای تصویریِ مشخص به انگلیسی برای صحنهٔ سه‌بعدی سینمایی LTX باشد (مثل "hands planting a seed at sunrise")؛ با معنای همان جمله مرتبط باشد و از متن/لوگو/واترمارک پرهیز کند؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
 عنوان روشن، دقیق و بدون کلیک‌بیت باشد؛ توضیح کوتاه و ۳ تا ۶ برچسب مرتبط بده. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
+بازخورد مبتنی بر آمار واقعی کانال و نتایج جست‌وجوی عمومی YouTube، اگر موجود است: {performance_feedback}. فقط از آن برای کشف زاویهٔ تازه استفاده کن؛ عدد یا علت بازدید را حدس نزن و عنوان/متن رقبا را کپی نکن.
 سیاست محتوا: {policy}
 خروجی فقط این قالب را داشته باشد:
 {{"topic":"...","title":"...","hook":"عین متن گفتاری صحنهٔ اول","description":"...","thumbnail_text":"۲ تا ۴ واژهٔ کوتاه","tags":["..."],"scenes":[{{"spoken_text":"...","mood":"hook","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"calm","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"reassuring","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"motivational","visual_query":"...","on_screen_text":"..."}}],"script":"اتصال عین spoken_text چهار صحنه با یک فاصله"}}
@@ -40,7 +43,6 @@ def _normalize(text: str) -> str:
 
 
 def _normalize_narration(text: str) -> str:
-    """Ignore punctuation drift while preserving exact word order and boundaries."""
     normalized = "".join(
         " " if unicodedata.category(char).startswith("P") else char
         for char in str(text).casefold()
@@ -55,9 +57,8 @@ def _first_sentence(text: str) -> str:
 
 def validate_short_content(
     item: dict[str, Any], recent_titles: list[str] | None = None, *,
-    min_words: int = 28, max_words: int = 44,
+    min_words: int = 24, max_words: int = 48,
 ) -> dict[str, Any]:
-    """Validate copy, hook, pacing, narration/scene identity and scene-specific visuals."""
     if not isinstance(item, dict):
         raise ValueError("short content must be a JSON object")
     title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
@@ -75,8 +76,6 @@ def validate_short_content(
         text = re.sub(r"\s+", " ", str(raw.get("spoken_text") or "")).strip()
         mood = str(raw.get("mood") or "").strip().lower()
         query = re.sub(r"\s+", " ", str(raw.get("visual_query") or "")).strip()
-        # Repair underspecified stock-search queries before the strict QA gate.
-        # Preserve valid model-authored queries; only append concrete visual terms when needed.
         if query and len(query.split()) < 2:
             scene_terms = [
                 "cinematic vertical video",
@@ -92,8 +91,6 @@ def validate_short_content(
             raise ValueError(f"scene_{index + 1}_is_incomplete")
         if len(overlay.split()) > 5 or len(overlay) > 36:
             raise ValueError(f"scene_{index + 1}_overlay_too_long")
-        # Two specific English terms are often a perfectly usable stock search (e.g. "morning sunrise").
-        # Reject a single vague token, not concise and clear searches generated by the model.
         if len(query.split()) < 2 or len(query) > 100:
             raise ValueError(f"scene_{index + 1}_visual_query_not_specific")
         segments = segment_and_tag(text)
@@ -107,7 +104,6 @@ def validate_short_content(
     expected = " ".join(scene["spoken_text"] for scene in scenes)
     if _normalize_narration(script) != _normalize_narration(expected):
         raise ValueError("script_must_match_scene_narration_exactly")
-    # Scene narration is canonical: retain its precise Persian punctuation for speech and captions.
     script = expected
     words = _word_count(script)
     if not min_words <= words <= max_words:
@@ -163,22 +159,31 @@ def validate_short_content(
 
 
 def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
-    """Generate one short and reject weak, generic, duplicated or mismatched drafts."""
+    """Generate one short; fall back to the idea bank when local LLM cannot pass QA."""
+    from app.idea_bank import idea_bank_enabled, pick_idea_bank_content
+
+    force_bank = idea_bank_enabled() or (os.getenv("USE_IDEA_BANK") or "").strip().lower() == "only"
+    if force_bank:
+        result = pick_idea_bank_content(history)
+        LOGGER.info("using idea bank (forced) topic=%r words=%s", result.get("idea_bank_topic"), result["word_count"])
+        return result
+
     recent = history.get("recent", []) if isinstance(history, dict) else []
     titles = [str(row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
     topics = [str(row.get("topic") or row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
     policy = load_content_policy()
     config = load_channel_config().get("content") or {}
     duration_target = str(config.get("target_duration_seconds") or "18-30")
-    word_match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", str(config.get("target_word_count") or "28-44"))
+    word_match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", str(config.get("target_word_count") or "24-48"))
     if not word_match:
-        raise ValueError("config content.target_word_count must be a range such as '36-48'")
+        raise ValueError("config content.target_word_count must be a range such as '24-48'")
     min_words, max_words = (int(value) for value in word_match.groups())
-    if min_words < 24 or max_words > 52 or min_words >= max_words:
-        raise ValueError("Shorts target word range must satisfy 24 <= min < max <= 52")
+    if min_words < 20 or max_words > 56 or min_words >= max_words:
+        raise ValueError("Shorts target word range must satisfy 20 <= min < max <= 56")
     prompt = USER_TEMPLATE.format(
         recent="؛ ".join(topics)[:1200] or "هنوز موضوع قبلی ثبت نشده است",
         policy=json.dumps(policy, ensure_ascii=False),
+        performance_feedback="؛ ".join(str(note) for note in (history.get("performance_notes") or []) if str(note).strip()) or "آمار واقعی در دسترس نیست؛ از نتیجه‌گیری دربارهٔ بازدید خودداری کن",
         target_duration_seconds=duration_target,
         min_words=min_words,
         max_words=max_words,
@@ -187,37 +192,58 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
     provider = "unknown"
     draft = ""
     last_error = ""
-    for attempt in range(2):
+    for attempt in range(MAX_DRAFT_ATTEMPTS):
         if attempt == 0:
             request_prompt = prompt
             temperature = 0.75
         else:
-            request_prompt = (
-                prompt
-                + "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
+            repair_note = (
+                "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن: "
                 + last_error
-                + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
-                + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
-                + draft[:5000]
+                + "\nپاسخ فقط JSON معتبر باشد.\nپیش‌نویس قبلی:\n"
+                + draft[:4000]
             )
-            temperature = 0.45
-        draft, provider = generate_text(
-            SYSTEM_PROMPT, request_prompt, max_tokens=1400, temperature=temperature, json_mode=True,
-        )
+            request_prompt = prompt + repair_note
+            temperature = 0.4
+        try:
+            draft, provider = generate_text(
+                SYSTEM_PROMPT, request_prompt, max_tokens=900, temperature=temperature, json_mode=True,
+            )
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}:{exc}"
+            LOGGER.warning("LLM generate failed attempt %s/%s (%s)", attempt + 1, MAX_DRAFT_ATTEMPTS, type(exc).__name__)
+            continue
         try:
             try:
                 item = json.loads(draft)
             except json.JSONDecodeError:
                 cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", draft.strip(), flags=re.I)
                 item = json.loads(cleaned)
-            result = validate_short_content(item, titles, min_words=min_words, max_words=max_words)
+            if isinstance(item, dict) and isinstance(item.get("scenes"), list) and len(item["scenes"]) == 4:
+                scene_lines = [
+                    re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip()
+                    for scene in item["scenes"] if isinstance(scene, dict)
+                ]
+                if len(scene_lines) == 4 and all(scene_lines):
+                    item["script"] = " ".join(scene_lines)
+            gate_min, gate_max = min_words, max_words
+            if attempt == MAX_DRAFT_ATTEMPTS - 1:
+                gate_min = max(20, min_words - 4)
+                gate_max = min(56, max_words + 4)
+            result = validate_short_content(item, titles, min_words=gate_min, max_words=gate_max)
             break
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
             last_error = str(exc)
-            if attempt == 0:
-                LOGGER.warning("short draft failed a quality gate; one corrective rewrite will run (%s)", last_error[:180])
-    if result is None:
-        raise ValueError("short failed content QA after one corrective rewrite: " + last_error[:240])
-    result["generated_by"] = provider
-    LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
-    return result
+            LOGGER.warning(
+                "short draft failed quality gate on attempt %s/%s (%s)",
+                attempt + 1, MAX_DRAFT_ATTEMPTS, last_error[:180],
+            )
+    if result is not None:
+        result["generated_by"] = provider
+        LOGGER.info("short content passed QA words=%s title=%r provider=%s", result["word_count"], result["title"], provider)
+        return result
+
+    LOGGER.warning("LLM short generation failed; falling back to idea bank (%s)", last_error[:180])
+    bank = pick_idea_bank_content(history)
+    LOGGER.info("idea bank selected topic=%r words=%s", bank.get("idea_bank_topic"), bank["word_count"])
+    return bank

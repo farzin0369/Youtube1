@@ -1,15 +1,14 @@
-name: ImamAli style short (AI stills + Ken Burns)
+name: "Deprecated AI-stills renderer — disabled; use LTX-Video"
 
 # Free CPU: Pollinations images + Edge TTS + FFmpeg
 # Closest free match to per-phrase cinematic spiritual shorts
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "30 5 * * *"
 
 jobs:
   render:
+    if: false # Disabled: production video generation is LTX-Video only.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

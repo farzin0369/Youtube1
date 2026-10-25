@@ -10,30 +10,31 @@ channel:
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge-tts
-  visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
-  ai_engine: groq-optional-local-ollama
+  visual_style: انیمیشن سینمایی سه‌بعدی تولیدشده با LTX-Video؛ Shorts عمودی ۹:۱۶ با چهار صحنهٔ متناسب با روایت و زیرنویس فارسی خوانا؛ ویدئوی بلند افقی ۱۶:۹
+  ai_engine: local-ollama-only
   llm_model: openai/gpt-oss-20b
-  local_llm_model: qwen2.5:3b
+  local_llm_model: qwen2.5:1.5b
 
 schedule:
-  timezone: Asia/Tehran
-  production_start_local: "18:00"
-  publication_local: "18:00"
-  production_cron_utc: "30 14 * * *"
-  cadence: daily
+  timezone: UTC
+  long_form_utc: "0 14 * * *"
+  shorts_utc: "0 17 * * *"
+  cadence: daily-long-and-shorts
+  activation_note: "Requires an always-available CUDA GPU runner; free Colab sessions cannot be reliably scheduled from GitHub Actions."
 
 publishing:
-  mode: scheduled-public
+  mode: private
   category_id: "22"
   default_language: fa
   minimum_schedule_lead_minutes: 30
+  public_publish_enabled: false
   require_successful_render: true
   comments_max_replies_per_run: 3
 
 content:
   production_format: shorts
   target_duration_seconds: "18-30"
-  target_word_count: "28-44"
+  target_word_count: "24-48"
   pillars:
     - معنویت روزمره و تأمل دربارهٔ معنا
     - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی

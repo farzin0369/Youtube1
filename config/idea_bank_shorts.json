@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "topic": "توکل آرام",
+      "title": "Imam Ali ✨ وقتی کارها از دستت خارج است؟",
+      "hook": "وقتی کارها از دستت خارج شده، اولین نفس را کجا می‌گذاری؟",
+      "description": "یک یادآوری کوتاه دربارهٔ توکل بدون وعدهٔ قطعی؛ فقط یک قدم کوچک برای امروز.",
+      "thumbnail_text": "نفس و توکل",
+      "tags": ["توکل", "آرامش", "رشد فردی", "ImamAli110"],
+      "scenes": [
+        {
+          "spoken_text": "وقتی کارها از دستت خارج شده، اولین نفس را کجا می‌گذاری؟",
+          "mood": "hook",
+          "visual_query": "person breathing slowly by window morning light",
+          "on_screen_text": "اولین نفس"
+        },
+        {
+          "spoken_text": "گاهی ذهن می‌دود و بدن خسته می‌ماند. این فشار نشانهٔ ضعف نیست؛ نشانهٔ نیاز به توقف کوتاه است.",
+          "mood": "calm",
+          "visual_query": "quiet room soft sunlight empty chair",
+          "on_screen_text": "توقف کوتاه"
+        },
+        {
+          "spoken_text": "امروز فقط یک کار کوچک را تمام کن و بقیه را با آرامش به خدا بسپار.",
+          "mood": "reassuring",
+          "visual_query": "hands writing one line in notebook",
+          "on_screen_text": "یک کار کوچک"
+        },
+        {
+          "spoken_text": "توکل یعنی حرکت آرام با امید؛ نه عجله، نه تسلیم کامل.",
+          "mood": "motivational",
+          "visual_query": "sunrise path through calm trees",
+          "on_screen_text": "حرکت آرام"
+        }
+      ]
+    },
+    {
+      "topic": "شکرگزاری کوچک",
+      "title": "Imam Ali ✨ امروز برای چه شکر می‌کنی؟",
+      "hook": "امروز، حتی در میان شلوغی، برای چه چیز کوچکی شکر می‌کنی؟",
+      "description": "تمرین کوتاه شکرگزاری عملی؛ بدون شعار و بدون وعدهٔ جادویی.",
+      "thumbnail_text": "شکر کوچک",
+      "tags": ["شکرگزاری", "آگاهی", "رشد فردی", "ImamAli110"],
+      "scenes": [
+        {
+          "spoken_text": "امروز، حتی در میان شلوغی، برای چه چیز کوچکی شکر می‌کنی؟",
+          "mood": "hook",
+          "visual_query": "cup of tea on wooden table morning",
+          "on_screen_text": "شکر کوچک"
+        },
+        {
+          "spoken_text": "ذهن اغلب به کمبود می‌رود. یک لحظه مکث کمک می‌کند چیزهای ساده دیده شوند.",
+          "mood": "calm",
+          "visual_query": "person looking out rainy window calmly",
+          "on_screen_text": "یک لحظه مکث"
+        },
+        {
+          "spoken_text": "سه مورد واقعی را بنویس: نفس، یک نفر مهربان، یا یک کار تمام‌شده.",
+          "mood": "reassuring",
+          "visual_query": "hand writing three lines on paper",
+          "on_screen_text": "سه مورد"
+        },
+        {
+          "spoken_text": "شکرگزاری یعنی دیدن نعمت‌های موجود؛ همین امروز کافی است.",
+          "mood": "motivational",
+          "visual_query": "golden hour field soft wind",
+          "on_screen_text": "همین امروز"
+        }
+      ]
+    },
+    {
+      "topic": "صبر فعال",
+      "title": "Imam Ali ✨ صبر یعنی هیچ کاری نکردن؟",
+      "hook": "وقتی می‌گویند صبر کن، منظورتان نشستن و هیچ کاری نکردن است؟",
+      "description": "نگاهی کوتاه به صبر فعال: امید همراه با اقدام کوچک.",
+      "thumbnail_text": "صبر فعال",
+      "tags": ["صبر", "امید", "رشد فردی", "ImamAli110"],
+      "scenes": [
+        {
+          "spoken_text": "وقتی می‌گویند صبر کن، منظورتان نشستن و هیچ کاری نکردن است؟",
+          "mood": "hook",
+          "visual_query": "person standing at crossroads dusk",
+          "on_screen_text": "صبر چیست"
+        },
+        {
+          "spoken_text": "صبر واقعی اغلب آرام است، اما خالی نیست. اضطراب را می‌بیند و عجله را کم می‌کند.",
+          "mood": "calm",
+          "visual_query": "slow river stones underwater clear",
+          "on_screen_text": "آرام نه خالی"
+        },
+        {
+          "spoken_text": "یک قدم کوچک بردار: پیام بفرست، تمرین کن، یا فقط امروز را منظم تمام کن.",
+          "mood": "reassuring",
+          "visual_query": "feet taking one step on path",
+          "on_screen_text": "یک قدم"
+        },
+        {
+          "spoken_text": "صبر فعال یعنی امید داشتن و همزمان حرکت کردن.",
+          "mood": "motivational",
+          "visual_query": "hiker walking toward soft sunrise",
+          "on_screen_text": "امید و حرکت"
+        }
+      ]
+    },
+    {
+      "topic": "نیت روزانه",
+      "title": "Imam Ali ✨ قبل از شروع روز چه نیتی داری؟",
+      "hook": "قبل از باز کردن گوشی، برای امروز چه نیتی در دل داری؟",
+      "description": "یک عادت کوچک برای شروع آگاهانه روز؛ بدون اغراق.",
+      "thumbnail_text": "نیت امروز",
+      "tags": ["نیت", "عادت", "رشد فردی", "ImamAli110"],
+      "scenes": [
+        {
+          "spoken_text": "قبل از باز کردن گوشی، برای امروز چه نیتی در دل داری؟",
+          "mood": "hook",
+          "visual_query": "phone face down beside window light",
+          "on_screen_text": "قبل از گوشی"
+        },
+        {
+          "spoken_text": "روزها بدون نیت زود پراکنده می‌شوند. یک جمله کوتاه جهت می‌دهد.",
+          "mood": "calm",
+          "visual_query": "minimal desk single sticky note",
+          "on_screen_text": "یک جمله"
+        },
+        {
+          "spoken_text": "بگو: امروز با احترام به خودم و دیگران پیش می‌روم.",
+          "mood": "reassuring",
+          "visual_query": "person writing intention on paper",
+          "on_screen_text": "با احترام"
+        },
+        {
+          "spoken_text": "نیت کوچک، مسیر را آرام‌تر و روشن‌تر می‌کند.",
+          "mood": "motivational",
+          "visual_query": "open road soft morning fog",
+          "on_screen_text": "مسیر روشن"
+        }
+      ]
+    },
+    {
+      "topic": "آرامش در شلوغی",
+      "title": "Imam Ali ✨ در شلوغی کجا آرامش پیدا می‌کنی؟",
+      "hook": "وقتی همه چیز شلوغ است، آرامش را از کجا شروع می‌کنی؟",
+      "description": "راهنمای کوتاه برای پیدا کردن لحظهٔ آرام در روز شلوغ.",
+      "thumbnail_text": "لحظه آرام",
+      "tags": ["آرامش", "تمرکز", "رشد فردی", "ImamAli110"],
+      "scenes": [
+        {
+          "spoken_text": "وقتی همه چیز شلوغ است، آرامش را از کجا شروع می‌کنی؟",
+          "mood": "hook",
+          "visual_query": "busy city blur person standing still",
+          "on_screen_text": "از کجا"
+        },
+        {
+          "spoken_text": "آرامش همیشه بیرون نیست. گاهی فقط یک دقیقه سکوت کافی است.",
+          "mood": "calm",
+          "visual_query": "closed eyes soft indoor light",
+          "on_screen_text": "یک دقیقه"
+        },
+        {
+          "spoken_text": "الان شانه را پایین بیاور، سه نفس عمیق بکش، بعد ادامه بده.",
+          "mood": "reassuring",
+          "visual_query": "shoulders relaxing deep breath indoor",
+          "on_screen_text": "سه نفس"
+        },
+        {
+          "spoken_text": "آرامش از همین لحظه‌های کوچک ساخته می‌شود.",
+          "mood": "motivational",
+          "visual_query": "candle flame steady dark room",
+          "on_screen_text": "لحظه‌های کوچک"
+        }
+      ]
+    }
+  ]
+}

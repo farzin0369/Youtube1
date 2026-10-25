@@ -1,18 +1,21 @@
-name: Persian spiritual channel — daily Shorts
+name: ImamAli110 LTX-Video daily production
 
 on:
-  # Start at exactly 18:00 Tehran (14:30 UTC); generate the next day's 18:00 episode.
   schedule:
-    - cron: "30 14 * * *"
+    - cron: "0 14 * * *" # Long-form production, UTC
+    - cron: "0 17 * * *" # Shorts production, UTC
   workflow_dispatch:
     inputs:
-      publish:
-        description: Upload and schedule publicly for 18:00 Tehran
+      format:
+        description: Video format
         required: true
-        type: boolean
-        default: false
+        type: choice
+        options:
+          - shorts
+          - long
+        default: shorts
       upload_private:
-        description: Upload a private draft now (never publish publicly)
+        description: Upload the QA-passed video as a PRIVATE YouTube draft
         required: true
         type: boolean
         default: false
@@ -21,110 +24,210 @@ permissions:
   contents: read
 
 concurrency:
-  group: persian-spiritual-daily
+  group: imamali110-ltx-${{ github.event.schedule || inputs.format || 'manual' }}
   cancel-in-progress: false
 
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     env:
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: ${{ vars.LLM_MODEL }}
-      LLM_TIMEOUT_SECONDS: "180"
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      TTS_PROVIDER: ${{ vars.TTS_PROVIDER || 'edge-tts' }}
-      TTS_VOICE: fa-IR-FaridNeural
-      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
-      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_v4' }}
-      ELEVENLABS_STABILITY: ${{ vars.ELEVENLABS_STABILITY || '0.5' }}
-      ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
-      CHANNEL_BRAND: ImamAli110
-      LOCAL_LLM_MODEL: qwen2.5:7b
-      OLLAMA_BASE_URL: http://127.0.0.1:11434
-      OLLAMA_TIMEOUT_SECONDS: "600"
-      OLLAMA_NUM_PREDICT: "4096"
-      OLLAMA_NUM_CTX: "4096"
-      OLLAMA_KEEP_ALIVE: "1800"
-      CHANNEL_HISTORY_PATH: state/history.json
+      YOUTUBE_ANALYTICS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_ANALYTICS_REFRESH_TOKEN }}
+      COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
+      PRODUCTION_FORMAT: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 * * *' && 'long' || (github.event_name == 'schedule' && 'shorts' || inputs.format) }}
+      UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || inputs.upload_private }}
+      GIT_REF: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
+      LOCAL_LLM_MODEL: qwen2.5:1.5b
+      LTX_VIDEO_STEPS: "20"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
-      - name: Install Python dependencies
+
+      - name: Run CPU-only regression tests before requesting GPU
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
-      - name: Run automated regression tests before production
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: python -m pytest -q
-      - name: Install FFmpeg and Persian fonts
+          python -m pytest -q
+
+      - name: Require Colab CLI and YouTube credentials for scheduled private uploads
+        id: preflight
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
-      - name: Restore bounded channel history and reply ledger
+          if [ -z "$COLAB_CLI_TOKEN_JSON" ]; then
+            echo "::error::COLAB_CLI_TOKEN_JSON is missing. Configure the Google Colab CLI token in repository Actions secrets; no video was generated or uploaded."
+            exit 1
+          fi
+          if [ "$UPLOAD_PRIVATE" = "true" ]; then
+            for key in YOUTUBE_CLIENT_ID YOUTUBE_CLIENT_SECRET YOUTUBE_REFRESH_TOKEN; do
+              if [ -z "${!key}" ]; then
+                echo "::error::$key is missing. Private upload is blocked before GPU allocation."
+                exit 1
+              fi
+            done
+          fi
+          echo "preflight passed; secret values will not be printed."
+
+      - name: Install Colab CLI
+        run: |
+          python -m pip install --upgrade google-colab-cli
+          colab --help >/dev/null
+          echo "Colab CLI installed: $(python -c 'import importlib.metadata as m; print(m.version("google-colab-cli"))')"
+
+      - name: Restore Colab CLI authentication
+        env:
+          COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
+        run: |
+          mkdir -p "$HOME/.config/colab-cli"
+          printf '%s' "$COLAB_CLI_TOKEN_JSON" > "$HOME/.config/colab-cli/token.json"
+          chmod 600 "$HOME/.config/colab-cli/token.json"
+
+      - name: Restore channel history and comment reply ledger
         uses: actions/cache@v4
         with:
           path: state/
-          key: persian-growth-state-${{ github.run_id }}-${{ github.run_attempt }}
+          key: imamali110-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            persian-growth-state-
-      - name: Initialize state files
+            imamali110-state-
+
+      - name: Initialize persistent state files
         run: |
-          mkdir -p state output logs
+          mkdir -p state output/colab_ltx
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
-      - name: Install and warm local free LLM fallback for API limits/outages
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          (ollama serve > "${RUNNER_TEMP}/ollama.log" 2>&1 &)
-          for i in $(seq 1 40); do
-            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
-            sleep 2
-          done
-          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
-          ollama pull "$LOCAL_LLM_MODEL"
-      - name: Verify YouTube credentials before any production work
-        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+          python - <<'PY'
+          import os, zipfile
+          with zipfile.ZipFile(os.environ["RUNNER_TEMP"] + "/imamali110-state.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              z.write("state/history.json")
+              z.write("state/comment_replies.json")
+          PY
+
+      - name: Build one-time remote configuration without logging secrets
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_ANALYTICS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_ANALYTICS_REFRESH_TOKEN }}
+          PRODUCTION_FORMAT: ${{ env.PRODUCTION_FORMAT }}
+          UPLOAD_PRIVATE: ${{ env.UPLOAD_PRIVATE }}
+          GIT_REF: ${{ env.GIT_REF }}
+          LOCAL_LLM_MODEL: ${{ env.LOCAL_LLM_MODEL }}
+          LTX_VIDEO_STEPS: ${{ env.LTX_VIDEO_STEPS }}
+          RUN_TOKEN: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python - <<'PY'
-          from app.youtube_client import probe_youtube_auth
-          result = probe_youtube_auth()
-          if not result.get("ok"):
-              print("YouTube OAuth preflight failed; no video will be rendered or uploaded.")
-              raise SystemExit(1)
-          print("YouTube OAuth preflight passed.")
+          import json, os
+          keys = [
+              "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN", "YOUTUBE_ANALYTICS_REFRESH_TOKEN",
+              "PRODUCTION_FORMAT", "UPLOAD_PRIVATE", "GIT_REF", "LOCAL_LLM_MODEL",
+              "LTX_VIDEO_STEPS", "RUN_TOKEN",
+          ]
+          path = os.path.join(os.environ["RUNNER_TEMP"], "imamali110-secrets.json")
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump({key: os.environ.get(key, "") for key in keys}, f)
+          os.chmod(path, 0o600)
+          print("Remote configuration prepared; values redacted.")
           PY
-      - name: Run Persian spiritual video pipeline
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PUBLISH_INPUT: ${{ inputs.publish }}
+
+      - name: Allocate a fresh Colab T4 GPU runtime
+        id: session
+        shell: bash
         run: |
-          if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
-            python scripts/daily_run.py --publish
-          elif [ "${{ inputs.upload_private }}" = "true" ]; then
-            python scripts/daily_run.py --upload-private
-          else
-            python scripts/daily_run.py --dry-run
+          set -euo pipefail
+          SESSION="imamali-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "name=$SESSION" >> "$GITHUB_OUTPUT"
+          ok=0
+          for attempt in 1 2 3; do
+            echo "Requesting Colab T4 runtime (attempt $attempt/3)."
+            if colab new -s "$SESSION" --gpu T4 2>&1 | tee "output/colab_ltx/allocate.log"; then
+              ok=1
+              break
+            fi
+            sleep 25
+            SESSION="imamali-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-$attempt"
+            echo "name=$SESSION" >> "$GITHUB_OUTPUT"
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::Colab could not allocate a T4 GPU. No fallback renderer will run."
+            exit 1
           fi
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Transfer short-lived config and channel state to Colab
+        env:
+          SESSION_NAME: ${{ steps.session.outputs.name }}
+        run: |
+          set -euo pipefail
+          colab upload -s "$SESSION_NAME" "$RUNNER_TEMP/imamali110-secrets.json" /content/.imamali110-secrets.json
+          colab upload -s "$SESSION_NAME" "$RUNNER_TEMP/imamali110-state.zip" /content/.imamali110-state.zip
+          rm -f "$RUNNER_TEMP/imamali110-secrets.json"
+
+      - name: Run LTX-Video ImamAli110 pipeline on Colab
+        id: render
+        continue-on-error: true
+        env:
+          SESSION_NAME: ${{ steps.session.outputs.name }}
+        run: |
+          set +e
+          colab exec -s "$SESSION_NAME" -f scripts/colab_spiritual_job.py --timeout 9000 2>&1 | tee output/colab_ltx/remote-run.log
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Retrieve video, QA report and persistent channel state
+        if: always() && steps.session.outputs.created == 'true'
+        env:
+          SESSION_NAME: ${{ steps.session.outputs.name }}
+        run: |
+          mkdir -p output/colab_ltx
+          colab download -s "$SESSION_NAME" /content/ImamAli110-result.json output/colab_ltx/result.json 2>&1 | tee -a output/colab_ltx/download.log || true
+          colab download -s "$SESSION_NAME" /content/ImamAli110-output.zip output/colab_ltx/ImamAli110-output.zip 2>&1 | tee -a output/colab_ltx/download.log || true
+          colab download -s "$SESSION_NAME" /content/ImamAli110-state.zip "$RUNNER_TEMP/imamali110-state-out.zip" 2>&1 | tee -a output/colab_ltx/download.log || true
+          if [ -s "$RUNNER_TEMP/imamali110-state-out.zip" ]; then
+            unzip -o "$RUNNER_TEMP/imamali110-state-out.zip" -d . >/dev/null
+          fi
+
+      - name: Stop only this workflow's Colab session
+        if: always() && steps.session.outputs.created == 'true'
+        env:
+          SESSION_NAME: ${{ steps.session.outputs.name }}
+        run: colab stop -s "$SESSION_NAME" 2>&1 | tee -a output/colab_ltx/cleanup.log || true
+
       - name: Upload production evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: persian-spiritual-production-${{ github.run_id }}-${{ github.run_attempt }}
+          name: imamali110-ltx-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            output/spiritual/
+            output/colab_ltx/
             state/
-            logs/
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: warn
+
+      - name: Fail if remote LTX production did not complete
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.render.outputs.exit_code }}" != "0" ]; then
+            echo "::error::LTX production failed (colab exec exit). Inspect the Colab run log and result artifact; no alternate engine was used."
+            exit 1
+          fi
+          if [ ! -f output/colab_ltx/result.json ]; then
+            echo "::error::Missing ImamAli110-result.json; production did not report success."
+            exit 1
+          fi
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          data = json.loads(Path("output/colab_ltx/result.json").read_text(encoding="utf-8"))
+          if data.get("success") is not True:
+              print("::error::Remote pipeline reported success=false:", data.get("error_type"), data.get("error", "")[:400])
+              sys.exit(1)
+          print("Remote pipeline reported success=true.")
+          PY

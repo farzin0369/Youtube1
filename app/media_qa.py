@@ -123,11 +123,13 @@ def validate_render_package(
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        if visual_source != "pexels" and not test_stills_are_allowed:
-            errors.append("shorts_visual_source_not_approved_portrait_stock")
+        if visual_source not in {"pexels", "ltx-video"} and not test_stills_are_allowed:
+            errors.append("shorts_visual_source_not_approved_portrait_media")
+        if visual_source == "ltx-video" and render_meta.get("scene_mapping") != "exact-narration-scene-plan":
+            errors.append("ltx_scene_mapping_not_verified")
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
-        if render_meta.get("music_ducking") is not True:
+        if render_meta.get("background_music_used") is True and render_meta.get("music_ducking") is not True:
             errors.append("shorts_background_music_not_ducked_under_voice")
         if int(render_meta.get("visual_scene_count") or 0) != 4:
             errors.append("shorts_scene_count_must_be_four")

@@ -13,8 +13,10 @@ from typing import Any
 from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
+from app.youtube_growth_agent import review_package
+from app.youtube_analytics import (fetch_recent_video_analytics, performance_notes, fetch_competitor_signals, competitor_notes)
 from app.spiritual_tts import synthesize_with_captions
-from app.spiritual_video import render_video
+from app.ltx_spiritual_renderer import render_ltx_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 
@@ -110,8 +112,17 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     stage = "history and script generation"
     try:
         history = _load_state(state_path)
+        channel_analytics = fetch_recent_video_analytics(days=28, max_results=50)
+        query_pool = ["حکمت امام علی فارسی", "توکل و آرامش معنوی فارسی", "عادت‌های رشد فردی فارسی", "سواد مالی و رشد فردی فارسی"]
+        recent_count = len(history.get("recent") or []) if isinstance(history.get("recent"), list) else 0
+        competitor_research = fetch_competitor_signals(query_pool[recent_count % len(query_pool)], max_results=5, days=90)
+        history["performance_notes"] = performance_notes(channel_analytics, history) + competitor_notes(competitor_research)
+        save_json(out_dir / "analytics.json", channel_analytics)
+        save_json(out_dir / "competitor_research.json", competitor_research)
+        logger.info("channel analytics available=%s videos=%s competitor_search=%s results=%s", channel_analytics.get("ok", False), len(channel_analytics.get("videos") or []), competitor_research.get("ok", False), len(competitor_research.get("videos") or []))
         channel_config = load_channel_config()
-        content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
+        content_format = str(os.getenv("PRODUCTION_FORMAT") or (channel_config.get("content") or {}).get("production_format") or "long").lower()
+        content_format = {"short": "shorts"}.get(content_format, content_format)
         if content_format not in {"shorts", "long"}:
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
         content = generate_shorts_content(history) if content_format == "shorts" else generate_content(history)
@@ -129,49 +140,40 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         logger.info("TTS ready voice=%s duration_seconds=%.2f caption_count=%s", tts["voice"], tts["duration_seconds"], tts["caption_count"])
 
         stage = "video render and QA"
-        preview_stills: list[Path] = []
-        preview_stills_dir = os.getenv("SHORTS_PREVIEW_STILLS_DIR", "").strip()
-        if dry_run and content_format == "shorts" and preview_stills_dir:
-            preview_stills = sorted(
-                path for path in Path(preview_stills_dir).glob("*")
-                if path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
-            )
-            if len(preview_stills) != 4:
-                raise RuntimeError("dry-run preview requires exactly four scene-matched still images")
-            logger.info("using four explicitly supplied preview stills; this test path cannot upload")
-        render = render_video(
-            title=content["title"], thumbnail_text=content["thumbnail_text"],
-            keywords=content["visual_keywords"], audio_path=audio_path,
-            captions_path=captions_path, out_dir=out_dir, run_id=run_id,
-            video_format=content_format,
-            scene_queries=[scene["visual_query"] for scene in content.get("scenes", [])] if content_format == "shorts" else None,
-            scene_timings=tts.get("scene_timings") if content_format == "shorts" else None,
+        stage = "LTX-Video render and QA"
+        render = render_ltx_video(
+            content=content, audio_path=audio_path, captions_path=captions_path,
+            out_dir=out_dir, run_id=run_id, video_format=content_format,
+            scene_timings=tts.get("scene_timings"),
             hook_overlay=content["scenes"][0]["on_screen_text"] if content_format == "shorts" else "",
-            scene_stills=preview_stills,
         )
-        render["test_visuals_only"] = bool(preview_stills and dry_run)
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
         media_quality = validate_render_package(render, audio_path, video_format=content_format)
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
+        growth_review = review_package(content, render, media_quality, history)
+        save_json(out_dir / "growth_review.json", growth_review)
+        logger.info("growth review hook=%s/5 seo=%s/5 warnings=%s", growth_review["hook_score"], growth_review["seo_pack_score"], len(growth_review["warnings"]))
+        if not growth_review["publish_allowed"]:
+            raise RuntimeError("growth review blocked upload: " + ", ".join(growth_review["blockers"]))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
             stage = "YouTube upload and scheduling"
-            scheduled_at = None if upload_private else next_publish_at()
+            scheduled_at = None  # all uploads remain private; no automatic public scheduling
             cfg = load_channel_config()
             category_id = str((cfg.get("publishing") or {}).get("category_id") or "22")
-            logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
+            logger.info("uploading video mode=private-draft; public publishing is disabled")
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
-                description=description, tags=content["tags"], privacy="private" if upload_private else "public",
+                description=description, tags=content["tags"], privacy="private",
                 thumbnail_path=Path(render["thumbnail_path"]), category_id=category_id,
                 publish_at=scheduled_at,
             )
             if not upload.get("ok"):
                 raise RuntimeError(str(upload.get("error") or "YouTube upload/scheduling failed"))
-            logger.info("YouTube upload complete mode=%s video_id=%s slot=%s", "private-draft" if upload_private else "scheduled-public", upload.get("video_id"), upload.get("scheduled_for"))
+            logger.info("YouTube private draft upload complete video_id=%s", upload.get("video_id"))
             recent = history.get("recent") if isinstance(history.get("recent"), list) else []
             recent.append({
                 "title": content["title"],
@@ -199,7 +201,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
-            "render": render, "upload": upload, "comments": comments,
+            "render": render, "growth_review": growth_review, "channel_analytics": channel_analytics, "competitor_research": competitor_research, "upload": upload, "comments": comments,
         }
         save_json(out_dir / "result.json", result)
         logger.info("pipeline completed upload_ok=%s comment_replies=%s", upload.get("ok", False), comments.get("replied", 0))

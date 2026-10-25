@@ -756,6 +756,9 @@ def generate_content(history: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         raise RuntimeError(f"content policy could not be loaded ({type(exc).__name__})") from exc
     system += "\nسیاست تکمیلی پروژه (باید رعایت شود):\n" + json.dumps(policy, ensure_ascii=False)
+    performance_notes = history.get("performance_notes") if isinstance(history, dict) else []
+    if performance_notes:
+        system += "\nبازخورد مبتنی بر آمار واقعی کانال و نتایج جست‌وجوی عمومی YouTube؛ فقط برای زاویهٔ اصیل و جلوگیری از تکرار استفاده کن و هیچ عنوان/متن رقیب را کپی نکن یا علت بازدید را حدس نزن:\n" + json.dumps(performance_notes, ensure_ascii=False)
 
     outline = plan_outline(system, topics)
     headings = list(outline["headings"])

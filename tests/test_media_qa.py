@@ -115,13 +115,14 @@ def test_shorts_quality_gate_blocks_landscape_frame_and_abstract_fallback(tmp_pa
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_must_be_vertical_9_16_at_least_720x1280" in result["errors"]
-    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
+    assert "shorts_visual_source_not_approved_portrait_media" in result["errors"]
 
 
 def test_shorts_quality_gate_blocks_too_short_or_unreadable_package(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
     meta["duration"] = 12.0
     meta["caption_font_size"] = 28
+    meta["background_music_used"] = True
     meta["music_ducking"] = False
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
@@ -147,7 +148,7 @@ def test_provided_stills_cannot_pass_publish_qa_without_preview_only_marker(tmp_
     meta["duration_seconds"] = 24.0
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
-    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
+    assert "shorts_visual_source_not_approved_portrait_media" in result["errors"]
 
 
 def test_shorts_audio_shorter_than_video_fails_qa(tmp_path: Path):

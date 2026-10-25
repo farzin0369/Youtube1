@@ -6,20 +6,8 @@ from app import youtube_client
 from app.youtube_client import _contains_synthetic_media, _validate_publish_at
 
 
-def test_cogvideox_defaults_to_synthetic_media_disclosure(monkeypatch):
-    monkeypatch.setenv("VIDEO_ENGINE", "cogvideox")
-    monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)
-    assert _contains_synthetic_media() is True
-
-
-def test_cpu_fallback_does_not_default_to_synthetic_scene_disclosure(monkeypatch):
-    monkeypatch.setenv("VIDEO_ENGINE", "cpu")
-    monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)
-    assert _contains_synthetic_media() is False
-
-
 def test_explicit_disclosure_override_is_respected(monkeypatch):
-    monkeypatch.setenv("VIDEO_ENGINE", "cpu")
+    monkeypatch.setenv("VIDEO_ENGINE", "ltx")
     monkeypatch.setenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", "yes")
     assert _contains_synthetic_media() is True
     monkeypatch.setenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", "false")
@@ -45,3 +33,10 @@ def test_public_upload_requires_a_custom_thumbnail_before_api_upload(tmp_path, m
     result = youtube_client.upload_video(video, "title", "description", [], privacy="public")
     assert not result["ok"]
     assert "thumbnail" in result["error"].lower()
+
+
+
+def test_ltx_defaults_to_synthetic_media_disclosure(monkeypatch):
+    monkeypatch.setenv("VIDEO_ENGINE", "ltx")
+    monkeypatch.delenv("YOUTUBE_CONTAINS_SYNTHETIC_MEDIA", raising=False)
+    assert _contains_synthetic_media() is True

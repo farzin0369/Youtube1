@@ -81,6 +81,24 @@ def test_srt_uses_scene_plan_and_finishes_at_media_duration(tmp_path: Path):
     assert "00:00:12,000" in output
 
 
+def test_authored_scene_plan_ignores_engine_scene_count(tmp_path: Path):
+    """LTX asks for a default scene_count even when narration already has exact scenes."""
+    scenes = [
+        {"spoken_text": "سلام.", "visual_prompt": "A person greeting a neighbor", "on_screen_text": "سلام", "duration_hint_seconds": 3},
+        {"spoken_text": "مهربانی مهم است.", "visual_prompt": "Two people helping each other", "on_screen_text": "مهربانی مهم است", "duration_hint_seconds": 4},
+        {"spoken_text": "امروز یک کار کوچک را تمام کن.", "visual_prompt": "Hands finishing one small task", "on_screen_text": "یک کار کوچک", "duration_hint_seconds": 5},
+        {"spoken_text": "حرکت آرام با امید کافی است.", "visual_prompt": "Sunrise path through calm trees", "on_screen_text": "حرکت آرام", "duration_hint_seconds": 4},
+    ]
+    script = " ".join(scene["spoken_text"] for scene in scenes)
+    plan = load_or_create_plan(
+        tmp_path / "scene_plan.json", script, "title",
+        scene_plan=scenes, kind="short", scene_count=8, duration_hint_seconds=21,
+    )
+    assert plan["scene_count"] == 4
+    assert [scene["visual_prompt"] for scene in plan["scenes"]] == [scene["visual_prompt"] for scene in scenes]
+    assert plan["scenes"][0]["spoken_text"] == "سلام."
+
+
 def test_authored_scene_plan_must_match_exact_narration():
     from app.scene_plan import build_scene_plan_from_scenes
 
