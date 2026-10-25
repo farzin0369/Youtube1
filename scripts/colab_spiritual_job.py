@@ -84,9 +84,9 @@ def main() -> int:
         "TTS_PROVIDER": "edge-tts",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "VIDEO_ENGINE": "ltx",
-        "LTX_MODEL": str(secrets.get("LTX_MODEL") or "Lightricks/LTX-Video-0.9.8-2B-distilled"),
+        "LTX_MODEL": str(secrets.get("LTX_MODEL") or "Lightricks/LTX-Video-0.9.5"),
         "LTX_GENERATION_FPS": "8",
-        "LTX_VIDEO_STEPS": str(secrets.get("LTX_VIDEO_STEPS") or "8"),
+        "LTX_VIDEO_STEPS": str(secrets.get("LTX_VIDEO_STEPS") or "20"),
         "YOUTUBE_CONTAINS_SYNTHETIC_MEDIA": "true",
         "CHANNEL_HISTORY_PATH": "state/history.json",
     })
