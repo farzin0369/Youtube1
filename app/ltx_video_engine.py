@@ -97,19 +97,39 @@ def generate_ltx_film(
     _normalize_scene_durations(plan["scenes"], target_duration)
     atomic_write_json(plan_path, plan)
 
-    model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video")
+    model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video-0.9.8-2B-distilled")
     fps = int(os.getenv("LTX_GENERATION_FPS", "8"))
-    steps = int(os.getenv("LTX_VIDEO_STEPS", "20"))
+    steps = int(os.getenv("LTX_VIDEO_STEPS", "8"))
     width = int(os.getenv("LTX_VIDEO_W", "384" if kind == "short" else "672"))
     height = int(os.getenv("LTX_VIDEO_H", "672" if kind == "short" else "384"))
     guidance = float(os.getenv("LTX_GUIDANCE_SCALE", "3.0"))
     dtype = torch.float16
     print(f"[ltx] loading {model_id} on {torch.cuda.get_device_name(0)}", flush=True)
-    pipe = LTXPipeline.from_pretrained(model_id, torch_dtype=dtype)
+    # Low-memory initialization is essential on Colab T4. The previous default
+    # selected the much larger 13B checkpoint and then moved the whole pipeline
+    # to CUDA when model offload was unavailable, which can kill the runtime.
+    pipe = LTXPipeline.from_pretrained(
+        model_id,
+        torch_dtype=dtype,
+        low_cpu_mem_usage=True,
+    )
     try:
         pipe.enable_model_cpu_offload()
-    except Exception:
-        pipe.to("cuda")
+        print("[ltx] enabled model CPU offload", flush=True)
+    except Exception as offload_error:
+        # Sequential offload is slower but safer than pipe.to("cuda") on a 16 GB T4.
+        try:
+            pipe.enable_sequential_cpu_offload()
+            print("[ltx] model CPU offload unavailable; enabled sequential CPU offload", flush=True)
+        except Exception as sequential_error:
+            del pipe
+            gc.collect()
+            torch.cuda.empty_cache()
+            raise RuntimeError(
+                "Could not enable memory-safe LTX offload; refusing to move the entire "
+                f"pipeline to GPU. model_offload={offload_error}; "
+                f"sequential_offload={sequential_error}"
+            ) from sequential_error
 
     clips_dir = out_path.parent / "ltx_scene_clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
