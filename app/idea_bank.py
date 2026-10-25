@@ -4,13 +4,12 @@ from __future__ import annotations
 import json
 import os
 import re
-from pathlib import Path
 from typing import Any
 
 from app.spiritual_shorts import validate_short_content
-from app.utils import PROJECT_ROOT
+from app.utils import ROOT
 
-BANK_PATH = PROJECT_ROOT / "config" / "idea_bank_shorts.json"
+BANK_PATH = ROOT / "config" / "idea_bank_shorts.json"
 
 
 def _load_bank() -> list[dict[str, Any]]:
@@ -55,7 +54,12 @@ def pick_idea_bank_content(history: dict[str, Any] | None = None) -> dict[str, A
                 ]
                 if len(lines) == 4 and all(lines):
                     payload["script"] = " ".join(lines)
-            result = validate_short_content(payload, [str(r.get("title") or "") for r in recent if isinstance(r, dict)], min_words=20, max_words=56)
+            result = validate_short_content(
+                payload,
+                [str(r.get("title") or "") for r in recent if isinstance(r, dict)],
+                min_words=20,
+                max_words=60,
+            )
             result["generated_by"] = "idea_bank"
             result["idea_bank_topic"] = str(item.get("topic") or result.get("topic") or "")
             return result

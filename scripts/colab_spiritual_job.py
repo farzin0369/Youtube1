@@ -73,19 +73,14 @@ def main() -> int:
     if gpu.returncode or not gpu.stdout.strip():
         raise RuntimeError("Colab runtime has no CUDA GPU; refusing CPU, stock-footage or CogVideoX fallback.")
 
-    # Text model stays on CPU so LTX keeps the full T4 VRAM. Prefer a small model.
-    local_model = str(secrets.get("LOCAL_LLM_MODEL") or "qwen2.5:3b").strip() or "qwen2.5:3b"
+    # Prefer idea bank so T4 time is spent on LTX, not broken local LLM JSON.
+    use_idea_bank = str(secrets.get("USE_IDEA_BANK") or "1").lower() in {"1", "true", "yes", "only", "always"}
+    local_model = str(secrets.get("LOCAL_LLM_MODEL") or "qwen2.5:1.5b").strip() or "qwen2.5:1.5b"
     os.environ.update({
         "GITHUB_RUN_ID": run_id,
         "PRODUCTION_FORMAT": kind,
         "LOCAL_LLM_MODEL": local_model,
-        "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
-        "OLLAMA_NUM_GPU": "0",
-        "OLLAMA_NUM_PREDICT": "2048",
-        "OLLAMA_NUM_CTX": "4096",
-        "OLLAMA_KEEP_ALIVE": "10m",
-        "OLLAMA_TIMEOUT_SECONDS": "600",
-        "LLM_TIMEOUT_SECONDS": "600",
+        "USE_IDEA_BANK": "1" if use_idea_bank else "0",
         "TTS_PROVIDER": "edge-tts",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "VIDEO_ENGINE": "ltx",
@@ -101,7 +96,7 @@ def main() -> int:
     for key in ("GROQ_API_KEY", "LLM_API_KEY", "LLM_BASE_URL", "LLM_MODEL", "PEXELS_API_KEY", "ELEVENLABS_API_KEY"):
         os.environ.pop(key, None)
 
-    print(f"[colab-job] GPU={gpu.stdout.strip()} format={kind} upload_private={upload_private}", flush=True)
+    print(f"[colab-job] GPU={gpu.stdout.strip()} format={kind} upload_private={upload_private} idea_bank={use_idea_bank}", flush=True)
     print(f"[colab-job] Checking out repository ref {ref}", flush=True)
     if REPO.exists():
         shutil.rmtree(REPO)
@@ -132,11 +127,11 @@ def main() -> int:
     if install.returncode:
         raise RuntimeError("Dependency installation failed: " + (install.stderr or "")[-1800:])
     apt = _run(
-        ["bash", "-lc", "apt-get update -qq && apt-get install -y -qq ffmpeg fonts-noto-core fonts-dejavu-core zstd"],
+        ["bash", "-lc", "apt-get update -qq && apt-get install -y -qq ffmpeg fonts-noto-core fonts-dejavu-core"],
         timeout=600,
     )
     if apt.returncode:
-        raise RuntimeError("FFmpeg/font/zstd installation failed: " + (apt.stderr or "")[-1200:])
+        raise RuntimeError("FFmpeg/font installation failed: " + (apt.stderr or "")[-1200:])
 
     if upload_private:
         from app.youtube_client import probe_youtube_auth
@@ -145,27 +140,23 @@ def main() -> int:
             raise RuntimeError("YouTube OAuth preflight failed; private upload blocked before rendering.")
         print("[colab-job] YouTube OAuth preflight passed.", flush=True)
 
-    if shutil.which("ollama") is None:
-        print("[colab-job] Installing the free local Ollama runtime (zstd required for current installer).", flush=True)
-        install_ollama = _run(
-            [
-                "bash", "-lc",
-                "curl -fL --connect-timeout 15 --max-time 120 https://ollama.com/install.sh -o /tmp/ollama-install.sh "
-                "&& bash /tmp/ollama-install.sh",
-            ],
-            timeout=600,
-        )
-        if install_ollama.returncode or shutil.which("ollama") is None:
-            detail = (install_ollama.stdout or "")[-800:] + "\n" + (install_ollama.stderr or "")[-800:]
-            raise RuntimeError("Ollama installation failed: " + detail.strip()[-1200:])
-
-    ollama_log = open("/content/ollama.log", "w", encoding="utf-8")
-    ollama_env = os.environ.copy()
-    ollama_env["OLLAMA_NUM_GPU"] = "0"
-    ollama_env["CUDA_VISIBLE_DEVICES"] = ""
-    ollama_env["OLLAMA_KEEP_ALIVE"] = "10m"
-    ollama = subprocess.Popen(["bash", "-lc", "ollama serve"], stdout=ollama_log, stderr=subprocess.STDOUT, env=ollama_env)
-    try:
+    ollama = None
+    ollama_log = None
+    if not use_idea_bank:
+        if shutil.which("ollama") is None:
+            print("[colab-job] Installing the free local Ollama runtime.", flush=True)
+            _run(["bash", "-lc", "apt-get update -qq && apt-get install -y -qq zstd"], timeout=300)
+            install_ollama = _run(
+                ["bash", "-lc", "curl -fL --connect-timeout 15 --max-time 120 https://ollama.com/install.sh -o /tmp/ollama-install.sh && bash /tmp/ollama-install.sh"],
+                timeout=600,
+            )
+            if install_ollama.returncode or shutil.which("ollama") is None:
+                raise RuntimeError("Ollama installation failed")
+        ollama_log = open("/content/ollama.log", "w", encoding="utf-8")
+        ollama_env = os.environ.copy()
+        ollama_env["OLLAMA_NUM_GPU"] = "0"
+        ollama_env["CUDA_VISIBLE_DEVICES"] = ""
+        ollama = subprocess.Popen(["bash", "-lc", "ollama serve"], stdout=ollama_log, stderr=subprocess.STDOUT, env=ollama_env)
         ready = False
         for _ in range(60):
             try:
@@ -178,24 +169,17 @@ def main() -> int:
                 time.sleep(2)
         if not ready:
             raise RuntimeError("Local Ollama did not become ready.")
-
         print("[colab-job] Preparing local text model:", local_model, flush=True)
         pull = _run(["ollama", "pull", local_model], timeout=1800)
         if pull.returncode:
             raise RuntimeError("Could not pull the local LLM: " + (pull.stderr or "")[-1200:])
+        os.environ["OLLAMA_BASE_URL"] = "http://127.0.0.1:11434"
+        os.environ["OLLAMA_NUM_GPU"] = "0"
+        os.environ["OLLAMA_TIMEOUT_SECONDS"] = "600"
+    else:
+        print("[colab-job] Skipping Ollama; using deterministic idea bank for script.", flush=True)
 
-        # Cold-start warm-up so the first pipeline call does not burn the whole timeout.
-        print("[colab-job] Warming up local text model.", flush=True)
-        warm = _run(
-            [
-                "ollama", "run", local_model,
-                "پاسخ کوتاه بده: سلام",
-            ],
-            timeout=300,
-        )
-        if warm.returncode:
-            print("[colab-job] Warm-up warning:", (warm.stderr or warm.stdout or "")[-400:], flush=True)
-
+    try:
         command = [sys.executable, "scripts/daily_run.py", "--format", kind]
         command.append("--upload-private" if upload_private else "--dry-run")
         print("[colab-job] Starting the real ImamAli110 LTX pipeline:", " ".join(command), flush=True)
@@ -215,7 +199,8 @@ def main() -> int:
             "gpu": gpu.stdout.strip(),
             "pipeline_exit_code": exit_code,
             "repository_ref": ref,
-            "local_llm_model": local_model,
+            "idea_bank": use_idea_bank,
+            "local_llm_model": None if use_idea_bank else local_model,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "log_path": str(LOG_FILE),
         }
@@ -228,15 +213,17 @@ def main() -> int:
         print("[colab-job] Result:", json.dumps(result, ensure_ascii=False), flush=True)
         return 0 if success else (exit_code or 1)
     finally:
-        try:
-            ollama.terminate()
-            ollama.wait(timeout=10)
-        except Exception:
+        if ollama is not None:
             try:
-                ollama.kill()
+                ollama.terminate()
+                ollama.wait(timeout=10)
             except Exception:
-                pass
-        ollama_log.close()
+                try:
+                    ollama.kill()
+                except Exception:
+                    pass
+        if ollama_log is not None:
+            ollama_log.close()
 
 
 if __name__ == "__main__":
