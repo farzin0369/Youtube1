@@ -105,31 +105,25 @@ def generate_ltx_film(
     guidance = float(os.getenv("LTX_GUIDANCE_SCALE", "3.0"))
     dtype = torch.float16
     print(f"[ltx] loading {model_id} on {torch.cuda.get_device_name(0)}", flush=True)
-    # Low-memory initialization is essential on Colab T4. The previous default
-    # selected the much larger 13B checkpoint and then moved the whole pipeline
-    # to CUDA when model offload was unavailable, which can kill the runtime.
+    # Dispatch modules across the T4 GPU and host RAM during loading. Offloading
+    # only after from_pretrained() is too late: the previous run was SIGKILLed
+    # while loading components, before inference or scene rendering began.
+    device_map = os.getenv("LTX_DEVICE_MAP", "balanced").strip() or "balanced"
+    max_gpu_memory = os.getenv("LTX_MAX_GPU_MEMORY", "12GiB")
+    max_cpu_memory = os.getenv("LTX_MAX_CPU_MEMORY", "10GiB")
+    print(
+        f"[ltx] loading {model_id} with device_map={device_map}, "
+        f"max_gpu_memory={max_gpu_memory}, max_cpu_memory={max_cpu_memory}",
+        flush=True,
+    )
     pipe = LTXPipeline.from_pretrained(
         model_id,
         torch_dtype=dtype,
         low_cpu_mem_usage=True,
+        device_map=device_map,
+        max_memory={0: max_gpu_memory, "cpu": max_cpu_memory},
     )
-    try:
-        pipe.enable_model_cpu_offload()
-        print("[ltx] enabled model CPU offload", flush=True)
-    except Exception as offload_error:
-        # Sequential offload is slower but safer than pipe.to("cuda") on a 16 GB T4.
-        try:
-            pipe.enable_sequential_cpu_offload()
-            print("[ltx] model CPU offload unavailable; enabled sequential CPU offload", flush=True)
-        except Exception as sequential_error:
-            del pipe
-            gc.collect()
-            torch.cuda.empty_cache()
-            raise RuntimeError(
-                "Could not enable memory-safe LTX offload; refusing to move the entire "
-                f"pipeline to GPU. model_offload={offload_error}; "
-                f"sequential_offload={sequential_error}"
-            ) from sequential_error
+    print("[ltx] pipeline loaded with memory-aware device map", flush=True)
 
     clips_dir = out_path.parent / "ltx_scene_clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
