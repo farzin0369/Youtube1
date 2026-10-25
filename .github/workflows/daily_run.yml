@@ -47,7 +47,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
 
       - name: Run CPU-only regression tests before requesting GPU
@@ -75,7 +75,10 @@ jobs:
           echo "preflight passed; secret values will not be printed."
 
       - name: Install Colab CLI
-        run: python -m pip install --upgrade google-colab-cli
+        run: |
+          python -m pip install --upgrade google-colab-cli
+          colab --help >/dev/null
+          echo "Colab CLI installed: $(python -c 'import importlib.metadata as m; print(m.version("google-colab-cli"))')"
 
       - name: Restore Colab CLI authentication
         env:
