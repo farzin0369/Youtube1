@@ -211,7 +211,23 @@ jobs:
           if-no-files-found: warn
 
       - name: Fail if remote LTX production did not complete
-        if: steps.render.outputs.exit_code != '0'
+        if: always()
         run: |
-          echo "::error::LTX production failed. Inspect the Colab run log and result artifact; no alternate engine was used."
-          exit 1
+          set -euo pipefail
+          if [ "${{ steps.render.outputs.exit_code }}" != "0" ]; then
+            echo "::error::LTX production failed (colab exec exit). Inspect the Colab run log and result artifact; no alternate engine was used."
+            exit 1
+          fi
+          if [ ! -f output/colab_ltx/result.json ]; then
+            echo "::error::Missing ImamAli110-result.json; production did not report success."
+            exit 1
+          fi
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          data = json.loads(Path("output/colab_ltx/result.json").read_text(encoding="utf-8"))
+          if data.get("success") is not True:
+              print("::error::Remote pipeline reported success=false:", data.get("error_type"), data.get("error", "")[:400])
+              sys.exit(1)
+          print("Remote pipeline reported success=true.")
+          PY

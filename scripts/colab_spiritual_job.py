@@ -127,9 +127,12 @@ def main() -> int:
     ], cwd=REPO, timeout=1800)
     if install.returncode:
         raise RuntimeError("Dependency installation failed: " + (install.stderr or "")[-1800:])
-    apt = _run(["bash", "-lc", "apt-get update -qq && apt-get install -y -qq ffmpeg fonts-noto-core fonts-dejavu-core"], timeout=600)
+    apt = _run(
+        ["bash", "-lc", "apt-get update -qq && apt-get install -y -qq ffmpeg fonts-noto-core fonts-dejavu-core zstd"],
+        timeout=600,
+    )
     if apt.returncode:
-        raise RuntimeError("FFmpeg/font installation failed: " + (apt.stderr or "")[-1200:])
+        raise RuntimeError("FFmpeg/font/zstd installation failed: " + (apt.stderr or "")[-1200:])
 
     if upload_private:
         from app.youtube_client import probe_youtube_auth
@@ -139,10 +142,19 @@ def main() -> int:
         print("[colab-job] YouTube OAuth preflight passed.", flush=True)
 
     if shutil.which("ollama") is None:
-        print("[colab-job] Installing the free local Ollama runtime.", flush=True)
-        install_ollama = _run(["bash", "-lc", "curl -fsSL https://ollama.com/install.sh | sh"], timeout=600)
-        if install_ollama.returncode:
-            raise RuntimeError("Ollama installation failed: " + (install_ollama.stderr or "")[-1200:])
+        print("[colab-job] Installing the free local Ollama runtime (zstd required for current installer).", flush=True)
+        # Official installer needs zstd to unpack its Linux archive on current Colab images.
+        install_ollama = _run(
+            [
+                "bash", "-lc",
+                "curl -fL --connect-timeout 15 --max-time 120 https://ollama.com/install.sh -o /tmp/ollama-install.sh "
+                "&& bash /tmp/ollama-install.sh",
+            ],
+            timeout=600,
+        )
+        if install_ollama.returncode or shutil.which("ollama") is None:
+            detail = (install_ollama.stdout or "")[-800:] + "\n" + (install_ollama.stderr or "")[-800:]
+            raise RuntimeError("Ollama installation failed: " + detail.strip()[-1200:])
 
     ollama_log = open("/content/ollama.log", "w", encoding="utf-8")
     ollama_env = os.environ.copy()
@@ -199,7 +211,7 @@ def main() -> int:
         _zip_output(run_id)
         _zip_state()
         print("[colab-job] Result:", json.dumps(result, ensure_ascii=False), flush=True)
-        return 0 if success else exit_code
+        return 0 if success else (exit_code or 1)
     finally:
         try:
             ollama.terminate()
