@@ -73,15 +73,19 @@ def main() -> int:
     if gpu.returncode or not gpu.stdout.strip():
         raise RuntimeError("Colab runtime has no CUDA GPU; refusing CPU, stock-footage or CogVideoX fallback.")
 
+    # Text model stays on CPU so LTX keeps the full T4 VRAM. Prefer a small model.
+    local_model = str(secrets.get("LOCAL_LLM_MODEL") or "qwen2.5:3b").strip() or "qwen2.5:3b"
     os.environ.update({
         "GITHUB_RUN_ID": run_id,
         "PRODUCTION_FORMAT": kind,
-        "LOCAL_LLM_MODEL": str(secrets.get("LOCAL_LLM_MODEL") or "qwen2.5:7b"),
+        "LOCAL_LLM_MODEL": local_model,
         "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
         "OLLAMA_NUM_GPU": "0",
-        "OLLAMA_NUM_PREDICT": "4096",
+        "OLLAMA_NUM_PREDICT": "2048",
         "OLLAMA_NUM_CTX": "4096",
-        "OLLAMA_KEEP_ALIVE": "0",
+        "OLLAMA_KEEP_ALIVE": "10m",
+        "OLLAMA_TIMEOUT_SECONDS": "600",
+        "LLM_TIMEOUT_SECONDS": "600",
         "TTS_PROVIDER": "edge-tts",
         "TTS_VOICE": "fa-IR-FaridNeural",
         "VIDEO_ENGINE": "ltx",
@@ -143,7 +147,6 @@ def main() -> int:
 
     if shutil.which("ollama") is None:
         print("[colab-job] Installing the free local Ollama runtime (zstd required for current installer).", flush=True)
-        # Official installer needs zstd to unpack its Linux archive on current Colab images.
         install_ollama = _run(
             [
                 "bash", "-lc",
@@ -160,7 +163,7 @@ def main() -> int:
     ollama_env = os.environ.copy()
     ollama_env["OLLAMA_NUM_GPU"] = "0"
     ollama_env["CUDA_VISIBLE_DEVICES"] = ""
-    ollama_env["OLLAMA_KEEP_ALIVE"] = "0"
+    ollama_env["OLLAMA_KEEP_ALIVE"] = "10m"
     ollama = subprocess.Popen(["bash", "-lc", "ollama serve"], stdout=ollama_log, stderr=subprocess.STDOUT, env=ollama_env)
     try:
         ready = False
@@ -175,11 +178,23 @@ def main() -> int:
                 time.sleep(2)
         if not ready:
             raise RuntimeError("Local Ollama did not become ready.")
-        model = os.environ["LOCAL_LLM_MODEL"]
-        print("[colab-job] Preparing local text model:", model, flush=True)
-        pull = _run(["ollama", "pull", model], timeout=1800)
+
+        print("[colab-job] Preparing local text model:", local_model, flush=True)
+        pull = _run(["ollama", "pull", local_model], timeout=1800)
         if pull.returncode:
             raise RuntimeError("Could not pull the local LLM: " + (pull.stderr or "")[-1200:])
+
+        # Cold-start warm-up so the first pipeline call does not burn the whole timeout.
+        print("[colab-job] Warming up local text model.", flush=True)
+        warm = _run(
+            [
+                "ollama", "run", local_model,
+                "پاسخ کوتاه بده: سلام",
+            ],
+            timeout=300,
+        )
+        if warm.returncode:
+            print("[colab-job] Warm-up warning:", (warm.stderr or warm.stdout or "")[-400:], flush=True)
 
         command = [sys.executable, "scripts/daily_run.py", "--format", kind]
         command.append("--upload-private" if upload_private else "--dry-run")
@@ -188,7 +203,6 @@ def main() -> int:
             process = subprocess.Popen(command, cwd=REPO, env=os.environ.copy(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             assert process.stdout is not None
             for line in process.stdout:
-                # The application redacts OAuth values before reporting production errors.
                 print(line, end="", flush=True)
                 log.write(line)
             exit_code = process.wait()
@@ -201,6 +215,7 @@ def main() -> int:
             "gpu": gpu.stdout.strip(),
             "pipeline_exit_code": exit_code,
             "repository_ref": ref,
+            "local_llm_model": local_model,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "log_path": str(LOG_FILE),
         }
