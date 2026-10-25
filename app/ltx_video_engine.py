@@ -97,9 +97,9 @@ def generate_ltx_film(
     _normalize_scene_durations(plan["scenes"], target_duration)
     atomic_write_json(plan_path, plan)
 
-    model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video-0.9.8-2B-distilled")
+    model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video-0.9.5")
     fps = int(os.getenv("LTX_GENERATION_FPS", "8"))
-    steps = int(os.getenv("LTX_VIDEO_STEPS", "8"))
+    steps = int(os.getenv("LTX_VIDEO_STEPS", "20"))
     width = int(os.getenv("LTX_VIDEO_W", "384" if kind == "short" else "672"))
     height = int(os.getenv("LTX_VIDEO_H", "672" if kind == "short" else "384"))
     guidance = float(os.getenv("LTX_GUIDANCE_SCALE", "3.0"))
