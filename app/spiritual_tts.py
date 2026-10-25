@@ -236,10 +236,10 @@ def _merge_segments(
 
 
 def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
-    """Map scene mood and auto-tag to conservative Edge TTS rate/pitch controls.
+    """Map scene mood and auto-tag to Edge TTS rate/pitch (integer-only strings).
 
-    Edge TTS does not expose native emotion styles; these small changes are only
-    prosody hints, not a claim that anger/joy/etc. can be faithfully synthesized.
+    edge-tts ValidateString rejects fractional rates like '+4.5%'; values must
+    be whole-number percent and Hz.
     """
     base_rate, base_pitch = {
         "hook": ("+5%", "+3Hz"),
@@ -250,8 +250,6 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     hint = hint if isinstance(hint, dict) else {}
     emotion = str(hint.get("emotion") or "neutral").lower()
     intensity = max(0.0, min(1.0, float(hint.get("intensity") or 0.0)))
-    # Use conservative offsets so automatic labels do not create exaggerated or
-    # potentially harsh delivery on a TTS engine without emotion-style controls.
     rate_delta, pitch_delta = {
         "angry": (3.0, 1.0), "motivational": (4.0, 1.0), "joyful": (3.0, 1.0),
         "calm": (-3.0, -1.0), "reassuring": (-2.0, 0.0), "sad": (-3.0, -1.0),
@@ -261,9 +259,9 @@ def _delivery(mood: str, hint: dict[str, Any] | None = None) -> tuple[str, str]:
     scale = intensity * confidence * 0.5
     base_rate_value = float(base_rate.rstrip("%"))
     base_pitch_value = float(base_pitch.rstrip("Hz"))
-    rate = max(-10.0, min(10.0, base_rate_value + rate_delta * scale))
-    pitch = max(-3.0, min(3.0, base_pitch_value + pitch_delta * scale))
-    return f"{rate:+.1f}%", f"{pitch:+.1f}Hz"
+    rate = int(round(max(-10.0, min(10.0, base_rate_value + rate_delta * scale))))
+    pitch = int(round(max(-3.0, min(3.0, base_pitch_value + pitch_delta * scale))))
+    return f"{rate:+d}%", f"{pitch:+d}Hz"
 
 
 def synthesize_with_captions(
@@ -336,7 +334,6 @@ def synthesize_with_captions(
 
     cues: list[tuple[float, float, str]] = []
     if scenes:
-        # Reset caption grouping at scene boundaries so words from separate beats do not merge.
         for timing, scene in zip(scene_timings, scenes):
             start_tick = int(round(timing["start_seconds"] * TICKS_PER_SECOND))
             end_tick = int(round(timing["end_seconds"] * TICKS_PER_SECOND))
