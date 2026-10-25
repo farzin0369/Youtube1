@@ -195,7 +195,8 @@ def load_or_create_plan(path: Path, script: str, title: str, *, scene_plan: list
             backup = path.with_suffix(path.suffix + ".invalid")
             if not backup.exists():
                 path.replace(backup)
-    plan = (build_scene_plan_from_scenes(script, title, scene_plan, **kwargs) if scene_plan is not None
+    authored_kwargs = {key: value for key, value in kwargs.items() if key != "scene_count"}
+    plan = (build_scene_plan_from_scenes(script, title, scene_plan, **authored_kwargs) if scene_plan is not None
             else build_scene_plan(script, title, **kwargs))
     atomic_write_json(path, plan)
     return plan

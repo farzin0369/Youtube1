@@ -88,7 +88,7 @@ def generate_ltx_film(
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plan_path = out_path.with_name("scene_plan.json")
-    clip_count = int(os.getenv("LTX_SCENES_SHORT", "8") if kind == "short" else os.getenv("LTX_SCENES_LONG", "40"))
+    clip_count = int(os.getenv("LTX_SCENES_SHORT", "4") if kind == "short" else os.getenv("LTX_SCENES_LONG", "40"))
     target_duration = float(target_duration_seconds or (45 if kind == "short" else 240))
     plan = load_or_create_plan(
         plan_path, script, title, scene_plan=scene_plan,
