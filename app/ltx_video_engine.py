@@ -98,10 +98,10 @@ def generate_ltx_film(
     atomic_write_json(plan_path, plan)
 
     model_id = os.getenv("LTX_MODEL", "Lightricks/LTX-Video-0.9.5")
-    fps = int(os.getenv("LTX_GENERATION_FPS", "8"))
-    steps = int(os.getenv("LTX_VIDEO_STEPS", "20"))
-    width = int(os.getenv("LTX_VIDEO_W", "384" if kind == "short" else "672"))
-    height = int(os.getenv("LTX_VIDEO_H", "672" if kind == "short" else "384"))
+    fps = int(os.getenv("LTX_GENERATION_FPS", "4"))
+    steps = int(os.getenv("LTX_VIDEO_STEPS", "12"))
+    width = int(os.getenv("LTX_VIDEO_W", "256" if kind == "short" else "320"))
+    height = int(os.getenv("LTX_VIDEO_H", "448" if kind == "short" else "256"))
     guidance = float(os.getenv("LTX_GUIDANCE_SCALE", "3.0"))
     dtype = torch.float16
     print(f"[ltx] loading {model_id} on {torch.cuda.get_device_name(0)}", flush=True)
@@ -109,8 +109,8 @@ def generate_ltx_film(
     # only after from_pretrained() is too late: the previous run was SIGKILLed
     # while loading components, before inference or scene rendering began.
     device_map = os.getenv("LTX_DEVICE_MAP", "balanced").strip() or "balanced"
-    max_gpu_memory = os.getenv("LTX_MAX_GPU_MEMORY", "12GiB")
-    max_cpu_memory = os.getenv("LTX_MAX_CPU_MEMORY", "10GiB")
+    max_gpu_memory = os.getenv("LTX_MAX_GPU_MEMORY", "8GiB")
+    max_cpu_memory = os.getenv("LTX_MAX_CPU_MEMORY", "12GiB")
     print(
         f"[ltx] loading {model_id} with device_map={device_map}, "
         f"max_gpu_memory={max_gpu_memory}, max_cpu_memory={max_cpu_memory}",
