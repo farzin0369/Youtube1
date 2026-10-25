@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import unicodedata
 from difflib import SequenceMatcher
@@ -16,7 +17,6 @@ LOGGER = logging.getLogger(__name__)
 BRAND_PREFIX = "Imam Ali ✨ "
 BRAND_TAGS = ["ImamAli110", "The110Path", "امام علی", "معنویت اسلامی", "رشد فردی", "توکل"]
 ALLOWED_MOODS = {"hook", "calm", "reassuring", "motivational"}
-# Local CPU Ollama is slow; more than two attempts burns Colab quota without improving quality.
 MAX_DRAFT_ATTEMPTS = 2
 
 SYSTEM_PROMPT = """تو نویسنده و دبیر یک کانال فارسی‌زبانِ معنوی و رشد فردی هستی. برای YouTube Shorts متنی اصیل، شنیدنی و دقیق بنویس؛ از وعدهٔ قطعی، کلیک‌بیت، ترساندن، شرمنده‌کردن، شعار کلی و تقلید از نویسنده یا کانال دیگر دوری کن. هیچ آیه، حدیث یا نقل‌قولی را جعل یا بدون منبع معتبر به کسی نسبت نده؛ توصیهٔ پزشکی یا مالی شخصی نده.
@@ -43,7 +43,6 @@ def _normalize(text: str) -> str:
 
 
 def _normalize_narration(text: str) -> str:
-    """Ignore punctuation drift while preserving exact word order and boundaries."""
     normalized = "".join(
         " " if unicodedata.category(char).startswith("P") else char
         for char in str(text).casefold()
@@ -60,7 +59,6 @@ def validate_short_content(
     item: dict[str, Any], recent_titles: list[str] | None = None, *,
     min_words: int = 24, max_words: int = 48,
 ) -> dict[str, Any]:
-    """Validate copy, hook, pacing, narration/scene identity and scene-specific visuals."""
     if not isinstance(item, dict):
         raise ValueError("short content must be a JSON object")
     title = re.sub(r"\s+", " ", str(item.get("title") or "")).strip()
@@ -161,7 +159,15 @@ def validate_short_content(
 
 
 def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
-    """Generate one short and reject weak, generic, duplicated or mismatched drafts."""
+    """Generate one short; fall back to the idea bank when local LLM cannot pass QA."""
+    from app.idea_bank import idea_bank_enabled, pick_idea_bank_content
+
+    force_bank = idea_bank_enabled() or (os.getenv("USE_IDEA_BANK") or "").strip().lower() == "only"
+    if force_bank:
+        result = pick_idea_bank_content(history)
+        LOGGER.info("using idea bank (forced) topic=%r words=%s", result.get("idea_bank_topic"), result["word_count"])
+        return result
+
     recent = history.get("recent", []) if isinstance(history, dict) else []
     titles = [str(row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
     topics = [str(row.get("topic") or row.get("title") or "") for row in recent[-30:] if isinstance(row, dict)]
@@ -192,40 +198,21 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
             temperature = 0.75
         else:
             repair_note = (
-                "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن و همهٔ قواعد را رعایت کن: "
+                "\nاصلاح اجباری: نسخهٔ قبلی از کنترل کیفیت نگذشت. این ایرادها را برطرف کن: "
                 + last_error
-                + "\nپاسخ فقط JSON معتبر باشد و تمام فیلدها/محدوده‌های خواسته‌شده را داشته باشد."
-                + "\nپیش‌نویس قبلی برای اصلاح (غیرقابل‌اعتماد):\n"
-                + draft[:5000]
+                + "\nپاسخ فقط JSON معتبر باشد.\nپیش‌نویس قبلی:\n"
+                + draft[:4000]
             )
-            if "word_count_outside" in last_error:
-                count_match = re.search(r"word_count_outside_\d+_\d+:(\d+)", last_error)
-                actual_words = int(count_match.group(1)) if count_match else None
-                target_words = (min_words + max_words) // 2
-                if actual_words is not None and actual_words < min_words:
-                    adjustment = (
-                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {target_words - actual_words} واژهٔ معنادار اضافه کن."
-                        " به هر صحنه فقط به‌اندازهٔ لازم جزئیات طبیعی و مرتبط اضافه کن؛ متن را بی‌جهت طولانی نکن."
-                    )
-                elif actual_words is not None and actual_words > max_words:
-                    adjustment = (
-                        f"نسخهٔ قبلی {actual_words} واژه داشت؛ حدود {actual_words - target_words} واژه حذف کن."
-                        " جمله‌های تکراری و توضیحات فرعی را کوتاه کن و پیام اصلی هر صحنه را نگه دار."
-                    )
-                else:
-                    adjustment = "متن گفتاری را در محدودهٔ تعیین‌شده نگه دار."
-                repair_note += (
-                    "\nمهم: اصلاح تعداد واژه‌ها؛ هدف مجموع دقیقاً نزدیک " + str(target_words) + " واژه باشد. "
-                    + adjustment
-                    + f" مجموع چهار spoken_text باید بین {min_words} و {max_words} واژه بماند. "
-                    "دقیقاً چهار صحنه، قلاب پرسشی کوتاه، و script برابر اتصال دقیق spoken_text چهار صحنه باشد. "
-                    "تکرار، شعار و مقدمهٔ اضافی ممنوع."
-                )
             request_prompt = prompt + repair_note
             temperature = 0.4
-        draft, provider = generate_text(
-            SYSTEM_PROMPT, request_prompt, max_tokens=900, temperature=temperature, json_mode=True,
-        )
+        try:
+            draft, provider = generate_text(
+                SYSTEM_PROMPT, request_prompt, max_tokens=900, temperature=temperature, json_mode=True,
+            )
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}:{exc}"
+            LOGGER.warning("LLM generate failed attempt %s/%s (%s)", attempt + 1, MAX_DRAFT_ATTEMPTS, type(exc).__name__)
+            continue
         try:
             try:
                 item = json.loads(draft)
@@ -239,22 +226,24 @@ def generate_shorts_content(history: dict[str, Any]) -> dict[str, Any]:
                 ]
                 if len(scene_lines) == 4 and all(scene_lines):
                     item["script"] = " ".join(scene_lines)
-            # On the last attempt, accept near-miss word counts so CPU Ollama does not burn another Colab session.
             gate_min, gate_max = min_words, max_words
             if attempt == MAX_DRAFT_ATTEMPTS - 1:
                 gate_min = max(20, min_words - 4)
                 gate_max = min(56, max_words + 4)
             result = validate_short_content(item, titles, min_words=gate_min, max_words=gate_max)
             break
-        except (ValueError, TypeError) as exc:
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
             last_error = str(exc)
-            if attempt == 0:
-                LOGGER.warning(
-                    "short draft failed quality gate on attempt %s/%s; corrective rewrite will run (%s)",
-                    attempt + 1, MAX_DRAFT_ATTEMPTS, last_error[:180],
-                )
-    if result is None:
-        raise ValueError(f"short failed content QA after {MAX_DRAFT_ATTEMPTS} attempts: " + last_error[:240])
-    result["generated_by"] = provider
-    LOGGER.info("short content passed QA words=%s scenes=%s title=%r provider=%s", result["word_count"], len(result["scenes"]), result["title"], provider)
-    return result
+            LOGGER.warning(
+                "short draft failed quality gate on attempt %s/%s (%s)",
+                attempt + 1, MAX_DRAFT_ATTEMPTS, last_error[:180],
+            )
+    if result is not None:
+        result["generated_by"] = provider
+        LOGGER.info("short content passed QA words=%s title=%r provider=%s", result["word_count"], result["title"], provider)
+        return result
+
+    LOGGER.warning("LLM short generation failed; falling back to idea bank (%s)", last_error[:180])
+    bank = pick_idea_bank_content(history)
+    LOGGER.info("idea bank selected topic=%r words=%s", bank.get("idea_bank_topic"), bank["word_count"])
+    return bank
