@@ -1,6 +1,9 @@
 name: ImamAli110 LTX-Video daily production
 
 on:
+  push:
+    branches:
+      - fix/ltx-t4-memory-loading
   schedule:
     - cron: "0 14 * * *" # Long-form production, UTC
     - cron: "0 17 * * *" # Shorts production, UTC
@@ -37,11 +40,11 @@ jobs:
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       YOUTUBE_ANALYTICS_REFRESH_TOKEN: ${{ secrets.YOUTUBE_ANALYTICS_REFRESH_TOKEN }}
       COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
-      PRODUCTION_FORMAT: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 * * *' && 'long' || (github.event_name == 'schedule' && 'shorts' || inputs.format) }}
-      UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || inputs.upload_private }}
+      PRODUCTION_FORMAT: ${{ github.event_name == 'schedule' && github.event.schedule == '0 14 * * *' && 'long' || (github.event_name == 'schedule' && 'shorts' || (github.event_name == 'workflow_dispatch' && inputs.format) || 'shorts') }}
+      UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.upload_private) }}
       GIT_REF: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
       LOCAL_LLM_MODEL: qwen2.5:1.5b
-      LTX_VIDEO_STEPS: "20"
+      LTX_VIDEO_STEPS: "8"
     steps:
       - uses: actions/checkout@v4
 
