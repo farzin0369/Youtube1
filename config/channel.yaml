@@ -13,7 +13,7 @@ channel:
   visual_style: انیمیشن سینمایی سه‌بعدی تولیدشده با LTX-Video؛ Shorts عمودی ۹:۱۶ با چهار صحنهٔ متناسب با روایت و زیرنویس فارسی خوانا؛ ویدئوی بلند افقی ۱۶:۹
   ai_engine: local-ollama-only
   llm_model: openai/gpt-oss-20b
-  local_llm_model: qwen2.5:7b
+  local_llm_model: qwen2.5:1.5b
 
 schedule:
   timezone: UTC
@@ -34,7 +34,7 @@ publishing:
 content:
   production_format: shorts
   target_duration_seconds: "18-30"
-  target_word_count: "28-44"
+  target_word_count: "24-48"
   pillars:
     - معنویت روزمره و تأمل دربارهٔ معنا
     - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی

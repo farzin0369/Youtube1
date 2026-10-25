@@ -100,7 +100,7 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     content = config["content"]
     assert content["production_format"] == "shorts"
     assert content["target_duration_seconds"] == "18-30"
-    assert content["target_word_count"] == "28-44"
+    assert content["target_word_count"] == "24-48"
 
 
 def test_production_config_targets_long_and_shorts_and_private_only():
@@ -234,7 +234,5 @@ def test_thumbnail_brand_uses_a_latin_capable_font():
     arabic = ("NotoNaskhArabic-Regular.ttf", "NotoSansArabic-Regular.ttf")
     if not any((Path("/usr/share/fonts/truetype/noto") / name).exists() for name in arabic):
         pytest.skip("Noto Arabic fonts are not installed")
-    # The Noto Arabic faces carry no Latin glyphs, so the Latin brand name
-    # must never be drawn with them.
     assert Path(_font(30, persian=True).path).name in arabic
     assert Path(_font(30, persian=False).path).name not in arabic
