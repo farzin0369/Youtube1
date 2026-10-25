@@ -148,7 +148,7 @@ def test_provided_stills_cannot_pass_publish_qa_without_preview_only_marker(tmp_
     meta["duration_seconds"] = 24.0
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
-    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
+    assert "shorts_visual_source_not_approved_portrait_media" in result["errors"]
 
 
 def test_shorts_audio_shorter_than_video_fails_qa(tmp_path: Path):

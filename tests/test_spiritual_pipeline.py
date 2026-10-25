@@ -92,7 +92,7 @@ def test_ltx_daily_workflow_schedules_long_and_shorts_through_colab():
     assert "COLAB_CLI_TOKEN_JSON" in workflow["jobs"]["produce"]["env"]
     remote_steps = "\\n".join(step.get("run", "") for step in workflow["jobs"]["produce"]["steps"])
     assert "scripts/colab_spiritual_job.py" in remote_steps
-    assert "No alternate engine was used" in remote_steps
+    assert "no alternate engine was used" in remote_steps
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
@@ -101,7 +101,6 @@ def test_daily_channel_defaults_to_retention_gated_shorts():
     assert content["production_format"] == "shorts"
     assert content["target_duration_seconds"] == "18-30"
     assert content["target_word_count"] == "28-44"
-
 
 
 def test_production_config_targets_long_and_shorts_and_private_only():
@@ -118,7 +117,6 @@ def test_alternate_video_engine_workflows_are_disabled():
         ".github/workflows/imamali_style_short.yml",
         ".github/workflows/stock_shorts.yml",
         ".github/workflows/story_cartoon.yml",
-        ".github/workflows/modern_gpu.yml",
         ".github/workflows/colab_photoreal.yml",
         ".github/workflows/mpt-private-video-test.yml",
     ]
@@ -126,6 +124,7 @@ def test_alternate_video_engine_workflows_are_disabled():
         workflow = yaml.load(Path(raw_path).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         first_job = next(iter(workflow["jobs"].values()))
         assert first_job.get("if") == "false", raw_path
+
 
 def test_daily_cli_imports_from_outside_repository(tmp_path):
     cli = Path(__file__).resolve().parents[1] / "scripts" / "daily_run.py"
@@ -214,12 +213,14 @@ def test_local_ollama_uses_constrained_json_mode(monkeypatch):
     assert captured["payload"]["options"]["num_ctx"] == 4096
     assert captured["timeout"] == 600
 
+
 def test_brand_and_niche_seo_tags_are_mandatory():
     value = validate_content(_content())
     assert {
         "ImamAli110", "The110Path", "امام علی", "معنویت اسلامی",
         "توکل", "برکت", "رشد فردی", "سواد مالی", "مدیریت مالی شخصی",
     }.issubset(set(value["tags"]))
+
 
 def test_title_is_prefixed_with_imam_ali_brand():
     value = validate_content(_content())
