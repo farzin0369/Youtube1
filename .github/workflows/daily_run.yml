@@ -44,7 +44,7 @@ jobs:
       UPLOAD_PRIVATE: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.upload_private) }}
       GIT_REF: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
       LOCAL_LLM_MODEL: qwen2.5:1.5b
-      LTX_VIDEO_STEPS: "20"
+      LTX_VIDEO_STEPS: "12"
     steps:
       - uses: actions/checkout@v4
 
