@@ -1,5 +1,10 @@
 name: BAMO YouTube metadata audit
 on:
+  push:
+    branches:
+      - feat/bamo-youtube-metadata-api
+    paths:
+      - ".github/workflows/bamo-youtube-metadata.yml"
   workflow_dispatch:
     inputs:
       mode:
