@@ -1,0 +1,47 @@
+name: BAMO YouTube metadata audit
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "audit exports current metadata; apply requires an approved bamo_metadata.csv"
+        required: true
+        type: choice
+        options:
+          - audit
+          - apply
+        default: audit
+permissions:
+  contents: read
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install google-api-python-client google-auth
+      - name: Run YouTube metadata tool
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          if [ "${{ inputs.mode }}" = "apply" ]; then
+            if [ ! -f bamo_metadata.csv ]; then
+              echo "bamo_metadata.csv missing; refusing to apply changes."
+              exit 1
+            fi
+            python scripts/bamo_youtube_metadata.py --apply --csv bamo_metadata.csv
+          else
+            python scripts/bamo_youtube_metadata.py --csv bamo_metadata.csv
+          fi
+      - name: Upload metadata CSV
+        if: always() && inputs.mode == 'audit'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-youtube-metadata-audit
+          path: bamo_metadata.csv
+          if-no-files-found: warn
+          retention-days: 7
