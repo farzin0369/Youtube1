@@ -12,6 +12,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+EXPECTED_CHANNEL_ID = "UCaU-FyL0_MoMThD8n1VtHSw"  # BAMO | بامو (@12bamo)
 
 def youtube_client():
     client_id = os.environ["YOUTUBE_CLIENT_ID"]
@@ -30,6 +31,12 @@ def list_uploads(youtube):
     if len(items) != 1:
         raise RuntimeError(f"Expected exactly one authorized channel, got {len(items)}")
     channel = items[0]
+    if channel.get("id") != EXPECTED_CHANNEL_ID:
+        raise RuntimeError(
+            "Safety stop: OAuth credentials are connected to channel "
+            f"{channel.get('id')} ({channel.get('snippet', {}).get('title', 'unknown')}), "
+            f"not BAMO ({EXPECTED_CHANNEL_ID}). No videos were changed."
+        )
     uploads = channel["contentDetails"]["relatedPlaylists"]["uploads"]
     rows = []
     token = None
