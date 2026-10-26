@@ -43,7 +43,7 @@ jobs:
             python scripts/bamo_youtube_metadata.py --csv bamo_metadata.csv
           fi
       - name: Upload metadata CSV
-        if: always() && inputs.mode == 'audit'
+        if: always() && (inputs.mode != 'apply' || github.event_name == 'push')
         uses: actions/upload-artifact@v4
         with:
           name: bamo-youtube-metadata-audit
