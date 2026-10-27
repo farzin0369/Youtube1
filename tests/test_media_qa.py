@@ -108,6 +108,14 @@ def test_good_shorts_package_passes_all_vertical_mobile_gates(tmp_path: Path):
     assert result["checks"]["caption_cues"] == 6
 
 
+def test_scene_matched_stills_are_an_approved_publish_source(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "scene-matched-stills"
+    meta["duration_seconds"] = meta.pop("duration")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"], result["errors"]
+
+
 def test_shorts_quality_gate_blocks_landscape_frame_and_abstract_fallback(tmp_path: Path):
     meta, audio = _short_package(tmp_path)
     meta["video_width"], meta["video_height"] = 1280, 720

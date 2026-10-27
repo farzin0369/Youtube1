@@ -122,8 +122,9 @@ def validate_render_package(
         if render_meta.get("scene_query_match") is not True:
             errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
+        publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        if visual_source != "pexels" and not test_stills_are_allowed:
+        if not publishable_stock and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."

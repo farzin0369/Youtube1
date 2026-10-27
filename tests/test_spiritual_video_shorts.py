@@ -64,6 +64,7 @@ def test_short_renderer_fails_closed_if_even_one_portrait_scene_is_missing(tmp_p
         output.writeframes(b"\0\0" * 22_050)
     monkeypatch.setattr(video, "probe_duration", lambda path: 1.0)
     monkeypatch.setattr(video, "fetch_stock", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(video, "fetch_scene_matched_stills", lambda *args, **kwargs: ([], []))
     with pytest.raises(RuntimeError, match="portrait footage could not be obtained"):
         video.render_video(
             title="test", thumbnail_text="تست کوتاه", keywords=[], audio_path=audio,

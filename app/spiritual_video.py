@@ -166,6 +166,56 @@ def fetch_stock(
     return paths, credits
 
 
+def fetch_scene_matched_stills(queries: list[str], out_dir: Path) -> tuple[list[Path], list[str]]:
+    """Portrait stills matched 1:1 to each scene query when Pexels footage is unavailable.
+
+    Returns nothing unless every scene gets a real image, so the caller can fail closed.
+    """
+    import requests
+    from urllib.parse import quote
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for index, query in enumerate(queries):
+        prompt = (
+            f"{query}, cinematic vertical photograph, photorealistic, natural light, "
+            "no text, no letters, no watermark, no logo, no caption"
+        )
+        url = (
+            "https://image.pollinations.ai/prompt/"
+            + quote(prompt)
+            + f"?width=768&height=1344&nologo=true&model=flux&seed={110 + index}"
+        )
+        target = out_dir / f"scene_{index:02d}.jpg"
+        saved = False
+        for attempt in range(3):
+            try:
+                response = requests.get(
+                    url, timeout=(20, 100), headers={"User-Agent": "ImamAli110-shorts/1.0"},
+                )
+                response.raise_for_status()
+                data = response.content
+                is_jpeg = data[:3] == b"\xff\xd8\xff"
+                is_png = data[:8] == b"\x89PNG\r\n\x1a\n"
+                if len(data) < 20_000 or not (is_jpeg or is_png):
+                    raise ValueError("scene still too small or not an image")
+                if is_png:
+                    target = out_dir / f"scene_{index:02d}.png"
+                target.write_bytes(data)
+                saved = True
+                break
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "scene still %s attempt %s failed (%s)", index, attempt + 1, type(exc).__name__,
+                )
+                target.unlink(missing_ok=True)
+        if not saved:
+            return [], []
+        paths.append(target)
+    return paths, ["Scene stills matched to each narration beat (Pollinations)."]
+
+
 def _font(size: int, *, persian: bool = True):
     """Pick a font that actually covers the script being drawn.
 
@@ -419,6 +469,8 @@ def render_video(
     width, height = (720, 1280) if video_format == "shorts" else (WIDTH, HEIGHT)
     duration = probe_duration(Path(audio_path))
     scene_stills = [Path(path) for path in (scene_stills or []) if Path(path).is_file()]
+    generated_stills = False
+    queries: list[str] = []
     if video_format == "shorts":
         queries = [str(query).strip() for query in (scene_queries or []) if str(query).strip()]
         if len(queries) != 4:
@@ -427,12 +479,18 @@ def render_video(
         stock, credits = fetch_stock(
             queries, out_dir / "stock", count=count, orientation="portrait", one_per_keyword=True,
         )
+        generated_stills = False
         if len(stock) != count and len(scene_stills) != count:
-            raise RuntimeError(
-                "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
-                "no generic/abstract replacement will be published. Check PEXELS_API_KEY or provide four "
-                "explicitly scene-matched portrait stills for a dry-run preview."
-            )
+            generated, still_credits = fetch_scene_matched_stills(queries, out_dir / "scene_stills")
+            if len(generated) == count:
+                scene_stills = generated
+                credits = [*credits, *still_credits]
+                generated_stills = True
+            else:
+                raise RuntimeError(
+                    "Shorts visual-quality gate: portrait footage could not be obtained for every authored scene; "
+                    "no generic/abstract replacement will be published. Check PEXELS_API_KEY or scene-still generation."
+                )
         if scene_timings and len(scene_timings) == count:
             durations = [
                 float(scene_timings[index + 1]["start_seconds"]) - float(row["start_seconds"])
@@ -441,6 +499,8 @@ def render_video(
             ]
         else:
             durations = [duration / count] * count
+        if len(stock) != count:
+            stock = []
     else:
         # Long-form legacy mode keeps its landscape behavior and broad scene cadence.
         count = max(1, min(24, int(math.ceil(duration / 18.0))))
@@ -513,7 +573,11 @@ def render_video(
     return {
         "video_path": str(final_path), "thumbnail_path": str(thumbnail),
         "captions_path": str(captions_path), "duration_seconds": probe_duration(final_path),
-        "visual_source": "pexels" if stock else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks else "generated abstract fallback",
+        "visual_source": (
+            "pexels" if stock else "scene-matched-stills" if generated_stills
+            else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks
+            else "generated abstract fallback"
+        ),
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",
         "on_screen_captions": True, "video_width": width, "video_height": height,
@@ -527,7 +591,9 @@ def render_video(
             video_format == "shorts" and len(queries) == count
             and (len(stock) == count or len(scene_stills) == count)
         ),
-        "test_visuals_only": bool(video_format == "shorts" and not stock and len(scene_stills) == count),
+        "test_visuals_only": bool(
+            video_format == "shorts" and not stock and len(scene_stills) == count and not generated_stills
+        ),
         "music_ducking": True,
         "ok": True,
     }
