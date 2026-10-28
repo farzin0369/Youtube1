@@ -16,9 +16,9 @@
 
 ## اجرای GPU و زمان‌بندی
 
-`.github/workflows/daily_run.yml` هر روز ساعت 14:00 UTC مسیر Long و ساعت 17:00 UTC مسیر Shorts را از طریق Google Colab CLI و یک نشست تازهٔ T4 اجرا می‌کند. workflow خروجی MP4، گزارش QA و تاریخچهٔ کانال را به‌عنوان artifact برمی‌گرداند و فقط همان نشست Colab را می‌بندد. زمان‌بندی در صورت نبود GPU/سهمیهٔ Colab یا Secret لازم تضمین نمی‌شود.
+`.github/workflows/daily_run.yml` هر روز ساعت 14:00 UTC مسیر Long و ساعت 17:00 UTC مسیر Shorts را از طریق Google Colab CLI و یک نشست تازهٔ T4 اجرا می‌کند. اجراهای زمان‌بندی‌شده فقط dry-run هستند؛ بارگذاری خصوصی فقط با اجرای دستی و انتخاب صریح `upload_private=true` مجاز است. workflow خروجی MP4، گزارش QA و تاریخچهٔ کانال را به‌عنوان artifact برمی‌گرداند و فقط همان نشست Colab را می‌بندد. زمان‌بندی در صورت نبود GPU/سهمیهٔ Colab یا Secret لازم تضمین نمی‌شود.
 
-برای این مسیر، در GitHub → Settings → Secrets and variables → Actions باید `COLAB_CLI_TOKEN_JSON` تنظیم شده باشد. برای آپلود خصوصی زمان‌بندی‌شده، این سه Secret نیز لازم‌اند: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`. برای آمار واقعی و تحلیل retention، Secret اختیاری `YOUTUBE_ANALYTICS_REFRESH_TOKEN` لازم است؛ راهنمای ساخت آن در `scripts/get_youtube_analytics_token.py` است. اگر Colab T4 در دسترس نباشد، job fail-closed می‌شود و هیچ موتور جایگزین یا انتشار عمومی انجام نمی‌شود.
+برای این مسیر، در GitHub → Settings → Secrets and variables → Actions باید `COLAB_CLI_TOKEN_JSON` تنظیم شده باشد. برای بارگذاری خصوصی با تأیید صریح و اجرای دستی، این سه Secret لازم‌اند: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`. برای آمار واقعی و تحلیل retention، Secret اختیاری `YOUTUBE_ANALYTICS_REFRESH_TOKEN` لازم است؛ راهنمای ساخت آن در `scripts/get_youtube_analytics_token.py` است. اگر Colab T4 در دسترس نباشد، job fail-closed می‌شود و هیچ موتور جایگزین یا انتشار عمومی انجام نمی‌شود.
 
 
 
