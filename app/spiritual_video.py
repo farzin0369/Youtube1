@@ -166,54 +166,235 @@ def fetch_stock(
     return paths, credits
 
 
+_COMMONS_UA = "ImamAli110Shorts/1.0 (https://github.com/farzin0369/Youtube1; daily Persian Shorts)"
+
+
+def _plain_credit(value: str, limit: int = 140) -> str:
+    text = re.sub(r"<[^>]+>", " ", value or "")
+    text = re.sub(r"&[a-zA-Z#0-9]+;", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
+
+
+def _fit_portrait(image: Image.Image, *, width: int = 768, height: int = 1344) -> Image.Image:
+    frame = image.convert("RGB")
+    scale = max(width / frame.width, height / frame.height)
+    resized = frame.resize(
+        (max(width, int(round(frame.width * scale))), max(height, int(round(frame.height * scale)))),
+        Image.Resampling.LANCZOS,
+    )
+    left = max(0, (resized.width - width) // 2)
+    top = max(0, (resized.height - height) // 2)
+    return resized.crop((left, top, left + width, top + height))
+
+
+def _write_portrait_jpeg(image: Image.Image, target: Path) -> None:
+    _fit_portrait(image).save(target, format="JPEG", quality=90, optimize=True)
+
+
+def _download_image(url: str):
+    import requests
+    from io import BytesIO
+
+    response = requests.get(url, timeout=(12, 45), headers={"User-Agent": _COMMONS_UA})
+    try:
+        response.raise_for_status()
+        data = response.content
+    finally:
+        response.close()
+    if len(data) < 8_000 or len(data) > 12 * 1024 * 1024:
+        raise ValueError("image payload out of bounds")
+    with Image.open(BytesIO(data)) as image:
+        return image.convert("RGB")
+
+
+def _wikimedia_scene_still(query: str, index: int, target: Path, used: set[str]) -> str | None:
+    """Real, freely licensed photograph matched to one English scene query."""
+    import requests
+
+    response = requests.get(
+        "https://commons.wikimedia.org/w/api.php",
+        params={
+            "action": "query",
+            "format": "json",
+            "generator": "search",
+            "gsrsearch": f"{query} photograph filetype:bitmap",
+            "gsrlimit": 12,
+            "gsrnamespace": 6,
+            "prop": "imageinfo",
+            "iiprop": "url|size|mime|extmetadata",
+            "iiurlwidth": 1200,
+        },
+        headers={"User-Agent": _COMMONS_UA},
+        timeout=(10, 30),
+    )
+    try:
+        response.raise_for_status()
+        pages = (response.json().get("query") or {}).get("pages") or {}
+    finally:
+        response.close()
+    ranked: list[tuple] = []
+    for page in pages.values():
+        info = (page.get("imageinfo") or [None])[0] or {}
+        if str(info.get("mime") or "") not in {"image/jpeg", "image/png", "image/webp"}:
+            continue
+        url = str(info.get("thumburl") or info.get("url") or "")
+        if not url or url in used:
+            continue
+        width = int(info.get("thumbwidth") or info.get("width") or 0)
+        height = int(info.get("thumbheight") or info.get("height") or 0)
+        if width < 480 or height < 480:
+            continue
+        meta = info.get("extmetadata") or {}
+        artist = _plain_credit((meta.get("Artist") or {}).get("value") or "Wikimedia contributor", 80)
+        license_name = _plain_credit((meta.get("LicenseShortName") or {}).get("value") or "free license", 40)
+        page_url = str(info.get("descriptionurl") or "")
+        ranked.append((1 if height >= width else 0, width * height, url, artist, license_name, page_url))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    start = index % len(ranked)
+    ordered = ranked[start:] + ranked[:start]
+    for _portrait, _area, url, artist, license_name, page_url in ordered[:5]:
+        try:
+            _write_portrait_jpeg(_download_image(url), target)
+            used.add(url)
+            credit = f"Wikimedia Commons — {artist} ({license_name})"
+            if page_url:
+                credit += f" {page_url}"
+            return credit[:240]
+        except Exception as exc:
+            target.unlink(missing_ok=True)
+            logging.getLogger(__name__).warning("commons still skipped (%s)", type(exc).__name__)
+    return None
+
+
+def _pollinations_scene_still(query: str, index: int, target: Path) -> str | None:
+    import requests
+    from io import BytesIO
+    from urllib.parse import quote
+
+    prompt = (
+        f"{query}, cinematic vertical photograph, photorealistic, natural light, "
+        "no text, no letters, no watermark, no logo, no caption"
+    )
+    urls = [
+        "https://image.pollinations.ai/prompt/" + quote(prompt) + f"?width=768&height=1344&nologo=true&seed={110 + index}",
+        "https://image.pollinations.ai/prompt/" + quote(prompt) + f"?width=768&height=1344&nologo=true&model=flux&seed={110 + index}",
+    ]
+    last_status = "none"
+    for url in urls:
+        try:
+            response = requests.get(url, timeout=(15, 70), headers={"User-Agent": _COMMONS_UA})
+            try:
+                last_status = str(response.status_code)
+                response.raise_for_status()
+                data = response.content
+            finally:
+                response.close()
+            if len(data) < 20_000:
+                raise ValueError("scene still too small")
+            with Image.open(BytesIO(data)) as image:
+                _write_portrait_jpeg(image, target)
+            return f"Scene still generated for this narration beat (Pollinations): {query[:80]}"
+        except Exception as exc:
+            target.unlink(missing_ok=True)
+            status = last_status
+            if hasattr(exc, "response") and getattr(exc, "response", None) is not None:
+                status = str(getattr(exc.response, "status_code", status))
+            logging.getLogger(__name__).warning(
+                "pollinations still %s failed (%s status=%s)", index, type(exc).__name__, status,
+            )
+    return None
+
+
+def _paint_scene_still(query: str, index: int, target: Path) -> str:
+    """Last-resort vertical illustration so a missing image API cannot block the daily upload."""
+    rng = random.Random(sum(map(ord, query)) + index * 97)
+    text = query.lower()
+
+    def has(*words: str) -> bool:
+        return any(word in text for word in words)
+
+    if has("night", "moon", "star", "dark"):
+        top, bottom, accent = (8, 16, 40), (24, 36, 72), (230, 220, 180)
+    elif has("sea", "ocean", "water", "rain", "river"):
+        top, bottom, accent = (20, 70, 110), (8, 28, 48), (180, 210, 220)
+    elif has("forest", "tree", "leaf", "garden"):
+        top, bottom, accent = (30, 70, 48), (12, 28, 22), (210, 180, 90)
+    else:
+        top, bottom, accent = (255, 176, 92), (48, 28, 42), (255, 236, 200)
+    width, height = 768, 1344
+    image = Image.new("RGB", (width, height))
+    pixels = image.load()
+    for y in range(height):
+        blend = y / (height - 1)
+        color = tuple(int(top[i] * (1 - blend) + bottom[i] * blend) for i in range(3))
+        jitter = rng.randint(-8, 8)
+        tone = tuple(max(0, min(255, channel + jitter)) for channel in color)
+        for x in range(width):
+            pixels[x, y] = tone
+    draw = ImageDraw.Draw(image)
+    orb_y = 220 + index * 36
+    draw.ellipse((width // 2 - 90, orb_y, width // 2 + 90, orb_y + 180), fill=accent)
+    ground = tuple(max(0, channel - 36) for channel in bottom)
+    draw.polygon([(0, 980), (width, 900), (width, height), (0, height)], fill=ground)
+    draw.polygon(
+        [(width // 2 - 46, height), (width // 2 + 46, height), (width // 2 + 10, 960), (width // 2 - 10, 960)],
+        fill=accent,
+    )
+    if has("mountain", "hill", "trail", "path", "road", "walk"):
+        draw.polygon([(40, 980), (230, 620), (430, 980)], fill=(36, 44, 58))
+        draw.polygon([(280, 980), (520, 540), (760, 980)], fill=(24, 30, 42))
+    if has("window", "door", "home", "room"):
+        draw.rounded_rectangle((236, 640, 532, 1040), radius=16, outline=accent, width=10)
+    if has("tree", "forest", "garden", "leaf"):
+        for trunk_x in (140, 600):
+            draw.rectangle((trunk_x, 760, trunk_x + 22, 1020), fill=(42, 28, 18))
+            draw.ellipse((trunk_x - 78, 540, trunk_x + 100, 820), fill=(22, 68, 38))
+    if has("hand", "hands", "tea", "cup", "journal", "book"):
+        draw.rounded_rectangle((220, 860, 548, 1080), radius=40, outline=accent, width=12)
+    _write_portrait_jpeg(image, target)
+    return f"Original illustrated scene still matched to: {query[:80]}"
+
+
 def fetch_scene_matched_stills(queries: list[str], out_dir: Path) -> tuple[list[Path], list[str]]:
     """Portrait stills matched 1:1 to each scene query when Pexels footage is unavailable.
 
-    Returns nothing unless every scene gets a real image, so the caller can fail closed.
+    Order: freely licensed Wikimedia photographs, then Pollinations, then a local
+    illustration. Returns nothing only if even the local illustration fails.
     """
-    import requests
-    from urllib.parse import quote
-
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    if len(queries) == 0:
+        return [], []
     paths: list[Path] = []
+    credits: list[str] = []
+    used: set[str] = set()
+    log = logging.getLogger(__name__)
     for index, query in enumerate(queries):
-        prompt = (
-            f"{query}, cinematic vertical photograph, photorealistic, natural light, "
-            "no text, no letters, no watermark, no logo, no caption"
-        )
-        url = (
-            "https://image.pollinations.ai/prompt/"
-            + quote(prompt)
-            + f"?width=768&height=1344&nologo=true&model=flux&seed={110 + index}"
-        )
         target = out_dir / f"scene_{index:02d}.jpg"
-        saved = False
-        for attempt in range(3):
+        credit = None
+        for name, provider in (
+            ("wikimedia", lambda query=query, index=index, target=target: _wikimedia_scene_still(query, index, target, used)),
+            ("pollinations", lambda query=query, index=index, target=target: _pollinations_scene_still(query, index, target)),
+            ("illustrated", lambda query=query, index=index, target=target: _paint_scene_still(query, index, target)),
+        ):
             try:
-                response = requests.get(
-                    url, timeout=(20, 100), headers={"User-Agent": "ImamAli110-shorts/1.0"},
-                )
-                response.raise_for_status()
-                data = response.content
-                is_jpeg = data[:3] == b"\xff\xd8\xff"
-                is_png = data[:8] == b"\x89PNG\r\n\x1a\n"
-                if len(data) < 20_000 or not (is_jpeg or is_png):
-                    raise ValueError("scene still too small or not an image")
-                if is_png:
-                    target = out_dir / f"scene_{index:02d}.png"
-                target.write_bytes(data)
-                saved = True
-                break
+                credit = provider()
             except Exception as exc:
-                logging.getLogger(__name__).warning(
-                    "scene still %s attempt %s failed (%s)", index, attempt + 1, type(exc).__name__,
-                )
-                target.unlink(missing_ok=True)
-        if not saved:
+                log.warning("scene still %s via %s failed (%s)", index, name, type(exc).__name__)
+                credit = None
+            if credit and target.is_file() and target.stat().st_size > 8_000:
+                log.info("scene still %s source=%s bytes=%s", index, name, target.stat().st_size)
+                break
+            credit = None
+            target.unlink(missing_ok=True)
+        if not credit:
             return [], []
         paths.append(target)
-    return paths, ["Scene stills matched to each narration beat (Pollinations)."]
+        credits.append(credit)
+    return paths, credits
 
 
 def _font(size: int, *, persian: bool = True):
@@ -577,6 +758,9 @@ def render_video(
             "pexels" if stock else "scene-matched-stills" if generated_stills
             else "provided stills" if scene_stills else "local fallback videos" if local_fallbacks
             else "generated abstract fallback"
+        ),
+        "contains_synthetic_visuals": bool(
+            generated_stills and any(not str(credit).startswith("Wikimedia Commons") for credit in credits)
         ),
         "stock_clip_count": len(stock), "visual_scene_count": count,
         "pexels_credits": credits, "music_source": "local licensed track" if music != out_dir / "ambient.wav" else "procedurally generated original ambience",

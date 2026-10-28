@@ -53,7 +53,10 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
             "گویندگی فارسی با صدای هوش مصنوعی تولید شده است.",
         ]
         if render.get("visual_source") == "scene-matched-stills":
-            parts.append("تصویر هر صحنه با هوش مصنوعی و هماهنگ با همان بخش از گفتار ساخته شده است.")
+            if render.get("contains_synthetic_visuals"):
+                parts.append("بخشی از تصویر صحنه‌ها به‌صورت مصنوعی و هماهنگ با گفتار ساخته شده است.")
+            else:
+                parts.append("تصویر صحنه‌ها از عکس‌های آزاد ویکی‌مدیا کامنز و هماهنگ با موضوع هر بخش انتخاب شده است.")
         credits = render.get("pexels_credits") or []
         if credits:
             parts += ["", "تصاویر:", *credits]
@@ -165,7 +168,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             cfg = load_channel_config()
             category_id = str((cfg.get("publishing") or {}).get("category_id") or "22")
             logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
-            if render.get("visual_source") == "scene-matched-stills":
+            if render.get("contains_synthetic_visuals"):
                 os.environ["YOUTUBE_CONTAINS_SYNTHETIC_MEDIA"] = "true"
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],

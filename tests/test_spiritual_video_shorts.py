@@ -71,3 +71,33 @@ def test_short_renderer_fails_closed_if_even_one_portrait_scene_is_missing(tmp_p
             captions_path=tmp_path / "captions.srt", out_dir=tmp_path / "render", run_id="test",
             video_format="shorts", scene_queries=["one scene query"] * 4,
         )
+
+
+def test_scene_stills_fall_back_to_distinct_local_illustrations(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(video, "_wikimedia_scene_still", lambda *args, **kwargs: None)
+    monkeypatch.setattr(video, "_pollinations_scene_still", lambda *args, **kwargs: None)
+    queries = [
+        "sunrise walking path",
+        "hands holding tea",
+        "open window morning light",
+        "mountain trail above clouds",
+    ]
+    paths, credits = video.fetch_scene_matched_stills(queries, tmp_path / "stills")
+    assert len(paths) == 4
+    assert len(credits) == 4
+    assert all(path.suffix == ".jpg" and path.stat().st_size > 8_000 for path in paths)
+    assert len({path.read_bytes() for path in paths}) == 4
+    assert all(credit.startswith("Original illustrated scene still") for credit in credits)
+    from PIL import Image
+    with Image.open(paths[0]) as image:
+        assert image.size == (768, 1344)
+
+
+def test_wikimedia_credit_is_not_marked_synthetic():
+    credits = [
+        "Wikimedia Commons — Ada (CC BY) https://commons.wikimedia.org/wiki/File:A.jpg",
+    ] * 4
+    assert all(str(credit).startswith("Wikimedia Commons") for credit in credits)
+    synthetic = any(not str(credit).startswith("Wikimedia Commons") for credit in credits)
+    assert synthetic is False
+
