@@ -93,6 +93,9 @@ def test_ltx_daily_workflow_schedules_long_and_shorts_through_colab():
     remote_steps = "\\n".join(step.get("run", "") for step in workflow["jobs"]["produce"]["steps"])
     assert "scripts/colab_spiritual_job.py" in remote_steps
     assert "no alternate engine was used" in remote_steps
+    # Scheduled jobs must remain dry-run; private upload requires explicit manual approval.
+    assert workflow["jobs"]["produce"]["env"]["UPLOAD_PRIVATE"] == "${{ github.event_name == 'workflow_dispatch' && inputs.upload_private }}"
+    assert workflow["on"]["workflow_dispatch"]["inputs"]["upload_private"]["default"] == "false"
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
