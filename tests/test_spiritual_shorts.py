@@ -69,8 +69,6 @@ def test_short_package_has_fast_hook_four_distinct_scenes_and_emotional_arc(shor
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda x: x.update(script="مقدمهٔ طولانی و بی‌ربط." + x["script"]), "match_scene_narration"),
-        (lambda x: x.update(hook="یک هوک متفاوت"), "hook_must_match"),
         (lambda x: (x["scenes"][0].update(spoken_text="سلام، " + x["scenes"][0]["spoken_text"]), x.update(script=" ".join(scene["spoken_text"] for scene in x["scenes"]))), "opening_has_a_slow_generic_intro"),
         (lambda x: x["scenes"][2].update(visual_query=x["scenes"][1]["visual_query"]), "visual_queries_must_be_distinct"),
         (lambda x: x["scenes"][3].update(mood="calm"), "emotional_arc"),
@@ -108,6 +106,18 @@ def test_short_gate_accepts_28_word_retention_focused_script(short_package):
     package["script"] = " ".join(lines)
     result = validate_short_content(package)
     assert result["word_count"] == 28
+
+
+
+def test_paraphrased_script_and_hook_follow_scene_narration(short_package):
+    package = copy.deepcopy(short_package)
+    package["script"] = "این بازنویسی مدل با متن صحنه‌ها یکی نیست ولی نباید تولید را متوقف کند."
+    package["hook"] = "یک هوک متفاوت"
+    result = validate_short_content(package)
+    spoken = [scene["spoken_text"] for scene in package["scenes"]]
+    assert result["script"] == " ".join(spoken)
+    assert result["hook"] == spoken[0]
+    assert result["format"] == "shorts"
 
 
 def test_short_gate_canonicalizes_script_punctuation_to_scene_voice(short_package):
