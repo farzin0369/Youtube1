@@ -124,11 +124,28 @@ def test_section_rules_are_not_placed_in_the_user_prompt():
     assert "قواعد نوشتن هر بخش" in spiritual_content.SECTION_RULES
 
 
-def test_provider_chain_falls_through_to_local_ollama(monkeypatch):
+def test_hosted_model_is_used_and_local_model_stays_off(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("USE_LOCAL_LLM", raising=False)
+    monkeypatch.setattr(llm_provider, "_chat_completions", lambda *a, **kw: "پاسخ میزبانی‌شده")
+    monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: pytest.fail("local model should stay off"))
+    text, provider = llm_provider.generate_text("system", "prompt")
+    assert text == "پاسخ میزبانی‌شده"
+    assert provider.startswith("pollinations:")
+
+
+def test_local_model_is_only_a_last_resort_when_explicitly_enabled(monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.setenv("USE_LOCAL_LLM", "1")
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("cloud down")
+
+    monkeypatch.setattr(llm_provider, "_chat_completions", broken)
     monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: "پاسخ محلی")
     text, provider = llm_provider.generate_text("system", "prompt")
     assert text == "پاسخ محلی"
@@ -137,6 +154,7 @@ def test_provider_chain_falls_through_to_local_ollama(monkeypatch):
 
 def test_groq_is_preferred_when_configured(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("USE_LOCAL_LLM", "1")
     monkeypatch.setattr(llm_provider, "_chat_completions", lambda *a, **kw: "پاسخ ابری")
     monkeypatch.setattr(llm_provider, "_ollama_call", lambda *a, **kw: pytest.fail("local model should not be used"))
     text, provider = llm_provider.generate_text("system", "prompt")
@@ -146,6 +164,7 @@ def test_groq_is_preferred_when_configured(monkeypatch):
 
 def test_cloud_failure_degrades_to_the_next_provider(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("USE_LOCAL_LLM", "1")
 
     def broken(*args, **kwargs):
         raise RuntimeError("rate limited")
@@ -159,6 +178,7 @@ def test_cloud_failure_degrades_to_the_next_provider(monkeypatch):
 
 def test_every_provider_failing_raises(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("USE_LOCAL_LLM", "1")
 
     def broken(*args, **kwargs):
         raise RuntimeError("unavailable")

@@ -57,7 +57,7 @@ jobs:
           sleep 15
           colab sessions 2>&1 | tee output/colab_cli/sessions_after.txt || true
 
-      - name: GPU render on Colab T4 (LTX)
+      - name: GPU render on Colab T4 (Wan 2.1 real video)
         if: steps.check.outputs.ok == 'true'
         id: gpu
         continue-on-error: true
@@ -83,21 +83,25 @@ jobs:
             exit 1
           fi
 
-          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.32.0","transformers","accelerate","imageio-ffmpeg","sentencepiece"])' \
+          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.33.0","transformers","accelerate","safetensors","sentencepiece","ftfy","imageio","imageio-ffmpeg","edge-tts"])' \
             | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
 
           set +e
-          colab exec -s "$SESSION" -f scripts/colab_render_minimal.py 2>&1 | tee -a output/colab_cli/run.log
+          colab exec -s "$SESSION" -f scripts/colab_wan_real_short.py 2>&1 | tee -a output/colab_cli/run.log
           set -e
 
           colab download -s "$SESSION" /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+          colab download -s "$SESSION" /content/final_short.mp4 output/colab_cli/final_short.mp4 2>&1 | tee -a output/colab_cli/run.log || true
+          colab download -s "$SESSION" /content/script_source.txt output/colab_cli/script_source.txt 2>&1 | tee -a output/colab_cli/run.log || true
           colab stop -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
           ls -la output/colab_cli/ || true
 
       - name: Finish short (natural TTS + captions)
         if: steps.check.outputs.ok == 'true'
         run: |
-          if [ -f output/colab_cli/video_raw.mp4 ]; then
+          if [ -f output/colab_cli/final_short.mp4 ]; then
+            ls -la output/colab_cli/
+          elif [ -f output/colab_cli/video_raw.mp4 ]; then
             python scripts/finish_gpu_short.py output/colab_cli
             ls -la output/colab_cli/
           else

@@ -3,10 +3,9 @@ name: ImamAli style short (AI stills + Ken Burns)
 # Free CPU: Pollinations images + Edge TTS + FFmpeg
 # Closest free match to per-phrase cinematic spiritual shorts
 
+# Disabled as a daily publisher: this path is stills or a black frame, not a video model.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "30 5 * * *"
 
 jobs:
   render:

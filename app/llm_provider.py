@@ -5,7 +5,9 @@ No paid subscription is required. Providers are tried in this order:
 1. ``GROQ_API_KEY`` — free tier of Groq (OpenAI-compatible).
 2. ``LLM_BASE_URL`` + ``LLM_API_KEY`` — any OpenAI-compatible gateway
    (OpenRouter, Together, DeepInfra, a self-hosted vLLM, ...).
-3. Local Ollama on ``OLLAMA_BASE_URL`` — always available, no key.
+3. Pollinations anonymous text endpoint (a hosted instruct model, no key).
+4. Local Ollama only when ``USE_LOCAL_LLM=1``. It is off by default because
+   the small local model was writing unusable Shorts copy.
 
 Every provider failure is isolated: a rate-limited or unreachable cloud
 provider falls through to the next one instead of killing the run.
@@ -70,8 +72,11 @@ def _chat_completions(
             {"role": "user", "content": prompt},
         ],
         "temperature": temperature,
-        "max_completion_tokens": max_tokens,
     }
+    if "pollinations.ai" in base_url:
+        body["max_tokens"] = max_tokens
+    else:
+        body["max_completion_tokens"] = max_tokens
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -95,6 +100,10 @@ def _chat_completions(
             return str(content)
         except urllib.error.HTTPError as exc:
             last_error = RuntimeError(f"HTTP {exc.code}")
+            if exc.code == 400 and "response_format" in body:
+                body.pop("response_format", None)
+                payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+                continue
             if exc.code not in RETRYABLE_STATUS or attempt == 2:
                 break
             try:
@@ -155,7 +164,15 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
-    chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
+    chain.append((
+        "pollinations:openai",
+        lambda system, prompt, **kw: _chat_completions(
+            "https://text.pollinations.ai/openai", "anonymous", "openai", system, prompt, **kw
+        ),
+    ))
+    use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
+    if use_local:
+        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 

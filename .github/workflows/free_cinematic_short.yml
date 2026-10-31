@@ -4,8 +4,6 @@ name: Free cinematic short (no GPU)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"  # daily ~06:00 UTC
 
 jobs:
   render:
