@@ -121,6 +121,17 @@ def _build_upload_status(privacy: str, scheduled_at: str | None, contains_synthe
     return status
 
 
+def _set_custom_thumbnail(youtube, video_id: str, thumbnail_path: Path) -> bool:
+    """Set the generated JPEG thumbnail after the video insert."""
+    from googleapiclient.http import MediaFileUpload
+
+    response = youtube.thumbnails().set(
+        videoId=video_id,
+        media_body=MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg"),
+    ).execute()
+    return bool(response)
+
+
 def upload_video(
     video_path: Path | None,
     title: str,
@@ -174,18 +185,24 @@ def upload_video(
             if status:
                 print(f"[youtube] {int(status.progress() * 100)}%")
         video_id = response.get("id")
+        thumbnail_set = False
+        thumbnail_error = None
+        if thumbnail_path and Path(thumbnail_path).is_file():
+            try:
+                thumbnail_set = _set_custom_thumbnail(youtube, video_id, Path(thumbnail_path))
+            except Exception as thumb_exc:
+                thumbnail_error = type(thumb_exc).__name__
+                print(f"[youtube] custom thumbnail upload failed ({thumbnail_error})")
         result: dict[str, Any] = {
             "ok": True,
             "video_id": video_id,
             "url": f"https://www.youtube.com/watch?v={video_id}",
             "privacy": "private",
             "scheduled_for": None,
+            "captions_burned_in": True,
+            "thumbnail_set": thumbnail_set,
+            "thumbnail_error": thumbnail_error,
         }
-        # The rendered MP4 already contains synchronized Persian captions.
-        # Custom thumbnails/caption tracks can be added later in a separate
-        # maintenance pass; they must not block a valid scheduled upload.
-        result["captions_burned_in"] = True
-        result["thumbnail_set"] = False
         result["privacy"] = "scheduled" if scheduled_at else privacy
         result["scheduled_for"] = scheduled_at
         return result
