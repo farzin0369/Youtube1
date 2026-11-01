@@ -164,15 +164,17 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
+    use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
+    # Prefer the explicitly provisioned CPU model on GitHub Actions; anonymous
+    # hosted inference remains a last-resort fallback when local inference fails.
+    if use_local:
+        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     chain.append((
         "pollinations:openai",
         lambda system, prompt, **kw: _chat_completions(
             "https://text.pollinations.ai/openai", "anonymous", "openai", system, prompt, **kw
         ),
     ))
-    use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
-    if use_local:
-        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
     return chain
 
 
