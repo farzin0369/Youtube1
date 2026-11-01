@@ -1,0 +1,47 @@
+name: BAMO CPU daily motion preview
+
+on:
+  schedule:
+    - cron: "30 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-cpu-daily-preview
+  cancel-in-progress: false
+
+jobs:
+  render-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-cpu-hybrid-motion-engine
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU rendering tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+      - name: Render deterministic BAMO preview
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python scripts/render_bamo_motion.py \
+            --project examples/bamo_motion_project.json \
+            --output output/bamo/daily-preview.mp4
+      - name: Verify MP4 dimensions and stream
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height \
+            -of default=noprint_wrappers=1 output/bamo/daily-preview.mp4
+          test -s output/bamo/daily-preview.mp4
+      - name: Save preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-cpu-motion-preview-${{ github.run_id }}
+          path: output/bamo/daily-preview.mp4
+          retention-days: 7
