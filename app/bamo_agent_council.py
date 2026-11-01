@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from app.llm_provider import generate_text
+from app.llm_provider import _chat_completions, generate_text
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +57,30 @@ def _memory_for(agent_id: str, memory_dir: Path) -> str:
         return "No prior specialist memory."
 
 
+def _agent_completion(agent_id: str, system: str, prompt: str) -> tuple[str, str]:
+    """Use an explicitly configured per-agent model when supplied; otherwise fallback."""
+    raw_config = (os.getenv("BAMO_AGENT_PROVIDER_CONFIG") or "").strip()
+    if raw_config:
+        try:
+            config = json.loads(raw_config)
+            item = config.get(agent_id) if isinstance(config, dict) else None
+            if isinstance(item, dict) and all(item.get(key) for key in ("base_url", "api_key", "model")):
+                text = _chat_completions(
+                    str(item["base_url"]).rstrip("/"), str(item["api_key"]),
+                    str(item["model"]), system, prompt, max_tokens=900,
+                    temperature=0.15, json_mode=True,
+                    timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
+                )
+                provider = str(item.get("provider") or "custom")
+                return text, f"agent-specific:{provider}:{item['model']}"
+        except Exception as exc:
+            LOGGER.warning("agent-specific provider unavailable for %s (%s); using configured fallback chain", agent_id, type(exc).__name__)
+    return generate_text(
+        system, prompt, max_tokens=900, temperature=0.15, json_mode=True,
+        timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
+    )
+
+
 def _review_one(agent_id: str, specialty: str, package: dict[str, Any], memory_dir: Path) -> dict[str, Any]:
     system = (
         "You are an independent specialist on the BAMO YouTube quality council. "
@@ -75,10 +99,7 @@ def _review_one(agent_id: str, specialty: str, package: dict[str, Any], memory_d
         "your_private_memory": _memory_for(agent_id, memory_dir),
         "instruction": "Review the complete package independently. Do not rewrite it. Return a reasoned JSON verdict.",
     }, ensure_ascii=False)
-    raw, provider = generate_text(
-        system, prompt, max_tokens=900, temperature=0.15, json_mode=True,
-        timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
-    )
+    raw, provider = _agent_completion(agent_id, system, prompt)
     result = _json_object(raw)
     score = int(result["score"])
     if not 0 <= score <= 100:
