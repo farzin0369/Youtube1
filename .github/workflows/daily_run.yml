@@ -55,6 +55,9 @@ jobs:
       CHANNEL_BRAND: BAMO
       LOCAL_LLM_MODEL: qwen2.5:7b
       OLLAMA_BASE_URL: http://127.0.0.1:11434
+      OLLAMA_HOST: 127.0.0.1:11434
+      OLLAMA_MODELS: ${{ runner.temp }}/ollama-models
+      USE_LOCAL_LLM: "1"
       OLLAMA_TIMEOUT_SECONDS: "600"
       OLLAMA_NUM_PREDICT: "4096"
       OLLAMA_NUM_CTX: "4096"
@@ -90,8 +93,23 @@ jobs:
           mkdir -p state output logs
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
-      - name: Text model
-        run: echo "Local Ollama is off. Script text uses Groq, a configured gateway, or the hosted Pollinations model."
+      - name: Cache CPU language model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ollama-models
+          key: bamo-ollama-qwen25-7b-v1
+      - name: Install and start local Ollama CPU service
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          sudo systemctl stop ollama || true
+          mkdir -p "$OLLAMA_MODELS"
+          nohup ollama serve > /tmp/bamo-ollama.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if ollama list >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          ollama list >/dev/null
+          ollama pull "$LOCAL_LLM_MODEL"
       - name: Verify YouTube credentials before any production work
         if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
         run: |
