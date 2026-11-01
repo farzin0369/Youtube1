@@ -79,7 +79,7 @@ def _hashtags(content: dict[str, Any]) -> str:
         tag = str(raw).strip()
         if tag.casefold() in {"bamo", "12bamo", "بامو"}:
             continue
-        slug = re.sub(r"[^\\w\\u0600-\\u06FF]+", "_", tag, flags=re.UNICODE).strip("_")
+        slug = re.sub(r"[^\w\u0600-\u06FF]+", "_", tag, flags=re.UNICODE).strip("_")
         if slug and slug.casefold() not in {item.casefold().lstrip("#") for item in values}:
             values.append("#" + slug)
         if len(values) >= 7:
