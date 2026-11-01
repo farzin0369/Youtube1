@@ -251,6 +251,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
                 "video_id": upload.get("video_id"), "url": upload.get("url"),
                 "scheduled_for": upload.get("scheduled_for"), "uploaded_at": utc_now_iso(),
                 "script_fingerprint": __import__("app.youtube_history", fromlist=["content_fingerprint"]).content_fingerprint(content["script"]),
+                "script": content["script"],
             })
             history["recent"] = recent[-90:]
             history["updated_at"] = utc_now_iso()
