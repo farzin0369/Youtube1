@@ -220,6 +220,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         agent_council = review_with_council(
             content, render=render, media_qa=media_quality,
             memory_dir=Path(os.getenv("BAMO_AGENT_MEMORY_DIR") or "state/agent_memory"),
+            history=generation_history.get("recent", []),
         )
         save_json(out_dir / "agent_council.json", agent_council)
         logger.info(
