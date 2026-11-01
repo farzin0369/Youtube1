@@ -37,28 +37,13 @@ jobs:
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_MODEL: ${{ vars.LLM_MODEL }}
       LLM_TIMEOUT_SECONDS: "180"
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      TTS_PROVIDER: ${{ vars.TTS_PROVIDER || 'edge-tts' }}
+      TTS_PROVIDER: edge-tts
       TTS_VOICE: fa-IR-FaridNeural
-      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-      ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
-      ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_v4' }}
-      ELEVENLABS_STABILITY: ${{ vars.ELEVENLABS_STABILITY || '0.5' }}
-      ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
       CHANNEL_BRAND: BAMO
-      LOCAL_LLM_MODEL: qwen2.5:7b
-      OLLAMA_BASE_URL: http://127.0.0.1:11434
-      OLLAMA_TIMEOUT_SECONDS: "600"
-      OLLAMA_NUM_PREDICT: "4096"
-      OLLAMA_NUM_CTX: "4096"
-      OLLAMA_KEEP_ALIVE: "1800"
       CHANNEL_HISTORY_PATH: state/history.json
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +76,7 @@ jobs:
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
       - name: Text model
-        run: echo "Local Ollama is off. Script text uses Groq, a configured gateway, or the hosted Pollinations model."
+        run: echo "Text uses free Groq when configured, otherwise anonymous Pollinations; paid gateways and local model services are disabled."
       - name: Verify YouTube credentials before any production work
         if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
         run: |
@@ -103,7 +88,7 @@ jobs:
               raise SystemExit(1)
           print("YouTube OAuth preflight passed.")
           PY
-      - name: Run Persian spiritual video pipeline
+      - name: Run BAMO CPU 3D motion-graphics pipeline
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUBLISH_INPUT: ${{ inputs.publish }}
