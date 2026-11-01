@@ -77,12 +77,12 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
             if not image_path.is_file(): raise FileNotFoundError(f"Scene image not found: {image_path}")
             vf=(f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
                 f"zoompan=z='min(zoom+0.0007,1.08)':d={max(1,round(duration*fps))}:s={width}x{height}:fps={fps},"
-                f"fade=t=in:st=0:d=.25,fade=t=out:st={fadeout:.3f}:d=.3,format=yuv420p")
+                f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
             cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p",str(clip)]
         else:
             vf=(f"drawbox=x='(iw-260)/2+90*sin(t*.75+{index})':y='(ih-520)/2+55*cos(t*.55+{index})':w=260:h=520:color={accent}@.20:t=fill,"
                 f"drawbox=x='(iw-4)/2':y=0:w=4:h=ih:color={accent}@.55:t=fill,noise=alls=3:allf=t,eq=contrast=1.08:saturation=1.12,"
-                f"fade=t=in:st=0:d=.25,fade=t=out:st={fadeout:.3f}:d=.3,format=yuv420p")
+                f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
             source=f"color=c={bg}:s={width}x{height}:r={fps}:d={duration:.3f}"
             cmd=["ffmpeg","-y","-f","lavfi","-i",source,"-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p",str(clip)]
         _run(cmd); clips.append(clip)
