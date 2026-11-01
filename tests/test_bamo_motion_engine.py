@@ -27,9 +27,9 @@ def test_scene_director_selects_topic_matched_3d_motifs_and_camera_moves():
     assert plan_scene("مغز و مسیر عصبی", "neural pathways brain synapses")["motif"] == "neural_network"
 
 
-def test_unmatched_visual_prompt_is_not_claimed_as_verified():
-    plan = plan_scene("یک موضوع ناشناخته", "unclassified visual subject")
-    assert plan["motif"] == "abstract"
+def test_unmatched_visual_prompt_fails_closed_instead_of_using_generic_art():
+    with pytest.raises(ValueError, match="No subject-specific 3D scene builder"):
+        plan_scene("یک موضوع ناشناخته", "unclassified visual subject")
 
 
 
