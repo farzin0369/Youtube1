@@ -97,7 +97,7 @@ def render_bamo_shorts(
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") for plan in visual_plans)
+    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
     return {
         "ok": True,
         "video_path": str(final_path),
