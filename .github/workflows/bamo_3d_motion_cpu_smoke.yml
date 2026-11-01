@@ -15,7 +15,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: bamo-approved-3d-smoke
+  group: bamo-approved-3d-smoke-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
   render:
