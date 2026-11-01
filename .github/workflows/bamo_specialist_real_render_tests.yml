@@ -1,0 +1,143 @@
+name: BAMO real Manim and Blender render tests
+
+on:
+  push:
+    branches: ["test/bamo-manim-blender-real-render"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  specialist-render-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg blender libcairo2-dev libpango1.0-dev pkg-config python3-dev
+
+      - name: Install Manim
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "manim>=0.18,<1.0"
+
+      - name: Create output folders
+        run: mkdir -p output/specialist-tests/manim output/specialist-tests/blender
+
+      - name: Render real Manim mathematics animation
+        run: |
+          cat > /tmp/bamo_manim_test.py <<'PY'
+          from manim import *
+
+          class BAMOMathTest(Scene):
+              def construct(self):
+                  title = Text("BAMO | MATHEMATICS", font_size=34, color=GOLD)
+                  title.to_edge(UP)
+                  circle = Circle(radius=1.65, color=BLUE_C, stroke_width=8)
+                  square = Square(side_length=2.33, color=GOLD, stroke_width=8)
+                  formula = MathTex(r"A=\\pi r^2", color=WHITE).scale(1.25)
+                  formula.to_edge(DOWN)
+                  self.play(Write(title))
+                  self.play(Create(circle), run_time=1.5)
+                  self.play(Transform(circle, square), run_time=1.5)
+                  self.play(Transform(square, circle), run_time=1.5)
+                  self.play(Write(formula))
+                  self.wait(1)
+          PY
+          manim -ql --fps 24 --resolution 480,854 --media_dir /tmp/manim_media /tmp/bamo_manim_test.py BAMOMathTest
+          find /tmp/manim_media -type f -name '*.mp4' -exec cp {} output/specialist-tests/manim/BAMO-Manim-Math-Test.mp4 \;
+
+      - name: Render real Blender 3D animation
+        run: |
+          cat > /tmp/bamo_blender_test.py <<'PY'
+          import bpy, math
+          from mathutils import Vector
+
+          bpy.ops.object.select_all(action='SELECT')
+          bpy.ops.object.delete(use_global=False)
+
+          bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, location=(0, 0, 0))
+          sphere = bpy.context.object
+          sphere.name = "BAMO_Golden_Sphere"
+          mat = bpy.data.materials.new("BAMO_Gold")
+          mat.diffuse_color = (0.95, 0.55, 0.08, 1)
+          mat.use_nodes = True
+          bsdf = mat.node_tree.nodes.get("Principled BSDF")
+          bsdf.inputs["Base Color"].default_value = (0.95, 0.42, 0.04, 1)
+          bsdf.inputs["Metallic"].default_value = 0.72
+          bsdf.inputs["Roughness"].default_value = 0.22
+          sphere.data.materials.append(mat)
+
+          bpy.ops.mesh.primitive_torus_add(major_radius=1.55, minor_radius=0.035, location=(0,0,0))
+          ring = bpy.context.object
+          ring_mat = bpy.data.materials.new("BAMO_Ring")
+          ring_mat.diffuse_color = (0.05, 0.35, 0.9, 1)
+          ring.data.materials.append(ring_mat)
+
+          bpy.ops.object.camera_add(location=(4.2, -6.5, 3.2))
+          camera = bpy.context.object
+          direction = Vector((0,0,0)) - camera.location
+          camera.rotation_euler = direction.to_track_quat('-Z','Y').to_euler()
+          camera.data.lens = 48
+          scene = bpy.context.scene
+          scene.camera = camera
+
+          bpy.ops.object.light_add(type='AREA', location=(1,-4,5))
+          key = bpy.context.object
+          key.data.energy = 850
+          key.data.shape = 'DISK'
+          key.data.size = 5
+          bpy.ops.object.light_add(type='AREA', location=(-4,1,1))
+          fill = bpy.context.object
+          fill.data.energy = 500
+          fill.data.color = (0.15,0.35,1.0)
+          fill.data.size = 4
+
+          sphere.rotation_euler = (0,0,0)
+          sphere.keyframe_insert(data_path="rotation_euler", frame=1)
+          sphere.rotation_euler = (0,0,math.radians(220))
+          sphere.keyframe_insert(data_path="rotation_euler", frame=72)
+          ring.rotation_euler = (0,0,0)
+          ring.keyframe_insert(data_path="rotation_euler", frame=1)
+          ring.rotation_euler = (math.radians(35),0,math.radians(360))
+          ring.keyframe_insert(data_path="rotation_euler", frame=72)
+
+          scene.frame_start = 1
+          scene.frame_end = 72
+          scene.render.engine = 'BLENDER_EEVEE_NEXT'
+          scene.render.resolution_x = 480
+          scene.render.resolution_y = 854
+          scene.render.resolution_percentage = 100
+          scene.render.fps = 24
+          scene.render.image_settings.file_format = 'FFMPEG'
+          scene.render.ffmpeg.format = 'MPEG4'
+          scene.render.ffmpeg.codec = 'H264'
+          scene.render.filepath = "output/specialist-tests/blender/BAMO-Blender-3D-Test.mp4"
+          scene.world.color = (0.025,0.025,0.025)
+          scene.render.image_settings.color_mode = 'RGB'
+          bpy.ops.render.render(animation=True)
+          PY
+          blender -b -t 2 --python /tmp/bamo_blender_test.py
+
+      - name: Verify both MP4 outputs
+        run: |
+          set -e
+          test -s output/specialist-tests/manim/BAMO-Manim-Math-Test.mp4
+          test -s output/specialist-tests/blender/BAMO-Blender-3D-Test.mp4
+          for f in output/specialist-tests/manim/*.mp4 output/specialist-tests/blender/*.mp4; do
+            echo "VERIFY: $f"
+            ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json "$f"
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f"
+            test "$(stat -c%s "$f")" -gt 10000
+          done
+
+      - name: Upload real render samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Manim-Blender-Real-Render-Tests
+          path: output/specialist-tests/
+          retention-days: 7
