@@ -79,16 +79,16 @@ def test_content_gate_rejects_unverified_attributed_quote():
         validate_content(item)
 
 
-def test_publication_slot_is_18_tehran_and_moves_to_tomorrow_if_too_late():
-    before = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)
-    late = datetime(2026, 10, 11, 14, 15, tzinfo=timezone.utc)
-    assert next_publish_at(before) == "2026-10-11T14:30:00Z"
-    assert next_publish_at(late) == "2026-10-12T14:30:00Z"
+def test_publication_slot_uses_next_configured_tehran_time():
+    before = datetime(2026, 10, 11, 2, 0, tzinfo=timezone.utc)
+    after_morning = datetime(2026, 10, 11, 4, 0, tzinfo=timezone.utc)
+    assert next_publish_at(before) == "2026-10-11T03:30:00Z"
+    assert next_publish_at(after_morning) == "2026-10-11T06:30:00Z"
 
 
-def test_github_schedule_triggers_at_18_tehran():
+def test_github_schedule_has_six_tehran_publication_runs():
     workflow = yaml.load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert workflow["on"]["schedule"][0]["cron"] == "30 14 * * *"
+    assert [row["cron"] for row in workflow["on"]["schedule"]] == ["30 3 * * *", "30 6 * * *", "30 8 * * *", "30 11 * * *", "30 14 * * *", "30 17 * * *"]
 
 
 def test_daily_channel_defaults_to_retention_gated_shorts():
