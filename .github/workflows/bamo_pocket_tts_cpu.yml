@@ -1,0 +1,41 @@
+name: BAMO Persian Pocket TTS ONNX CPU Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-pocket-tts-onnx-integration
+    paths:
+      - "app/pocket_tts_onnx.py"
+      - "scripts/test_pocket_tts_cpu.py"
+      - "requirements-tts-pocket.txt"
+      - ".github/workflows/bamo_pocket_tts_cpu.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-voice-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-tts-pocket.txt
+      - name: Generate Persian voice sample
+        env:
+          POCKET_TTS_TEST_OUTPUT: output/pocket-tts-test
+        run: python scripts/test_pocket_tts_cpu.py
+      - name: Upload WAV and report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-pocket-tts-persian-cpu-test
+          path: output/pocket-tts-test/
+          if-no-files-found: error
+          retention-days: 7
