@@ -83,6 +83,10 @@ def _short_package(tmp_path: Path):
         "persian_text_shaping": "noto-naskh-unicode-rtl",
         "scene_query_match": True, "visual_source": "pexels",
         "music_ducking": True, "visual_scene_count": 4,
+        "tts_evidence": {
+            "ok": True, "provider": "edge-tts", "voice": "fa-IR-FaridNeural",
+            "narrator_locked": True, "caption_count": 12, "duration_seconds": 24.0,
+        },
     })
     srt = []
     for index in range(6):
@@ -183,3 +187,20 @@ def test_shorts_quality_gate_rejects_missing_caption_animation_or_shaping(tmp_pa
     assert not result["ok"]
     assert "shorts_caption_animation_missing_or_invalid" in result["errors"]
     assert "shorts_persian_text_shaping_not_configured" in result["errors"]
+
+
+
+def test_shorts_quality_gate_rejects_fake_or_unverified_audio(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta.pop("tts_evidence", None)
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_real_persian_narration_not_verified" in result["errors"]
+
+
+def test_shorts_quality_gate_rejects_synthetic_tone_provider(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["tts_evidence"]["provider"] = "sine-wave"
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_real_persian_narration_not_verified" in result["errors"]
