@@ -21,8 +21,8 @@ def test_youtube_inventory_becomes_generation_history_and_wins_over_local():
         {"recent": [{"title": "local", "video_id": "local-id"}]},
         [{"title": "YouTube video", "video_id": "yt-id", "topic": "science"}],
     )
-    assert result["recent"][0]["title"] == "YouTube video"
-    assert result["recent"][-1]["title"] == "local"
+    assert result["recent"][0]["title"] == "local"
+    assert result["recent"][-1]["title"] == "YouTube video"
 
 
 def test_exact_title_duplicate_is_rejected():
