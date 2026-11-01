@@ -56,3 +56,12 @@
 محتوا نقل‌قول دینی، آیه، حدیث یا وعدهٔ مالی/درمانی نمی‌سازد. توصیهٔ سرمایه‌گذاری یا پزشکی شخصی ارائه نمی‌شود. گویندگی مصنوعی در توضیحات اعلام می‌شود. مجوز و نرخ‌های فعلی APIها را پیش از بهره‌برداری گسترده بازبینی کنید: [Groq](https://console.groq.com/docs/rate-limits)، [Pexels](https://www.pexels.com/license/) و [YouTube Data API](https://developers.google.com/youtube/v3/docs/videos/insert).
 
 نام نمایشی جدید در تنظیمات پروژه **ImamAli110** است؛ این مخزن نام یا handle واقعی کانال YouTube را تغییر نمی‌دهد. اگر نام کانال در YouTube عوض شد، `channel.url` را در `config/channel.yaml` اصلاح کنید.
+
+
+## BAMO production renderer policy (single engine)
+
+The dedicated branch `feat/bamo-single-hyperframes-eleven-agent` uses **HyperFrames 0.8.225 as the only video renderer**. Diffusion-based video generation paths (including Wan) and their Colab GPU workflow have been removed from this branch. FFmpeg is retained only for final audio/video muxing, encoding and QA.
+
+The eleven editorial-agent skills are stored under `.claude/skills/`: discovery, strategy, script/hook, packaging, SEO, production, editing, Shorts, chapters, community and analytics. The render gate requires all eleven role hand-offs, scene-specific visual prompts, exact narration-to-scene text matching, and a final MP4 with a valid audio stream and synchronized VTT captions.
+
+Run the review-only CPU render from GitHub Actions using **BAMO HyperFrames CPU render**. It creates a 1080x1920, 30 fps artifact; it does not upload or publish to YouTube. Visual approval remains required before publication.
