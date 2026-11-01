@@ -1,8 +1,7 @@
-"""CPU-first hybrid motion-graphics renderer for BAMO.
+"""CPU-first Blender 3D motion renderer and FFmpeg compositor for BAMO.
 
-FFmpeg is the dependable daily renderer. Optional local images are animated
-with zoom/pan; scenes without assets use procedural animated backgrounds.
-Remotion, Manim and Blender are optional specialist adapters, not requirements.
+Every generated scene is a real Blender 3D scene rendered on CPU. Missing Blender
+or unsupported subject motifs are hard failures; there is no flat-shape fallback.
 """
 from __future__ import annotations
 import json, math, shutil, subprocess
