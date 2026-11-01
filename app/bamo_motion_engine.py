@@ -151,7 +151,8 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
         im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
         im.save(frames/f"{frame:05d}.jpg",quality=88)
     _run(["ffmpeg","-y","-framerate",str(fps),"-i",str(frames/"%05d.jpg"),"-vf",f"scale={width}:{height}:flags=lanczos,fade=t=in:st=0:d=0.25,fade=t=out:st={max(0,duration-.3):.3f}:d=0.3,format=yuv420p","-t",f"{duration:.3f}","-an","-c:v","libx264","-preset","veryfast","-crf","22","-pix_fmt","yuv420p",str(path)])
-\ndef render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None) -> Path:
+
+def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None) -> Path:
     """Render an MP4 on CPU. No GPU, API key, or network access is used."""
     spec=validate_project(project)
     if not shutil.which("ffmpeg"): raise RuntimeError("FFmpeg is required on the runner")
