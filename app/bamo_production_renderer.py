@@ -7,6 +7,8 @@ from typing import Any
 
 from app.bamo_motion_engine import render_project
 from app.bamo_scene_director import plan_scene
+PRODUCTION_VISUALS_APPROVED = False  # Set true only after cinematic Blender renderer is validated.
+
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
@@ -122,7 +124,7 @@ def render_bamo_shorts(
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
-        "production_visuals_approved": False,
+        "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
         "visual_quality_tier": "procedural-preview-only",
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
