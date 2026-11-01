@@ -61,6 +61,12 @@ def render_bamo_shorts(
             "accent": "",
         })
 
+    motifs = [plan["motif"] for plan in visual_plans]
+    if len(set(motifs)) != len(motifs):
+        raise ValueError(
+            "Repeated visual motif detected inside one Short; author distinct scene visuals before rendering."
+        )
+
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
     silent_path = out_dir / "bamo-3d-silent.mp4"
     render_project(project, silent_path, audio=None)
@@ -99,7 +105,9 @@ def render_bamo_shorts(
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
+    # A motif selection is not proof that rendered pixels semantically match the narration.
+    # Keep this false until frame-level visual review (or a reliable vision QA gate) passes.
+    plans_grounded = False
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -124,6 +132,7 @@ def render_bamo_shorts(
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
+        "visual_alignment_status": "not_verified_requires_frame_level_review",
         "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
         "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
