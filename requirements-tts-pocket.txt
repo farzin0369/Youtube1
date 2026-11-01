@@ -1,0 +1,7 @@
+# Optional dependencies for the opt-in Persian Pocket TTS ONNX engine.
+# Install only for CPU voice testing/use; the production default remains unchanged.
+onnxruntime>=1.19.0
+scipy>=1.11.0
+soundfile>=0.12.1
+sentencepiece>=0.2.0
+huggingface_hub>=0.25.0
