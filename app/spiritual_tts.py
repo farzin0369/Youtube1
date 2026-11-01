@@ -23,15 +23,17 @@ def _provider() -> str:
             provider = str((load_channel_config().get("channel") or {}).get("tts_model") or "edge-tts").strip().lower()
         except Exception:
             provider = "edge-tts"
-    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs"}
+    aliases = {"edge": "edge-tts", "eleven": "elevenlabs", "eleven-v4": "elevenlabs", "pocket": "pocket-tts-onnx", "pocket-tts": "pocket-tts-onnx"}
     provider = aliases.get(provider, provider)
-    if provider not in {"edge-tts", "elevenlabs"}:
+    if provider not in {"edge-tts", "elevenlabs", "pocket-tts-onnx"}:
         raise ValueError(f"unsupported TTS_PROVIDER: {provider}")
     return provider
 
 
 def _voice(provider: str | None = None) -> str:
     provider = provider or _provider()
+    if provider == "pocket-tts-onnx":
+        return str(env("POCKET_TTS_REFERENCE_VOICE") or "male_hello.wav")
     if provider == "elevenlabs":
         value = env("ELEVENLABS_VOICE_ID")
         if not value:
@@ -108,6 +110,44 @@ async def _render(
     audio_path.write_bytes(audio)
     if not events:
         raise RuntimeError("Edge TTS returned no word-boundary metadata; timed captions are required")
+    return events
+
+
+def _render_pocket(text: str, audio_path: Path) -> list[dict[str, Any]]:
+    """Generate ONNX speech and estimated word boundaries for readable captions.
+
+    Pocket TTS exposes audio but no forced-alignment/word-timestamp API.
+    Word timing is therefore proportional to Persian word length and is
+    explicitly reported as estimated rather than true word-boundary data.
+    """
+    import soundfile as sf
+    from app.pocket_tts_onnx import synthesize_array
+
+    audio, sample_rate = synthesize_array(text, mode="pack")
+    sf.write(str(audio_path), audio, sample_rate, subtype="PCM_16")
+    duration = len(audio) / float(sample_rate)
+    words = list(re.finditer(r"\S+", text))
+    if not words:
+        raise RuntimeError("Pocket TTS received no spoken words")
+    weights = [max(1, len(re.sub(r"[^\w\u0600-\u06FF]", "", m.group()))) for m in words]
+    total_weight = float(sum(weights))
+    pause_count = sum(1 for m in words if re.search(r"[،؛.!?؟…]$", m.group()))
+    pause_total = min(duration * 0.18, 0.08 * pause_count)
+    speech_duration = max(0.1, duration - pause_total)
+    events: list[dict[str, Any]] = []
+    cursor = 0.0
+    for match, weight in zip(words, weights):
+        span = speech_duration * weight / total_weight
+        start = cursor
+        end = min(duration, start + span)
+        events.append({
+            "type": "WordBoundary", "text": match.group(),
+            "offset": int(round(start * TICKS_PER_SECOND)),
+            "duration": max(1, int(round((end - start) * TICKS_PER_SECOND))),
+        })
+        cursor = end
+        if re.search(r"[،؛.!?؟…]$", match.group()):
+            cursor = min(duration, cursor + 0.08)
     return events
 
 
@@ -302,6 +342,9 @@ def synthesize_with_captions(
                         previous_text=scene_texts[index - 1] if index > 0 else "",
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
+                elif provider == "pocket-tts-onnx":
+                    part = temp / f"scene-{index:02d}.wav"
+                    events = _render_pocket(scene_text, part)
                 else:
                     events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)
@@ -332,6 +375,8 @@ def synthesize_with_captions(
     else:
         if provider == "elevenlabs":
             all_events = _render_elevenlabs(normalized_script, audio_path)
+        elif provider == "pocket-tts-onnx":
+            all_events = _render_pocket(normalized_script, audio_path)
         else:
             all_events = asyncio.run(_render(normalized_script, audio_path))
 
@@ -364,7 +409,7 @@ def synthesize_with_captions(
         "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
         "voice": _voice(provider),
         "narrator_locked": True,
-        "caption_mode": "word-boundary phrase captions",
+        "caption_mode": "estimated word timing (Pocket TTS)" if provider == "pocket-tts-onnx" else "word-boundary phrase captions",
         "duration_seconds": _duration(audio_path),
         "caption_count": len(cues),
         "scene_timings": scene_timings,
