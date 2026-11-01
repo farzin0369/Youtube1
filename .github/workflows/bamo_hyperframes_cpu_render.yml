@@ -20,10 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Initialize only the pinned HyperFrames submodule
+        run: git submodule update --init vendor/hyperframes
       - name: Install CPU render dependencies
         run: |
           sudo apt-get update -qq
