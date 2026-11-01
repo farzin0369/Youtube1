@@ -39,7 +39,7 @@ jobs:
                   title.to_edge(UP)
                   circle = Circle(radius=1.65, color=BLUE_C, stroke_width=8)
                   square = Square(side_length=2.33, color=GOLD, stroke_width=8)
-                  formula = MathTex(r"A=\pi r^2", color=WHITE).scale(1.25)
+                  formula = Text("A = pi r^2", font_size=42, color=WHITE)
                   formula.to_edge(DOWN)
                   self.play(Write(title))
                   self.play(Create(circle), run_time=1.5)
