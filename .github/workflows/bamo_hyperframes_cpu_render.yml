@@ -32,6 +32,12 @@ jobs:
           test "$(git -C integrations/youtube-automation-agent rev-parse HEAD)" = "e973d515aef90c467da2289144df737a3bd03859"
           test -f integrations/youtube-automation-agent/package.json
           test -f integrations/youtube-automation-agent/test.js
+      - name: Run upstream project checks without publishing
+        working-directory: integrations/youtube-automation-agent
+        run: |
+          npm ci
+          npm run lint
+          npm test
       - name: Install CPU render dependencies
         run: |
           sudo apt-get update -qq
