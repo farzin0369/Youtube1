@@ -1,0 +1,85 @@
+name: BAMO VSIM CPU 3D engine evaluation
+
+on:
+  push:
+    branches: ["feat/bamo-vsim-cpu-3d-evaluation"]
+    paths:
+      - ".gitmodules"
+      - "vendor/vsim"
+      - ".github/workflows/bamo_vsim_cpu_3d_evaluation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-vsim-cpu-3d-evaluation
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Clone pinned VSIM 3D engine
+        run: |
+          git submodule update --init vendor/vsim
+          test "$(git -C vendor/vsim rev-parse HEAD)" = "3f97faf85e46d2f9a122b0a8b8d3ccc0af598f91"
+          test -f vendor/vsim/package.json
+          test -f vendor/vsim/examples/24-campfire/scene.ts
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: vendor/vsim/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: vendor/vsim/pnpm-lock.yaml
+
+      - name: Install CPU video tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -n 2
+
+      - name: Install VSIM dependencies
+        working-directory: vendor/vsim
+        run: pnpm install --frozen-lockfile
+
+      - name: Run determinism lint
+        working-directory: vendor/vsim
+        run: pnpm lint
+
+      - name: Typecheck all packages
+        working-directory: vendor/vsim
+        run: pnpm typecheck
+
+      - name: Run complete test suite
+        working-directory: vendor/vsim
+        run: pnpm test
+
+      - name: Render real 3D scene with animated camera on CPU
+        working-directory: vendor/vsim
+        run: |
+          mkdir -p out
+          pnpm exec tsx packages/cli/src/index.ts render examples/24-campfire/scene.ts -o out/BAMO-VSIM-3D-Camera-Test.mp4 --workers 2
+
+      - name: Verify MP4 video stream
+        working-directory: vendor/vsim
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json out/BAMO-VSIM-3D-Camera-Test.mp4
+          ffprobe -v error -show_entries format=duration,size -of json out/BAMO-VSIM-3D-Camera-Test.mp4
+          test "$(stat -c%s out/BAMO-VSIM-3D-Camera-Test.mp4)" -gt 10000
+
+      - name: Save CPU 3D camera test for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-VSIM-CPU-3D-Camera-Test-${{ github.run_id }}
+          path: vendor/vsim/out/BAMO-VSIM-3D-Camera-Test.mp4
+          retention-days: 7
