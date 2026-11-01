@@ -159,7 +159,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         channel_videos: list[dict[str, Any]] = []
         if not dry_run:
             stage = "YouTube channel history and duplicate preflight"
-            channel_videos = fetch_recent_channel_videos(max_results=100)
+            channel_videos = fetch_recent_channel_videos(max_results=200)
             logger.info("YouTube channel inventory loaded videos=%s; remote channel is the source of truth", len(channel_videos))
             generation_history = build_generation_history(history, channel_videos)
         else:
@@ -170,7 +170,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
         content = generate_shorts_content(generation_history) if content_format == "shorts" else generate_content(generation_history)
         if not dry_run:
-            require_unique(content, channel_videos)
+            require_unique(content, generation_history.get("recent", channel_videos))
             logger.info("YouTube duplicate gate passed title=%r", content.get("title"))
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
@@ -199,7 +199,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             hook_overlay=content["scenes"][0]["on_screen_text"],
         )
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
-        media_quality = validate_render_package(render, audio_path, video_format=content_format)
+        media_quality = validate_render_package(render, audio_path, video_format=content_format, tts_meta=tts)
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
@@ -250,6 +250,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
                 "topic": content.get("topic") or (content["sections"][1]["heading"] if len(content.get("sections") or []) > 1 else content["title"]),
                 "video_id": upload.get("video_id"), "url": upload.get("url"),
                 "scheduled_for": upload.get("scheduled_for"), "uploaded_at": utc_now_iso(),
+                "script_fingerprint": __import__("app.youtube_history", fromlist=["content_fingerprint"]).content_fingerprint(content["script"]),
             })
             history["recent"] = recent[-90:]
             history["updated_at"] = utc_now_iso()
