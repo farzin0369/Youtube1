@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Build a BAMO vertical motion-graphics composition and render it with HyperFrames."""
+"""Build a BAMO vertical motion-graphics composition and render it with HyperFrames.
+
+Uses the pinned HyperFrames CLI package version declared by the CPU workflow.
+"""
 from __future__ import annotations
 import argparse, html, json, subprocess
 from pathlib import Path
