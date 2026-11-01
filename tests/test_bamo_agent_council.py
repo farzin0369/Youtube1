@@ -29,7 +29,7 @@ def test_council_uses_eleven_distinct_pinned_models(monkeypatch, tmp_path: Path)
     assert report["ok"] is True
     assert report["agents_expected"] == report["agents_completed"] == 11
     assert report["approvals"] == 11
-    assert report["distinct_base_models_observed"] == 11
+    assert report["distinct_model_ids_observed"] == 11
     assert len(list(tmp_path.glob("*.json"))) == 11
 
 
