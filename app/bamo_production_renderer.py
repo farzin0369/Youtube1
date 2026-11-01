@@ -122,8 +122,10 @@ def render_bamo_shorts(
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
+        "production_visuals_approved": False,
+        "visual_quality_tier": "procedural-preview-only",
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
         "music_ducking": True,
-        "renderer": "BAMO CPU 3D motion engine",
+        "renderer": "BAMO CPU procedural 3D preview renderer (not production-approved)",
     }
