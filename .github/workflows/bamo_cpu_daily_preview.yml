@@ -1,6 +1,8 @@
 name: BAMO CPU daily motion preview
 
 on:
+  push:
+    branches: ["feat/bamo-eleven-agent-render-pipeline", "feat/bamo-specialist-render-engine-router"]
   schedule:
     - cron: "30 14 * * *"
   workflow_dispatch:
@@ -13,33 +15,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  render-preview:
+  render-first-film:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install CPU rendering tools
+      - name: Install FFmpeg, Persian fonts and free TTS client
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
-      - name: Render deterministic BAMO preview
+          python -m pip install --upgrade pip
+          python -m pip install edge-tts pytest pillow
+      - name: Run regression checks
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -q tests/test_bamo_motion_engine.py tests/test_bamo_first_film.py tests/test_bamo_engine_router.py
+      - name: Run all 11 role hand-offs and render first BAMO short
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          python scripts/render_bamo_motion.py \
-            --project examples/bamo_motion_project.json \
-            --output output/bamo/daily-preview.mp4
-      - name: Verify MP4 dimensions and stream
+          python scripts/run_bamo_first_film.py \
+            --brief examples/bamo_first_film.json \
+            --output-dir output/bamo/first-film
+      - name: Verify MP4 is playable and vertical
         run: |
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height \
-            -of default=noprint_wrappers=1 output/bamo/daily-preview.mp4
-          test -s output/bamo/daily-preview.mp4
-      - name: Save preview artifact
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height -of json output/bamo/first-film/BAMO-first-film.mp4
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/bamo/first-film/BAMO-first-film.mp4
+          test "$(stat -c%s output/bamo/first-film/BAMO-first-film.mp4)" -gt 10000
+      - name: Save review artifact (never auto-publish)
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-cpu-motion-preview-${{ github.run_id }}
-          path: output/bamo/daily-preview.mp4
+          name: BAMO-first-film-preview-${{ github.run_id }}
+          path: output/bamo/first-film/
           retention-days: 7

@@ -20,3 +20,30 @@ def test_ass_timing_and_persian_text(tmp_path: Path):
     data=path.read_text(encoding="utf-8")
     assert "سلام دنیا" in data
     assert "0:00:00.15" in data
+
+
+def test_cpu_renderer_produces_a_playable_mp4_when_ffmpeg_is_available(tmp_path: Path):
+    import shutil
+    from app.bamo_motion_engine import render_project
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("FFmpeg is not installed")
+    output = tmp_path / "smoke.mp4"
+    result = render_project(
+        {"format": "short", "fps": 24, "scenes": [
+            {"duration": 1.2, "text": "آزمون رندر BAMO"}
+        ]},
+        output,
+    )
+    assert result.is_file()
+    assert result.stat().st_size > 10_000
+
+
+def test_persian_titles_are_centered_and_bamo_brand_is_present(tmp_path: Path):
+    path = tmp_path / "brand.ass"
+    _write_ass([{"duration": 2.0, "text": "آینده از همین‌جا شروع می‌شود"}], path, 720, 1280)
+    data = path.read_text(encoding="utf-8")
+    assert "Style: Main" in data
+    assert "Style: Brand" in data
+    assert "BAMO  •  #12bamo" in data
+    assert "آینده از همین‌جا شروع می‌شود" in data
