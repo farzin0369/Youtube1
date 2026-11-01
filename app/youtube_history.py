@@ -30,8 +30,8 @@ def fingerprint_tag(script: str) -> str:
 def add_fingerprint_tag(tags: list[str], script: str) -> list[str]:
     """Reserve one YouTube tag for a durable, API-readable content fingerprint."""
     fingerprint = fingerprint_tag(script)
-    clean = [str(tag).strip() for tag in tags if str(tag).strip()
-             and not str(tag).strip().startswith(FINGERPRINT_PREFIX)]
+    clean = list(dict.fromkeys(str(tag).strip() for tag in tags if str(tag).strip()
+                               and not str(tag).strip().startswith(FINGERPRINT_PREFIX)))
     clean = [tag for tag in clean if tag != fingerprint]
     return (clean[:19] + [fingerprint])
 
