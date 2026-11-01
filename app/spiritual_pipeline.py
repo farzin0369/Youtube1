@@ -20,6 +20,8 @@ from app.youtube_client import upload_video
 from app.youtube_history import (
     add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
 )
+from app.bamo_editorial_review import review_package
+from app.utils import load_content_policy
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
@@ -71,6 +73,20 @@ def _chapter_timestamp(seconds: float) -> str:
     return f"{value // 3600:02d}:{(value % 3600) // 60:02d}:{value % 60:02d}" if value >= 3600 else f"{value // 60:02d}:{value % 60:02d}"
 
 
+def _hashtags(content: dict[str, Any]) -> str:
+    values = ["#12bamo", "#BAMO", "#بامو"]
+    for raw in content.get("tags") or []:
+        tag = str(raw).strip()
+        if tag.casefold() in {"bamo", "12bamo", "بامو"}:
+            continue
+        slug = re.sub(r"[^\\w\\u0600-\\u06FF]+", "_", tag, flags=re.UNICODE).strip("_")
+        if slug and slug.casefold() not in {item.casefold().lstrip("#") for item in values}:
+            values.append("#" + slug)
+        if len(values) >= 7:
+            break
+    return " ".join(values)
+
+
 def _description(content: dict[str, Any], render: dict[str, Any], audio_duration: float) -> str:
     if content.get("format") == "shorts":
         parts = [
@@ -85,7 +101,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
         credits = render.get("pexels_credits") or []
         if credits:
             parts += ["", "تصاویر:", *credits]
-        parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت"]
+        parts += ["", _hashtags(content)]
         return "\n".join(x for x in parts if x is not None).strip()[:4900]
     section_words = [max(1, len(section["text"].split())) for section in content["sections"]]
     total = sum(section_words) or 1
@@ -100,7 +116,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
     credits = render.get("pexels_credits") or []
     if credits:
         parts += ["", "تصاویر:", *credits]
-    parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت #تاریخ #علم"]
+    parts += ["", _hashtags(content)]
     return "\n".join(x for x in parts if x is not None).strip()[:4900]
 
 
@@ -196,6 +212,13 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
+        stage = "BAMO 11-role editorial review"
+        editorial_review = review_package(
+            content, channel_videos=channel_videos, captions_path=captions_path,
+            policy=load_content_policy(),
+        )
+        save_json(out_dir / "editorial_review.json", editorial_review)
+        logger.info("BAMO 11-role review passed roles=%s", len(editorial_review["roles"]))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -244,6 +267,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         result = {
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
+            "editorial_review": editorial_review,
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
         }
