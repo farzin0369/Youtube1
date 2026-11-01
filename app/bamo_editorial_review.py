@@ -52,15 +52,17 @@ def review_package(
     packaging_issues = []
     if not title.startswith("BAMO | ") or len(title) > 100:
         packaging_issues.append("title must be precise, branded and within YouTube's limit")
-    if not 35 <= len(description) <= 900:
-        packaging_issues.append("description must explain the actual video, not be empty or generic")
+    description_sentences = [part for part in re.split(r"(?<=[.!?؟])\\s+", description) if part.strip()]
+    if not 35 <= len(description) <= 900 or len(description_sentences) < 2:
+        packaging_issues.append("description must contain two useful, topic-specific sentences")
     if not 2 <= len(str(content.get("thumbnail_text") or "").split()) <= 4:
         packaging_issues.append("thumbnail text must contain 2-4 concise words")
     roles.append(_result("packaging", packaging_issues))
 
     seo_issues = []
-    if len(tags) < 4:
-        seo_issues.append("at least four relevant search tags are required")
+    topical_tags = [tag for tag in tags if tag.casefold() not in {"bamo", "12bamo", "بامو"}]
+    if not 5 <= len(topical_tags) <= 8:
+        seo_issues.append("five to eight relevant search tags are required")
     topic_words = set(normalize_text(topic).split())
     tag_words = set(normalize_text(" ".join(tags)).split())
     if topic_words and not (topic_words & tag_words):
