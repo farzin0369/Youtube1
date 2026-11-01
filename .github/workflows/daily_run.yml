@@ -13,12 +13,12 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Upload and schedule publicly for the next configured Tehran slot
+        description: Temporarily paused; runs a safe preview until cinematic visual approval
         required: true
         type: boolean
         default: false
       upload_private:
-        description: Upload a private draft now (never publish publicly)
+        description: Temporarily paused; no upload is allowed before visual approval
         required: true
         type: boolean
         default: false
@@ -78,7 +78,7 @@ jobs:
       - name: Text model
         run: echo "Text uses free Groq when configured, otherwise anonymous Pollinations; paid gateways and local model services are disabled."
       - name: Verify YouTube credentials before any production work
-        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+        if: false # Safety lock: no YouTube upload until cinematic visuals are production-approved.
         run: |
           python - <<'PY'
           from app.youtube_client import probe_youtube_auth
@@ -88,18 +88,10 @@ jobs:
               raise SystemExit(1)
           print("YouTube OAuth preflight passed.")
           PY
-      - name: Run BAMO CPU 3D motion-graphics pipeline
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PUBLISH_INPUT: ${{ inputs.publish }}
+      - name: Safe preview only — public publishing paused
         run: |
-          if [ "$EVENT_NAME" = "schedule" ] || [ "$PUBLISH_INPUT" = "true" ]; then
-            python scripts/daily_run.py --publish
-          elif [ "${{ inputs.upload_private }}" = "true" ]; then
-            python scripts/daily_run.py --upload-private
-          else
-            python scripts/daily_run.py --dry-run
-          fi
+          echo "PUBLIC AND PRIVATE UPLOADS ARE PAUSED UNTIL CINEMATIC VISUAL QA IS APPROVED."
+          python scripts/daily_run.py --dry-run
       - name: Upload production evidence
         if: always()
         uses: actions/upload-artifact@v4
