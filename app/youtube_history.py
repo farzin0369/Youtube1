@@ -12,7 +12,8 @@ FINGERPRINT_PREFIX = "bamo_fp_"
 
 def normalize_text(value: str) -> str:
     text = unicodedata.normalize("NFKC", str(value or "")).casefold()
-    text = re.sub(r"[^\w\u0600-\u06FF]+", " ", text)
+    text = "".join(" " if unicodedata.category(char).startswith("P") else char for char in text)
+    text = re.sub(r"\s+", " ", text)
     return " ".join(text.split())
 
 
