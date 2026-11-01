@@ -156,6 +156,7 @@ def review_with_council(
             key: render.get(key) for key in (
                 "visual_source", "visual_scene_count", "duration_seconds",
                 "contains_synthetic_visuals", "camera_motion", "scene_visual_alignment_verified",
+                "scene_visual_plans", "render_backend", "visual_quality_tier", "production_visuals_approved",
             ) if key in render
         }, "media_qa": media_qa,
     }
