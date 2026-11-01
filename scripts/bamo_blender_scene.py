@@ -130,24 +130,38 @@ def add_camera(frames, camera_style):
     track.track_axis = "TRACK_NEGATIVE_Z"
     track.up_axis = "UP_Y"
 
-    if camera_style == "push_in":
-        start, finish = (0, -14, 5.5), (0, -8.2, 3.3)
-    elif camera_style == "tracking":
-        start, finish = (-4.5, -11.5, 4.2), (4.2, -8.2, 3.0)
-    elif camera_style == "sweep":
-        start, finish = (-5.5, -10.5, 5.0), (5.5, -8.8, 3.5)
-    else:
-        start, finish = (-4.0, -11.5, 4.5), (4.0, -10.0, 4.0)
-
     end = max(2, frames)
-    for frame, location, focus in (
-        (1, start, (0, 0, 1.0)),
-        (end, finish, (0.3, 0.0, 1.35)),
-    ):
-        camera.location = location
-        camera.keyframe_insert(data_path="location", frame=frame)
-        target.location = focus
-        target.keyframe_insert(data_path="location", frame=frame)
+    if camera_style == "orbit":
+        # A true multi-point orbit around the subject, not a straight camera pan.
+        radius = 11.5
+        for frame, angle, height in (
+            (1, math.radians(-28), 4.5),
+            (max(2, int(end * 0.25)), math.radians(-12), 4.9),
+            (max(3, int(end * 0.50)), math.radians(8), 4.7),
+            (max(4, int(end * 0.75)), math.radians(25), 4.2),
+            (end, math.radians(42), 4.0),
+        ):
+            camera.location = (radius * math.sin(angle), -radius * math.cos(angle), height)
+            camera.keyframe_insert(data_path="location", frame=frame)
+            target.location = (0.2 * math.sin(angle), 0.0, 1.3)
+            target.keyframe_insert(data_path="location", frame=frame)
+    else:
+        if camera_style == "push_in":
+            start, finish = (0, -14, 5.5), (0, -8.2, 3.3)
+        elif camera_style == "tracking":
+            start, finish = (-4.5, -11.5, 4.2), (4.2, -8.2, 3.0)
+        elif camera_style == "sweep":
+            start, finish = (-5.5, -10.5, 5.0), (5.5, -8.8, 3.5)
+        else:
+            raise RuntimeError("Unsupported camera motion: " + camera_style)
+        for frame, location, focus in (
+            (1, start, (0, 0, 1.0)),
+            (end, finish, (0.3, 0.0, 1.35)),
+        ):
+            camera.location = location
+            camera.keyframe_insert(data_path="location", frame=frame)
+            target.location = focus
+            target.keyframe_insert(data_path="location", frame=frame)
     camera.data.dof.use_dof = True
     camera.data.dof.focus_object = target
     camera.data.dof.aperture_fstop = 4.5
@@ -308,7 +322,70 @@ def scene_launch(gold, blue, dark, frames):
     sphere("Launch core", (0,0,1.5), 0.48, gold)
 
 
-def main():
+
+
+def scene_notebook(gold, blue, dark, frames):
+    """An unmistakable open notebook with page ruling and an animated writing pen."""
+    ground(dark)
+    # Leather cover and two thick paper blocks form an open book.
+    cube("Notebook leather cover", (0, 0, 0.18), (6.5, 4.6, 0.28), gold, bevel=0.16)
+    cube("Left paper block", (-1.52, 0, 0.36), (2.85, 4.18, 0.10), (blue), bevel=0.035)
+    cube("Right paper block", (1.52, 0, 0.36), (2.85, 4.18, 0.10), (blue), bevel=0.035)
+    cube("Notebook center binding", (0, 0, 0.43), (0.18, 4.22, 0.12), gold, bevel=0.04)
+    for side in (-1, 1):
+        for row in range(7):
+            y = -1.45 + row * 0.46
+            curve("Printed notebook ruling", [(side * 1.48, y, 0.43), (side * 0.28, y, 0.43)],
+                  0.012, gold)
+    # A visible pen moves across the right page while its tip traces a line.
+    pen_a, pen_b = (0.55, -0.65, 0.78), (2.35, 0.65, 0.78)
+    pen = cylinder_between("Moving fountain pen", pen_a, pen_b, 0.075, gold)
+    pen.keyframe_insert(data_path="location", frame=1)
+    pen.location.x += 0.45
+    pen.location.y += 0.35
+    pen.keyframe_insert(data_path="location", frame=frames)
+    nib = sphere("Pen nib", pen_b, 0.10, blue)
+    nib.keyframe_insert(data_path="location", frame=1)
+    nib.location.x += 0.45
+    nib.location.y += 0.35
+    nib.keyframe_insert(data_path="location", frame=frames)
+    curve("Fresh ink stroke", [(0.55, -0.7, 0.49), (0.95, -0.42, 0.49),
+                               (1.35, -0.12, 0.49), (1.75, 0.18, 0.49)],
+          0.025, blue)
+
+
+def scene_sunrise(gold, blue, dark, frames):
+    """A literal sunrise over a layered horizon; not an abstract portal substitute."""
+    ground(dark)
+    # Layered distant ridges create a readable horizon silhouette.
+    for index, (x, y, width, height) in enumerate((
+        (-5.0, 5.0, 5.0, 2.0), (0.0, 6.0, 6.0, 2.6), (5.0, 5.0, 5.0, 1.8),
+    )):
+        bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=width, radius2=0.08,
+                                        depth=height * 2, location=(x, y, height))
+        ridge = bpy.context.object
+        ridge.name = "Sunrise mountain silhouette"
+        assign(ridge, blue if index == 1 else dark)
+    sun = sphere("Rising sun", (0, 6.5, 1.1), 1.85, gold)
+    sun.keyframe_insert(data_path="location", frame=1)
+    sun.location.z += 2.1
+    sun.keyframe_insert(data_path="location", frame=frames)
+    for index, angle in enumerate((-0.9, -0.55, -0.2, 0.2, 0.55, 0.9)):
+        x = math.sin(angle) * 2.5
+        z = 1.0 + math.cos(angle) * 1.2
+        ray = curve("Sunrise ray", [(x, 6.2, z), (x * 1.55, 6.0, z + 0.65)],
+                    0.035, gold)
+        ray.keyframe_insert(data_path="scale", frame=1)
+        ray.scale = (1.0, 1.0, 1.25)
+        ray.keyframe_insert(data_path="scale", frame=frames)
+    for index, x in enumerate((-3.5, 3.1)):
+        cloud = sphere("Soft dawn cloud", (x, 3.5, 3.2 + index * 0.35), 0.55, blue)
+        cloud.scale = (1.8, 0.45, 0.45)
+        cloud.keyframe_insert(data_path="location", frame=1)
+        cloud.location.x += 1.0 if index == 0 else -0.8
+        cloud.keyframe_insert(data_path="location", frame=frames)
+
+\ndef main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
     cfg = json.load(open(config_path, encoding="utf-8"))
@@ -372,6 +449,8 @@ def main():
         scene_journey(gold, blue, dark, frames)
     elif motif == "growth_steps":
         scene_growth(gold, blue, dark, frames)
+    elif motif == "notebook":
+        scene_notebook(gold, blue, dark, frames)
     elif motif == "atom":
         scene_atom(gold, blue, dark, frames)
     elif motif == "neural_network":
@@ -382,6 +461,8 @@ def main():
         scene_geometry(gold, blue, dark, frames)
     elif motif == "launch":
         scene_launch(gold, blue, dark, frames)
+    elif motif == "sunrise":
+        scene_sunrise(gold, blue, dark, frames)
     else:
         raise RuntimeError("No cinematic Blender scene builder exists for motif: " + motif)
 
