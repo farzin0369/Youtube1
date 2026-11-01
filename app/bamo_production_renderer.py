@@ -1,4 +1,4 @@
-"""Production adapter for the approved CPU 3D motion-graphics engine."""
+"""Production adapter; current procedural renderer is preview-only until upgraded."""
 from __future__ import annotations
 
 import subprocess
@@ -7,12 +7,12 @@ from typing import Any
 
 from app.bamo_motion_engine import render_project
 from app.bamo_scene_director import plan_scene
-PRODUCTION_VISUALS_APPROVED = False  # Set true only after cinematic Blender renderer is validated.
-
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
 )
+
+PRODUCTION_VISUALS_APPROVED = False  # Enable only after cinematic 3D visual review passes.
 
 
 def render_bamo_shorts(
