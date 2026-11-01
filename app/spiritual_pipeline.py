@@ -215,7 +215,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         stage = "BAMO 11-role editorial review"
         editorial_review = review_package(
             content, channel_videos=channel_videos, captions_path=captions_path,
-            policy=load_content_policy(),
+            policy=channel_config.get("content") or {},
         )
         save_json(out_dir / "editorial_review.json", editorial_review)
         logger.info("BAMO 11-role review passed roles=%s", len(editorial_review["roles"]))
