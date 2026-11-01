@@ -52,7 +52,7 @@ def review_package(
     packaging_issues = []
     if not title.startswith("BAMO | ") or len(title) > 100:
         packaging_issues.append("title must be precise, branded and within YouTube's limit")
-    description_sentences = [part for part in re.split(r"(?<=[.!?؟])\\s+", description) if part.strip()]
+    description_sentences = [part for part in re.split(r"(?<=[.!?؟])\s+", description) if part.strip()]
     if not 35 <= len(description) <= 900 or len(description_sentences) < 2:
         packaging_issues.append("description must contain two useful, topic-specific sentences")
     if not 2 <= len(str(content.get("thumbnail_text") or "").split()) <= 4:
