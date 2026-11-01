@@ -14,7 +14,7 @@ from app.utils import load_channel_config, load_content_policy
 
 LOGGER = logging.getLogger(__name__)
 BRAND_PREFIX = "BAMO | "
-BRAND_TAGS = ["12bamo", "BAMO", "بامو", "دانستنی", "رشد فردی", "معنویت"]
+BRAND_TAGS = ["12bamo", "BAMO", "بامو"]
 ALLOWED_MOODS = {"hook", "calm", "reassuring", "motivational"}
 
 SYSTEM_PROMPT = """تو نویسنده و دبیر کانال فارسی‌زبان BAMO هستی؛ موضوعات کانال شامل معنویت، اخلاق، علم، فیزیک، ریاضیات، فلسفه، روان‌شناسی، تاریخ، هنر، موسیقی، ورزش، سرگرمی و رشد فردی است. برای YouTube Shorts متنی اصیل، شنیدنی و دقیق بنویس؛ از وعدهٔ قطعی، کلیک‌بیت، ترساندن، شرمنده‌کردن، شعار کلی و تقلید از نویسنده یا کانال دیگر دوری کن. هیچ آیه، حدیث یا نقل‌قولی را جعل یا بدون منبع معتبر به کسی نسبت نده؛ توصیهٔ پزشکی یا مالی شخصی نده.
