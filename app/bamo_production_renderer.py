@@ -1,4 +1,4 @@
-"""Production adapter for the approved CPU 3D motion-graphics engine."""
+"""Production adapter for Blender CPU 3D scenes; preview-only until visual approval."""
 from __future__ import annotations
 
 import subprocess
@@ -11,6 +11,8 @@ from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
 )
+
+PRODUCTION_VISUALS_APPROVED = False  # Enable only after cinematic 3D visual review passes.
 
 
 def render_bamo_shorts(
@@ -25,7 +27,7 @@ def render_bamo_shorts(
     scene_timings: list[dict[str, float]],
     hook_overlay: str,
 ) -> dict[str, Any]:
-    """Render four scene-locked procedural 3D scenes, Persian voice, captions and ducked ambience."""
+    """Render four subject-specific Blender 3D scenes, Persian voice, captions and ducked ambience."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if len(scenes) != 4 or len(scene_timings) != 4:
@@ -58,6 +60,12 @@ def render_bamo_shorts(
             "background": "",
             "accent": "",
         })
+
+    motifs = [plan["motif"] for plan in visual_plans]
+    if len(set(motifs)) != len(motifs):
+        raise ValueError(
+            "Repeated visual motif detected inside one Short; author distinct scene visuals before rendering."
+        )
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
     silent_path = out_dir / "bamo-3d-silent.mp4"
@@ -97,7 +105,9 @@ def render_bamo_shorts(
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
+    # A motif selection is not proof that rendered pixels semantically match the narration.
+    # Keep this false until frame-level visual review (or a reliable vision QA gate) passes.
+    plans_grounded = False
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -122,8 +132,13 @@ def render_bamo_shorts(
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
+        "visual_alignment_status": "not_verified_requires_frame_level_review",
+        "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
+        "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
+        "camera_motion": [plan.get("camera") for plan in visual_plans],
+        "render_backend": "blender-cycles-cpu",
         "test_visuals_only": False,
         "music_ducking": True,
-        "renderer": "BAMO CPU 3D motion engine",
+        "renderer": "BAMO Blender CPU 3D cinematic preview (not yet production-approved)",
     }

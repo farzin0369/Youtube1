@@ -15,7 +15,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: bamo-approved-3d-smoke
+  group: bamo-approved-3d-smoke-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
   render:
@@ -30,12 +30,19 @@ jobs:
       - name: Install CPU media dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
       - name: Run renderer and media QA smoke test
         env:
           PYTHONPATH: ${{ github.workspace }}
+          TTS_PROVIDER: edge-tts
+          TTS_VOICE: fa-IR-FaridNeural
+          # Fast, low-resolution CI smoke settings only. Production render
+          # quality remains controlled separately and is not approved here.
+          BAMO_BLENDER_SAMPLES: "2"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
+          BAMO_BLENDER_THREADS: "2"
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()

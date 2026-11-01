@@ -14,13 +14,14 @@ from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
-from app.bamo_production_renderer import render_bamo_shorts
+from app.bamo_production_renderer import PRODUCTION_VISUALS_APPROVED, render_bamo_shorts
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 from app.youtube_history import (
     add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
 )
 from app.bamo_editorial_review import review_package
+from app.bamo_agent_council import review_with_council
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
@@ -154,11 +155,16 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     state_path = Path(os.getenv("CHANNEL_HISTORY_PATH") or "state/history.json")
     stage = "history and script generation"
     try:
+        if not dry_run and not PRODUCTION_VISUALS_APPROVED:
+            raise RuntimeError(
+                "Public/private publishing is paused: the current procedural renderer is preview-only. "
+                "Enable publishing only after the cinematic 3D renderer passes visual approval."
+            )
         history = _load_state(state_path)
         channel_videos: list[dict[str, Any]] = []
         if not dry_run:
             stage = "YouTube channel history and duplicate preflight"
-            channel_videos = fetch_recent_channel_videos(max_results=100)
+            channel_videos = fetch_recent_channel_videos()
             logger.info("YouTube channel inventory loaded videos=%s; remote channel is the source of truth", len(channel_videos))
             generation_history = build_generation_history(history, channel_videos)
         else:
@@ -169,7 +175,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
         content = generate_shorts_content(generation_history) if content_format == "shorts" else generate_content(generation_history)
         if not dry_run:
-            require_unique(content, channel_videos)
+            require_unique(content, [*(history.get("recent") or []), *channel_videos])
             logger.info("YouTube duplicate gate passed title=%r", content.get("title"))
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
@@ -198,7 +204,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             hook_overlay=content["scenes"][0]["on_screen_text"],
         )
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
-        media_quality = validate_render_package(render, audio_path, video_format=content_format)
+        media_quality = validate_render_package(render, audio_path, video_format=content_format, tts_meta=tts)
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
@@ -208,7 +214,20 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             policy=channel_config.get("content") or {},
         )
         save_json(out_dir / "editorial_review.json", editorial_review)
-        logger.info("BAMO 11-role review passed roles=%s", len(editorial_review["roles"]))
+        logger.info("BAMO deterministic role gates passed roles=%s", len(editorial_review["roles"]))
+
+        stage = "BAMO independent 11-agent council"
+        agent_council = review_with_council(
+            content, render=render, media_qa=media_quality,
+            memory_dir=Path(os.getenv("BAMO_AGENT_MEMORY_DIR") or "state/agent_memory"),
+            history=generation_history.get("recent", []),
+        )
+        save_json(out_dir / "agent_council.json", agent_council)
+        logger.info(
+            "BAMO independent council passed agents=%s distinct_provider_models=%s approvals=%s average_score=%s",
+            agent_council["agents_completed"], agent_council["distinct_provider_models_observed"],
+            agent_council["approvals"], agent_council["average_score"],
+        )
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -220,7 +239,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             if render.get("contains_synthetic_visuals"):
                 os.environ["YOUTUBE_CONTAINS_SYNTHETIC_MEDIA"] = "true"
             if not dry_run:
-                require_unique(content, channel_videos)
+                require_unique(content, [*(history.get("recent") or []), *channel_videos])
             upload_tags = add_fingerprint_tag(content["tags"], content["script"])
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
@@ -237,6 +256,8 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
                 "topic": content.get("topic") or (content["sections"][1]["heading"] if len(content.get("sections") or []) > 1 else content["title"]),
                 "video_id": upload.get("video_id"), "url": upload.get("url"),
                 "scheduled_for": upload.get("scheduled_for"), "uploaded_at": utc_now_iso(),
+                "script_fingerprint": __import__("app.youtube_history", fromlist=["content_fingerprint"]).content_fingerprint(content["script"]),
+                "script": content["script"],
             })
             history["recent"] = recent[-90:]
             history["updated_at"] = utc_now_iso()
@@ -257,7 +278,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         result = {
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
-            "editorial_review": editorial_review,
+            "editorial_review": editorial_review, "agent_council": agent_council,
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
         }

@@ -1,38 +1,81 @@
-"""Caption-aware deterministic scene director for BAMO's CPU 3D renderer.
+"""Strict prompt-led scene director for BAMO's CPU 3D renderer.
 
-Maps authored captions to visual metaphors and camera moves. Explicit visual_prompt
-adds direction; captions are never rewritten by this module.
+The authored visual query has priority over narration keywords. Unknown or generic
+queries fail closed instead of silently producing the same abstract scene.
 """
 from __future__ import annotations
 
-def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
-    text = f"{caption} {visual_prompt}".lower()
-    rules = [
-        (("شروع", "آغاز", "همین حالا", "start", "begin"), "launch", "push_in",
-         "A luminous three-dimensional portal opens and a rising arrow signals the first decisive action."),
-        (("انتخاب", "تصمیم", "دو راه", "choice", "decision"), "choice_paths", "sweep",
-         "Two distinct three-dimensional paths diverge; camera tracks the chosen route."),
-        (("قدم", "مسیر", "راه", "سفر", "journey", "step"), "journey", "tracking",
-         "A dimensional pathway advances toward a visible destination; camera follows it."),
-        (("رشد", "پیشرفت", "ساخت", "آینده", "موفق", "growth", "progress", "future"), "growth_steps", "push_in",
-         "A rising sequence of solid 3D steps builds upward as the camera cranes forward."),
-        (("اتم", "الکترون", "فیزیک", "ذره", "atom", "physics"), "atom", "orbit",
-         "Scientific orbital geometry with a controlled camera orbit."),
-        (("مولکول", "شیمی", "پیوند", "ماده", "molecule", "chemistry"), "molecule", "tracking",
-         "A connected molecular structure forms from linked 3D nodes; camera travels along bonds."),
-        (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math", "number", "shape"), "geometry", "sweep",
-         "A geometric construction assembles in 3D with a sweeping camera reveal."),
-        (("فکر", "ذهن", "باران", "پنجره", "thinking", "mind", "rain", "window", "decision"), "choice_paths", "sweep",
-         "Two dimensional routes separate and converge as the camera sweeps along the selected direction."),
-        (("دفتر", "نوشتن", "یادداشت", "ژورنال", "notebook", "journal", "writing", "task"), "growth_steps", "tracking",
-         "A sequence of solid steps assembles from a written intention; camera tracks forward."),
-        (("طلوع", "سپیده", "خورشید", "نور", "امید", "sunrise", "sun", "light", "hope", "prayer", "quran", "faith"), "launch", "push_in",
-         "A luminous portal and rising light form a hopeful three-dimensional reveal."),
-        (("کوه", "جنگل", "تاریخ", "باستان", "امپراتوری", "mountain", "forest", "history", "ancient", "empire"), "journey", "tracking",
-         "A dimensional path advances toward a distant horizon; camera follows the route."),
-    ]
+
+# Specific visual-query vocabulary is deliberately evaluated before narration.
+# Each entry maps to a real Blender scene builder in scripts/bamo_blender_scene.py.
+VISUAL_RULES = [
+    (("diverging road", "two roads", "forked path", "two paths", "choice path"),
+     "choice_paths", "sweep",
+     "Two physically distinct roads split in opposite directions; the camera follows the fork."),
+    (("neural", "synapse", "brain network", "neuronal"),
+     "neural_network", "orbit",
+     "A branching three-dimensional neural structure with linked synapses fills the frame."),
+    (("ascending step", "golden steps", "staircase", "rising steps", "growth steps", "writing in notebook", "open notebook", "hand writing"),
+     "growth_steps", "push_in",
+     "A sequence of individually rising solid steps builds toward a higher platform."),
+    (("sunrise", "sun rise", "dawn horizon", "radiant horizon", "sunset"),
+     "launch", "push_in",
+     "A bright horizon reveal with a rising central energy form and rotating dimensional rings."),
+    (("atomic", "atom", "electron orbit", "atomic nucleus"),
+     "atom", "orbit",
+     "An atomic nucleus with animated electron orbits and distinct orbital planes."),
+    (("molecule", "chemical bond", "molecular", "chemical structure"),
+     "molecule", "tracking",
+     "A molecular structure assembled from distinct atoms and visible chemical bonds."),
+    (("geometric solid", "polyhedron", "icosphere", "geometric construction"),
+     "geometry", "sweep",
+     "A rotating precision geometric solid with visible wireframe and construction rings."),
+    (("winding road", "mountain road", "journey path", "mountain trail"),
+     "journey", "tracking",
+     "A winding three-dimensional road travels through a mountainous environment toward a horizon."),
+]
+
+NARRATION_RULES = [
+    (("اتم", "الکترون", "فیزیک", "ذره", "atom", "electron", "physics"), "atom", "orbit",
+     "An atomic nucleus and animated electron orbits visualize the narrated physics concept."),
+    (("مولکول", "شیمی", "پیوند شیمیایی", "molecule", "chemistry", "chemical bond"), "molecule", "tracking",
+     "Distinct atoms connect through visible three-dimensional chemical bonds."),
+    (("نورون", "سیناپس", "شبکه عصبی", "مغز", "neuron", "synapse", "neural"), "neural_network", "orbit",
+     "A branching neural network forms as linked synapses pulse in sequence."),
+    (("انتخاب", "تصمیم", "دو راه", "choice", "decision"), "choice_paths", "sweep",
+     "Two physically separate paths diverge to represent the narrated decision."),
+    (("رشد", "پیشرفت", "پله", "قدم کوچک", "عادت", "نوشتن", "دفتر", "growth", "progress", "ascending", "habit", "writing", "notebook"), "growth_steps", "push_in",
+     "Solid three-dimensional steps rise one by one to represent progress."),
+    (("طلوع", "سپیده", "خورشید", "آغاز", "امید", "sunrise", "dawn", "horizon", "hope"), "launch", "push_in",
+     "A cinematic horizon brightens as a dimensional energy structure rises."),
+    (("کوه", "جنگل", "تاریخ", "باستان", "امپراتوری", "mountain", "forest", "ancient", "empire"), "journey", "tracking",
+     "A winding path moves through a distinct ancient or natural environment."),
+    (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math", "polyhedron"), "geometry", "sweep",
+     "A precision geometric solid rotates while construction rings reveal its structure."),
+]
+
+
+def _match(text: str, rules):
+    normalized = " ".join(str(text or "").lower().replace("-", " ").split())
     for words, motif, camera, description in rules:
-        if any(word in text for word in words):
+        if any(word in normalized for word in words):
             return {"motif": motif, "camera": camera, "description": description}
-    return {"motif": "abstract", "camera": "orbit",
-            "description": "A restrained 3D metaphor derived from the caption, with a cinematic orbit."}
+    return None
+
+
+def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
+    prompt = str(visual_prompt or "").strip()
+    if not prompt:
+        raise ValueError("A specific per-scene visual_query is required; generic scenes are forbidden.")
+    plan = _match(prompt, VISUAL_RULES)
+    if plan:
+        plan["matched_by"] = "visual_query"
+        return plan
+    plan = _match(caption, NARRATION_RULES)
+    if plan:
+        plan["matched_by"] = "narration"
+        return plan
+    raise ValueError(
+        "No subject-specific 3D scene builder matches this visual_query/narration. "
+        "Do not reuse an abstract template; author a matching Blender motif first."
+    )

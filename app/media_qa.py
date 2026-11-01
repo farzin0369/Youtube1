@@ -16,6 +16,7 @@ def _srt_timestamp(value: str) -> float:
 
 def validate_render_package(
     render_meta: dict[str, Any], audio_path: Path | None = None, *, video_format: str | None = None,
+    tts_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     checks: dict[str, Any] = {}
@@ -90,6 +91,30 @@ def validate_render_package(
             errors.append("audio_duration_invalid")
 
     if mode == "shorts":
+        if render_meta.get("production_visuals_approved") is not True:
+            errors.append("shorts_visuals_not_production_approved")
+        tts = tts_meta if isinstance(tts_meta, dict) else (render_meta.get("tts_evidence") or {})
+        provider = str(tts.get("provider") or "").strip().lower()
+        voice = str(tts.get("voice") or "").strip()
+        try:
+            caption_count = int(tts.get("caption_count") or 0)
+            tts_duration = float(tts.get("duration_seconds") or 0)
+        except (TypeError, ValueError):
+            caption_count, tts_duration = 0, 0.0
+        speech_ok = (
+            tts.get("ok") is True
+            and provider in {"edge-tts", "elevenlabs"}
+            and bool(voice)
+            and tts.get("narrator_locked") is True
+            and caption_count >= 6
+            and tts_duration > 0
+        )
+        checks["persian_narration"] = {
+            "ok": speech_ok, "provider": provider or None, "voice": voice or None,
+            "caption_count": caption_count,
+        }
+        if not speech_ok:
+            errors.append("shorts_real_persian_narration_not_verified")
         try:
             font_size = int(render_meta.get("caption_font_size") or 0)
             checks["caption_font_size"] = font_size
