@@ -8,6 +8,8 @@ from __future__ import annotations
 def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
     text = f"{caption} {visual_prompt}".lower()
     rules = [
+        (("شروع", "آغاز", "همین حالا", "start", "begin"), "launch", "push_in",
+         "A luminous three-dimensional portal opens and a rising arrow signals the first decisive action."),
         (("انتخاب", "تصمیم", "دو راه", "choice", "decision"), "choice_paths", "sweep",
          "Two distinct three-dimensional paths diverge; camera tracks the chosen route."),
         (("قدم", "مسیر", "راه", "سفر", "journey", "step"), "journey", "tracking",
