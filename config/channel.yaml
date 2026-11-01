@@ -1,29 +1,31 @@
 channel:
-  brand: "ImamAli110"
-  display_name: "ImamAli110"
-  secondary_brand: "#The110Path"
-  url: "https://www.youtube.com/@imamali.110"
+  brand: "BAMO"
+  display_name: "BAMO"
+  secondary_brand: "#12bamo"
+  url: "https://www.youtube.com/@12bamo"
   language: fa-IR
   timezone: Asia/Tehran
-  audience: مخاطب فارسی‌زبان علاقه‌مند به ارتباط معنوی با خدا، حکمت، رشد فردی و عادت‌های سالم مالی
-  objective: ویدئوهای اصیل دربارهٔ معنویت روزمره، توکل، امید، رشد مالی مسئولانه، عادت‌های سالم و رشد عملی
+  audience: مخاطب فارسی‌زبان علاقه‌مند به معنویت، علم، فلسفه، تاریخ، هنر، ورزش، سرگرمی و رشد فردی
+  objective: تولید محتوای اصیل و متنوع فارسی با روایت سینمایی، موشن‌گرافیک حرفه‌ای و پیام روشن؛ از دین و اخلاق تا علم، تاریخ، هنر و سرگرمی
   narrator: مرد
   tts_voice: fa-IR-FaridNeural
   tts_model: edge-tts
-  visual_style: شورت عمودی ۹:۱۶ با قلاب تصویری در آغاز، چهار کلیپ عمودیِ مرتبط با چهار بخش گفتار، زیرنویس فارسی خوانا و موسیقی آرامِ زیر گفتار
-  ai_engine: groq-optional-local-ollama
+  visual_style: ویدئوی عمودی ۹:۱۶ با هوک فوری، چهار صحنهٔ مرتبط با روایت، زیرنویس فارسی راست‌به‌چپ و حرکت سینمایی
+  ai_engine: BAMO-11-role-editorial-pipeline-CPU
   llm_model: openai/gpt-oss-20b
-  local_llm_model: qwen2.5:3b
+  local_llm_model: qwen2.5:7b
 
 schedule:
   timezone: Asia/Tehran
-  production_start_local: "18:00"
-  publication_local: "18:00"
-  production_cron_utc: "30 14 * * *"
-  cadence: daily
+  publication_times_local: ["07:00", "10:00", "12:00", "15:00", "18:00", "21:00"]
+  publication_timezone: Asia/Tehran
+  publication_crons_utc: ["30 3 * * *", "30 6 * * *", "30 8 * * *", "30 11 * * *", "30 14 * * *", "30 17 * * *"]
+  cadence: six-times-daily
 
 publishing:
-  mode: scheduled-public
+  mode: public
+  public_publish_enabled: true
+  require_human_approval: false
   category_id: "22"
   default_language: fa
   minimum_schedule_lead_minutes: 30
@@ -35,12 +37,13 @@ content:
   target_duration_seconds: "18-30"
   target_word_count: "28-44"
   pillars:
-    - معنویت روزمره و تأمل دربارهٔ معنا
-    - توکل، امید و تاب‌آوری بدون وعدهٔ قطعی
-    - نیت و امید و تأمل نقادانه دربارهٔ مفهوم جذب، بدون انتساب حکم قطعی به اسلام
-    - عادت‌های کوچک و رشد فردی
-    - مدیریت زمان، نظم و تمرکز
-    - سواد مالی عمومی و عادت‌های سالم مالی
+    - معنویت، اخلاق، قرآن و حدیث با منبع معتبر
+    - علم، فیزیک، ریاضیات و کشف‌های شگفت‌انگیز
+    - فلسفه، روان‌شناسی و پرسش‌های ذهن
+    - تاریخ، تمدن‌ها و زندگی شخصیت‌های اثرگذار
+    - هنر، موسیقی، معماری و نمادشناسی
+    - ورزش، سرگرمی و رویدادهای روز با راستی‌آزمایی
+    - رشد فردی، سواد مالی عمومی و مهارت‌های زندگی
   forbidden:
     - وعدهٔ قطعی پولدارشدن، موفقیت یا درمان
     - توصیهٔ مالی، سرمایه‌گذاری یا پزشکی شخصی
