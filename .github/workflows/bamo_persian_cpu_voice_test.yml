@@ -44,7 +44,13 @@ jobs:
           CUDA_VISIBLE_DEVICES: ""
         run: |
           python scripts/test_persian_omnivoice_cpu.py --output output/voice-test/omnivoice-fa-cpu.wav
-          ffprobe -v error -show_entries format=duration,size -of json output/voice-test/omnivoice-fa-cpu.wav
+          python - <<'PY'
+          import soundfile as sf
+          path = "output/voice-test/omnivoice-fa-cpu.wav"
+          info = sf.info(path)
+          print(f"Validated WAV: {info.duration:.2f}s, {info.samplerate} Hz, {info.channels} channel(s), {info.frames} frames")
+          assert info.frames > 0 and info.duration > 0, "Generated WAV is empty"
+          PY
           test -s output/voice-test/omnivoice-fa-cpu.wav
           test -s output/voice-test/omnivoice-fa-cpu.json
       - name: Save independent audio for review
