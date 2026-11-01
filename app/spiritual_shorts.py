@@ -157,7 +157,7 @@ def validate_short_content(
         raise ValueError("title_must_contain_the_actual_topic_keyword")
     if not topic_terms.intersection(description_terms):
         raise ValueError("description_must_explain_the_actual_topic")
-    if len(raw_tags) < 3 or not topic_terms.intersection(tag_terms):
+    if not 5 <= len(raw_tags) <= 8 or not topic_terms.intersection(tag_terms):
         raise ValueError("seo_tags_must_be_specific_and_topic_relevant")
     tags = list(dict.fromkeys(raw_tags + BRAND_TAGS))[:15]
     return {
