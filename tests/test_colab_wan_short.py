@@ -12,4 +12,5 @@ def test_colab_cli_preinstalled_dependencies_skip_kernel_pip(monkeypatch):
         raise AssertionError("pip must not run inside the active Colab kernel")
 
     monkeypatch.setattr(subprocess, "check_call", unexpected_install)
+    monkeypatch.setattr(colab_wan_real_short.shutil, "which", lambda _name: "/usr/bin/ffmpeg")
     colab_wan_real_short.ensure_deps()
