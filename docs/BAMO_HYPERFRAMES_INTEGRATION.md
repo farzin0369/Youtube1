@@ -1,22 +1,23 @@
-# BAMO HyperFrames renderer integration
+# BAMO single-engine motion graphics
 
-## Upstream
+## Sole renderer
 
-- Repository: https://github.com/heygen-com/hyperframes
-- Pinned upstream commit: `94849bf1e0b3bdc2d5eb118b82109e310c4215b1`
-- License declared by upstream README: Apache-2.0
-- Runtime: Node.js >=22; HTML/CSS/seekable animations rendered deterministically to MP4 using the HyperFrames CLI and FFmpeg.
+BAMO uses **HyperFrames** as its only video renderer, pinned to CLI version `0.8.225` from https://github.com/heygen-com/hyperframes. The composition uses HTML/CSS 3D scenes and GSAP timelines for camera movement, scene transitions, animated typography and visual motion.
 
-The upstream project is included as a Git submodule at `vendor/hyperframes` so BAMO pins a reproducible version without copying a very large upstream history into this repository. To initialize it in a local clone: `git submodule update --init --recursive`.
+No diffusion video models (including Wan or LTX), CogVideoX, Blender, Manim, Three.js, Motion Canvas or alternate video renderers are selected by this branch. FFmpeg is retained only for final encoding, audio muxing and media probing; it is not a second scene renderer.
 
-## BAMO integration policy
+## Eleven-agent connection
 
-The 11-agent editorial system remains the director and content-quality layer. HyperFrames is a specialist rendering backend, not a replacement for those agents. Use it for motion graphics, typography, charts, captions, overlays, infographic scenes, and HTML/CSS compositing. Keep Manim as the mathematics specialist and retain Blender only as an optional 3D backend; do not make Blender a required dependency for daily CPU runs.
+The eleven BAMO production roles remain the editorial/director layer: discovery, strategy, script/hook, packaging, SEO, production, editing, Shorts, chapters, community and analytics. Their skill definitions live under `.claude/skills/`. The production brief must contain all eleven role hand-offs before rendering starts.
 
-## CPU-first execution
+Each authored scene requires its own visible Persian text, visual prompt and duration. The narration must equal the ordered scene texts exactly. The audio builder generates one Persian TTS segment per scene, fits it to that scene's duration, and emits matching VTT subtitles. This prevents the spoken line from drifting into the next visual scene.
 
-Use Node.js 22 or newer, install the project-local HyperFrames CLI from the pinned submodule/package source, and render with FFmpeg on GitHub-hosted CPU runners. Do not require GPU, cloud credits, API keys, or an external hosted render service. Validate every output with `ffprobe` (codec, dimensions, frame rate, duration, non-zero file size) before it can pass the production gate.
+## CPU-first workflow
 
-## Safety and delivery
+Use Node.js 22+, HyperFrames CLI `0.8.225`, FFmpeg and Edge TTS. The GitHub Actions workflow renders on a CPU runner at 1080x1920 / 30 fps; no GPU, diffusion weights, paid video API or Colab session is required.
 
-Rendering workflows must write to a review artifact only. No workflow in this integration is authorized to publish or upload to YouTube. Keep secrets out of logs and do not run untrusted generated scripts with elevated permissions.
+The workflow validates all eleven role hand-offs, renders the four-scene review film, adds scene-locked Persian voice and subtitles, and checks the final MP4 dimensions, audio stream, file size and subtitle artifact. The output is a review artifact only.
+
+## Safety
+
+No YouTube upload or public publishing is performed by this render workflow. Keep OAuth credentials and API keys out of source files and logs. A successful workflow run proves the render pipeline executed; visual review is still required before any publication.
