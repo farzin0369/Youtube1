@@ -36,6 +36,8 @@ jobs:
       - name: Run renderer and media QA smoke test
         env:
           PYTHONPATH: ${{ github.workspace }}
+          TTS_PROVIDER: edge-tts
+          TTS_VOICE: fa-IR-FaridNeural
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()
