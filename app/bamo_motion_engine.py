@@ -69,7 +69,10 @@ def _project_3d(x,y,z,angle,zoom,w,h):
     dep=5.8-zr; scale=min(w,h)*.48*zoom/max(1.2,dep)
     return w*.5+xr*scale,h*.5-y*scale,dep,scale
 
-def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
+def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=None):
+    visual_plan = visual_plan or {}
+    motif = visual_plan.get('motif', 'abstract')
+    camera = visual_plan.get('camera', 'orbit')
     """CPU software 3D scene: shaded cube, orbiting spheres, rings and animated camera."""
     from PIL import Image,ImageDraw,ImageFilter
     def rgb(v):
@@ -78,7 +81,8 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
     base,glow=rgb(bg),rgb(accent); sw,sh=480,854
     frames=path.parent/f"frames_{index:03d}"; frames.mkdir(parents=True,exist_ok=True)
     for frame in range(max(1,round(duration*fps))):
-        t=frame/fps; ang=t*.42+index*.7; zoom=1+.1*math.sin(t*.65)+.045*math.sin(t*1.4+index)
+        t=frame/fps; ang=t*({'orbit':.42,'push_in':.12,'tracking':.28,'sweep':.62}.get(camera,.42))+index*.7
+        zoom=(1+.1*math.sin(t*.65)+.045*math.sin(t*1.4+index)) if camera=='orbit' else (1+.24*t/max(duration,.5) if camera=='push_in' else 1+.12*math.sin(t*1.2))
         im=Image.new("RGB",(sw,sh),tuple(int(v*.72) for v in base))
         d=ImageDraw.Draw(im,"RGBA")
         for p in range(42):
@@ -108,6 +112,35 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
             for q in range(65):
                 a=q*math.tau/64+t*.25; xx,yy,_,_=_project_3d(rr*math.cos(a),.25*math.sin(a),rr*math.sin(a),ang,zoom,sw,sh); pts.append((xx,yy))
             d.line(pts,fill=(*glow,110),width=2)
+        if motif in ("choice_paths", "journey"):
+            for branch in (-1, 1):
+                pts=[]
+                for q in range(30):
+                    u=q/29; px,py,_,_=_project_3d(branch*(.12+1.9*u),-.75+1.15*u,.35*math.sin(u*math.pi),ang,zoom,sw,sh)
+                    pts.append((px,py))
+                d.line(pts,fill=(*glow,220 if branch==1 else 125),width=5)
+                ex,ey=pts[-1]; d.ellipse((ex-7,ey-7,ex+7,ey+7),fill=(*glow,240))
+        elif motif in ("growth_steps", "progress"):
+            for q in range(6):
+                x0=-1.8+q*.55; y0=-.8+q*.27
+                corners=[(x0,y0,0),(x0+.48,y0,0),(x0+.48,y0+.22,0),(x0,y0+.22,0)]
+                pts=[_project_3d(*v,ang,zoom,sw,sh)[:2] for v in corners]
+                d.polygon(pts,fill=(*glow,95+q*22),outline=(*glow,230))
+        elif motif in ("atom", "science", "geometry"):
+            for tilt in (0, math.pi/3, -math.pi/3):
+                pts=[]
+                for q in range(90):
+                    a=q*math.tau/89+t*.35
+                    x,y,_,_=_project_3d(2.05*math.cos(a),.72*math.sin(a)*math.cos(tilt),1.5*math.sin(a)*math.sin(tilt),ang,zoom,sw,sh)
+                    pts.append((x,y))
+                d.line(pts,fill=(*glow,190),width=3)
+        elif motif in ("molecule", "chemistry"):
+            nodes=[(-1.35,0,0),(-.45,.8,.3),(.55,.65,-.3),(1.35,-.1,.2),(.25,-.85,.4)]
+            projected=[_project_3d(*v,ang,zoom,sw,sh) for v in nodes]
+            for a,b in ((0,1),(1,2),(2,3),(2,4),(4,0)):
+                d.line((projected[a][0:2],projected[b][0:2]),fill=(*glow,220),width=5)
+            for x,y,dep,sc in projected:
+                r=max(7,int(sc*.18)); d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,235),outline=(255,255,255,230),width=2)
         halo=Image.new("RGBA",(sw,sh),(0,0,0,0)); ImageDraw.Draw(halo).ellipse((cx-135,cy-135,cx+135,cy+135),fill=(*glow,30))
         im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
         im.save(frames/f"{frame:05d}.jpg",quality=88)
@@ -135,7 +168,9 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
             clips.append(clip)
             continue
         else:
-            _render_3d_scene(clip,duration,width,height,fps,index,bg,accent)
+            from app.bamo_scene_director import plan_scene
+            visual_plan = plan_scene(scene['text'], scene.get('visual_prompt', ''))
+            _render_3d_scene(clip,duration,width,height,fps,index,bg,accent,visual_plan)
             clips.append(clip)
             continue
 
