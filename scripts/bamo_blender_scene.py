@@ -331,8 +331,10 @@ def main():
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
-    scene.cycles.samples = int(cfg.get("samples", 8))
-    scene.cycles.use_denoising = True
+    scene.cycles.samples = int(cfg.get("samples", 24))
+    # Ubuntu's repository Blender may be built without OpenImageDenoiser.
+    # Use enough CPU samples instead of invoking an unavailable denoiser.
+    scene.cycles.use_denoising = False
     scene.render.threads_mode = "FIXED"
     scene.render.threads = int(cfg.get("threads", 2))
     scene.render.resolution_x = width
