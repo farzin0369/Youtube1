@@ -15,6 +15,7 @@ from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
+from app.bamo_production_renderer import render_bamo_shorts
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 from app.youtube_history import (
@@ -195,17 +196,21 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             if len(preview_stills) != 4:
                 raise RuntimeError("dry-run preview requires exactly four scene-matched still images")
             logger.info("using four explicitly supplied preview stills; this test path cannot upload")
-        render = render_video(
-            title=content["title"], thumbnail_text=content["thumbnail_text"],
-            keywords=content["visual_keywords"], audio_path=audio_path,
-            captions_path=captions_path, out_dir=out_dir, run_id=run_id,
-            video_format=content_format,
-            scene_queries=[scene["visual_query"] for scene in content.get("scenes", [])] if content_format == "shorts" else None,
-            scene_timings=tts.get("scene_timings") if content_format == "shorts" else None,
-            hook_overlay=content["scenes"][0]["on_screen_text"] if content_format == "shorts" else "",
-            scene_stills=preview_stills,
-        )
-        render["test_visuals_only"] = bool(preview_stills and dry_run)
+        if content_format == "shorts":
+            render = render_bamo_shorts(
+                title=content["title"], thumbnail_text=content["thumbnail_text"],
+                audio_path=audio_path, captions_path=captions_path,
+                out_dir=out_dir, run_id=run_id, scenes=content.get("scenes", []),
+                scene_timings=tts.get("scene_timings") or [],
+                hook_overlay=content["scenes"][0]["on_screen_text"],
+            )
+        else:
+            render = render_video(
+                title=content["title"], thumbnail_text=content["thumbnail_text"],
+                keywords=content["visual_keywords"], audio_path=audio_path,
+                captions_path=captions_path, out_dir=out_dir, run_id=run_id,
+                video_format=content_format,
+            )
         logger.info("render passed source=%s scenes=%s duration_seconds=%.2f bytes=%s", render["visual_source"], render["visual_scene_count"], render["duration_seconds"], Path(render["video_path"]).stat().st_size)
         media_quality = validate_render_package(render, audio_path, video_format=content_format)
         if not media_quality.get("ok"):
