@@ -72,7 +72,13 @@ evidence = {
 evidence["publishable"] = bool(qa.get("ok"))
 print(evidence, flush=True)
 errors = list(qa.get("errors") or [])
-expected_preview_block = "shorts_visuals_not_production_approved" in errors
-technical_errors = [error for error in errors if error != "shorts_visuals_not_production_approved"]
-if not expected_preview_block or technical_errors:
-    raise SystemExit("BAMO smoke test failed unexpectedly: " + ", ".join(errors))
+expected_preview_blocks = {
+    "shorts_visuals_not_production_approved",
+    "shorts_scene_visual_queries_not_verified",
+    "shorts_visual_source_not_approved_portrait_stock",
+}
+if not expected_preview_blocks.issubset(set(errors)):
+    raise SystemExit("BAMO smoke test did not preserve all production safety gates: " + ", ".join(errors))
+technical_errors = [error for error in errors if error not in expected_preview_blocks]
+if technical_errors:
+    raise SystemExit("BAMO smoke test failed unexpectedly: " + ", ".join(technical_errors))
