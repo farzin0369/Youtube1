@@ -74,3 +74,21 @@ def test_near_duplicate_saved_script_is_rejected_without_youtube_tag():
     }]
     duplicate = find_duplicate(candidate, videos)
     assert duplicate["reason"] == "duplicate_or_near_duplicate_script"
+
+
+
+def test_persian_topic_suffixes_and_brand_prefix_do_not_hide_duplicates():
+    candidate = {
+        "title": "BAMO | یک کشف تازه",
+        "topic": "مغز و مسیر عصبی",
+        "script": "متن جدید و متفاوت برای این آزمایش",
+    }
+    videos = [{
+        "title": "BAMO | راز مسیرهای عصبی مغز",
+        "topic": "BAMO | راز مسیرهای عصبی مغز",
+        "video_id": "old-neural-topic",
+        "tags": [],
+    }]
+    duplicate = find_duplicate(candidate, videos)
+    assert duplicate["reason"] == "duplicate_or_near_duplicate_topic"
+    assert duplicate["token_overlap"] >= 0.68
