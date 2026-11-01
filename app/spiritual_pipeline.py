@@ -22,15 +22,37 @@ TEHRAN = ZoneInfo("Asia/Tehran")
 
 
 def next_publish_at(now: datetime | None = None, *, lead_minutes: int = 30) -> str:
-    """Return the next safe 18:00 Tehran slot, at least lead_minutes ahead."""
+    """Choose the next configured Tehran publication slot after the safety lead time."""
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
         current = current.replace(tzinfo=timezone.utc)
     local = current.astimezone(TEHRAN)
-    candidate = local.replace(hour=18, minute=0, second=0, microsecond=0)
-    if candidate <= local + timedelta(minutes=lead_minutes):
-        candidate += timedelta(days=1)
-    return candidate.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    cfg = load_channel_config()
+    schedule = cfg.get("schedule") or {}
+    raw_slots = schedule.get("publication_times_local") or ["07:00", "10:00", "12:00", "15:00", "18:00", "21:00"]
+    candidates = []
+    for raw in raw_slots:
+        try:
+            hour, minute = (int(part) for part in str(raw).split(":", 1))
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                continue
+            slot = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if slot > local + timedelta(minutes=lead_minutes):
+                candidates.append(slot)
+        except (TypeError, ValueError):
+            continue
+    if not candidates:
+        next_day = local + timedelta(days=1)
+        for raw in raw_slots:
+            try:
+                hour, minute = (int(part) for part in str(raw).split(":", 1))
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    candidates.append(next_day.replace(hour=hour, minute=minute, second=0, microsecond=0))
+            except (TypeError, ValueError):
+                continue
+    if not candidates:
+        raise ValueError("No valid schedule.publication_times_local slots configured")
+    return min(candidates).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _load_state(path: Path) -> dict[str, Any]:
