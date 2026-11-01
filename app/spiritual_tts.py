@@ -353,9 +353,12 @@ def synthesize_with_captions(
                         previous_text=scene_texts[index - 1] if index > 0 else "",
                         next_text=scene_texts[index + 1] if index + 1 < len(scene_texts) else "",
                     )
-                elif provider == "pocket-tts-onnx":
+                elif provider == "pocket-tts-onnx" and not POCKET_TTS_FALLBACK_USED:
                     part = temp / f"scene-{index:02d}.wav"
                     events = _render_pocket(scene_text, part)
+                elif provider == "pocket-tts-onnx":
+                    part = temp / f"scene-{index:02d}.wav"
+                    events = asyncio.run(_render(scene_text, part))
                 else:
                     events = asyncio.run(_render(scene_text, part, rate=rate, pitch=pitch))
                 duration = _duration(part)
@@ -419,8 +422,8 @@ def synthesize_with_captions(
         "path": str(audio_path),
         "captions_path": str(captions_path),
         "provider": "edge-tts-fallback" if POCKET_TTS_FALLBACK_USED else provider,
-        "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
-        "voice": _voice(provider),
+        "model": (str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else ("Nimaone/pocket-tts-farsi-v2-onnx" if provider == "pocket-tts-onnx" and not POCKET_TTS_FALLBACK_USED else "edge-tts")),
+        "voice": (_voice("edge-tts") if POCKET_TTS_FALLBACK_USED else _voice(provider)),
         "narrator_locked": True,
         "caption_mode": "estimated word timing (Pocket TTS)" if provider == "pocket-tts-onnx" and not POCKET_TTS_FALLBACK_USED else "word-boundary phrase captions",
         "duration_seconds": _duration(audio_path),
