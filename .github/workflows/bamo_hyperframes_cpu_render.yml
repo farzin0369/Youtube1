@@ -24,8 +24,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Initialize only the pinned HyperFrames submodule
-        run: git submodule update --init vendor/hyperframes
+      - name: Clone the pinned, existing YouTube automation agent
+        run: git submodule update --init integrations/youtube-automation-agent
+      - name: Verify cloned upstream revision
+        run: |
+          git -C integrations/youtube-automation-agent rev-parse HEAD
+          test "$(git -C integrations/youtube-automation-agent rev-parse HEAD)" = "e973d515aef90c467da2289144df737a3bd03859"
+          test -f integrations/youtube-automation-agent/package.json
+          test -f integrations/youtube-automation-agent/test.js
       - name: Install CPU render dependencies
         run: |
           sudo apt-get update -qq
