@@ -38,7 +38,7 @@ def add_fingerprint_tag(tags: list[str], script: str) -> list[str]:
 
 
 def fetch_recent_channel_videos(*, max_results: int | None = None) -> list[dict[str, Any]]:
-    """Read the authenticated channel's own uploads playlist, including private/scheduled uploads.
+    """Read the authenticated channel's complete uploads playlist, including private/scheduled uploads.
 
     This is intentionally a hard dependency for production publishing: if the channel
     inventory cannot be read, BAMO must not guess that a topic is new.
