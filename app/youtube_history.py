@@ -120,6 +120,8 @@ def build_generation_history(local_history: dict[str, Any], channel_videos: list
             "video_id": video_id,
             "description": str(row.get("description") or ""),
             "tags": list(row.get("tags") or []),
+            "script": str(row.get("script") or ""),
+            "script_fingerprint": str(row.get("script_fingerprint") or ""),
             "uploaded_at": row.get("published_at"),
             "source": "youtube",
         })
@@ -127,24 +129,47 @@ def build_generation_history(local_history: dict[str, Any], channel_videos: list
 
 
 def find_duplicate(candidate: dict[str, Any], channel_videos: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Detect exact fingerprints and exact/near-identical titles against real channel uploads."""
+    """Reject reused scripts, fingerprints, and same/near-same topics before upload."""
     title = normalize_text(str(candidate.get("title") or ""))
-    fingerprint = fingerprint_tag(str(candidate.get("script") or ""))
+    topic = normalize_text(str(candidate.get("topic") or ""))
+    script = normalize_text(str(candidate.get("script") or ""))
+    fingerprint = content_fingerprint(script)
+    candidate_tokens = set(script.split())
+
     for video in channel_videos:
         if not isinstance(video, dict):
             continue
         tags = {str(tag).strip() for tag in (video.get("tags") or [])}
-        if fingerprint in tags:
+        stored_fingerprint = str(video.get("script_fingerprint") or "").strip()
+        if fingerprint in tags or stored_fingerprint == fingerprint:
             return {"reason": "content_fingerprint_match", "video_id": video.get("video_id"),
                     "title": video.get("title")}
-        previous = normalize_text(str(video.get("title") or ""))
-        if title and previous:
-            similarity = SequenceMatcher(None, title, previous).ratio()
-            if title == previous or similarity >= 0.90:
+
+        previous_title = normalize_text(str(video.get("title") or ""))
+        if title and previous_title:
+            similarity = SequenceMatcher(None, title, previous_title).ratio()
+            if title == previous_title or similarity >= 0.90:
                 return {"reason": "duplicate_or_near_duplicate_title", "similarity": round(similarity, 3),
                         "video_id": video.get("video_id"), "title": video.get("title")}
-    return None
 
+        previous_topic = normalize_text(str(video.get("topic") or ""))
+        if topic and previous_topic:
+            similarity = SequenceMatcher(None, topic, previous_topic).ratio()
+            if topic == previous_topic or similarity >= 0.84:
+                return {"reason": "duplicate_or_near_duplicate_topic", "similarity": round(similarity, 3),
+                        "video_id": video.get("video_id"), "title": video.get("title")}
+
+        previous_script = normalize_text(str(video.get("script") or ""))
+        previous_tokens = set(previous_script.split())
+        if len(candidate_tokens) >= 12 and len(previous_tokens) >= 12:
+            overlap = len(candidate_tokens & previous_tokens) / max(1, len(candidate_tokens | previous_tokens))
+            sequence_similarity = SequenceMatcher(None, script, previous_script).ratio()
+            if overlap >= 0.72 or sequence_similarity >= 0.84:
+                return {"reason": "duplicate_or_near_duplicate_script",
+                        "token_overlap": round(overlap, 3),
+                        "similarity": round(sequence_similarity, 3),
+                        "video_id": video.get("video_id"), "title": video.get("title")}
+    return None
 
 def require_unique(candidate: dict[str, Any], channel_videos: list[dict[str, Any]]) -> None:
     duplicate = find_duplicate(candidate, channel_videos)
