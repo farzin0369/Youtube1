@@ -328,9 +328,10 @@ def scene_notebook(gold, blue, dark, frames):
     """An unmistakable open notebook with page ruling and an animated writing pen."""
     ground(dark)
     # Leather cover and two thick paper blocks form an open book.
+    paper = material("Warm ivory notebook paper", (0.78, 0.72, 0.56), 0.03, 0.84, 0.0)
     cube("Notebook leather cover", (0, 0, 0.18), (6.5, 4.6, 0.28), gold, bevel=0.16)
-    cube("Left paper block", (-1.52, 0, 0.36), (2.85, 4.18, 0.10), (blue), bevel=0.035)
-    cube("Right paper block", (1.52, 0, 0.36), (2.85, 4.18, 0.10), (blue), bevel=0.035)
+    cube("Left paper block", (-1.52, 0, 0.36), (2.85, 4.18, 0.10), paper, bevel=0.035)
+    cube("Right paper block", (1.52, 0, 0.36), (2.85, 4.18, 0.10), paper, bevel=0.035)
     cube("Notebook center binding", (0, 0, 0.43), (0.18, 4.22, 0.12), gold, bevel=0.04)
     for side in (-1, 1):
         for row in range(7):
