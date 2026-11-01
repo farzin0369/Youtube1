@@ -134,6 +134,7 @@ def find_duplicate(candidate: dict[str, Any], channel_videos: list[dict[str, Any
     topic = normalize_text(str(candidate.get("topic") or ""))
     script = normalize_text(str(candidate.get("script") or ""))
     fingerprint = content_fingerprint(script)
+    fingerprint_tag_value = FINGERPRINT_PREFIX + fingerprint
     candidate_tokens = set(script.split())
 
     for video in channel_videos:
@@ -141,7 +142,7 @@ def find_duplicate(candidate: dict[str, Any], channel_videos: list[dict[str, Any
             continue
         tags = {str(tag).strip() for tag in (video.get("tags") or [])}
         stored_fingerprint = str(video.get("script_fingerprint") or "").strip()
-        if fingerprint in tags or stored_fingerprint == fingerprint:
+        if fingerprint_tag_value in tags or stored_fingerprint == fingerprint:
             return {"reason": "content_fingerprint_match", "video_id": video.get("video_id"),
                     "title": video.get("title")}
 
