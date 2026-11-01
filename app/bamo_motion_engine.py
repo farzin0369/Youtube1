@@ -73,7 +73,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
     visual_plan = visual_plan or {}
     motif = visual_plan.get('motif', 'abstract')
     camera = visual_plan.get('camera', 'orbit')
-    """CPU software 3D scene: shaded cube, orbiting spheres, rings and animated camera."""
+    """CPU software 3D scene with a topic-specific subject and animated camera."""
     from PIL import Image,ImageDraw,ImageFilter
     def rgb(v):
         v=v.replace("0x","").replace("#","")
