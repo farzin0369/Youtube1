@@ -91,6 +91,8 @@ def validate_render_package(
             errors.append("audio_duration_invalid")
 
     if mode == "shorts":
+        if render_meta.get("production_visuals_approved") is not True:
+            errors.append("shorts_visuals_not_production_approved")
         tts = tts_meta if isinstance(tts_meta, dict) else (render_meta.get("tts_evidence") or {})
         provider = str(tts.get("provider") or "").strip().lower()
         voice = str(tts.get("voice") or "").strip()
