@@ -27,7 +27,7 @@ def render_bamo_shorts(
     scene_timings: list[dict[str, float]],
     hook_overlay: str,
 ) -> dict[str, Any]:
-    """Render four scene-locked procedural 3D scenes, Persian voice, captions and ducked ambience."""
+    """Render four subject-specific Blender 3D scenes, Persian voice, captions and ducked ambience."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if len(scenes) != 4 or len(scene_timings) != 4:
@@ -127,6 +127,8 @@ def render_bamo_shorts(
         "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
         "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
+        "camera_motion": [plan.get("camera") for plan in visual_plans],
+        "render_backend": "blender-cycles-cpu",
         "test_visuals_only": False,
         "music_ducking": True,
         "renderer": "BAMO Blender CPU 3D cinematic preview (not yet production-approved)",
