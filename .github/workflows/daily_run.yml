@@ -32,6 +32,7 @@ concurrency:
 
 jobs:
   produce:
+    if: github.event_name != 'schedule' || vars.BAMO_PRODUCTION_VISUALS_APPROVED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
