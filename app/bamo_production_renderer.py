@@ -1,4 +1,4 @@
-"""Production adapter; current procedural renderer is preview-only until upgraded."""
+"""Production adapter for Blender CPU 3D scenes; preview-only until visual approval."""
 from __future__ import annotations
 
 import subprocess
@@ -125,9 +125,9 @@ def render_bamo_shorts(
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
         "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
-        "visual_quality_tier": "procedural-preview-only",
+        "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
         "music_ducking": True,
-        "renderer": "BAMO CPU procedural 3D preview renderer (not production-approved)",
+        "renderer": "BAMO Blender CPU 3D cinematic preview (not yet production-approved)",
     }
