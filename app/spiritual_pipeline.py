@@ -14,7 +14,7 @@ from app.spiritual_content import generate_content
 from app.spiritual_shorts import generate_shorts_content
 from app.media_qa import validate_render_package
 from app.spiritual_tts import synthesize_with_captions
-from app.bamo_production_renderer import render_bamo_shorts
+from app.bamo_production_renderer import PRODUCTION_VISUALS_APPROVED, render_bamo_shorts
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
 from app.youtube_history import (
@@ -155,6 +155,11 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     state_path = Path(os.getenv("CHANNEL_HISTORY_PATH") or "state/history.json")
     stage = "history and script generation"
     try:
+        if not dry_run and not PRODUCTION_VISUALS_APPROVED:
+            raise RuntimeError(
+                "Public/private publishing is paused: the current procedural renderer is preview-only. "
+                "Enable publishing only after the cinematic 3D renderer passes visual approval."
+            )
         history = _load_state(state_path)
         channel_videos: list[dict[str, Any]] = []
         if not dry_run:
