@@ -1,0 +1,54 @@
+name: BAMO HyperFrames CPU render
+on:
+  push:
+    branches: ["feat/bamo-hyperframes-engine"]
+    paths:
+      - "scripts/render_bamo_hyperframes.py"
+      - "examples/bamo_first_film.json"
+      - ".github/workflows/bamo_hyperframes_cpu_render.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bamo-hyperframes-cpu-render
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install CPU render dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core fonts-noto-extra
+          node --version
+          ffmpeg -version | head -n 2
+      - name: Ensure browser runtime
+        run: npx --yes hyperframes@0.8.225 browser ensure
+      - name: Build and render BAMO short with HyperFrames
+        run: |
+          python3 scripts/render_bamo_hyperframes.py \
+            --brief examples/bamo_first_film.json \
+            --output-dir output/bamo/hyperframes \
+            --cli-version 0.8.225
+      - name: Verify rendered MP4
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json output/bamo/hyperframes/BAMO-HyperFrames.mp4
+          ffprobe -v error -show_entries format=duration,size -of json output/bamo/hyperframes/BAMO-HyperFrames.mp4
+          test "$(stat -c%s output/bamo/hyperframes/BAMO-HyperFrames.mp4)" -gt 10000
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 output/bamo/hyperframes/BAMO-HyperFrames.mp4)" = "1080"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 output/bamo/hyperframes/BAMO-HyperFrames.mp4)" = "1920"
+      - name: Save review-only video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-HyperFrames-CPU-preview-${{ github.run_id }}
+          path: output/bamo/hyperframes/
+          retention-days: 7
