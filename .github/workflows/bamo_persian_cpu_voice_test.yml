@@ -1,0 +1,55 @@
+name: BAMO Persian CPU voice evaluation
+on:
+  workflow_dispatch:
+  push:
+    branches: ["feat/bamo-persian-cpu-voice-test"]
+    paths:
+      - "scripts/test_persian_omnivoice_cpu.py"
+      - ".github/workflows/bamo_persian_cpu_voice_test.yml"
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bamo-persian-cpu-voice-evaluation
+  cancel-in-progress: false
+jobs:
+  cpu-voice-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install CPU-only PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+      - name: Install OmniVoice
+        run: |
+          python -m pip install "git+https://github.com/k2-fsa/OmniVoice.git"
+          python -m pip install soundfile
+      - name: Verify CPU-only runtime
+        run: |
+          python - <<'PY'
+          import torch
+          print("PyTorch:", torch.__version__)
+          print("CUDA available:", torch.cuda.is_available())
+          assert not torch.cuda.is_available(), "CUDA must remain disabled"
+          PY
+      - name: Generate independent Persian sample on CPU
+        env:
+          HF_HUB_DISABLE_TELEMETRY: "1"
+          CUDA_VISIBLE_DEVICES: ""
+        run: |
+          python scripts/test_persian_omnivoice_cpu.py --output output/voice-test/omnivoice-fa-cpu.wav
+          ffprobe -v error -show_entries format=duration,size -of json output/voice-test/omnivoice-fa-cpu.wav
+          test -s output/voice-test/omnivoice-fa-cpu.wav
+          test -s output/voice-test/omnivoice-fa-cpu.json
+      - name: Save independent audio for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Persian-OmniVoice-CPU-${{ github.run_id }}
+          path: output/voice-test/
+          retention-days: 7
