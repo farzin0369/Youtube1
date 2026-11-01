@@ -214,3 +214,44 @@ def test_procedural_preview_visuals_are_never_publishable(tmp_path: Path):
     result = validate_render_package(meta, audio, video_format="shorts")
     assert not result["ok"]
     assert "shorts_visuals_not_production_approved" in result["errors"]
+
+
+
+def test_3d_visuals_cannot_pass_with_keyword_match_alone(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "bamo-cpu-3d-motion"
+    meta["scene_query_match"] = True
+    meta["scene_visual_alignment_verified"] = True
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert "shorts_scene_visual_queries_not_verified" in result["errors"]
+
+
+def test_3d_visuals_require_four_human_reviewed_scene_frames(tmp_path: Path):
+    import json
+    from PIL import Image
+
+    meta, audio = _short_package(tmp_path)
+    meta["visual_source"] = "bamo-cpu-3d-motion"
+    meta["scene_query_match"] = False
+    meta["scene_visual_alignment_verified"] = True
+    scenes = []
+    for index in range(4):
+        frame = tmp_path / f"review-frame-{index}.png"
+        Image.new("RGB", (64, 64), color=(index * 40, 30, 80)).save(frame)
+        scenes.append({
+            "scene_id": f"scene-{index}", "visual_query": f"visual subject {index}",
+            "motif": f"motif-{index}", "camera_motion": "orbit",
+            "frame_path": frame.name, "reviewed": True,
+            "review_method": "human_frame_review", "alignment_score": 0.95,
+        })
+    review = tmp_path / "visual-review.json"
+    review.write_text(json.dumps({
+        "version": 1, "reviewer": "BAMO QA",
+        "reviewed_at": "2026-11-02T10:00:00+03:30", "scenes": scenes,
+    }), encoding="utf-8")
+    meta["visual_review_path"] = str(review)
+    meta["duration_seconds"] = meta.pop("duration")
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert result["ok"], result["errors"]
+    assert result["checks"]["human_frame_review"]["ok"] is True
