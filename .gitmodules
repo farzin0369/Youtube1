@@ -1,3 +1,6 @@
 [submodule "vendor/hyperframes"]
 	path = vendor/hyperframes
 	url = https://github.com/heygen-com/hyperframes.git
+[submodule "integrations/youtube-automation-agent"]
+	path = integrations/youtube-automation-agent
+	url = https://github.com/darkzOGx/youtube-automation-agent.git
