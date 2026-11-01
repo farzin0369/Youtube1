@@ -119,12 +119,16 @@ def validate_render_package(
                     errors.append("shorts_persian_text_shaping_not_configured")
             except (OSError, UnicodeError) as exc:
                 errors.append("shorts_ass_read_failed: " + type(exc).__name__)
-        if render_meta.get("scene_query_match") is not True:
-            errors.append("shorts_scene_visual_queries_not_verified")
         visual_source = str(render_meta.get("visual_source") or "")
+        scene_match_ok = render_meta.get("scene_query_match") is True or (
+            visual_source == "bamo-cpu-3d-motion" and render_meta.get("scene_visual_alignment_verified") is True
+        )
+        if not scene_match_ok:
+            errors.append("shorts_scene_visual_queries_not_verified")
         publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
+        publishable_3d = visual_source == "bamo-cpu-3d-motion" and render_meta.get("scene_visual_alignment_verified") is True
         test_stills_are_allowed = visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
-        if not publishable_stock and not test_stills_are_allowed:
+        if not publishable_stock and not publishable_3d and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
