@@ -1,0 +1,46 @@
+name: BAMO approved CPU 3D renderer smoke test
+on:
+  push:
+    branches: ["feat/bamo-production-3d-engine-integration"]
+    paths:
+      - "app/bamo_motion_engine.py"
+      - "app/bamo_scene_director.py"
+      - "app/bamo_production_renderer.py"
+      - "app/media_qa.py"
+      - "scripts/smoke_bamo_3d_renderer.py"
+      - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bamo-approved-3d-smoke
+  cancel-in-progress: false
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU media dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+      - name: Run renderer and media QA smoke test
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/smoke_bamo_3d_renderer.py
+      - name: Upload rendered MP4 and QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-approved-CPU-3D-render-smoke-${{ github.run_id }}
+          path: output/bamo-3d-smoke/
+          retention-days: 7
