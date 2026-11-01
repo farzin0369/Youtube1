@@ -17,6 +17,10 @@ from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
+from app.youtube_history import (
+    add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
+)
+from app.bamo_editorial_review import review_package
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
@@ -68,6 +72,20 @@ def _chapter_timestamp(seconds: float) -> str:
     return f"{value // 3600:02d}:{(value % 3600) // 60:02d}:{value % 60:02d}" if value >= 3600 else f"{value // 60:02d}:{value % 60:02d}"
 
 
+def _hashtags(content: dict[str, Any]) -> str:
+    values = ["#12bamo", "#BAMO", "#بامو"]
+    for raw in content.get("tags") or []:
+        tag = str(raw).strip()
+        if tag.casefold() in {"bamo", "12bamo", "بامو"}:
+            continue
+        slug = re.sub(r"[^\w\u0600-\u06FF]+", "_", tag, flags=re.UNICODE).strip("_")
+        if slug and slug.casefold() not in {item.casefold().lstrip("#") for item in values}:
+            values.append("#" + slug)
+        if len(values) >= 7:
+            break
+    return " ".join(values)
+
+
 def _description(content: dict[str, Any], render: dict[str, Any], audio_duration: float) -> str:
     if content.get("format") == "shorts":
         parts = [
@@ -82,7 +100,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
         credits = render.get("pexels_credits") or []
         if credits:
             parts += ["", "تصاویر:", *credits]
-        parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت"]
+        parts += ["", _hashtags(content)]
         return "\n".join(x for x in parts if x is not None).strip()[:4900]
     section_words = [max(1, len(section["text"].split())) for section in content["sections"]]
     total = sum(section_words) or 1
@@ -97,7 +115,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
     credits = render.get("pexels_credits") or []
     if credits:
         parts += ["", "تصاویر:", *credits]
-    parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت #تاریخ #علم"]
+    parts += ["", _hashtags(content)]
     return "\n".join(x for x in parts if x is not None).strip()[:4900]
 
 
@@ -137,11 +155,22 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     stage = "history and script generation"
     try:
         history = _load_state(state_path)
+        channel_videos: list[dict[str, Any]] = []
+        if not dry_run:
+            stage = "YouTube channel history and duplicate preflight"
+            channel_videos = fetch_recent_channel_videos(max_results=100)
+            logger.info("YouTube channel inventory loaded videos=%s; remote channel is the source of truth", len(channel_videos))
+            generation_history = build_generation_history(history, channel_videos)
+        else:
+            generation_history = history
         channel_config = load_channel_config()
         content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
         if content_format not in {"shorts", "long"}:
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
-        content = generate_shorts_content(history) if content_format == "shorts" else generate_content(history)
+        content = generate_shorts_content(generation_history) if content_format == "shorts" else generate_content(generation_history)
+        if not dry_run:
+            require_unique(content, channel_videos)
+            logger.info("YouTube duplicate gate passed title=%r", content.get("title"))
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
         logger.info("script passed quality gates title=%r words=%s sections=%s", content["title"], content["word_count"], len(content["sections"]))
@@ -182,6 +211,13 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         if not media_quality.get("ok"):
             raise RuntimeError("media QA failed: " + ", ".join(media_quality.get("errors") or []))
         logger.info("media QA passed thumbnail=%s cues=%s", media_quality["checks"].get("thumbnail_dimensions"), media_quality["checks"].get("caption_cues"))
+        stage = "BAMO 11-role editorial review"
+        editorial_review = review_package(
+            content, channel_videos=channel_videos, captions_path=captions_path,
+            policy=channel_config.get("content") or {},
+        )
+        save_json(out_dir / "editorial_review.json", editorial_review)
+        logger.info("BAMO 11-role review passed roles=%s", len(editorial_review["roles"]))
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -192,9 +228,12 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
             if render.get("contains_synthetic_visuals"):
                 os.environ["YOUTUBE_CONTAINS_SYNTHETIC_MEDIA"] = "true"
+            if not dry_run:
+                require_unique(content, channel_videos)
+            upload_tags = add_fingerprint_tag(content["tags"], content["script"])
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
-                description=description, tags=content["tags"], privacy="private" if upload_private else "public",
+                description=description, tags=upload_tags, privacy="private" if upload_private else "public",
                 thumbnail_path=Path(render["thumbnail_path"]), category_id=category_id,
                 publish_at=scheduled_at,
             )
@@ -227,6 +266,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         result = {
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
+            "editorial_review": editorial_review,
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
         }

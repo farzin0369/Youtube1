@@ -36,12 +36,12 @@ def _short_package_data():
     ]
     script = " ".join(scene["spoken_text"] for scene in scenes)
     return {
-        "topic": "یک اقدام کوچک پیش از خواب",
-        "title": "BAMO | از فشارِ همه‌چیز، به یک قدم واقعی",
+        "topic": "اقدام کوچک پیش از خواب",
+        "title": "BAMO | یک اقدام کوچک پیش از خواب",
         "hook": scenes[0]["spoken_text"],
-        "description": "یک یادآوری آرام برای شروع از یک قدم کوچک.",
+        "description": "این ویدئو دربارهٔ یک اقدام کوچک پیش از خواب است. با یک قدم ساده می‌توان فشار ذهنی آخر شب را کمتر کرد.",
         "thumbnail_text": "یک قدم کافیست",
-        "tags": ["عادت کوچک"],
+        "tags": ["عادت کوچک", "اقدام پیش از خواب", "روتین شبانه", "مدیریت زمان", "عادت‌های سالم"],
         "scenes": scenes,
         "script": script,
     }
