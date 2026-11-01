@@ -22,6 +22,7 @@ def test_scene_director_selects_topic_matched_3d_motifs_and_camera_moves():
     assert plan_scene("اتم و الکترون", "atomic orbit")["motif"] == "atom"
     assert plan_scene("هندسه و دایره", "geometry circle")["motif"] == "geometry"
     assert plan_scene("طلوع و امید", "sunrise light")["camera"] == "push_in"
+    assert plan_scene("مغز و مسیر عصبی", "neural pathways brain synapses")["motif"] == "neural_network"
 
 
 def test_unmatched_visual_prompt_is_not_claimed_as_verified():
