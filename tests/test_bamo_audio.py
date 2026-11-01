@@ -36,7 +36,7 @@ def test_atempo_chain_rejects_non_positive_speed(speed: float) -> None:
 def test_audio_script_defaults_to_persian_farid_voice() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert 'default="fa-IR-FaridNeural"' in source
-    assert '"--write-subtitles"' in source
+    assert 'subtitles.write_text("\\n".join(cues), encoding="utf-8")' in source
     assert '"-c:a", "aac"' in source
     assert '"youtube_upload": "not_performed"' in source
 
