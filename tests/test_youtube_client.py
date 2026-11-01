@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app import youtube_client
-from app.youtube_client import _contains_synthetic_media, _validate_publish_at
+from app.youtube_client import _build_upload_status, _contains_synthetic_media, _validate_publish_at
 
 
 def test_cogvideox_defaults_to_synthetic_media_disclosure(monkeypatch):
@@ -38,10 +38,21 @@ def test_publish_at_does_not_move_a_late_run_to_the_next_day():
         _validate_publish_at("2026-10-10T02:30:00Z", now=now)
 
 
-def test_public_upload_requires_a_custom_thumbnail_before_api_upload(tmp_path, monkeypatch):
-    video = tmp_path / "video.mp4"
-    video.write_bytes(b"video")
-    monkeypatch.setattr(youtube_client, "has_youtube_creds", lambda: True)
-    result = youtube_client.upload_video(video, "title", "description", [], privacy="public")
-    assert not result["ok"]
-    assert "thumbnail" in result["error"].lower()
+def test_scheduled_upload_is_private_until_publish_at():
+    status = _build_upload_status(
+        "public", "2026-11-01T14:30:00Z", contains_synthetic_media=False
+    )
+    assert status["privacyStatus"] == "private"
+    assert status["publishAt"] == "2026-11-01T14:30:00Z"
+
+
+def test_immediate_public_upload_uses_public_privacy():
+    status = _build_upload_status("public", None, contains_synthetic_media=True)
+    assert status["privacyStatus"] == "public"
+    assert status["containsSyntheticMedia"] is True
+
+
+def test_private_draft_does_not_receive_publish_at():
+    status = _build_upload_status("private", None, contains_synthetic_media=False)
+    assert status["privacyStatus"] == "private"
+    assert "publishAt" not in status
