@@ -23,7 +23,7 @@ def validate_project(project: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(scene,dict): raise ValueError(f"Scene {index} must be an object")
         duration = float(scene.get("duration",4))
         if not math.isfinite(duration) or duration < .5 or duration > 60: raise ValueError(f"Scene {index} duration must be between 0.5 and 60 seconds")
-        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip()})
+        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip(),"visual_prompt":str(scene.get("visual_prompt") or "").strip()})
     return {"format":fmt,"scenes":clean}
 
 def _ass_time(seconds: float) -> str:
