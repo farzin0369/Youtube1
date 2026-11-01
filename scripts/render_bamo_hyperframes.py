@@ -45,7 +45,7 @@ def main() -> int:
         else:
             world_markup = '<div class="portal-outer"></div><div class="portal-inner"></div><div class="portal-floor"></div><div class="rise-arrow">↑</div>'
         blocks.append(f"""
-        <section id="scene-{i+1}" class="scene clip scene-{i+1}" data-start="{offset:.3f}" data-duration="{duration:.3f}" data-track-index="1">
+        <section id="scene-{i+1}" class="scene clip scene-{i+1}" style="--bg:{bg};--accent:{accent};" data-visual-prompt="{prompt}" aria-label="{prompt}" data-start="{offset:.3f}" data-duration="{duration:.3f}" data-track-index="1">
           <div class="orb orb-a"></div><div class="orb orb-b"></div>
           <div class="gridlines"></div>
           <div class="visual" aria-hidden="true"><div class="ring"></div><div class="core"></div><div class="beam"></div></div>
@@ -63,7 +63,7 @@ def main() -> int:
 *{{box-sizing:border-box}}html,body{{margin:0;width:1080px;height:1920px;overflow:hidden;background:#080d1b;color:#fff;font-family:Tahoma,Arial,sans-serif}}
 #stage{{position:relative;width:1080px;height:1920px;overflow:hidden;background:#080d1b}}
 .scene{{position:absolute;inset:0;width:1080px;height:1920px;overflow:hidden;padding:190px 92px;background:radial-gradient(ellipse at 50% 43%,var(--glow),transparent 48%),var(--bg);opacity:0;}}
-.scene-1{{--bg:#080d1b;--glow:#172c4a}}.scene-2{{--bg:#111827;--glow:#174e50}}.scene-3{{--bg:#1b1424;--glow:#502c4c}}.scene-4{{--bg:#101d20;--glow:#45502b}}
+.scene-1{{--glow:#172c4a}}.scene-2{{--glow:#174e50}}.scene-3{{--glow:#502c4c}}.scene-4{{--glow:#45502b}}
 .gridlines{{position:absolute;inset:0;background-image:linear-gradient(#ffffff0b 1px,transparent 1px),linear-gradient(90deg,#ffffff0b 1px,transparent 1px);background-size:90px 90px;mask-image:linear-gradient(transparent,black 25%,black 75%,transparent)}}
 .eyebrow{{position:relative;z-index:3;color:#d5a64b;font-size:27px;letter-spacing:7px;font-weight:bold;margin-top:65px}}
 h1{{position:relative;z-index:3;font-size:76px;line-height:1.55;font-weight:900;margin:140px 0 45px;text-shadow:0 8px 36px #0009;max-width:900px}}
@@ -116,7 +116,7 @@ window.__timelines["bamo-short"]=tl;
     cli = f"hyperframes@{args.cli_version}"
     subprocess.run(["npx","--yes",cli,"lint",str(out),"--json"],check=True,timeout=180)
     subprocess.run(["npx","--yes",cli,"render",str(out),"--output",str(out/"BAMO-HyperFrames.mp4"),"--fps","30","--quality","standard"],check=True,timeout=900)
-    manifest = {"title":brief.get("title"),"renderer":"HyperFrames","duration_seconds":total,"resolution":"1080x1920","fps":30,"scenes":len(scenes),"agent_roles_validated":sorted(roles),"youtube_upload":"not_performed"}
+    manifest = {"title":brief.get("title"),"renderer":"HyperFrames","duration_seconds":total,"resolution":"1080x1920","fps":30,"scenes":len(scenes),"scene_visual_prompts":[str(scene["visual_prompt"]) for scene in scenes],"agent_roles_validated":sorted(roles),"youtube_upload":"not_performed"}
     (out/"manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8")
     return 0
 
