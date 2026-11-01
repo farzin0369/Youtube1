@@ -113,20 +113,29 @@ def synthesize(text: str, out_path: Path, kind: str = "long") -> dict:
     provider = (env("TTS_PROVIDER") or "auto").lower()
     piper_model = env("PIPER_MODEL")
 
+    if provider in {"pocket-tts", "pocket-tts-onnx", "pocket"}:
+        try:
+            from app.pocket_tts_onnx import synthesize_to_file
+            result = synthesize_to_file(text, out_path.with_suffix(".wav"))
+            result["kind"] = kind
+            return result
+        except Exception as exc:
+            print(f"[tts] Pocket TTS ONNX unavailable ({type(exc).__name__}); trying configured fallbacks.")
+
     if provider == "piper":
         from app.local_ai import piper_synthesize
         return piper_synthesize(text, out_path)
 
     # Explicit provider selection changes priority, but never disables safe fallbacks.
-    if provider in {"auto", "elevenlabs"}:
+    if provider in {"auto", "elevenlabs", "pocket-tts", "pocket-tts-onnx", "pocket"}:
         result = _write_elevenlabs(text, out_path)
         if result:
             return result
-    if provider in {"auto", "elevenlabs", "azure", "azure-speech"}:
+    if provider in {"auto", "elevenlabs", "azure", "azure-speech", "pocket-tts", "pocket-tts-onnx", "pocket"}:
         result = _write_azure(text, out_path)
         if result:
             return result
-    if provider in {"auto", "edge", "elevenlabs", "azure", "azure-speech"}:
+    if provider in {"auto", "edge", "elevenlabs", "azure", "azure-speech", "pocket-tts", "pocket-tts-onnx", "pocket"}:
         result = _write_edge(text, out_path)
         if result:
             return result
