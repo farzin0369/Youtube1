@@ -34,7 +34,7 @@ def _ass_escape(value: str) -> str:
     return value.replace("\\",r"\\").replace("{",r"\{").replace("}",r"\}").replace("\n",r"\N")
 
 def _write_ass(scenes: list[dict[str,Any]], path: Path, width: int, height: int) -> None:
-    fontsize=max(30,int(width*.055)); margin=max(38,int(width*.07))
+    hero_size=max(38,int(width*.066)); brand_size=max(22,int(width*.032)); margin=max(42,int(width*.08))
     header=f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -44,15 +44,18 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Main,Noto Naskh Arabic,{fontsize},&H00FFFFFF,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,3,1,2,{margin},{margin},{int(height*.13)},1
+Style: Main,Noto Naskh Arabic,{hero_size},&H00FFFFFF,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,4,2,5,{margin},{margin},{int(height*.10)},1
+Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,2,1,8,{margin},{margin},{int(height*.06)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events=[]; cursor=0.0
     for scene in scenes:
-        duration=scene["duration"]; text=scene["text"]
-        if text: events.append(f"Dialogue: 0,{_ass_time(cursor+.15)},{_ass_time(cursor+duration-.1)},Main,,0,0,0,,{_ass_escape(text)}")
+        duration=scene["duration"]
+        if scene["text"]:
+            events.append(f"Dialogue: 0,{_ass_time(cursor+.12)},{_ass_time(cursor+duration-.12)},Brand,,0,0,0,,BAMO  •  #12bamo")
+            events.append(f"Dialogue: 1,{_ass_time(cursor+.18)},{_ass_time(cursor+duration-.12)},Main,,0,0,0,,{{\\fad(220,220)}}{_ass_escape(scene['text'])}")
         cursor += duration
     path.write_text(header+"\n".join(events)+"\n",encoding="utf-8")
 
