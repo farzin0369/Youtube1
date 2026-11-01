@@ -12,13 +12,13 @@ audio = out / "voice-test.mp3"
 captions = out / "captions.srt"
 subprocess.run([
     "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=12",
+    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=18",
     "-codec:a", "libmp3lame", "-b:a", "128k", str(audio),
 ], check=True)
 captions.write_text(
     "1\n00:00:00,200 --> 00:00:01,200\nیک تصمیم مهم\n\n"
-    "2\n00:00:03,200 --> 00:00:04,200\nدفتر و نوشتن\n\n"
-    "3\n00:00:06,200 --> 00:00:07,200\nطلوع و امید\n\n"
+    "2\n00:00:04,700 --> 00:00:05,700\nدفتر و نوشتن\n\n"
+    "3\n00:00:09,200 --> 00:00:10,200\nطلوع و امید\n\n"
     "4\n00:00:09,200 --> 00:00:10,200\nاتم و الکترون\n\n"
     "5\n00:00:10,300 --> 00:00:11,500\nحرکت سه‌بعدی\n",
     encoding="utf-8",
