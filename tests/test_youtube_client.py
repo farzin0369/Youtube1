@@ -56,3 +56,27 @@ def test_private_draft_does_not_receive_publish_at():
     status = _build_upload_status("private", None, contains_synthetic_media=False)
     assert status["privacyStatus"] == "private"
     assert "publishAt" not in status
+
+
+
+def test_custom_thumbnail_is_uploaded_for_the_inserted_video(tmp_path):
+    thumbnail = tmp_path / "thumbnail.jpg"
+    thumbnail.write_bytes(b"jpeg-test")
+    captured = {}
+
+    class Request:
+        def execute(self):
+            return {"items": [{"default": {"url": "https://example.invalid/thumb.jpg"}}]}
+
+    class Thumbnails:
+        def set(self, *, videoId, media_body):
+            captured["video_id"] = videoId
+            captured["media_type"] = media_body.mimetype()
+            return Request()
+
+    class YouTube:
+        def thumbnails(self):
+            return Thumbnails()
+
+    assert youtube_client._set_custom_thumbnail(YouTube(), "video-123", thumbnail) is True
+    assert captured == {"video_id": "video-123", "media_type": "image/jpeg"}
