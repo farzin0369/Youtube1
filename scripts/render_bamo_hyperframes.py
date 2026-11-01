@@ -37,7 +37,7 @@ def main() -> int:
         text = html.escape(str(scene["text"]))
         prompt = html.escape(str(scene["visual_prompt"]))
         blocks.append(f"""
-        <section class="scene scene-{i+1}" data-start="{offset:.3f}" data-duration="{duration:.3f}" data-track-index="1">
+        <section id="scene-{i+1}" class="scene clip scene-{i+1}" data-start="{offset:.3f}" data-duration="{duration:.3f}" data-track-index="1">
           <div class="orb orb-a"></div><div class="orb orb-b"></div>
           <div class="gridlines"></div>
           <div class="visual" aria-hidden="true"><div class="ring"></div><div class="core"></div><div class="beam"></div></div>
@@ -50,7 +50,7 @@ def main() -> int:
     composition = f"""<!doctype html>
 <html lang="fa" dir="rtl">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(brief.get("title","BAMO"))}</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script><title>{html.escape(brief.get("title","BAMO"))}</title>
 <style>
 *{{box-sizing:border-box}}html,body{{margin:0;width:1080px;height:1920px;overflow:hidden;background:#080d1b;color:#fff;font-family:Tahoma,Arial,sans-serif}}
 #stage{{position:relative;width:1080px;height:1920px;overflow:hidden;background:#080d1b}}
