@@ -82,7 +82,7 @@ def _agent_completion(agent_id: str, system: str, prompt: str) -> tuple[str, str
         raise RuntimeError(f"missing required credential {key_env} for agent {agent_id}")
     raw = _chat_completions(
         base_url, api_key, model_id, system, prompt, max_tokens=900,
-        temperature=0.15, json_mode=True,
+        temperature=0.15, json_mode=provider != "openrouter",
         timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
         max_attempts=1 if provider == "openrouter" else 3,
     )
@@ -187,7 +187,7 @@ def review_with_council(
         "ok": passed, "agents_expected": len(AGENTS), "agents_completed": len(ordered),
         "approvals": approvals, "average_score": average_score,
         "distinct_provider_models_observed": len(distinct_models),
-        "distinct_base_models_observed": len({item["provider_model"].split(\":\", 1)[-1] for item in ordered}),
+        "distinct_base_models_observed": len({item["provider_model"].split(":", 1)[-1] for item in ordered}),
         "provider_models_observed": distinct_models,
         "independent_reviews": ordered, "agent_errors": errors,
         "critical_issues": critical,
