@@ -19,7 +19,7 @@ from app.llm_provider import _chat_completions
 LOGGER = logging.getLogger(__name__)
 
 AGENTS: tuple[tuple[str, str], ...] = (
-    ("trend_researcher", "Assess topic freshness, audience demand, and whether the idea has a compelling reason to exist now."),
+    ("trend_researcher", "Assess topic freshness, audience demand, whether the idea has a compelling reason to exist now, and whether it repeats or paraphrases a prior channel topic."),
     ("fact_checker", "Check factual, scientific, historical, and religious claims for accuracy, evidence, and unsupported certainty. Flag claims that need sources."),
     ("growth_strategist", "Assess audience fit, differentiation, shareability, and a credible path to strong organic reach."),
     ("scriptwriter", "Assess the opening hook, clarity, emotional arc, curiosity gaps, pacing, and payoff."),
@@ -29,7 +29,7 @@ AGENTS: tuple[tuple[str, str], ...] = (
     ("editor", "Assess exact narration/on-screen-text/visual alignment, subtitle readability, pacing, and technical continuity."),
     ("youtube_seo", "Assess title, description, tags, hashtags, thumbnail text, search intent, and honest packaging."),
     ("retention_analyst", "Assess likely viewer drop-off points, first-second impact, rewatch value, and retention improvements."),
-    ("independent_critic", "Act as an independent safety and integrity auditor. Find the strongest reason not to publish, especially unsafe, misleading, fabricated, copied, or policy-violating material."),
+    ("independent_critic", "Act as an independent safety and integrity auditor. Compare the candidate with prior channel topics and scripts; block semantic duplicates and paraphrases. Find the strongest reason not to publish, especially unsafe, misleading, fabricated, copied, or policy-violating material."),
 )
 
 _REQUIRED = {"score", "verdict", "critical_issues", "major_issues", "minor_issues", "evidence", "suggestions", "confidence"}
@@ -105,7 +105,7 @@ def _review_one(agent_id: str, specialty: str, package: dict[str, Any], memory_d
         "specialty": specialty,
         "production_package": package,
         "your_private_memory": _memory_for(agent_id, memory_dir),
-        "instruction": "Review the complete package independently. Do not rewrite it. Return a reasoned JSON verdict.",
+        "instruction": "Review the complete package independently. Compare the candidate topic with recent_channel_topics and flag any same-idea paraphrase as a critical issue. Do not rewrite it. Return a reasoned JSON verdict.",
     }, ensure_ascii=False)
     raw, provider = _agent_completion(agent_id, system, prompt)
     result = _json_object(raw)
@@ -140,14 +140,19 @@ def _review_one(agent_id: str, specialty: str, package: dict[str, Any], memory_d
 
 def review_with_council(
     content: dict[str, Any], *, render: dict[str, Any], media_qa: dict[str, Any],
-    memory_dir: Path | None = None,
+    memory_dir: Path | None = None, history: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run all 11 isolated reviews and fail closed unless the council passes."""
     package = {
         "title": content.get("title"), "topic": content.get("topic"),
         "script": content.get("script"), "description": content.get("description"),
         "tags": content.get("tags"), "thumbnail_text": content.get("thumbnail_text"),
-        "scenes": content.get("scenes"), "render_evidence": {
+        "scenes": content.get("scenes"),
+        "recent_channel_topics": [
+            {"title": row.get("title"), "topic": row.get("topic") or row.get("title")}
+            for row in (history or []) if isinstance(row, dict)
+        ][-200:],
+        "render_evidence": {
             key: render.get(key) for key in (
                 "visual_source", "visual_scene_count", "duration_seconds",
                 "contains_synthetic_visuals", "camera_motion", "scene_visual_alignment_verified",
