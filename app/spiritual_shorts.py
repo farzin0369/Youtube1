@@ -24,7 +24,7 @@ SYSTEM_PROMPT = """تو نویسنده و دبیر کانال فارسی‌زب�
 USER_TEMPLATE = """برای کانال BAMO یک Short فارسی بساز. موضوع را متنوع و بر اساس یکی از ستون‌های محتوایی کانال انتخاب کن. هدف خوانش {target_duration_seconds} ثانیه و حدود {min_words} تا {max_words} واژهٔ گفتاری است؛ کم‌گویی را با تکرار و شعار جبران نکن.
 روایت دقیقاً چهار صحنه داشته باشد: ۱) hook کنجکاوی‌برانگیز و مشخص، ۲) همدلی/آرام‌شدن، ۳) یک اقدام کوچک برای همین امروز، ۴) پایان امیدوارکننده و انگیزشی. حالت احساسی هر صحنه به‌ترتیب hook، calm، reassuring، motivational باشد. جمله‌ها با علائم نگارشی طبیعی مکث بسازند.
 برای هر صحنه، spoken_text دقیقاً همان بخشی باشد که گوینده می‌خواند؛ visual_query یک جست‌وجوی کوتاه و مشخصِ انگلیسی برای فیلم عمودیِ واقعیِ مرتبط با همان جمله باشد: حداقل دو واژهٔ تصویریِ دقیق و مشخص (مثل "woman writing journal"؛ نه کلمهٔ تنها، استعارهٔ نامربوط یا عبارت کلی)؛ on_screen_text حداکثر ۵ واژهٔ فارسی باشد.
-عنوان روشن، دقیق و بدون کلیک‌بیت باشد؛ توضیح کوتاه و ۳ تا ۶ برچسب مرتبط بده. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
+موضوع را حتماً به فارسی و در ۲ تا ۵ واژه بنویس. عنوان باید عبارت کلیدی اصلیِ همین موضوع را در خود داشته باشد؛ عنوان کلی و شعاری مثل «از هر لحظه بهره ببرید» ممنوع است. توضیح باید ۲ جملهٔ مشخص باشد: نام موضوع، نکتهٔ اصلی و چیزی که مخاطب یاد می‌گیرد را بگو؛ عبارت عمومی و تکراری ننویس. ۵ تا ۸ برچسب جست‌وجوی واقعاً مرتبط بده؛ ابتدا فارسی، سپس معادل انگلیسی فقط در صورت نیاز. برچسب‌های کلی مثل motivation، daily inspiration و self improvement را مگر اینکه موضوع دقیقاً دربارهٔ آن‌ها باشد استفاده نکن. از این موضوع‌ها/عنوان‌های اخیر دوری کن: {recent}.
 سیاست محتوا: {policy}
 خروجی فقط این قالب را داشته باشد:
 {{"topic":"...","title":"...","hook":"عین متن گفتاری صحنهٔ اول","description":"...","thumbnail_text":"۲ تا ۴ واژهٔ کوتاه","tags":["..."],"scenes":[{{"spoken_text":"...","mood":"hook","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"calm","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"reassuring","visual_query":"...","on_screen_text":"..."}},{{"spoken_text":"...","mood":"motivational","visual_query":"...","on_screen_text":"..."}}],"script":"اتصال عین spoken_text چهار صحنه با یک فاصله"}}
@@ -142,10 +142,24 @@ def validate_short_content(
     if not description or len(description) > 800:
         raise ValueError("description_missing_or_too_long")
     topic = re.sub(r"\s+", " ", str(item.get("topic") or "")).strip()
-    if not 1 <= len(topic.split()) <= 6 or len(topic) > 60:
-        raise ValueError("topic_missing_or_too_long")
+    if not 2 <= len(topic.split()) <= 5 or len(topic) > 60 or not re.search(r"[\u0600-\u06FF]", topic):
+        raise ValueError("topic_must_be_a_specific_persian_phrase")
+    topic_terms = {
+        token for token in re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", topic)
+        if len(token) > 2 and token not in {"برای", "یک", "این", "آن", "از", "به", "در", "با", "چگونه"}
+    }
+    title_terms = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", title))
+    description_terms = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", description))
     raw_tags = item.get("tags") if isinstance(item.get("tags"), list) else []
-    tags = list(dict.fromkeys([str(tag).strip() for tag in raw_tags if str(tag).strip()] + BRAND_TAGS))[:15]
+    raw_tags = list(dict.fromkeys(str(tag).strip() for tag in raw_tags if str(tag).strip()))
+    tag_terms = set(re.findall(r"[\u0600-\u06FFA-Za-z0-9]+", " ".join(raw_tags)))
+    if not topic_terms.intersection(title_terms):
+        raise ValueError("title_must_contain_the_actual_topic_keyword")
+    if not topic_terms.intersection(description_terms):
+        raise ValueError("description_must_explain_the_actual_topic")
+    if len(raw_tags) < 3 or not topic_terms.intersection(tag_terms):
+        raise ValueError("seo_tags_must_be_specific_and_topic_relevant")
+    tags = list(dict.fromkeys(raw_tags + BRAND_TAGS))[:15]
     return {
         "format": "shorts",
         "topic": topic,
