@@ -79,10 +79,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
     frames=path.parent/f"frames_{index:03d}"; frames.mkdir(parents=True,exist_ok=True)
     for frame in range(max(1,round(duration*fps))):
         t=frame/fps; ang=t*.42+index*.7; zoom=1+.1*math.sin(t*.65)+.045*math.sin(t*1.4+index)
-        im=Image.new("RGB",(sw,sh)); px=im.load()
-        for y in range(sh):
-            k=y/sh; c=tuple(int(min(255,v*(.55+.65*k))) for v in base)
-            for x in range(sw): px[x,y]=c
+        im=Image.new("RGB",(sw,sh),tuple(int(v*.72) for v in base))
         d=ImageDraw.Draw(im,"RGBA")
         for p in range(42):
             x=(p*83+t*(12+p%5)*(-1 if p%2 else 1))%sw; y=(p*137+t*(8+p%7))%sh; r=1+p%3
@@ -102,7 +99,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
             else:
                 sx,sy,r=data
                 for q in range(r,0,-1):
-                    shade=tuple(int(min(255,v*(.34+.82*(1-q/r*.55))) for v in col[:3])
+                    shade=tuple(int(min(255, v * (0.34 + 0.82 * (1 - q / r * 0.55)))) for v in col[:3])
                     d.ellipse((sx-q,sy-q,sx+q,sy+q),fill=(*shade,col[3]))
                 d.ellipse((sx-r*.48,sy-r*.62,sx-r*.08,sy-r*.22),fill=(255,255,255,125))
         cx,cy,_,_=_project_3d(0,0,0,ang,zoom,sw,sh)
