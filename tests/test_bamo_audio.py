@@ -39,3 +39,21 @@ def test_audio_script_defaults_to_persian_farid_voice() -> None:
     assert '"--write-subtitles"' in source
     assert '"-c:a", "aac"' in source
     assert '"youtube_upload": "not_performed"' in source
+
+
+def test_scene_texts_are_the_exact_narration_in_order() -> None:
+    import json
+
+    brief = json.loads(
+        (MODULE_PATH.parents[1] / "examples" / "bamo_first_film.json").read_text(encoding="utf-8")
+    )
+    expected = " ".join(scene["text"].strip() for scene in brief["scenes"])
+    actual = " ".join(brief["narration"].split())
+    assert actual == expected
+
+
+def test_audio_script_generates_one_voice_segment_per_scene() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "for index, (line, target) in enumerate(zip(lines, durations)" in source
+    assert "scene-locked VTT" in source
+    assert "BAMO sync gate: narration must exactly equal the ordered scene texts" in source
