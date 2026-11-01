@@ -20,7 +20,7 @@ relative to that directory or an absolute path to the actual rendered PNG frame.
       "visual_query": "the exact scene brief",
       "motif": "the Blender motif rendered",
       "camera_motion": "orbit",
-      "frame_path": "frames_000/frame_0001.png",
+      "frame_path": ".bamo-3d-silent_render/frames_000/frame_0001.png",
       "reviewed": true,
       "review_method": "human_frame_review",
       "alignment_score": 0.96
