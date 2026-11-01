@@ -164,7 +164,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         channel_videos: list[dict[str, Any]] = []
         if not dry_run:
             stage = "YouTube channel history and duplicate preflight"
-            channel_videos = fetch_recent_channel_videos(max_results=200)
+            channel_videos = fetch_recent_channel_videos()
             logger.info("YouTube channel inventory loaded videos=%s; remote channel is the source of truth", len(channel_videos))
             generation_history = build_generation_history(history, channel_videos)
         else:
@@ -175,7 +175,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
         content = generate_shorts_content(generation_history) if content_format == "shorts" else generate_content(generation_history)
         if not dry_run:
-            require_unique(content, generation_history.get("recent", channel_videos))
+            require_unique(content, [*(history.get("recent") or []), *channel_videos])
             logger.info("YouTube duplicate gate passed title=%r", content.get("title"))
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
