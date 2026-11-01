@@ -158,12 +158,15 @@ def validate_render_package(
             and render_meta.get("scene_visual_alignment_verified") is True
             and visual_review.get("ok") is True
         )
-        scene_match_ok = publishable_stock and render_meta.get("scene_query_match") is True or publishable_3d
-        if not scene_match_ok:
-            errors.append("shorts_scene_visual_queries_not_verified")
         test_stills_are_allowed = (
             visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
         )
+        scene_match_ok = (
+            (publishable_stock and render_meta.get("scene_query_match") is True)
+            or publishable_3d or test_stills_are_allowed
+        )
+        if not scene_match_ok:
+            errors.append("shorts_scene_visual_queries_not_verified")
         if not publishable_stock and not publishable_3d and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
         if test_stills_are_allowed:
