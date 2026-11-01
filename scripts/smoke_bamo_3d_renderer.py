@@ -19,8 +19,9 @@ captions.write_text(
     "1\n00:00:00,200 --> 00:00:01,200\nیک تصمیم مهم\n\n"
     "2\n00:00:04,700 --> 00:00:05,700\nدفتر و نوشتن\n\n"
     "3\n00:00:09,200 --> 00:00:10,200\nطلوع و امید\n\n"
-    "4\n00:00:09,200 --> 00:00:10,200\nاتم و الکترون\n\n"
-    "5\n00:00:10,300 --> 00:00:11,500\nحرکت سه‌بعدی\n",
+    "4\n00:00:13,700 --> 00:00:14,700\nاتم و الکترون\n\n"
+    "5\n00:00:15,000 --> 00:00:16,000\nحرکت سه‌بعدی\n\n"
+    "6\n00:00:16,100 --> 00:00:17,200\nهماهنگی صدا و تصویر\n",
     encoding="utf-8",
 )
 scenes = [
@@ -29,10 +30,12 @@ scenes = [
     {"spoken_text": "طلوع و امید", "visual_query": "sunrise light", "on_screen_text": "نور امید"},
     {"spoken_text": "اتم و الکترون", "visual_query": "atomic orbit", "on_screen_text": "جهان اتم"},
 ]
-timings = [{"start_seconds": 0.0, "end_seconds": 2.8},
-           {"start_seconds": 3.0, "end_seconds": 5.8},
-           {"start_seconds": 6.0, "end_seconds": 8.8},
-           {"start_seconds": 9.0, "end_seconds": 12.0}]
+timings = [
+    {"start_seconds": 0.0, "end_seconds": 4.3},
+    {"start_seconds": 4.5, "end_seconds": 8.8},
+    {"start_seconds": 9.0, "end_seconds": 13.3},
+    {"start_seconds": 13.5, "end_seconds": 18.0},
+]
 render = render_bamo_shorts(
     title="BAMO | آزمون موتور سه‌بعدی",
     thumbnail_text="آزمون موتور سه‌بعدی",
