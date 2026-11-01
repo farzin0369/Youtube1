@@ -11,6 +11,10 @@ def main() -> int:
     p.add_argument("--cli-version", default="0.8.225")
     args = p.parse_args()
     brief = json.loads(Path(args.brief).read_text(encoding="utf-8"))
+    roles = brief.get("roles") or {}
+    required_roles = {"discovery", "strategy", "script_hook", "packaging", "seo", "production", "editing", "shorts", "chapters", "community", "analytics"}
+    if set(roles) != required_roles or not all(str(value).strip() for value in roles.values()):
+        raise SystemExit("BAMO production requires all 11 documented agent-role hand-offs")
     scenes = brief.get("scenes") or []
     if len(scenes) != 4:
         raise SystemExit("BAMO HyperFrames short requires exactly four authored scenes")
@@ -83,7 +87,7 @@ window.__timelines["bamo-short"]=tl;
     cli = f"hyperframes@{args.cli_version}"
     subprocess.run(["npx","--yes",cli,"lint",str(out),"--json"],check=True,timeout=180)
     subprocess.run(["npx","--yes",cli,"render",str(out),"--output",str(out/"BAMO-HyperFrames.mp4"),"--fps","30","--quality","standard"],check=True,timeout=900)
-    manifest = {"title":brief.get("title"),"renderer":"HyperFrames","duration_seconds":total,"resolution":"1080x1920","fps":30,"scenes":len(scenes),"youtube_upload":"not_performed"}
+    manifest = {"title":brief.get("title"),"renderer":"HyperFrames","duration_seconds":total,"resolution":"1080x1920","fps":30,"scenes":len(scenes),"agent_roles_validated":sorted(roles),"youtube_upload":"not_performed"}
     (out/"manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding="utf-8")
     return 0
 
