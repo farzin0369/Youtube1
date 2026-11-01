@@ -187,7 +187,7 @@ def review_with_council(
         "ok": passed, "agents_expected": len(AGENTS), "agents_completed": len(ordered),
         "approvals": approvals, "average_score": average_score,
         "distinct_provider_models_observed": len(distinct_models),
-        "distinct_base_models_observed": len({item["provider_model"].split(":", 1)[-1] for item in ordered}),
+        "distinct_model_ids_observed": len({item["provider_model"].split(":", 1)[-1] for item in ordered}),
         "provider_models_observed": distinct_models,
         "independent_reviews": ordered, "agent_errors": errors,
         "critical_issues": critical,
