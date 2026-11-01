@@ -4,7 +4,7 @@ Every generated scene is a real Blender 3D scene rendered on CPU. Missing Blende
 or unsupported subject motifs are hard failures; there is no flat-shape fallback.
 """
 from __future__ import annotations
-import json, math, shutil, subprocess
+import json, math, os, shutil, subprocess
 from pathlib import Path
 from typing import Any
 
