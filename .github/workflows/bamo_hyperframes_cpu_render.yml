@@ -1,7 +1,7 @@
 name: BAMO HyperFrames CPU render
 on:
   push:
-    branches: ["feat/bamo-hyperframes-engine"]
+    branches: ["feat/bamo-single-hyperframes-eleven-agent"]
     paths:
       - "scripts/render_bamo_hyperframes.py"
       - "scripts/add_bamo_audio.py"
