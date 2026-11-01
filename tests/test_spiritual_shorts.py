@@ -63,7 +63,7 @@ def test_short_package_has_fast_hook_four_distinct_scenes_and_emotional_arc(shor
     assert all(0.0 <= segment["intensity"] <= 1.0 for segment in result["narration_segments"])
     assert all(segment["emotion"] and segment["method"] == "persian_lexical_rules_v1" for segment in result["narration_segments"])
     assert all(scene["delivery_hint"]["emotion"] for scene in result["scenes"])
-    assert {"ImamAli110", "The110Path", "امام علی"}.issubset(result["tags"])
+    assert {"12bamo", "BAMO", "بامو"}.issubset(result["tags"])
 
 
 @pytest.mark.parametrize(
