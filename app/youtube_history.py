@@ -93,9 +93,18 @@ def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any
 
 
 def build_generation_history(local_history: dict[str, Any], channel_videos: list[dict[str, Any]]) -> dict[str, Any]:
-    """Make YouTube authoritative; merge local history only as supplementary context."""
+    """Make YouTube authoritative; keep its newest uploads at the end of the prompt window."""
     merged: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
+    for row in (local_history.get("recent") or []) if isinstance(local_history, dict) else []:
+        if not isinstance(row, dict):
+            continue
+        video_id = str(row.get("video_id") or "")
+        if video_id and video_id in seen_ids:
+            continue
+        merged.append(row)
+        if video_id:
+            seen_ids.add(video_id)
     for row in channel_videos:
         if not isinstance(row, dict):
             continue
@@ -113,15 +122,6 @@ def build_generation_history(local_history: dict[str, Any], channel_videos: list
             "uploaded_at": row.get("published_at"),
             "source": "youtube",
         })
-    for row in (local_history.get("recent") or []) if isinstance(local_history, dict) else []:
-        if not isinstance(row, dict):
-            continue
-        video_id = str(row.get("video_id") or "")
-        if video_id and video_id in seen_ids:
-            continue
-        merged.append(row)
-        if video_id:
-            seen_ids.add(video_id)
     return {"recent": merged[-200:], "source": "youtube+local"}
 
 
