@@ -17,6 +17,24 @@ def normalize_text(value: str) -> str:
     return " ".join(text.split())
 
 
+def topic_tokens(value: str) -> set[str]:
+    """Normalize Persian/English topic phrases while ignoring brand and filler words."""
+    stop = {"bamo", "12bamo", "short", "shorts", "و", "از", "در", "با", "برای",
+            "که", "این", "آن", "یک", "the", "a", "an", "and", "of", "in", "to",
+            "راز", "حقیقت", "کشف", "عجیب", "جالب", "مهم"}
+    result = set()
+    for token in normalize_text(value).split():
+        if token in stop:
+            continue
+        for suffix in ("های", "ها", "ان"):
+            if token.endswith(suffix) and len(token) > len(suffix) + 2:
+                token = token[:-len(suffix)]
+                break
+        if token:
+            result.add(token)
+    return result
+
+
 def content_fingerprint(script: str) -> str:
     normalized = normalize_text(script)
     if not normalized:
@@ -157,8 +175,16 @@ def find_duplicate(candidate: dict[str, Any], channel_videos: list[dict[str, Any
         previous_topic = normalize_text(str(video.get("topic") or ""))
         if topic and previous_topic:
             similarity = SequenceMatcher(None, topic, previous_topic).ratio()
-            if topic == previous_topic or similarity >= 0.84:
-                return {"reason": "duplicate_or_near_duplicate_topic", "similarity": round(similarity, 3),
+            current_topic_tokens = topic_tokens(topic)
+            previous_topic_tokens = topic_tokens(previous_topic)
+            token_overlap = (
+                len(current_topic_tokens & previous_topic_tokens)
+                / max(1, len(current_topic_tokens | previous_topic_tokens))
+            )
+            if topic == previous_topic or similarity >= 0.84 or token_overlap >= 0.68:
+                return {"reason": "duplicate_or_near_duplicate_topic",
+                        "similarity": round(similarity, 3),
+                        "token_overlap": round(token_overlap, 3),
                         "video_id": video.get("video_id"), "title": video.get("title")}
 
         previous_script = normalize_text(str(video.get("script") or ""))
