@@ -81,7 +81,7 @@ def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any
             part="snippet,status", id=",".join(ids[offset:offset + 50]), maxResults=50
         ).execute()
         videos.extend(response.get("items") or [])
-    return [{
+    records = [{
         "video_id": item.get("id"),
         "title": str((item.get("snippet") or {}).get("title") or ""),
         "description": str((item.get("snippet") or {}).get("description") or ""),
@@ -90,6 +90,7 @@ def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any
         "privacy": (item.get("status") or {}).get("privacyStatus"),
         "topic": str((item.get("snippet") or {}).get("title") or ""),
     } for item in videos]
+    return sorted(records, key=lambda row: str(row.get("published_at") or ""))
 
 
 def build_generation_history(local_history: dict[str, Any], channel_videos: list[dict[str, Any]]) -> dict[str, Any]:
