@@ -233,7 +233,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             if render.get("contains_synthetic_visuals"):
                 os.environ["YOUTUBE_CONTAINS_SYNTHETIC_MEDIA"] = "true"
             if not dry_run:
-                require_unique(content, channel_videos)
+                require_unique(content, generation_history.get("recent", channel_videos))
             upload_tags = add_fingerprint_tag(content["tags"], content["script"])
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
