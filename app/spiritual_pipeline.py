@@ -82,7 +82,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
         credits = render.get("pexels_credits") or []
         if credits:
             parts += ["", "تصاویر:", *credits]
-        parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل"]
+        parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت"]
         return "\n".join(x for x in parts if x is not None).strip()[:4900]
     section_words = [max(1, len(section["text"].split())) for section in content["sections"]]
     total = sum(section_words) or 1
@@ -97,7 +97,7 @@ def _description(content: dict[str, Any], render: dict[str, Any], audio_duration
     credits = render.get("pexels_credits") or []
     if credits:
         parts += ["", "تصاویر:", *credits]
-    parts += ["", "#ImamAli110 #The110Path #امام_علی #رشد_فردی #معنویت #توکل #برکت #سواد_مالی"]
+    parts += ["", "#12bamo #BAMO #بامو #رشد_فردی #دانستنی #معنویت #تاریخ #علم"]
     return "\n".join(x for x in parts if x is not None).strip()[:4900]
 
 
