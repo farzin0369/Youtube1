@@ -82,6 +82,11 @@ jobs:
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
       - name: Text model
         run: echo "Text uses free Groq when configured, otherwise anonymous Pollinations; paid gateways and local model services are disabled."
+      - name: Verify all 11-agent provider credentials before production
+        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+        run: |
+          test -n "$GROQ_API_KEY" || { echo "GROQ_API_KEY is required by the pinned BAMO specialist agents."; exit 1; }
+          test -n "$OPENROUTER_API_KEY" || { echo "OPENROUTER_API_KEY is required by the pinned BAMO specialist agents."; exit 1; }
       - name: Verify YouTube credentials before any production work
         if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
         run: |
