@@ -21,7 +21,6 @@ from app.youtube_history import (
     add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
 )
 from app.bamo_editorial_review import review_package
-from app.utils import load_content_policy
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
