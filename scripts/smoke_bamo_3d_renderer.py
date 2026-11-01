@@ -1,49 +1,74 @@
 #!/usr/bin/env python3
-"""CPU smoke test for the production BAMO 3D renderer, audio mux and Persian captions."""
+"""Real Persian-voice CPU smoke test; synthetic tones are deliberately forbidden."""
 from pathlib import Path
-import subprocess
 
 from app.bamo_production_renderer import render_bamo_shorts
 from app.media_qa import validate_render_package
+from app.spiritual_tts import synthesize_with_captions
 
 out = Path("output/bamo-3d-smoke")
 out.mkdir(parents=True, exist_ok=True)
 audio = out / "voice-test.mp3"
 captions = out / "captions.srt"
-subprocess.run([
-    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=18",
-    "-codec:a", "libmp3lame", "-b:a", "128k", str(audio),
-], check=True)
-captions.write_text(
-    "1\n00:00:00,200 --> 00:00:01,200\nیک تصمیم مهم\n\n"
-    "2\n00:00:04,700 --> 00:00:05,700\nدفتر و نوشتن\n\n"
-    "3\n00:00:09,200 --> 00:00:10,200\nطلوع و امید\n\n"
-    "4\n00:00:13,700 --> 00:00:14,700\nاتم و الکترون\n\n"
-    "5\n00:00:15,000 --> 00:00:16,000\nحرکت سه‌بعدی\n\n"
-    "6\n00:00:16,100 --> 00:00:17,200\nهماهنگی صدا و تصویر\n",
-    encoding="utf-8",
-)
 scenes = [
-    {"spoken_text": "یک تصمیم مهم", "visual_query": "two diverging paths", "on_screen_text": "یک تصمیم مهم"},
-    {"spoken_text": "دفتر و نوشتن", "visual_query": "notebook journal", "on_screen_text": "از نو شروع کن"},
-    {"spoken_text": "طلوع و امید", "visual_query": "sunrise light", "on_screen_text": "نور امید"},
-    {"spoken_text": "اتم و الکترون", "visual_query": "atomic orbit", "on_screen_text": "جهان اتم"},
+    {
+        "spoken_text": "تا حالا دیدی یک انتخاب کوچک چطور مسیر زندگی را عوض می‌کند؟",
+        "visual_query": "two diverging cinematic roads",
+        "on_screen_text": "یک انتخاب سرنوشت‌ساز",
+        "mood": "hook",
+    },
+    {
+        "spoken_text": "مغز با تکرار، مسیرهای عصبی را تقویت می‌کند و انجام کار را آسان‌تر می‌سازد.",
+        "visual_query": "glowing neural pathways brain synapses",
+        "on_screen_text": "مغز با تکرار می‌سازد",
+        "mood": "calm",
+    },
+    {
+        "spoken_text": "امروز یک قدم کوچک بردار و ده دقیقه بدون حواس‌پرتی برای هدفت وقت بگذار.",
+        "visual_query": "ascending golden steps cinematic",
+        "on_screen_text": "فقط ده دقیقه",
+        "mood": "reassuring",
+    },
+    {
+        "spoken_text": "همین شروع ساده می‌تواند آغاز تغییری باشد که فردا نتیجه‌اش را می‌بینی.",
+        "visual_query": "radiant sunrise horizon cinematic",
+        "on_screen_text": "تغییر از همین‌جا",
+        "mood": "motivational",
+    },
 ]
-timings = [
-    {"start_seconds": 0.0, "end_seconds": 4.3},
-    {"start_seconds": 4.5, "end_seconds": 8.8},
-    {"start_seconds": 9.0, "end_seconds": 13.3},
-    {"start_seconds": 13.5, "end_seconds": 18.0},
-]
+script = " ".join(scene["spoken_text"] for scene in scenes)
+tts = synthesize_with_captions(script, audio, captions, scenes=scenes)
+if not tts.get("ok") or tts.get("provider") not in {"edge-tts", "elevenlabs"}:
+    raise SystemExit("Real speech synthesis did not complete; no tone fallback is permitted.")
+if not tts.get("voice") or not tts.get("narrator_locked"):
+    raise SystemExit("Persian narrator identity was not verified.")
+if audio.stat().st_size < 10_000:
+    raise SystemExit("Narration audio is unexpectedly small.")
+
 render = render_bamo_shorts(
-    title="BAMO | آزمون موتور سه‌بعدی",
-    thumbnail_text="آزمون موتور سه‌بعدی",
-    audio_path=audio, captions_path=captions, out_dir=out,
-    run_id="cpu-smoke", scenes=scenes, scene_timings=timings,
+    title="BAMO | آزمون واقعی صدای فارسی و موشن سه‌بعدی",
+    thumbnail_text="آزمون واقعی موتور",
+    audio_path=audio,
+    captions_path=captions,
+    out_dir=out,
+    run_id="cpu-smoke-real-voice",
+    scenes=scenes,
+    scene_timings=tts.get("scene_timings") or [],
     hook_overlay=scenes[0]["on_screen_text"],
 )
-qa = validate_render_package(render, audio, video_format="shorts")
-print({"render": render, "qa": qa}, flush=True)
+qa = validate_render_package(render, audio, video_format="shorts", tts_meta=tts)
+evidence = {
+    "tts_provider": tts.get("provider"),
+    "tts_voice": tts.get("voice"),
+    "narration_seconds": tts.get("duration_seconds"),
+    "caption_count": tts.get("caption_count"),
+    "visual_plans": render.get("scene_visual_plans"),
+    "qa": qa,
+}
+(out / "smoke-evidence.json").write_text(
+    __import__("json").dumps(evidence, ensure_ascii=False, indent=2),
+    encoding="utf-8",
+)
+print(evidence, flush=True)
 if not qa.get("ok"):
-    raise SystemExit("3D renderer media QA failed: " + ", ".join(qa.get("errors") or []))
+    raise SystemExit("BAMO real-voice media QA failed: " + ", ".join(qa.get("errors") or []))
