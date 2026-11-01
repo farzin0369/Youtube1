@@ -36,7 +36,7 @@ def _short_package_data():
     ]
     script = " ".join(scene["spoken_text"] for scene in scenes)
     return {
-        "topic": "یک اقدام کوچک پیش از خواب",
+        "topic": "اقدام کوچک پیش از خواب",
         "title": "BAMO | یک اقدام کوچک پیش از خواب",
         "hook": scenes[0]["spoken_text"],
         "description": "یک یادآوری آرام برای شروع از یک قدم کوچک.",
