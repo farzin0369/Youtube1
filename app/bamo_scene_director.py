@@ -22,6 +22,14 @@ def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
          "A connected molecular structure forms from linked 3D nodes; camera travels along bonds."),
         (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math"), "geometry", "sweep",
          "A geometric construction assembles in 3D with a sweeping camera reveal."),
+        (("فکر", "ذهن", "باران", "پنجره", "thinking", "mind", "rain", "window", "decision"), "choice_paths", "sweep",
+         "Two dimensional routes separate and converge as the camera sweeps along the selected direction."),
+        (("دفتر", "نوشتن", "یادداشت", "ژورنال", "notebook", "journal", "writing", "task"), "growth_steps", "tracking",
+         "A sequence of solid steps assembles from a written intention; camera tracks forward."),
+        (("طلوع", "سپیده", "خورشید", "نور", "امید", "sunrise", "sun", "light", "hope", "prayer", "quran", "faith"), "launch", "push_in",
+         "A luminous portal and rising light form a hopeful three-dimensional reveal."),
+        (("کوه", "جنگل", "تاریخ", "باستان", "امپراتوری", "mountain", "forest", "history", "ancient", "empire"), "journey", "tracking",
+         "A dimensional path advances toward a distant horizon; camera follows the route."),
     ]
     for words, motif, camera, description in rules:
         if any(word in text for word in words):
