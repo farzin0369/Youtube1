@@ -385,7 +385,7 @@ def scene_sunrise(gold, blue, dark, frames):
         cloud.location.x += 1.0 if index == 0 else -0.8
         cloud.keyframe_insert(data_path="location", frame=frames)
 
-\ndef main():
+def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
     cfg = json.load(open(config_path, encoding="utf-8"))
