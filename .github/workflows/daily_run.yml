@@ -84,7 +84,7 @@ jobs:
           path: state/
           key: bamo-channel-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            persian-growth-state-
+            bamo-channel-state-
       - name: Initialize state files
         run: |
           mkdir -p state output logs
