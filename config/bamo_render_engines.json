@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "policy": {
+    "single_video_renderer": "hyperframes",
+    "renderer_version": "0.8.225",
+    "ffmpeg_role": "audio_video_mux_and_final_encoding_only",
+    "model_based_video_generation": false,
+    "alternate_renderers": false,
+    "gpu_required": false,
+    "paid_api_required": false,
+    "never_auto_publish": true
+  },
+  "engine": {
+    "name": "HyperFrames",
+    "repository": "https://github.com/heygen-com/hyperframes",
+    "runtime": "Node.js 22+",
+    "render_cli": "npx --yes hyperframes@0.8.225",
+    "output": "1080x1920",
+    "fps": 30,
+    "audio": "scene-locked Persian narration",
+    "captions": "scene-locked VTT"
+  }
+}
