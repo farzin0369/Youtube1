@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 FORMATS = {"short": (720,1280), "vertical": (720,1280), "long": (1280,720), "landscape": (1280,720), "square": (1080,1080)}
-PALETTES = [("#10172a","#b98b43"),("#111827","#3b82a0"),("#1c1424","#bd5964"),("#101d20","#b6a36a"),("#191624","#7d76b8")]
+PALETTES = [("0x10172a","0xb98b43"),("0x111827","0x3b82a0"),("0x1c1424","0xbd5964"),("0x101d20","0xb6a36a"),("0x191624","0x7d76b8")]
 
 def validate_project(project: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(project, dict): raise ValueError("Project must be a JSON object")
