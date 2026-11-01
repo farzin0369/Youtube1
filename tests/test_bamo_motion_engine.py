@@ -1,4 +1,6 @@
-from app.bamo_motion_engine import validate_project
+import pytest
+
+from app.bamo_motion_engine import _render_3d_scene, validate_project
 from app.bamo_scene_director import plan_scene
 
 
@@ -28,3 +30,14 @@ def test_scene_director_selects_topic_matched_3d_motifs_and_camera_moves():
 def test_unmatched_visual_prompt_is_not_claimed_as_verified():
     plan = plan_scene("یک موضوع ناشناخته", "unclassified visual subject")
     assert plan["motif"] == "abstract"
+
+
+
+def test_3d_renderer_fails_closed_when_blender_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.bamo_motion_engine.shutil.which", lambda _name: None)
+    with pytest.raises(RuntimeError, match="Blender is required"):
+        _render_3d_scene(
+            tmp_path / "scene.mp4", 2.0, 720, 1280, 24, 0,
+            "0x10172a", "0xb98b43",
+            {"motif": "atom", "camera": "orbit"},
+        )
