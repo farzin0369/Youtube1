@@ -4,6 +4,7 @@ on:
     branches: ["feat/bamo-hyperframes-engine"]
     paths:
       - "scripts/render_bamo_hyperframes.py"
+      - "scripts/add_bamo_audio.py"
       - "examples/bamo_first_film.json"
       - ".github/workflows/bamo_hyperframes_cpu_render.yml"
   workflow_dispatch:
@@ -38,10 +39,12 @@ jobs:
           npm ci
           npm run lint
           npm test
-      - name: Install CPU render dependencies
+      - name: Install CPU render and voice dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core fonts-noto-extra
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core fonts-noto-extra python3-venv
+          python3 -m venv /tmp/bamo-tts
+          /tmp/bamo-tts/bin/pip install --upgrade pip edge-tts
           node --version
           ffmpeg -version | head -n 2
       - name: Ensure browser runtime
@@ -52,13 +55,22 @@ jobs:
             --brief examples/bamo_first_film.json \
             --output-dir output/bamo/hyperframes \
             --cli-version 0.8.225
-      - name: Verify rendered MP4
+      - name: Add Persian voiceover and timed subtitles
         run: |
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json output/bamo/hyperframes/BAMO-HyperFrames.mp4
+          /tmp/bamo-tts/bin/edge-tts --version
+          /tmp/bamo-tts/bin/python scripts/add_bamo_audio.py \
+            --video output/bamo/hyperframes/BAMO-HyperFrames.mp4 \
+            --brief examples/bamo_first_film.json \
+            --voice fa-IR-FaridNeural --rate +10%
+      - name: Verify final MP4 video and audio
+        run: |
+          ffprobe -v error -show_entries stream=codec_type,codec_name,width,height,r_frame_rate -of json output/bamo/hyperframes/BAMO-HyperFrames.mp4
           ffprobe -v error -show_entries format=duration,size -of json output/bamo/hyperframes/BAMO-HyperFrames.mp4
           test "$(stat -c%s output/bamo/hyperframes/BAMO-HyperFrames.mp4)" -gt 10000
           test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 output/bamo/hyperframes/BAMO-HyperFrames.mp4)" = "1080"
           test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 output/bamo/hyperframes/BAMO-HyperFrames.mp4)" = "1920"
+          test "$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 output/bamo/hyperframes/BAMO-HyperFrames.mp4)" = "aac"
+          test -s output/bamo/hyperframes/BAMO-fa.vtt
       - name: Save review-only video artifact
         uses: actions/upload-artifact@v4
         with:
