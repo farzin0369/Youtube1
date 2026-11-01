@@ -91,7 +91,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
     config = {
         "width": int(width), "height": int(height), "fps": int(fps),
         "frame_count": frame_count, "motif": motif, "camera": camera,
-        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "8")),
+        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "24")),
         "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
         "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
     }
