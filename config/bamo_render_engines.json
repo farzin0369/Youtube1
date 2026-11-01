@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "specialist_first": true,
+    "silent_generic_fallback": false,
+    "ffmpeg_role": "final_encoding_and_audio_video_mux",
+    "optional_engines_are_runtime_detected": true,
+    "never_auto_publish": true
+  },
+  "engines": {
+    "blender": {"repository": "https://github.com/blender/blender", "install": "blender", "genres": ["humor", "comedy", "character_animation", "cinematic", "history", "religion", "philosophy", "sports"]},
+    "manim": {"repository": "https://github.com/ManimCommunity/manim", "install": "manim", "genres": ["mathematics", "geometry", "physics"]},
+    "threejs": {"repository": "https://github.com/mrdoob/three.js", "install": "node", "genres": ["geometry", "physics", "science", "cinematic", "sports", "data"]},
+    "motion_canvas": {"repository": "https://github.com/motion-canvas/motion-canvas", "install": "node", "genres": ["motion_graphics", "infographic", "humor", "history"]},
+    "hyperframes": {"repository": "https://github.com/heygen-com/hyperframes", "install": "npx", "genres": ["compositing", "captions", "overlays", "final_assembly"]},
+    "pyvista": {"repository": "https://github.com/pyvista/pyvista", "install": "python -m pip install pyvista", "genres": ["science", "physics"]},
+    "rdkit": {"repository": "https://github.com/rdkit/rdkit", "install": "conda install -c conda-forge rdkit", "genres": ["chemistry"]}
+  }
+}
