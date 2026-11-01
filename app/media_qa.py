@@ -145,17 +145,22 @@ def validate_render_package(
             except (OSError, UnicodeError) as exc:
                 errors.append("shorts_ass_read_failed: " + type(exc).__name__)
         visual_source = str(render_meta.get("visual_source") or "")
-        scene_match_ok = render_meta.get("scene_query_match") is True or (
-            visual_source == "bamo-cpu-3d-motion"
-            and render_meta.get("scene_visual_alignment_verified") is True
-        )
-        if not scene_match_ok:
-            errors.append("shorts_scene_visual_queries_not_verified")
         publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
+        visual_review = {"ok": False, "errors": ["3d_visual_review_manifest_not_supplied"]}
+        if visual_source == "bamo-cpu-3d-motion":
+            review_path = render_meta.get("visual_review_path")
+            if review_path:
+                from app.bamo_visual_review import validate_visual_review
+                visual_review = validate_visual_review(review_path, expected_scenes=4)
+            checks["human_frame_review"] = visual_review
         publishable_3d = (
             visual_source == "bamo-cpu-3d-motion"
             and render_meta.get("scene_visual_alignment_verified") is True
+            and visual_review.get("ok") is True
         )
+        scene_match_ok = publishable_stock and render_meta.get("scene_query_match") is True or publishable_3d
+        if not scene_match_ok:
+            errors.append("shorts_scene_visual_queries_not_verified")
         test_stills_are_allowed = (
             visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
         )
