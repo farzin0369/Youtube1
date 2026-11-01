@@ -55,9 +55,9 @@ ROUTES = {
     "philosophy": ("blender", "manim", "motion_canvas", "hyperframes"),
     "sports": ("blender", "threejs", "motion_canvas", "hyperframes"),
     "data": ("threejs", "motion_canvas", "hyperframes"),
-    "infographic": ("motion_canvas", "threejs", "hyperframes"),
-    "motion_graphics": ("motion_canvas", "threejs", "hyperframes"),
-    "general": ("blender", "motion_canvas", "hyperframes"),
+    "infographic": ("hyperframes", "motion_canvas", "threejs"),
+    "motion_graphics": ("hyperframes", "motion_canvas", "threejs"),
+    "general": ("hyperframes", "motion_canvas", "blender"),
 }
 
 ALIASES = {
