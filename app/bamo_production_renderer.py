@@ -1,6 +1,7 @@
 """Production adapter for Blender CPU 3D scenes; preview-only until visual approval."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,8 @@ from app.spiritual_video import (
     probe_duration, probe_stream_duration,
 )
 
-PRODUCTION_VISUALS_APPROVED = False  # Enable only after cinematic 3D visual review passes.
+# Approval is opt-in and is never inferred from a successful render.
+PRODUCTION_VISUALS_APPROVED = os.getenv("BAMO_PRODUCTION_VISUALS_APPROVED", "false").lower() == "true"
 
 
 def render_bamo_shorts(
@@ -105,9 +107,13 @@ def render_bamo_shorts(
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    # A motif selection is not proof that rendered pixels semantically match the narration.
-    # Keep this false until frame-level visual review (or a reliable vision QA gate) passes.
-    plans_grounded = False
+    # Keyword matching is not proof. Only a manifest that references the actual
+    # rendered scene frames and records human review can establish alignment.
+    visual_review_path = out_dir / "visual-review.json"
+    from app.bamo_visual_review import validate_visual_review
+    visual_review = validate_visual_review(visual_review_path, expected_scenes=4)
+    plans_grounded = visual_review.get("ok") is True
+    production_approved = PRODUCTION_VISUALS_APPROVED and plans_grounded
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -132,8 +138,10 @@ def render_bamo_shorts(
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
-        "visual_alignment_status": "not_verified_requires_frame_level_review",
-        "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
+        "visual_alignment_status": "human_frame_review_passed" if plans_grounded else "not_verified_requires_frame_level_review",
+        "visual_review_path": str(visual_review_path),
+        "visual_review_evidence": visual_review,
+        "production_visuals_approved": production_approved,
         "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
         "camera_motion": [plan.get("camera") for plan in visual_plans],
