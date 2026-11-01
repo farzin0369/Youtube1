@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -53,10 +54,11 @@ def main() -> int:
     voice = video.with_name("BAMO-voiceover.mp3")
     subtitles = video.with_name("BAMO-fa.vtt")
     output = video.with_name("BAMO-HyperFrames-final.mp4")
+    edge_cli = Path(sys.executable).with_name("edge-tts")
 
     subprocess.run(
         [
-            "edge-tts", "--voice", args.voice, f"--rate={args.rate}",
+            str(edge_cli), "--voice", args.voice, f"--rate={args.rate}",
             "--text", narration, "--write-media", str(voice),
             "--write-subtitles", str(subtitles),
         ],
