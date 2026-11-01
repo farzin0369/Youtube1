@@ -5,9 +5,17 @@ name: Colab CLI GPU cinematic render
 on:
   workflow_dispatch:
   workflow_call:
+  # Run the real Colab render for this integration PR only when its GPU
+  # runner or Wan renderer changes; it never uploads to YouTube.
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/colab_cli_gpu.yml"
+      - "scripts/colab_wan_real_short.py"
 
 jobs:
   render:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feat/eleven-agent-youtube-integration' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
