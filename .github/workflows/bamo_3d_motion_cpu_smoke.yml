@@ -38,6 +38,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
+          BAMO_BLENDER_SAMPLES: "12"
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()
