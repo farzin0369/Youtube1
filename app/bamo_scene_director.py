@@ -20,7 +20,7 @@ def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
          "Scientific orbital geometry with a controlled camera orbit."),
         (("مولکول", "شیمی", "پیوند", "ماده", "molecule", "chemistry"), "molecule", "tracking",
          "A connected molecular structure forms from linked 3D nodes; camera travels along bonds."),
-        (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math"), "geometry", "sweep",
+        (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math", "number", "shape"), "geometry", "sweep",
          "A geometric construction assembles in 3D with a sweeping camera reveal."),
         (("فکر", "ذهن", "باران", "پنجره", "thinking", "mind", "rain", "window", "decision"), "choice_paths", "sweep",
          "Two dimensional routes separate and converge as the camera sweeps along the selected direction."),
