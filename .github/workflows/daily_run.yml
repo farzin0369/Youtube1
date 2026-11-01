@@ -65,7 +65,7 @@ jobs:
       - name: Install FFmpeg and Persian fonts
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
       - name: Restore bounded channel history and reply ledger
         uses: actions/cache@v4
         with:
