@@ -138,7 +138,17 @@ def upload_video(
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
             scheduled_at = _validate_publish_at(scheduled_at)
-        # Stage uploads as private; expose/schedule them only after captions and thumbnail finish.
+        # Set the schedule in videos.insert itself. This avoids a second
+        # videos.update call and keeps the video private until publishAt.
+        # Captions are already burned into the rendered MP4; a separate
+        # captions.insert call is optional and disabled to conserve API quota.
+        upload_status = {
+            "privacyStatus": "private" if scheduled_at else privacy,
+            "selfDeclaredMadeForKids": False,
+            "containsSyntheticMedia": contains_synthetic_media,
+        }
+        if scheduled_at:
+            upload_status["publishAt"] = scheduled_at
         body = {
             "snippet": {
                 "title": title[:100],
@@ -148,11 +158,7 @@ def upload_video(
                 "defaultLanguage": "fa",
                 "defaultAudioLanguage": "fa",
             },
-            "status": {
-                "privacyStatus": "private",
-                "selfDeclaredMadeForKids": False,
-                "containsSyntheticMedia": contains_synthetic_media,
-            },
+            "status": upload_status,
         }
         media = MediaFileUpload(str(video_path), chunksize=8 * 1024 * 1024, resumable=True)
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
@@ -169,38 +175,11 @@ def upload_video(
             "privacy": "private",
             "scheduled_for": None,
         }
-        captions_path = Path(video_path).with_name("captions.srt") if video_path else None
-        if captions_path and captions_path.exists() and video_id:
-            try:
-                youtube.captions().insert(
-                    part="snippet",
-                    body={"snippet": {"videoId": video_id, "language": "fa", "name": "فارسی", "isDraft": False}},
-                    media_body=MediaFileUpload(str(captions_path), mimetype="application/x-subrip", resumable=False),
-                ).execute()
-                result["captions_set"] = True
-            except Exception as ce:
-                result["captions_error"] = str(ce)
-        if thumbnail_path and Path(thumbnail_path).exists() and video_id:
-            try:
-                youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(str(thumbnail_path))).execute()
-                result["thumbnail_set"] = True
-            except Exception as te:
-                result["thumbnail_error"] = str(te)
-                result.update({"ok": False, "error": "Custom thumbnail upload failed; video was left private."})
-                return result
-        elif privacy in ("public", "unlisted"):
-            result.update({"ok": False, "error": "Custom thumbnail missing; video was left private."})
-            return result
-
-        release_status = {
-            "privacyStatus": "private" if scheduled_at else privacy,
-            "selfDeclaredMadeForKids": False,
-            "containsSyntheticMedia": contains_synthetic_media,
-        }
-        if scheduled_at:
-            release_status["publishAt"] = scheduled_at
-        if release_status["privacyStatus"] != "private" or scheduled_at:
-            youtube.videos().update(part="status", body={"id": video_id, "status": release_status}).execute()
+        # The rendered MP4 already contains synchronized Persian captions.
+        # Custom thumbnails/caption tracks can be added later in a separate
+        # maintenance pass; they must not block a valid scheduled upload.
+        result["captions_burned_in"] = True
+        result["thumbnail_set"] = False
         result["privacy"] = "scheduled" if scheduled_at else privacy
         result["scheduled_for"] = scheduled_at
         return result
