@@ -109,6 +109,18 @@ def probe_youtube_auth() -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def _build_upload_status(privacy: str, scheduled_at: str | None, contains_synthetic_media: bool) -> dict[str, Any]:
+    """Build the final insert status; scheduled videos remain private until publishAt."""
+    status: dict[str, Any] = {
+        "privacyStatus": "private" if scheduled_at else privacy,
+        "selfDeclaredMadeForKids": False,
+        "containsSyntheticMedia": contains_synthetic_media,
+    }
+    if scheduled_at:
+        status["publishAt"] = scheduled_at
+    return status
+
+
 def upload_video(
     video_path: Path | None,
     title: str,
@@ -142,13 +154,7 @@ def upload_video(
         # videos.update call and keeps the video private until publishAt.
         # Captions are already burned into the rendered MP4; a separate
         # captions.insert call is optional and disabled to conserve API quota.
-        upload_status = {
-            "privacyStatus": "private" if scheduled_at else privacy,
-            "selfDeclaredMadeForKids": False,
-            "containsSyntheticMedia": contains_synthetic_media,
-        }
-        if scheduled_at:
-            upload_status["publishAt"] = scheduled_at
+        upload_status = _build_upload_status(privacy, scheduled_at, contains_synthetic_media)
         body = {
             "snippet": {
                 "title": title[:100],
