@@ -135,7 +135,7 @@ def validate_render_package(
             visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
         )
         if not publishable_stock and not publishable_3d and not test_stills_are_allowed:
-            errors.append("shorts_visual_source_not_approved")
+            errors.append("shorts_visual_source_not_approved_portrait_stock")
         if test_stills_are_allowed:
             checks["visual_source_note"] = "Four explicitly supplied, scene-matched stills; preview-only and not eligible for upload."
         if render_meta.get("music_ducking") is not True:
