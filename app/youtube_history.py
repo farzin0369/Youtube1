@@ -37,14 +37,14 @@ def add_fingerprint_tag(tags: list[str], script: str) -> list[str]:
     return (clean[:19] + [fingerprint])
 
 
-def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any]]:
+def fetch_recent_channel_videos(*, max_results: int | None = None) -> list[dict[str, Any]]:
     """Read the authenticated channel's own uploads playlist, including private/scheduled uploads.
 
     This is intentionally a hard dependency for production publishing: if the channel
     inventory cannot be read, BAMO must not guess that a topic is new.
     """
-    if not 1 <= max_results <= 200:
-        raise ValueError("max_results must be between 1 and 200")
+    if max_results is not None and max_results < 1:
+        raise ValueError("max_results must be positive when supplied")
     from googleapiclient.discovery import build
     from app.youtube_client import _build_credentials
 
@@ -62,10 +62,11 @@ def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any
 
     ids: list[str] = []
     page_token = None
-    while len(ids) < max_results:
+    while max_results is None or len(ids) < max_results:
+        remaining = 50 if max_results is None else min(50, max_results - len(ids))
         response = youtube.playlistItems().list(
             part="contentDetails", playlistId=uploads_id,
-            maxResults=min(50, max_results - len(ids)), pageToken=page_token,
+            maxResults=remaining, pageToken=page_token,
         ).execute()
         for item in response.get("items") or []:
             video_id = ((item.get("contentDetails") or {}).get("videoId"))
