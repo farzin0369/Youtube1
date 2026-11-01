@@ -16,6 +16,8 @@ def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
          "A dimensional pathway advances toward a visible destination; camera follows it."),
         (("رشد", "پیشرفت", "ساخت", "آینده", "موفق", "growth", "progress", "future"), "growth_steps", "push_in",
          "A rising sequence of solid 3D steps builds upward as the camera cranes forward."),
+        (("مغز", "عصب", "نورون", "سیناپس", "brain", "neural", "neuron", "synapse"), "neural_network", "orbit",
+         "A living neural network forms from linked glowing synapses; the camera dives through the branching connections."),
         (("اتم", "الکترون", "فیزیک", "ذره", "atom", "physics"), "atom", "orbit",
          "Scientific orbital geometry with a controlled camera orbit."),
         (("مولکول", "شیمی", "پیوند", "ماده", "molecule", "chemistry"), "molecule", "tracking",
