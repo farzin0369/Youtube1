@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from app.llm_provider import _chat_completions, generate_text
+from app.llm_provider import _chat_completions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ AGENTS: tuple[tuple[str, str], ...] = (
     ("editor", "Assess exact narration/on-screen-text/visual alignment, subtitle readability, pacing, and technical continuity."),
     ("youtube_seo", "Assess title, description, tags, hashtags, thumbnail text, search intent, and honest packaging."),
     ("retention_analyst", "Assess likely viewer drop-off points, first-second impact, rewatch value, and retention improvements."),
-    ("independent_critic", "Act as a skeptical final reviewer. Find the strongest reason not to publish and identify anything misleading, derivative, unsafe, or low quality."),
+    ("independent_critic", "Act as an independent safety and integrity auditor. Find the strongest reason not to publish, especially unsafe, misleading, fabricated, copied, or policy-violating material."),
 )
 
 _REQUIRED = {"score", "verdict", "critical_issues", "major_issues", "minor_issues", "evidence", "suggestions", "confidence"}
@@ -57,28 +57,36 @@ def _memory_for(agent_id: str, memory_dir: Path) -> str:
         return "No prior specialist memory."
 
 
+def _agent_model_registry() -> dict[str, dict[str, str]]:
+    path = Path(__file__).resolve().parents[1] / "config" / "bamo_agent_models.json"
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    agents = registry.get("agents")
+    if not isinstance(agents, dict) or set(agents) != {agent_id for agent_id, _ in AGENTS}:
+        raise RuntimeError("BAMO agent model registry must define exactly all eleven agents")
+    model_ids = [item.get("model_id") for item in agents.values() if isinstance(item, dict)]
+    if len(model_ids) != len(AGENTS) or len(set(model_ids)) != len(AGENTS):
+        raise RuntimeError("BAMO requires eleven distinct, explicitly pinned model IDs")
+    return agents
+
+
 def _agent_completion(agent_id: str, system: str, prompt: str) -> tuple[str, str]:
-    """Use an explicitly configured per-agent model when supplied; otherwise fallback."""
-    raw_config = (os.getenv("BAMO_AGENT_PROVIDER_CONFIG") or "").strip()
-    if raw_config:
-        try:
-            config = json.loads(raw_config)
-            item = config.get(agent_id) if isinstance(config, dict) else None
-            if isinstance(item, dict) and all(item.get(key) for key in ("base_url", "api_key", "model")):
-                text = _chat_completions(
-                    str(item["base_url"]).rstrip("/"), str(item["api_key"]),
-                    str(item["model"]), system, prompt, max_tokens=900,
-                    temperature=0.15, json_mode=True,
-                    timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
-                )
-                provider = str(item.get("provider") or "custom")
-                return text, f"agent-specific:{provider}:{item['model']}"
-        except Exception as exc:
-            LOGGER.warning("agent-specific provider unavailable for %s (%s); using configured fallback chain", agent_id, type(exc).__name__)
-    return generate_text(
-        system, prompt, max_tokens=900, temperature=0.15, json_mode=True,
+    """Call the agent's pinned model; never silently fall back to a shared model."""
+    registry = _agent_model_registry()
+    item = registry[agent_id]
+    base_url = str(item["base_url"]).rstrip("/")
+    model_id = str(item["model_id"])
+    provider = str(item["provider"])
+    key_env = str(item["key_env"])
+    api_key = (os.getenv(key_env) or "").strip()
+    if not api_key:
+        raise RuntimeError(f"missing required credential {key_env} for agent {agent_id}")
+    raw = _chat_completions(
+        base_url, api_key, model_id, system, prompt, max_tokens=900,
+        temperature=0.15, json_mode=True,
         timeout=float(os.getenv("BAMO_AGENT_TIMEOUT_SECONDS", "90")),
+        max_attempts=1 if provider == "openrouter" else 3,
     )
+    return raw, f"{provider}:{model_id}"
 
 
 def _review_one(agent_id: str, specialty: str, package: dict[str, Any], memory_dir: Path) -> dict[str, Any]:
@@ -179,6 +187,7 @@ def review_with_council(
         "ok": passed, "agents_expected": len(AGENTS), "agents_completed": len(ordered),
         "approvals": approvals, "average_score": average_score,
         "distinct_provider_models_observed": len(distinct_models),
+        "distinct_base_models_observed": len({item["provider_model"].split(\":\", 1)[-1] for item in ordered}),
         "provider_models_observed": distinct_models,
         "independent_reviews": ordered, "agent_errors": errors,
         "critical_issues": critical,
