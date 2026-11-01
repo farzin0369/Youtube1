@@ -4,3 +4,6 @@
 [submodule "integrations/youtube-automation-agent"]
 	path = integrations/youtube-automation-agent
 	url = https://github.com/darkzOGx/youtube-automation-agent.git
+[submodule "vendor/vsim"]
+	path = vendor/vsim
+	url = https://github.com/kunalkushwaha/vsim.git
