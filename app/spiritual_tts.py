@@ -113,6 +113,9 @@ async def _render(
     return events
 
 
+POCKET_TTS_FALLBACK_USED = False
+
+
 def _render_pocket(text: str, audio_path: Path) -> list[dict[str, Any]]:
     """Generate ONNX speech and estimated word boundaries for readable captions.
 
@@ -120,11 +123,17 @@ def _render_pocket(text: str, audio_path: Path) -> list[dict[str, Any]]:
     Word timing is therefore proportional to Persian word length and is
     explicitly reported as estimated rather than true word-boundary data.
     """
+    global POCKET_TTS_FALLBACK_USED
     import soundfile as sf
     from app.pocket_tts_onnx import synthesize_array
 
-    audio, sample_rate = synthesize_array(text, mode="pack")
-    sf.write(str(audio_path), audio, sample_rate, subtype="PCM_16")
+    try:
+        audio, sample_rate = synthesize_array(text, mode="pack")
+        sf.write(str(audio_path), audio, sample_rate, subtype="PCM_16")
+    except Exception as exc:
+        print(f"[spiritual-tts] Pocket TTS failed ({type(exc).__name__}); falling back to Edge TTS.")
+        POCKET_TTS_FALLBACK_USED = True
+        return asyncio.run(_render(text, audio_path))
     duration = len(audio) / float(sample_rate)
     words = list(re.finditer(r"\S+", text))
     if not words:
@@ -322,6 +331,8 @@ def synthesize_with_captions(
     scene_timings: list[dict[str, float]] = []
     delivery_log: list[dict[str, str]] = []
     provider = _provider()
+    global POCKET_TTS_FALLBACK_USED
+    POCKET_TTS_FALLBACK_USED = False
 
     if scenes:
         scene_texts = [re.sub(r"\s+", " ", str(scene.get("spoken_text") or "")).strip() for scene in scenes]
@@ -376,7 +387,9 @@ def synthesize_with_captions(
         if provider == "elevenlabs":
             all_events = _render_elevenlabs(normalized_script, audio_path)
         elif provider == "pocket-tts-onnx":
-            all_events = _render_pocket(normalized_script, audio_path)
+            all_events = _render_pocket(normalized_script, audio_path.with_suffix(".wav"))
+            if POCKET_TTS_FALLBACK_USED:
+                audio_path = audio_path.with_suffix(".wav")
         else:
             all_events = asyncio.run(_render(normalized_script, audio_path))
 
@@ -405,11 +418,11 @@ def synthesize_with_captions(
     return {
         "path": str(audio_path),
         "captions_path": str(captions_path),
-        "provider": provider,
+        "provider": "edge-tts-fallback" if POCKET_TTS_FALLBACK_USED else provider,
         "model": str(env("ELEVENLABS_MODEL_ID") or "eleven_v4") if provider == "elevenlabs" else "edge-tts",
         "voice": _voice(provider),
         "narrator_locked": True,
-        "caption_mode": "estimated word timing (Pocket TTS)" if provider == "pocket-tts-onnx" else "word-boundary phrase captions",
+        "caption_mode": "estimated word timing (Pocket TTS)" if provider == "pocket-tts-onnx" and not POCKET_TTS_FALLBACK_USED else "word-boundary phrase captions",
         "duration_seconds": _duration(audio_path),
         "caption_count": len(cues),
         "scene_timings": scene_timings,
