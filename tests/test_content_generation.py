@@ -193,6 +193,6 @@ def test_content_policy_file_is_valid_yaml():
     from app.utils import load_content_policy
 
     policy = load_content_policy()
-    assert policy["brand"] == "ImamAli110"
-    assert policy["secondary_brand"] == "#The110Path"
+    assert policy["brand"] == "BAMO"
+    assert policy["secondary_brand"] == "#12bamo"
     assert isinstance(policy["rules"], list) and policy["rules"]
