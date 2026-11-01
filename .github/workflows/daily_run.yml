@@ -1,4 +1,4 @@
-name: Persian spiritual channel — daily Shorts
+name: BAMO — automated daily Shorts production and publishing
 
 on:
   # Six daily Tehran publication slots: 07:00, 10:00, 12:00, 15:00, 18:00, 21:00.
@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: persian-spiritual-daily
+  group: bamo-automated-daily
   cancel-in-progress: false
 
 jobs:
@@ -52,7 +52,7 @@ jobs:
       ELEVENLABS_MODEL_ID: ${{ vars.ELEVENLABS_MODEL_ID || 'eleven_v4' }}
       ELEVENLABS_STABILITY: ${{ vars.ELEVENLABS_STABILITY || '0.5' }}
       ELEVENLABS_SIMILARITY: ${{ vars.ELEVENLABS_SIMILARITY || '0.75' }}
-      CHANNEL_BRAND: ImamAli110
+      CHANNEL_BRAND: BAMO
       LOCAL_LLM_MODEL: qwen2.5:7b
       OLLAMA_BASE_URL: http://127.0.0.1:11434
       OLLAMA_TIMEOUT_SECONDS: "600"
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: state/
-          key: persian-growth-state-${{ github.run_id }}-${{ github.run_attempt }}
+          key: bamo-channel-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             persian-growth-state-
       - name: Initialize state files
@@ -119,7 +119,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: persian-spiritual-production-${{ github.run_id }}-${{ github.run_attempt }}
+          name: bamo-production-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/spiritual/
             state/
