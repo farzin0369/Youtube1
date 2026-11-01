@@ -141,6 +141,12 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
                 d.line((projected[a][0:2],projected[b][0:2]),fill=(*glow,220),width=5)
             for x,y,dep,sc in projected:
                 r=max(7,int(sc*.18)); d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,235),outline=(255,255,255,230),width=2)
+        elif motif == "launch":
+            for q in range(4):
+                rr=65+q*38+int(10*math.sin(t*2+q))
+                d.ellipse((cx-rr,cy-rr,cx+rr,cy+rr),outline=(*glow,max(65,210-q*35)),width=3)
+            d.line((cx,cy+100,cx,cy-105),fill=(*glow,245),width=7)
+            d.polygon([(cx,cy-125),(cx-20,cy-90),(cx+20,cy-90)],fill=(*glow,245))
         halo=Image.new("RGBA",(sw,sh),(0,0,0,0)); ImageDraw.Draw(halo).ellipse((cx-135,cy-135,cx+135,cy+135),fill=(*glow,30))
         im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
         im.save(frames/f"{frame:05d}.jpg",quality=88)
