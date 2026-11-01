@@ -108,7 +108,8 @@ jobs:
 
           scene.frame_start = 1
           scene.frame_end = 72
-          scene.render.engine = 'BLENDER_EEVEE_NEXT'
+          available_engines = {item.identifier for item in bpy.types.RenderSettings.bl_rna.properties['engine'].enum_items}
+          scene.render.engine = 'BLENDER_EEVEE_NEXT' if 'BLENDER_EEVEE_NEXT' in available_engines else 'BLENDER_EEVEE'
           scene.render.resolution_x = 480
           scene.render.resolution_y = 854
           scene.render.resolution_percentage = 100
