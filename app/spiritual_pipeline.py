@@ -17,6 +17,9 @@ from app.spiritual_tts import synthesize_with_captions
 from app.spiritual_video import render_video
 from app.utils import OUTPUT_DIR, load_channel_config, save_json, utc_now_iso
 from app.youtube_client import upload_video
+from app.youtube_history import (
+    add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
+)
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
@@ -137,11 +140,22 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
     stage = "history and script generation"
     try:
         history = _load_state(state_path)
+        channel_videos: list[dict[str, Any]] = []
+        if not dry_run:
+            stage = "YouTube channel history and duplicate preflight"
+            channel_videos = fetch_recent_channel_videos(max_results=100)
+            logger.info("YouTube channel inventory loaded videos=%s; remote channel is the source of truth", len(channel_videos))
+            generation_history = build_generation_history(history, channel_videos)
+        else:
+            generation_history = history
         channel_config = load_channel_config()
         content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
         if content_format not in {"shorts", "long"}:
             raise ValueError("config content.production_format must be 'shorts' or 'long'")
-        content = generate_shorts_content(history) if content_format == "shorts" else generate_content(history)
+        content = generate_shorts_content(generation_history) if content_format == "shorts" else generate_content(generation_history)
+        if not dry_run:
+            require_unique(content, channel_videos)
+            logger.info("YouTube duplicate gate passed title=%r", content.get("title"))
         save_json(out_dir / "content.json", content)
         (out_dir / "script.txt").write_text(content["script"], encoding="utf-8")
         logger.info("script passed quality gates title=%r words=%s sections=%s", content["title"], content["word_count"], len(content["sections"]))
@@ -192,9 +206,12 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             logger.info("uploading video mode=%s slot=%s", "private-draft" if upload_private else "scheduled-public", scheduled_at)
             if render.get("contains_synthetic_visuals"):
                 os.environ["YOUTUBE_CONTAINS_SYNTHETIC_MEDIA"] = "true"
+            if not dry_run:
+                require_unique(content, channel_videos)
+            upload_tags = add_fingerprint_tag(content["tags"], content["script"])
             upload = upload_video(
                 video_path=Path(render["video_path"]), title=content["title"],
-                description=description, tags=content["tags"], privacy="private" if upload_private else "public",
+                description=description, tags=upload_tags, privacy="private" if upload_private else "public",
                 thumbnail_path=Path(render["thumbnail_path"]), category_id=category_id,
                 publish_at=scheduled_at,
             )
