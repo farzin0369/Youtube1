@@ -345,7 +345,21 @@ def main():
     scene.render.image_settings.color_mode = "RGB"
     scene.render.filepath = os.path.join(output_dir, "frame_")
     scene.render.film_transparent = False
-    scene.view_settings.view_transform = "AgX"
+    try:
+        scene.view_settings.view_transform = "AgX"
+    except TypeError:
+        scene.view_settings.view_transform = "Filmic"
+    scene.use_nodes = True
+    compositor = scene.node_tree
+    compositor.nodes.clear()
+    render_layers = compositor.nodes.new("CompositorNodeRLayers")
+    glow = compositor.nodes.new("CompositorNodeGlare")
+    glow.glare_type = "FOG_GLOW"
+    glow.threshold = 1.25
+    glow.quality = "HIGH"
+    composite = compositor.nodes.new("CompositorNodeComposite")
+    compositor.links.new(render_layers.outputs["Image"], glow.inputs["Image"])
+    compositor.links.new(glow.outputs["Image"], composite.inputs["Image"])
     scene.render.image_settings.color_depth = "8"
     scene.render.use_file_extension = True
 
