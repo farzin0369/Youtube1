@@ -131,6 +131,9 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent):
                 f"zoompan=z='min(zoom+0.0007,1.08)':d={max(1,round(duration*fps))}:s={width}x{height}:fps={fps},"
                 f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
             cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p",str(clip)]
+            _run(cmd)
+            clips.append(clip)
+            continue
         else:
             _render_3d_scene(clip,duration,width,height,fps,index,bg,accent)
             clips.append(clip)
