@@ -1,9 +1,15 @@
 name: Persian spiritual channel — daily Shorts
 
 on:
-  # Start at exactly 18:00 Tehran (14:30 UTC); generate the next day's 18:00 episode.
+  # Six daily Tehran publication slots: 07:00, 10:00, 12:00, 15:00, 18:00, 21:00.
+  # GitHub schedule uses UTC: 03:30, 06:30, 08:30, 11:30, 14:30, 17:30.
   schedule:
+    - cron: "30 3 * * *"
+    - cron: "30 6 * * *"
+    - cron: "30 8 * * *"
+    - cron: "30 11 * * *"
     - cron: "30 14 * * *"
+    - cron: "30 17 * * *"
   workflow_dispatch:
     inputs:
       publish:
