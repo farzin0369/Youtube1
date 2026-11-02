@@ -2,36 +2,45 @@
 <html data-aspect="9:16">
 <head>
 <meta charset="utf-8">
-<meta name="duration" content="12">
+<meta name="duration" content="20">
+<meta name="aspect" content="9:16">
 <meta name="message" content="BAMO | سفر به سیاه‌چاله">
 <script type="importmap">{"imports":{"three":"/assets/vendor/three.module.min.js"}}</script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a;color:#fff;font-family:system-ui,sans-serif}
 #scene{position:absolute;inset:0;width:100%;height:100%}
 .vignette{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 46%,transparent 25%,rgba(1,2,10,.18) 55%,#02030a 100%);pointer-events:none}
-.top{position:absolute;top:7%;left:7%;right:7%;display:flex;justify-content:space-between;align-items:center;color:#9eb8d9;font-size:2.1vw;letter-spacing:.28em}
+.top{position:absolute;top:7%;left:8%;right:8%;display:flex;justify-content:space-between;align-items:center;color:#9eb8d9;font-size:2.2vh;letter-spacing:.12em}
 .brand{font-weight:800;color:#fff;letter-spacing:.35em}
-.copy{position:absolute;left:8%;right:8%;bottom:11%;text-align:center}
-.kicker{font-size:2.4vw;letter-spacing:.42em;color:#70dcff;font-weight:700;margin-bottom:2.5vh;text-shadow:0 0 18px #1ba9ff}
-h1{font-size:12vw;line-height:.98;margin:0;font-weight:900;letter-spacing:-.055em;text-shadow:0 0 35px rgba(64,169,255,.45)}
-.sub{font-size:4vw;color:#b9cbe1;margin-top:2.4vh;letter-spacing:.02em}
+.copy{position:absolute;left:8%;right:8%;bottom:13%;text-align:center;min-height:28%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.kicker{font-size:2.1vh;letter-spacing:.08em;color:#70dcff;font-weight:800;margin-bottom:2vh;text-shadow:0 0 18px #1ba9ff}
+h1{font-size:7.2vh;line-height:1.08;margin:0;font-weight:900;letter-spacing:-.04em;text-shadow:0 0 35px rgba(64,169,255,.45);max-width:100%}
+.sub{font-size:3.1vh;line-height:1.35;color:#d6e5f7;margin-top:2vh;letter-spacing:0;max-width:95%}
 .rule{height:2px;width:26%;margin:3vh auto;background:linear-gradient(90deg,transparent,#52dfff,transparent);box-shadow:0 0 18px #26bfff}
-.caption{font-size:2.8vw;color:#8fa8c5;letter-spacing:.12em}
+.caption{font-size:1.8vh;color:#8fa8c5;letter-spacing:.08em;margin-top:1.8vh}
 .fade{opacity:0;transform:translateY(24px)}
+.progress{position:absolute;left:8%;right:8%;bottom:6%;height:4px;background:#25334a;border-radius:8px;overflow:hidden}.progress i{display:block;height:100%;width:0;background:#55dfff;box-shadow:0 0 12px #55dfff}
 </style></head>
 <body>
 <canvas id="scene"></canvas><div class="vignette"></div>
-<div class="top"><span class="brand">B A M O</span><span>DEEP SPACE / 001</span></div>
-<div class="copy"><div class="kicker fade" id="kicker">THE EVENT HORIZON</div><h1 class="fade" id="title">سیاه‌چاله</h1><div class="rule fade" id="rule"></div><div class="sub fade" id="sub">جایی که نور هم راه بازگشت ندارد</div><div class="caption fade" id="caption">GRAVITY • SPACE • TIME</div></div>
+<div class="top"><span class="brand">B A M O</span><span>رازهای کیهان</span></div>
+<div class="copy">
+<div class="kicker" id="kicker">یک سؤال عجیب...</div>
+<h1 id="title">اگر نزدیکش شوی؟</h1>
+<div class="rule" id="rule"></div>
+<div class="sub" id="sub">در ۲۰ ثانیه، راز سیاه‌چاله را بفهم</div>
+<div class="caption" id="caption">BAMO • علم در یک دقیقه</div>
+</div>
+<div class="progress"><i id="progress"></i></div>
 <script type="module">
 import * as THREE from 'three';
 import '/core/engine/page-api.js';
 const canvas=document.querySelector('#scene');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
-renderer.setPixelRatio(1);renderer.setSize(1080,1920,false);renderer.setClearColor(0x02030a,1);
+renderer.setPixelRatio(1);renderer.setSize(window.vawe?.width||1080,window.vawe?.height||1920,false);renderer.setClearColor(0x02030a,1);
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x02030a,.035);
-const camera=new THREE.PerspectiveCamera(37,1080/1920,.1,120);camera.position.set(0,2.6,15);
+const W=window.vawe?.width||1080,H=window.vawe?.height||1920;const camera=new THREE.PerspectiveCamera(37,W/H,.1,120);camera.position.set(0,2.6,15);
 scene.add(new THREE.AmbientLight(0x243a68,1.25));
 const key=new THREE.PointLight(0x42aaff,95,40);key.position.set(-5,5,7);scene.add(key);
 const warm=new THREE.PointLight(0xff6b25,65,35);warm.position.set(4,-2,3);scene.add(warm);
@@ -53,16 +62,26 @@ const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffb36b,siz
 const beamGeo=new THREE.CylinderGeometry(.018,.32,9,32,1,true);const beamMat=new THREE.MeshBasicMaterial({color:0x318fff,transparent:true,opacity:.12,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});const beam=new THREE.Mesh(beamGeo,beamMat);beam.position.set(0,.55,0);scene.add(beam);
 function smooth(a,b,x){let t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)}
 window.seek=(t)=>{
- const p=t/12;
+ const p=t/20;
  r1.rotation.z=.25+t*.45;r2.rotation.z=-.2-t*.32;r3.rotation.z=.1+t*.2;dust.rotation.y=t*.5;stars.rotation.y=t*.004;
- const approach=smooth(0,5,t),pull=smooth(5,10,t);
- camera.position.set(Math.sin(t*.24)*(.7+pull*1.1),2.6-approach*.65,15-approach*4.2+pull*1.1);
- camera.lookAt(0,.45,0);camera.fov=37-approach*5;camera.updateProjectionMatrix();
+ const approach=smooth(0,8,t),pull=smooth(10,18,t);
+ camera.position.set(Math.sin(t*.24)*(.7+pull*1.1),2.6-approach*.65,15-approach*3.7+pull*1.0);
+ camera.lookAt(0,.45,0);camera.fov=37-approach*4;camera.updateProjectionMatrix();
  core.scale.setScalar(1+pull*.12);glow.material.opacity=.08+Math.sin(t*2)*.035;
  renderer.render(scene,camera);
- for(const [id,a,b] of [['kicker',.6,11.7],['title',1,11.7],['rule',1.7,11.7],['sub',2,11.7],['caption',2.8,11.7]]){
-  const e=document.getElementById(id),v=smooth(a,a+.8,t)*(1-smooth(b-.55,b,t));e.style.opacity=v;e.style.transform='translateY('+(24*(1-v))+'px)';
- }
+ const beats=[
+  [0,3.2,'یک سؤال عجیب...','اگر به سیاه‌چاله نزدیک شوی؟','پاسخ، عجیب‌تر از تصور توست',''],
+  [3.2,7.1,'راز اول','نور هم خم می‌شود','گرانشِ شدید، مسیر نور را کج می‌کند','نور • گرانش'],
+  [7.1,11.2,'راز دوم','افق رویداد','از این مرز به بعد، حتی نور راه فرار ندارد','مرز بی‌بازگشت'],
+  [11.2,15.4,'راز سوم','زمان کُند می‌شود','از نگاه ناظر دوردست، ساعتِ نزدیک سیاه‌چاله کندتر می‌گذرد','زمان • نسبیت'],
+  [15.4,18.3,'حقیقت مهم','همه‌چیز را نمی‌بلعد!','اگر خورشید هم‌جرمِ خودش سیاه‌چاله می‌شد، مدار زمین تقریباً همان می‌ماند','گرانش از فاصله'],
+  [18.3,20.01,'حالا تو بگو','کدام راز عجیب‌تر بود؟','برای راز بعدی، BAMO را دنبال کن','BAMO']
+ ];
+ let beat=beats.find(b=>t>=b[0]&&t<b[1])||beats[beats.length-1];
+ for(const [id,value] of [['kicker',beat[2]],['title',beat[3]],['sub',beat[4]],['caption',beat[5]]])document.getElementById(id).textContent=value;
+ const local=Math.min(1,(t-beat[0])/(beat[1]-beat[0]));
+ for(const id of ['kicker','title','rule','sub','caption']){const e=document.getElementById(id);e.style.opacity=Math.min(1,local*5,(1-local)*5+0.15);e.style.transform='translateY('+(18*(1-Math.min(1,local*5)))+'px)';}
+ document.getElementById('progress').style.width=(p*100)+'%';
 };
 window.seek(0);
 </script>
