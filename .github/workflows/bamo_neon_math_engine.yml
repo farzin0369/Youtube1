@@ -1,0 +1,51 @@
+name: BAMO Neon Math Motion Engine CPU Test
+
+on:
+  push:
+    branches: ["feat/bamo-neon-math-motion-engine"]
+    paths:
+      - "app/bamo_neon_engine.py"
+      - "scripts/render_bamo_neon.py"
+      - "examples/bamo_neon_math_reference.json"
+      - "tests/test_bamo_neon_engine.py"
+      - ".github/workflows/bamo_neon_math_engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-neon-math-engine
+  cancel-in-progress: false
+
+jobs:
+  cpu-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
+          python -m pip install --upgrade pip
+          python -m pip install Pillow numpy pytest
+      - name: Run engine tests
+        run: python -m pytest tests/test_bamo_neon_engine.py -q
+      - name: Render reference-style math animation
+        run: python scripts/render_bamo_neon.py --project examples/bamo_neon_math_reference.json --output output/BAMO-neon-math-reference.mp4
+      - name: Verify real video stream
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json output/BAMO-neon-math-reference.mp4
+          ffprobe -v error -show_entries format=duration,size -of json output/BAMO-neon-math-reference.mp4
+          test "$(stat -c%s output/BAMO-neon-math-reference.mp4)" -gt 100000
+      - name: Upload rendered MP4 for visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Neon-Math-Reference-${{ github.run_id }}
+          path: output/BAMO-neon-math-reference.mp4
+          retention-days: 7
