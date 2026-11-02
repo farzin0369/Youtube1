@@ -29,3 +29,7 @@ This branch introduces the engine as a separately testable candidate. It does **
 5. Only after those checks should the pipeline select HyperFrames as its production renderer.
 
 This keeps a failed experiment from breaking the current upload pipeline.
+
+## Text-to-video director prompt
+
+The topic-aware storyboard and scene-planning contract is documented in [BAMO_TEXT_TO_VIDEO_DIRECTOR_PROMPT.md](./BAMO_TEXT_TO_VIDEO_DIRECTOR_PROMPT.md). The upstream HyperFrames renderer does not interpret natural-language prompts by itself: the BAMO planning/agent layer must load this file, provide the renderer capability manifest and narration timing, validate the returned JSON scene plan, and translate it into executable compositions. Do not treat the prompt file's presence as proof that runtime integration is complete.
