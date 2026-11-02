@@ -60,11 +60,35 @@ for(let i=0;i<D;i++){let a=rand()*Math.PI*2,rad=2.1+rand()*1.8;dp[i*3]=Math.cos(
 dustGeo.setAttribute('position',new THREE.BufferAttribute(dp,3));
 const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffb36b,size:.035,transparent:true,opacity:.9,blending:THREE.AdditiveBlending}));scene.add(dust);
 const beamGeo=new THREE.CylinderGeometry(.018,.32,9,32,1,true);const beamMat=new THREE.MeshBasicMaterial({color:0x318fff,transparent:true,opacity:.12,side:THREE.DoubleSide,blending:THREE.AdditiveBlending});const beam=new THREE.Mesh(beamGeo,beamMat);beam.position.set(0,.55,0);scene.add(beam);
+const lessonGroup=new THREE.Group();scene.add(lessonGroup);
+const rayCurve=new THREE.CatmullRomCurve3([
+ new THREE.Vector3(-5,1.5,1.2),new THREE.Vector3(-3.2,1.35,.9),
+ new THREE.Vector3(-2.1,2.25,.4),new THREE.Vector3(-1.0,2.6,.1),
+ new THREE.Vector3(0,2.55,0),new THREE.Vector3(1.1,2.15,.1),
+ new THREE.Vector3(2.5,1.15,.5),new THREE.Vector3(4,.7,1)
+]);
+const ray=new THREE.Mesh(new THREE.TubeGeometry(rayCurve,120,.035,8,false),new THREE.MeshBasicMaterial({color:0x6be7ff,transparent:true,opacity:.95,blending:THREE.AdditiveBlending}));lessonGroup.add(ray);
+const horizon=new THREE.Mesh(new THREE.TorusGeometry(1.72,.035,12,180),new THREE.MeshBasicMaterial({color:0x55dfff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending}));horizon.position.copy(core.position);lessonGroup.add(horizon);
+const clockGroup=new THREE.Group();clockGroup.position.set(3.25,2.0,.3);lessonGroup.add(clockGroup);
+const clockFace=new THREE.Mesh(new THREE.CircleGeometry(.85,64),new THREE.MeshBasicMaterial({color:0x071a32,transparent:true,opacity:.85,side:THREE.DoubleSide}));clockGroup.add(clockFace);
+const clockRim=new THREE.Mesh(new THREE.RingGeometry(.84,.91,80),new THREE.MeshBasicMaterial({color:0x7bdfff,side:THREE.DoubleSide}));clockGroup.add(clockRim);
+const handMat=new THREE.MeshBasicMaterial({color:0xffffff});
+const hand1=new THREE.Mesh(new THREE.BoxGeometry(.035,.58,.025),handMat);hand1.position.y=.27;clockGroup.add(hand1);
+const hand2=new THREE.Mesh(new THREE.BoxGeometry(.025,.4,.03),new THREE.MeshBasicMaterial({color:0x5de0ff}));hand2.position.set(.16,.1,.02);hand2.rotation.z=-.85;clockGroup.add(hand2);
+const sun=new THREE.Mesh(new THREE.SphereGeometry(.34,32,24),new THREE.MeshBasicMaterial({color:0xffc15c}));sun.position.set(-3.4,-1.5,.2);lessonGroup.add(sun);
+const earth=new THREE.Mesh(new THREE.SphereGeometry(.16,24,18),new THREE.MeshStandardMaterial({color:0x318dff,roughness:.7}));earth.position.set(-2.2,-1.5,.2);lessonGroup.add(earth);
+const orbit=new THREE.Mesh(new THREE.TorusGeometry(.85,.012,8,100),new THREE.MeshBasicMaterial({color:0x75bfff,transparent:true,opacity:.8}));orbit.position.set(-3.4,-1.5,.2);lessonGroup.add(orbit);
+
 function smooth(a,b,x){let t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)}
 window.seek=(t)=>{
  const p=t/20;
  r1.rotation.z=.25+t*.45;r2.rotation.z=-.2-t*.32;r3.rotation.z=.1+t*.2;dust.rotation.y=t*.5;stars.rotation.y=t*.004;
  const approach=smooth(0,8,t),pull=smooth(10,18,t);
+ ray.visible=t>=3.2&&t<7.1;horizon.visible=t>=7.1&&t<11.2;
+ clockGroup.visible=t>=11.2&&t<15.4;sun.visible=t>=15.4&&t<18.3;earth.visible=t>=15.4&&t<18.3;orbit.visible=t>=15.4&&t<18.3;
+ hand1.rotation.z=-t*.18;hand2.rotation.z=-t*.32;
+ earth.position.set(-3.4+Math.cos(t*1.8)*.85,-1.5+Math.sin(t*1.8)*.85,.2);
+
  camera.position.set(Math.sin(t*.24)*(.7+pull*1.1),2.6-approach*.65,15-approach*3.7+pull*1.0);
  camera.lookAt(0,.45,0);camera.fov=37-approach*4;camera.updateProjectionMatrix();
  core.scale.setScalar(1+pull*.12);glow.material.opacity=.08+Math.sin(t*2)*.035;
