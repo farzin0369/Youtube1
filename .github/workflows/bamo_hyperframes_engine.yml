@@ -46,7 +46,7 @@ jobs:
         run: npx hyperframes render -c ./index.html -o ./output/BAMO-neon-reference.mp4
       - name: Render distinct wave interference MP4
         working-directory: engines/hyperframes
-        run: npx hyperframes render -c ./wave-interference.html -o ./output/BAMO-wave-interference.mp4
+        run: npx hyperframes render -c ./compositions/wave-interference.html -o ./output/BAMO-wave-interference.mp4
       - name: Verify both encoded videos
         working-directory: engines/hyperframes
         run: |
