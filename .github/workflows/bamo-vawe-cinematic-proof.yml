@@ -29,6 +29,17 @@ jobs:
           npm install
           npx puppeteer browsers install chrome
           npx puppeteer --version
+          # Match Vawe's renderer launch flags: Linux CI blocks Chrome's sandbox namespaces.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('harness/dev/doctor.mjs')
+          s = p.read_text()
+          old = "puppeteer.launch({ headless: true })"
+          new = "puppeteer.launch({ headless: true, args: process.platform === 'linux' ? ['--no-sandbox'] : [] })"
+          if old not in s:
+              raise SystemExit('Vawe doctor Chrome launch signature changed; refusing an unsafe patch')
+          p.write_text(s.replace(old, new, 1))
+          PY
           bin/vawe doctor
       - name: Render cinematic 3D sample
         run: |
