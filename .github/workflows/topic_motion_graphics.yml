@@ -1,0 +1,51 @@
+name: BAMO — render a distinct science motion-graphics short
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-visual-review-and-scene-fidelity
+    paths:
+      - scripts/render_olbers_paradox.py
+      - .github/workflows/topic_motion_graphics.yml
+      - app/bamo_production_renderer.py
+      - app/spiritual_tts.py
+
+permissions:
+  contents: read
+
+jobs:
+  render-science-short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TTS_PROVIDER: edge-tts
+      TTS_VOICE: fa-IR-FaridNeural
+      CHANNEL_BRAND: BAMO
+      BAMO_BLENDER_SAMPLES: "16"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "50"
+      BAMO_BLENDER_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+      - name: Render new topic with BAMO CPU 3D engine
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/render_olbers_paradox.py
+      - name: Upload MP4 and production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-olbers-paradox-science-short-${{ github.run_id }}
+          path: output/bamo-olbers-paradox/
+          retention-days: 7
+          if-no-files-found: error
