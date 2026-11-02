@@ -46,9 +46,18 @@ jobs:
           mkdir -p /tmp/vawe/films/bamo-black-hole
           cp engines/vawe-proof/black-hole/page.html /tmp/vawe/films/bamo-black-hole/page.html
           cd /tmp/vawe
-          bin/vawe dev films/bamo-black-hole/page.html --no-judge --fast
+          bin/vawe dev films/bamo-black-hole/page.html --aspect 9:16 --no-judge --fast
           test -s out/bamo-black-hole-draft.mp4
-          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of json out/bamo-black-hole-draft.mp4
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of json out/bamo-black-hole-draft.mp4 | tee /tmp/bamo-video-probe.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open('/tmp/bamo-video-probe.json'))
+          v=next(s for s in p['streams'] if s.get('codec_type')=='video')
+          duration=float(p['format']['duration'])
+          assert v['width'] < v['height'], f"Expected vertical 9:16, got {v['width']}x{v['height']}"
+          assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"
+          print(f"PASS: vertical {v['width']}x{v['height']}, {duration:.2f}s")
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: BAMO-Vawe-Black-Hole-Proof
