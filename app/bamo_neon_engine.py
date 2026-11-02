@@ -168,19 +168,20 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
                 x,y=_point(cx,cy,scale*.92,scale*.92,a,zoom,0)
                 d.line((cx,cy,x,y),fill=(*gold,110),width=1)
         # Bright radial event at the climax, with multi-layer additive glow.
-        if p > .68:
-            burst = min(1.0, (p-.68)/.22)
-            focus = _point(cx, cy, rx*.30, ry*.30, -t*.8, zoom, drift)
-            for k in range(36):
-                a=k*math.tau/36+t*.12
-                length=scale*(.18+.62*burst)
+        if global_p > .68:
+            burst = min(1.0, (global_p-.68)/.22)
+            focus = _point(cx_frame, cy_frame, rx*.30, ry*.30, -t*.8, zoom, drift)
+            for k in range(64):
+                a=k*math.tau/64+t*.12
+                length=scale*(.18+.78*burst)
                 end=(focus[0]+math.cos(a)*length, focus[1]+math.sin(a)*length)
                 d.line((focus,end),fill=(*gold, int(35+130*burst)),width=max(1,w//420))
         # Cumulative trails decay slowly, so motion leaves a luminous memory.
-        trail = Image.blend(trail, fresh, .18)
+        # Keep a persistent afterimage through scene boundaries; decay slowly.
+        trail = Image.blend(trail, fresh, .16)
         frame_img = bg
-        _draw_glow(frame_img, trail, blur=max(12,w//28), gain=2.15)
-        _draw_glow(frame_img, fresh, blur=max(4,w//70), gain=1.45)
+        _draw_glow(frame_img, trail, blur=max(14,w//26), gain=2.45)
+        _draw_glow(frame_img, fresh, blur=max(5,w//62), gain=1.7)
         # Soft vignette.
         mask = Image.new("L", (w,h), 0)
         md = ImageDraw.Draw(mask)
@@ -191,6 +192,7 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
         frame_img.alpha_composite(shade)
         rgb = frame_img.convert("RGB").resize((width,height),Image.Resampling.LANCZOS)
         pipe.stdin.write(rgb.tobytes())
+    return trail
 
 
 def _write_captions(scenes: list[dict[str, Any]], path: Path, width: int, height: int):
@@ -247,8 +249,12 @@ def render_project(project: dict[str, Any], output: str | Path,
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         assert proc.stdin is not None
+        persistent_trail = None
         for i, scene in enumerate(spec["scenes"]):
-            _render_scene(proc, scene, scene["duration"], fps, width, height, i)
+            persistent_trail = _render_scene(
+                proc, scene, scene["duration"], fps, width, height, i,
+                len(spec["scenes"]), persistent_trail,
+            )
         proc.stdin.close()
         stderr = proc.stderr.read().decode("utf-8", errors="replace") if proc.stderr else ""
         code = proc.wait(timeout=1800)
