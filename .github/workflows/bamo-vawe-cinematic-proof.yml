@@ -30,7 +30,7 @@ jobs:
           npm install three
           npx puppeteer browsers install chrome
           npx puppeteer --version
-          bin/vawe-dev doctor
+          bin/vawe doctor
       - name: Render cinematic 3D sample
         run: |
           mkdir -p /tmp/vawe/films/bamo-black-hole
