@@ -47,22 +47,22 @@ jobs:
           cp engines/vawe-proof/black-hole/page.html /tmp/vawe/films/bamo-black-hole/page.html
           cd /tmp/vawe
           bin/vawe dev films/bamo-black-hole/page.html --aspect 9:16 --no-judge --fast
-          test -s out/bamo-black-hole-draft.mp4
-          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of json out/bamo-black-hole-draft.mp4 | tee /tmp/bamo-video-probe.json
+          test -s out/bamo-black-hole-9x16-draft.mp4
+          ffprobe -v error -show_entries format=duration:stream=codec_type,codec_name,width,height,r_frame_rate -of json out/bamo-black-hole-9x16-draft.mp4 | tee /tmp/bamo-video-probe.json
           python3 - <<'PY'
           import json
           p=json.load(open('/tmp/bamo-video-probe.json'))
           v=next(s for s in p['streams'] if s.get('codec_type')=='video')
           duration=float(p['format']['duration'])
           assert v['width'] < v['height'], f"Expected vertical 9:16, got {v['width']}x{v['height']}"
-          assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"
+          assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"\na=next((s for s in p['streams'] if s.get('codec_type')=='audio'), None)\nassert a is not None, 'Expected a mixed audio track'\nassert v['codec_name'] == 'h264', f\"Expected H.264, got {v['codec_name']}\"
           print(f"PASS: vertical {v['width']}x{v['height']}, {duration:.2f}s")
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: BAMO-Vawe-Black-Hole-Proof
           path: |
-            /tmp/vawe/out/bamo-black-hole-draft.mp4
-            /tmp/vawe/out/bamo-black-hole-draft.png
+            /tmp/vawe/out/bamo-black-hole-9x16-draft.mp4
+            /tmp/vawe/out/bamo-black-hole-9x16-draft.png
           if-no-files-found: error
           retention-days: 14
