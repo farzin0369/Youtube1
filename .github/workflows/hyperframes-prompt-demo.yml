@@ -1,0 +1,53 @@
+name: BAMO HyperFrames Prompt Demo
+on:
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'engines/hyperframes/**'
+      - '.github/workflows/hyperframes-prompt-demo.yml'
+  push:
+    branches:
+      - feat/bamo-hyperframes-neon-v2
+    paths:
+      - 'engines/hyperframes/**'
+      - '.github/workflows/hyperframes-prompt-demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-prompt-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: engines/hyperframes
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install HyperFrames
+        run: npm install
+      - name: Lint prompt-directed composition
+        run: npx hyperframes lint ./compositions/spacetime-curvature.html --json
+      - name: Render MP4 on CPU runner
+        run: npx hyperframes render -c ./compositions/spacetime-curvature.html -o ./output/BAMO-spacetime-curvature.mp4
+      - name: Validate MP4
+        run: |
+          test -s output/BAMO-spacetime-curvature.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -show_entries format=duration -of json output/BAMO-spacetime-curvature.mp4
+      - name: Upload rendered video
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-HyperFrames-Prompt-Demo-${{ github.run_id }}
+          path: engines/hyperframes/output/BAMO-spacetime-curvature.mp4
+          if-no-files-found: warn
+          retention-days: 7

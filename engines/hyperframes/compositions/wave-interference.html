@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BAMO Quantum Wave Interference</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02040b}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:radial-gradient(ellipse at 50% 48%,#10132d 0%,#050817 52%,#01030a 100%);color:#fff;font-family:Arial,sans-serif}
+svg{position:absolute;inset:0;width:100%;height:100%}
+.hud{position:absolute;top:7%;left:7%;right:7%;text-align:center;font-size:35px;line-height:1.8;font-weight:700;text-shadow:0 0 18px #66eaff}
+.sub{position:absolute;top:17%;left:8%;right:8%;text-align:center;font-size:23px;color:#b7c9ed;line-height:1.7}
+.brand{position:absolute;bottom:5%;left:0;right:0;text-align:center;letter-spacing:8px;font-size:24px;color:#c8eaff;text-shadow:0 0 18px #58dfff}
+</style></head><body>
+<div id="stage" data-composition-id="bamo-wave-interference" data-width="1080" data-height="1920" data-fps="30" data-duration="18">
+<svg viewBox="0 0 1080 1920" role="img" aria-label="Neon scientific visualization of two interfering waves">
+<defs>
+ <radialGradient id="field"><stop stop-color="#5cf5ff" stop-opacity=".85"/><stop offset=".35" stop-color="#775aff" stop-opacity=".35"/><stop offset="1" stop-color="#02040b" stop-opacity="0"/></radialGradient>
+ <filter id="bloom" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <linearGradient id="waveA"><stop stop-color="#ff55c8"/><stop offset="1" stop-color="#ffb35c"/></linearGradient>
+ <linearGradient id="waveB"><stop stop-color="#48eaff"/><stop offset="1" stop-color="#8c6cff"/></linearGradient>
+</defs>
+<g id="scene" transform="translate(540 1030)">
+ <circle cx="0" cy="0" r="390" fill="url(#field)" opacity=".5"/>
+ <g id="ringsA" fill="none" stroke="url(#waveA)" stroke-width="5" filter="url(#bloom)"></g>
+ <g id="ringsB" fill="none" stroke="url(#waveB)" stroke-width="5" filter="url(#bloom)"></g>
+ <g id="interference" opacity="0" filter="url(#bloom)"></g>
+ <g id="particles"></g>
+ <path id="axis" d="M-430 0 H430 M0 -470 V470" stroke="#8aa4d8" stroke-opacity=".3" stroke-width="2" stroke-dasharray="7 14"/>
+ <circle id="sourceA" cx="-205" cy="0" r="17" fill="#fff" filter="url(#bloom)"/>
+ <circle id="sourceB" cx="205" cy="0" r="17" fill="#fff" filter="url(#bloom)"/>
+ <g id="hotspots" opacity="0"></g>
+</g></svg>
+<div class="hud">وقتی دو موج به هم می‌رسند چه اتفاقی می‌افتد؟</div>
+<div class="sub">تداخل سازنده و ویرانگر؛ از دل حرکت موج‌ها، الگویی تازه پدید می‌آید</div>
+<div class="brand">B A M O • #12bamo</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script>
+(function(){
+ const NS='http://www.w3.org/2000/svg', $=id=>document.getElementById(id);
+ const A=$('ringsA'),B=$('ringsB'),I=$('interference'),P=$('particles'),H=$('hotspots');
+ const circlesA=[],circlesB=[];
+ for(let i=0;i<11;i++){
+  for(const [g,list,cx,color] of [[A,circlesA,-205,'#ff79c9'],[B,circlesB,205,'#66eaff']]){
+   const c=document.createElementNS(NS,'circle');c.setAttribute('cx',cx);c.setAttribute('cy',0);c.setAttribute('r',10+i*31);c.setAttribute('stroke-width',i%3===0?6:3);c.setAttribute('opacity',Math.max(.12,1-i*.075));g.appendChild(c);list.push(c);
+  }
+ }
+ // A dense interference lattice made from animated wavefront intersections.
+ for(let y=-330;y<=330;y+=30){
+  for(let x=-330;x<=330;x+=30){
+   const dA=Math.hypot(x+205,y),dB=Math.hypot(x-205,y);
+   const amp=(Math.cos(dA*.055)+Math.cos(dB*.055))/2;
+   const c=document.createElementNS(NS,'circle');c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',2.4+Math.abs(amp)*4.2);
+   c.setAttribute('fill',amp>0?'#76f5ff':'#ff65c9');c.setAttribute('opacity',.12+Math.abs(amp)*.62);I.appendChild(c);
+  }
+ }
+ for(let i=0;i<80;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('cx',((i*97)%800)-400);c.setAttribute('cy',((i*173)%900)-450);c.setAttribute('r',i%6===0?3:1.4);c.setAttribute('fill','#b5dfff');c.setAttribute('opacity',.5);P.appendChild(c)}
+ for(let i=0;i<9;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('cx',-280+i*70);c.setAttribute('cy',Math.sin(i*1.7)*155);c.setAttribute('r',10+i%3*3);c.setAttribute('fill','#fff');c.setAttribute('filter','url(#bloom)');H.appendChild(c)}
+ const tl=gsap.timeline({paused:true});
+ tl.fromTo('#sourceA,#sourceB',{scale:.2,opacity:0},{scale:1,opacity:1,duration:.8,stagger:.35,ease:'back.out(2)'},0);
+ tl.fromTo(circlesA.concat(circlesB),{attr:{r:8,opacity:0}},{attr:{r:(i,t)=>10+(t%11)*31,opacity:(i,t)=>Math.max(.12,1-(t%11)*.075)},duration:2.6,stagger:.07,ease:'power2.out'},.7);
+ tl.to('#interference',{opacity:1,duration:2.2},4.1);
+ tl.to('#scene',{rotation:7,scale:1.12,duration:4,ease:'sine.inOut'},5);
+ tl.to('#hotspots',{opacity:1,duration:1.5},8);
+ tl.to('#sourceA',{x:-35,duration:2.5,ease:'power2.inOut'},10);
+ tl.to('#sourceB',{x:35,duration:2.5,ease:'power2.inOut'},10);
+ tl.to('#interference',{scale:1.16,transformOrigin:'center',duration:3,ease:'sine.inOut'},11);
+ tl.to('.sub',{opacity:0,duration:.8},15.4);
+ tl.to('.hud',{scale:1.06,duration:1.2,ease:'power2.inOut'},15.5);
+ window.__timelines=window.__timelines||{};window.__timelines['bamo-wave-interference']=tl;
+})();
+</script></body></html>
