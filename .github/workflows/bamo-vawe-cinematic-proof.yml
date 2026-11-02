@@ -59,7 +59,7 @@ jobs:
           assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"
           assert a is not None, 'Expected a mixed audio track'
           assert v['codec_name'] == 'h264', f"Expected H.264, got {v['codec_name']}"
-          print(f"PASS: vertical {v['width']}x{v['height]}, {duration:.2f}s, audio={a['codec_name']}")
+          print('PASS: vertical {}x{}, {:.2f}s, audio={}'.format(v['width'], v['height'], duration, a['codec_name']))
 
           PY
       - uses: actions/upload-artifact@v4
