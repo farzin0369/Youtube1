@@ -18,10 +18,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install system tools
+      - name: Install system tools and Chrome runtime libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 libpangocairo-1.0-0 libpango-1.0-0 libcairo2 libatspi2.0-0 libxshmfence1 libgtk-3-0
       - name: Clone and install Vawe
         run: |
           git clone --depth 1 https://github.com/vawe-hq/vawe.git /tmp/vawe
@@ -29,6 +29,7 @@ jobs:
           npm install
           npm install three
           npx puppeteer browsers install chrome
+          npx puppeteer --version
           bin/vawe doctor
       - name: Render cinematic 3D sample
         run: |
