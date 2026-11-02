@@ -63,11 +63,6 @@ def _run(command: list[str], timeout: int=900) -> None:
     if result.returncode: raise RuntimeError(f"FFmpeg failed ({result.returncode}): {result.stderr[-3000:]}")
 
 
-def _project_3d(x,y,z,angle,zoom,w,h):
-    ca,sa=math.cos(angle),math.sin(angle); xr,zr=x*ca-z*sa,x*sa+z*ca
-    dep=5.8-zr; scale=min(w,h)*.48*zoom/max(1.2,dep)
-    return w*.5+xr*scale,h*.5-y*scale,dep,scale
-
 def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=None):
     """Render a genuine animated Blender scene on CPU; never fall back to 2D primitives."""
     visual_plan = visual_plan or {}
