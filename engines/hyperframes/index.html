@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BAMO Neon Geometry Reference</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030611}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:radial-gradient(ellipse at 50% 48%,#101a37 0%,#060b1d 48%,#02040c 100%);color:#fff;font-family:Arial,sans-serif}
+svg{position:absolute;inset:0;width:100%;height:100%}.glow{filter:url(#bloom)}.thin{filter:url(#soft)}
+.caption{position:absolute;top:7%;left:7%;right:7%;text-align:center;font-size:38px;line-height:1.7;font-weight:700;text-shadow:0 0 16px #62eaff,0 2px 5px #000}
+.brand{position:absolute;bottom:5%;left:0;right:0;text-align:center;letter-spacing:8px;font-size:24px;color:#b8dfff;text-shadow:0 0 18px #62eaff}
+</style></head><body>
+<div id="stage" data-composition-id="bamo-neon-reference" data-width="1080" data-height="1920" data-fps="30" data-duration="12">
+<svg viewBox="0 0 1080 1920" role="img" aria-label="Animated neon mathematical geometry">
+<defs>
+<filter id="bloom" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="15" result="blur"/><feColorMatrix in="blur" type="saturate" values="2"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<radialGradient id="core"><stop stop-color="#fff"/><stop offset=".18" stop-color="#69f4ff"/><stop offset="1" stop-color="#8b43ff" stop-opacity="0"/></radialGradient>
+<linearGradient id="spectrum"><stop stop-color="#ffb34d"/><stop offset=".35" stop-color="#ff4cc8"/><stop offset=".68" stop-color="#7d65ff"/><stop offset="1" stop-color="#48efff"/></linearGradient>
+</defs>
+<g id="world" transform="translate(540 960)">
+<ellipse id="outer" cx="0" cy="0" rx="250" ry="430" fill="none" stroke="#55eaff" stroke-width="5" opacity=".95" class="glow"/>
+<ellipse cx="0" cy="0" rx="205" ry="350" fill="none" stroke="#8b63ff" stroke-width="2" opacity=".35" class="thin"/>
+<ellipse cx="0" cy="0" rx="160" ry="275" fill="none" stroke="#55eaff" stroke-width="2" opacity=".22"/>
+<g id="chords" class="glow" stroke="#9d79ff" stroke-width="2" opacity="0"><path d="M0,-390 L150,280 L-210,-120 L210,-120 L-150,280 Z" fill="none"/><path d="M-150,-280 L190,0 L-150,280 L150,0 Z" fill="none"/><path d="M0,-390 L0,390 M-210,-120 L210,120 M210,-120 L-210,120" fill="none" stroke="#59edff" opacity=".8"/></g>
+<g id="particles" class="glow"></g><g id="rays" stroke="url(#spectrum)" stroke-width="3" opacity="0" class="glow"></g>
+<ellipse id="rainbow" cx="0" cy="205" rx="155" ry="62" fill="none" stroke="url(#spectrum)" stroke-width="18" opacity="0" class="glow"/>
+<circle id="nucleus" cx="0" cy="0" r="68" fill="url(#core)" opacity="0"/>
+</g><g id="dust" opacity=".65" fill="#a5dfff"></g></svg>
+<div class="caption">از حرکت یک نقطه، چگونه یک جهان هندسی ساخته می‌شود؟</div><div class="brand">B A M O • #12bamo</div></div>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script>
+(function(){
+const NS='http://www.w3.org/2000/svg', byId=function(id){return document.getElementById(id)};
+const particles=byId('particles'),rays=byId('rays'),dust=byId('dust'),nodes=[];
+for(let i=0;i<14;i++){const a=i*Math.PI*2/14,x=Math.cos(a)*205,y=Math.sin(a)*350,c=document.createElementNS(NS,'circle');c.setAttribute('r',i%3===0?11:7);c.setAttribute('fill',i%3===0?'#fff':i%3===1?'#59edff':'#bd78ff');c.setAttribute('cx',x);c.setAttribute('cy',y);particles.appendChild(c);nodes.push(c)}
+for(let i=0;i<72;i++){const a=i*Math.PI*2/72,l=170+(i%5)*34,p=document.createElementNS(NS,'path');p.setAttribute('d','M0 0 L'+(Math.cos(a)*l)+' '+(Math.sin(a)*l));rays.appendChild(p)}
+for(let i=0;i<110;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('cx',((i*137)%1000)-500);c.setAttribute('cy',((i*251)%1700)-850);c.setAttribute('r',i%7===0?2.5:1.2);dust.appendChild(c)}
+const tl=gsap.timeline({paused:true});
+tl.fromTo('#outer',{attr:{'stroke-dasharray':'0 2200'}},{attr:{'stroke-dasharray':'2200 0'},duration:2,ease:'power2.out'},0);
+tl.fromTo(nodes,{scale:.2,transformOrigin:'center'},{scale:1,duration:.7,stagger:.08,ease:'back.out(2)'},.5);
+tl.to('#chords',{opacity:.88,duration:1.5},2.3);
+tl.to('#world',{rotation:18,duration:4,ease:'sine.inOut'},2.5);
+tl.to(nodes,{attr:{r:12},duration:1,stagger:.04,yoyo:true,repeat:2},3);
+tl.to('#rainbow',{opacity:1,attr:{rx:210,ry:90},duration:2,ease:'power2.inOut'},6);
+tl.to('#rays',{opacity:.9,duration:1.2},7.3);
+tl.fromTo('#nucleus',{opacity:0,scale:.2},{opacity:1,scale:1.8,duration:1.8,ease:'power3.out'},8.5);
+tl.to('#world',{scale:1.16,duration:2,ease:'power2.inOut'},9);
+tl.to('.caption',{opacity:0,duration:.5},10.8);
+window.__timelines=window.__timelines||{};window.__timelines['bamo-neon-reference']=tl;
+})();
+</script></body></html>
