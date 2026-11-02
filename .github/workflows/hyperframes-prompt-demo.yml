@@ -1,5 +1,11 @@
 name: BAMO HyperFrames Prompt Demo
 on:
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'engines/hyperframes/**'
+      - '.github/workflows/hyperframes-prompt-demo.yml'
   push:
     branches:
       - feat/bamo-hyperframes-neon-v2
