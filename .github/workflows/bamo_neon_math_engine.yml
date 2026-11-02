@@ -2,7 +2,7 @@ name: BAMO Neon Math Motion Engine CPU Test
 
 on:
   push:
-    branches: ["feat/bamo-neon-math-motion-engine"]
+    branches: ["feat/bamo-manim-pro-engine"]
     paths:
       - "app/bamo_neon_engine.py"
       - "scripts/render_bamo_neon.py"
@@ -33,7 +33,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
           python -m pip install --upgrade pip
-          python -m pip install Pillow numpy pytest
+          python -m pip install Pillow pytest
       - name: Run engine tests
         run: python -m pytest tests/test_bamo_neon_engine.py -q
       - name: Render reference-style math animation
