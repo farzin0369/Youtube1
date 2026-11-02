@@ -1,0 +1,42 @@
+name: BAMO Manim CPU Engine Test
+
+on:
+  push:
+    branches: ["feat/bamo-manim-pro-engine"]
+    paths:
+      - "requirements-bamo-manim.txt"
+      - "examples/manim_neon_reference.py"
+      - ".github/workflows/bamo-manim-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manim-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev pkg-config
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-bamo-manim.txt
+      - name: Render Manim neon reference on CPU
+        run: |
+          manim --renderer=cairo -ql --format=mp4 --media_dir=media examples/manim_neon_reference.py NeonGeometryReference
+          find media -name '*.mp4' -type f -print
+          test -n "$(find media -name '*.mp4' -type f -print -quit)"
+      - name: Upload rendered prototype
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Manim-Neon-CPU-${{ github.run_id }}
+          path: media/**/*.mp4
+          if-no-files-found: error
+          retention-days: 7
