@@ -1,0 +1,12 @@
+{
+  "name": "bamo-hyperframes-engine",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BAMO neon mathematical motion graphics renderer powered by HyperFrames",
+  "license": "Apache-2.0",
+  "scripts": {
+    "lint:composition": "hyperframes lint ./index.html --json",
+    "render:reference": "hyperframes render -c ./index.html -o ./output/BAMO-neon-reference.mp4"
+  },
+  "devDependencies": { "hyperframes": "0.9.5" }
+}
