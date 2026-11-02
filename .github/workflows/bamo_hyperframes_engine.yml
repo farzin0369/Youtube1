@@ -40,7 +40,7 @@ jobs:
         run: npx hyperframes lint ./index.html --json
       - name: Lint distinct wave interference composition
         working-directory: engines/hyperframes
-        run: npx hyperframes lint ./wave-interference.html --json
+        run: npx hyperframes lint ./compositions/wave-interference.html --json
       - name: Render neon geometry MP4
         working-directory: engines/hyperframes
         run: npx hyperframes render -c ./index.html -o ./output/BAMO-neon-reference.mp4
