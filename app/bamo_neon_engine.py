@@ -75,18 +75,24 @@ def _draw_glow(canvas: Image.Image, layer: Image.Image, blur: int = 18, gain: fl
 
 
 def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
-                  width: int, height: int, scene_index: int):
+                  width: int, height: int, scene_index: int,
+                  total_scenes: int, initial_trail: Image.Image | None = None):
     # Render at 2/3 target dimensions, then let FFmpeg upscale with Lanczos.
     w, h = max(320, width * 2 // 3), max(568, height * 2 // 3)
     cx, cy = w / 2, h / 2
+    trail = initial_trail.copy() if initial_trail is not None else Image.new(
+        "RGBA", (w, h), (0, 0, 0, 0)
+    )
     scale = min(w, h) * .52
     cyan, violet, gold = PALETTES[scene["palette"]]
     motif = scene["motif"]
-    trail = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     total = max(1, round(duration * fps))
     for frame in range(total):
         t = frame / fps
         p = frame / max(1, total - 1)
+        global_p = (scene_index + p) / max(1, total_scenes)
+        cx_frame = cx + math.sin(global_p * math.tau) * w * .018
+        cy_frame = cy + math.cos(global_p * math.tau) * h * .012
         drift = .10 * math.sin(t * .23) + .035 * math.sin(t * .61)
         zoom = 1 + .055 * math.sin(t * .28)
         if scene["camera"] == "push_in":
