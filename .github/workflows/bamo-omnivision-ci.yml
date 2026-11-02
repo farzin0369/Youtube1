@@ -20,9 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run planner tests
+      - name: Run planner and scene graph tests
         working-directory: engines/omnivision
         run: |
           npm test
-          printf 'سیاه‌چاله نور را خم می‌کند. زمان نزدیک افق رویداد کندتر می‌گذرد.\n' | npm run plan > /tmp/plan.json
-          node -e "const p=require('/tmp/plan.json'); if(p.scenes.length!==2) process.exit(1); console.log('PASS: scene plan generated')"
+          printf 'سیاه‌چاله نور را خم می‌کند. زمان نزدیک افق رویداد کندتر می‌گذرد.\n' | node src/cli.mjs > /tmp/plan.json
+          node -e "const p=JSON.parse(require('node:fs').readFileSync('/tmp/plan.json','utf8')); if(p.scenes.length!==2) process.exit(1); console.log('PASS: scene plan generated')"

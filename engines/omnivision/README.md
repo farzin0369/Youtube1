@@ -1,37 +1,18 @@
-# BAMO OMNIVISION Engine
+# BAMO OMNIVISION
 
-A new, isolated foundation for a text-to-cinematic-video system. This branch does not replace the current production pipeline.
+A CPU-friendly text-to-scene compiler foundation for BAMO. It currently produces a deterministic narration-bound scene plan and a validated 3D scene graph; it is **not yet a finished video renderer or an AI semantic model**.
 
-## What exists in v0.1
+## Commands
 
-- A deterministic script-to-scene compiler with topic routing for astronomy, physics, mathematics, chemistry, history, comedy and a general fallback.
-- Scene manifests bind each visual intent to its exact narration segment.
-- Per-scene shot language, camera choreography, lighting intent, motion intent and transition cues.
-- Weighted scene timecodes and machine-checkable planning tests.
-- No paid API, GPU, or third-party runtime is required for the planning layer.
+- `npm test` — planner and scene-graph tests.
+- `npm run plan -- "متن..." ` — JSON scene plan.
+- `node src/graph-cli.mjs "متن..." ` — validated 3D scene graph.
+- Pipe Persian narration through stdin when passing long scripts.
 
-## Important limitation
+## Scene graph contract
 
-This is the **planning/compiler foundation**, not yet a complete generative renderer. The current fallback topic classifier is lexical, not an LLM; music/SFX fields are integration contracts, not generated audio. A real production system still needs:
-1. A pluggable semantic planner (local model first; hosted providers optional).
-2. Asset and procedural-geometry generators with provenance/licensing checks.
-3. A renderer adapter (Three.js/WebGL for procedural 3D; optional Blender for offline CPU rendering).
-4. Persian TTS, phoneme/word alignment, subtitle layout and audio mixing.
-5. Automated visual QA using sampled frames, black-frame/duplicate-shot checks and script-to-shot review.
-6. Human approval gates until quality is demonstrated across unrelated topics.
+Each narration beat carries a verbatim caption, semantic subject intent, environment, material palette, procedural support objects, animated hero transforms, a multi-keyframe camera path, and exact start/end timecodes. Validation rejects timeline gaps, overlaps, missing 3D/camera tracks, and caption mismatches.
 
-## Run
+## Current boundary
 
-```bash
-cd engines/omnivision
-npm test
-echo "سیاه‌چاله نور را خم می‌کند. زمان نزدیک افق رویداد کندتر می‌گذرد." | npm run plan
-```
-
-The CLI writes a JSON scene manifest to stdout. Set `BAMO_PLAN_OUT` to save it.
-
-## Architecture contract
-
-Input script -> semantic analysis -> story beats -> scene graph manifest -> renderer -> voice and audio alignment -> compositing -> quality gates -> export.
-
-Every scene carries its own narration, visual intent, world, subject, camera move, timing and transition. Renderers must reject missing scene subjects and must not silently substitute a generic loop/background.
+The graph is an intermediate representation. A production renderer still must consume it to generate frames, Persian TTS must provide measured word/phoneme timestamps, and a mux stage must align narration, music, SFX and captions before export. Heuristic topic classification is a fallback, not claimed deep semantic understanding.
