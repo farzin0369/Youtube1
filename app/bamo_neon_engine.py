@@ -79,7 +79,7 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
     # Render at 2/3 target dimensions, then let FFmpeg upscale with Lanczos.
     w, h = max(320, width * 2 // 3), max(568, height * 2 // 3)
     cx, cy = w / 2, h / 2
-    scale = min(w, h) * .37
+    scale = min(w, h) * .52
     cyan, violet, gold = PALETTES[scene["palette"]]
     motif = scene["motif"]
     trail = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -102,7 +102,7 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
             stars.ellipse((sx, sy, sx + 1.5, sy + 1.5), fill=(120, 170, 220, 60))
         fresh = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         d = ImageDraw.Draw(fresh, "RGBA")
-        rx, ry = scale * .56, scale * .93
+        rx, ry = scale * .78, scale * 1.05
         # Main luminous ellipse / orbit.
         ellipse_pts = [_point(cx, cy, rx, ry, q * math.tau / 240, zoom, drift)
                        for q in range(241)]
@@ -113,7 +113,7 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
                    for q in range(181)]
             d.line(pts, fill=(*violet, 48), width=1)
         # Moving points and their accumulating trajectories.
-        count = 5 if p < .24 else 9
+        count = 7 if p < .24 else 12
         nodes = []
         for k in range(count):
             phase = t * (.48 + .055*k) + k * math.tau / count
@@ -121,7 +121,7 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
             px, py = _point(cx, cy, rx*.84, ry*.84, a, zoom, drift)
             nodes.append((px, py))
             color = cyan if k % 3 == 0 else (violet if k % 3 == 1 else gold)
-            r = max(3, w // 145)
+            r = max(4, w // 105)
             d.ellipse((px-r*2, py-r*2, px+r*2, py+r*2), fill=(*color, 35))
             d.ellipse((px-r, py-r, px+r, py+r), fill=(*color, 255))
             d.ellipse((px-r*.35, py-r*.35, px+r*.35, py+r*.35), fill=(255,255,255,255))
@@ -179,8 +179,8 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
         # Cumulative trails decay slowly, so motion leaves a luminous memory.
         trail = Image.blend(trail, fresh, .18)
         frame_img = bg
-        _draw_glow(frame_img, trail, blur=max(8,w//45), gain=1.7)
-        _draw_glow(frame_img, fresh, blur=max(3,w//105), gain=1.1)
+        _draw_glow(frame_img, trail, blur=max(12,w//28), gain=2.15)
+        _draw_glow(frame_img, fresh, blur=max(4,w//70), gain=1.45)
         # Soft vignette.
         mask = Image.new("L", (w,h), 0)
         md = ImageDraw.Draw(mask)
@@ -191,6 +191,42 @@ def _render_scene(pipe, scene: dict[str, Any], duration: float, fps: int,
         frame_img.alpha_composite(shade)
         rgb = frame_img.convert("RGB").resize((width,height),Image.Resampling.LANCZOS)
         pipe.stdin.write(rgb.tobytes())
+
+
+def _write_captions(scenes: list[dict[str, Any]], path: Path, width: int, height: int):
+    font = max(30, int(width * .052))
+    brand = max(18, int(width * .026))
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {width}
+PlayResY: {height}
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Noto Naskh Arabic,{font},&H00FFFFFF,&H000000FF,&HCC070B18,&HBB080D1B,1,0,0,0,100,100,0,0,3,10,1,8,48,48,54,1
+Style: Brand,Noto Sans,{brand},&H00D7C8FF,&H000000FF,&HAA050817,&H00000000,1,0,0,0,100,100,1,0,1,2,1,2,20,20,36,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    def stamp(seconds: float) -> str:
+        n = max(0, round(seconds * 100))
+        hh, rem = divmod(n, 360000)
+        mm, rem = divmod(rem, 6000)
+        ss, cc = divmod(rem, 100)
+        return f"{hh}:{mm:02d}:{ss:02d}.{cc:02d}"
+    events = []
+    cursor = 0.0
+    for scene in scenes:
+        end = cursor + scene["duration"]
+        text = scene["text"].replace("\\", r"\\").replace("{", r"\\{").replace("}", r"\\}").replace("\n", r"\\N")
+        if text:
+            events.append(f"Dialogue: 0,{stamp(cursor+.12)},{stamp(end-.12)},Caption,,0,0,0,,{{\\fad(180,180)}}{text}")
+            events.append(f"Dialogue: 1,{stamp(cursor+.12)},{stamp(end-.12)},Brand,,0,0,0,,BAMO  •  #12bamo")
+        cursor = end
+    path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
 
 
 def render_project(project: dict[str, Any], output: str | Path,
@@ -224,10 +260,8 @@ def render_project(project: dict[str, Any], output: str | Path,
         raise
     # Captions are generated from the same scene timeline; audio is muxed without
     # stretching or silently changing narration timing.
-    from app.bamo_motion_engine import _write_ass
-    ass_scenes = [{"duration": s["duration"], "text": s["text"]} for s in spec["scenes"]]
     ass = work / "captions.ass"
-    _write_ass(ass_scenes, ass, width, height)
+    _write_captions(spec["scenes"], ass, width, height)
     final_cmd = ["ffmpeg","-y","-i",str(silent)]
     audio_path = Path(audio).expanduser().resolve() if audio else None
     if audio_path:
