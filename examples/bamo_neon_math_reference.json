@@ -1,0 +1,9 @@
+{
+  "format": "short", "fps": 24,
+  "scenes": [
+    {"duration":8,"motif":"ellipse_mesh","palette":"cyan","camera":"slow_orbit","text":"یک بیضی ساده؛ اما با هندسه‌ای پنهان","narration":"از یک بیضی ساده شروع می‌کنیم؛ شکلی که مسیر حرکت و نسبت‌های دقیق را در خود پنهان کرده است.","visual_brief":"A luminous cyan ellipse appears in a deep navy void. A few golden anchor points begin to orbit."},
+    {"duration":8,"motif":"ellipse_mesh","palette":"violet","camera":"orbit","text":"نقطه‌ها حرکت می‌کنند و مسیر می‌سازند","narration":"نقطه‌ها روی مسیر حرکت می‌کنند و رد نور آن‌ها، شکل تازه‌ای از نظم را آشکار می‌کند.","visual_brief":"Colored particles orbit the ellipse. Their trails accumulate and connect into a sparse geometric web."},
+    {"duration":8,"motif":"ellipse_mesh","palette":"cyan","camera":"push_in","text":"اتصال‌ها؛ از حرکت تا یک شبکه هندسی","narration":"با افزایش اتصال‌ها، خطوطی میان نقطه‌ها شکل می‌گیرد و یک شبکه هندسی زنده پدیدار می‌شود.","visual_brief":"The ellipse fills with precise luminous chords, radial connections and dense mesh lines. Slow cinematic push-in."},
+    {"duration":8,"motif":"ellipse_mesh","palette":"gold","camera":"slow_orbit","text":"وقتی هندسه به نور تبدیل می‌شود","narration":"در اوج حرکت، مسیرها به انفجاری از نور تبدیل می‌شوند؛ هندسه‌ای که دیگر فقط یک شکل نیست.","visual_brief":"A controlled radial bloom expands from the moving focus. Trails remain visible, then the geometry settles."}
+  ]
+}
