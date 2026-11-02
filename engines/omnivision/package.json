@@ -1,0 +1,9 @@
+{
+  "name": "@bamo/omnivision",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BAMO text-to-cinematic-scene compiler",
+  "scripts": { "plan": "node src/cli.mjs", "test": "node --test" },
+  "engines": { "node": ">=20" }
+}

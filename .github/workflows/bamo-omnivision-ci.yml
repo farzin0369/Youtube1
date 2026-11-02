@@ -1,0 +1,28 @@
+name: BAMO OMNIVISION foundation CI
+on:
+  push:
+    branches: [feat/bamo-omnivision-engine]
+    paths:
+      - 'engines/omnivision/**'
+      - '.github/workflows/bamo-omnivision-ci.yml'
+  pull_request:
+    paths:
+      - 'engines/omnivision/**'
+      - '.github/workflows/bamo-omnivision-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  planner-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run planner tests
+        working-directory: engines/omnivision
+        run: |
+          npm test
+          printf 'سیاه‌چاله نور را خم می‌کند. زمان نزدیک افق رویداد کندتر می‌گذرد.\n' | npm run plan > /tmp/plan.json
+          node -e "const p=require('/tmp/plan.json'); if(p.scenes.length!==2) process.exit(1); console.log('PASS: scene plan generated')"
