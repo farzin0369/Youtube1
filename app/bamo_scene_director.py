@@ -9,6 +9,18 @@ from __future__ import annotations
 # Specific visual-query vocabulary is deliberately evaluated before narration.
 # Each entry maps to a real Blender scene builder in scripts/bamo_blender_scene.py.
 VISUAL_RULES = [
+    (("starfield", "night sky", "starry sky", "stars", "stellar", "آسمان شب", "ستاره", "ستارگان"),
+     "starfield", "sweep",
+     "A deep three-dimensional starfield above a curved planetary night horizon, with individually animated stars."),
+    (("olbers", "cosmic shells", "star distribution", "astronomical shells", "پوسته های کیهانی", "پارادوکس اولبرس"),
+     "cosmic_shells", "orbit",
+     "Nested rotating three-dimensional shells populated by stars around a visible observer."),
+    (("expanding spacetime", "expanding space", "redshift", "light rays", "انبساط فضا", "انتقال به سرخ"),
+     "expanding_spacetime", "tracking",
+     "An animated spacetime grid expands while luminous photon paths travel across it."),
+    (("cosmic web", "galaxy clusters", "deep universe", "galaxies", "شبکه کیهانی", "کهکشان"),
+     "cosmic_web", "orbit",
+     "A volumetric cosmic web links glowing galaxy clusters with animated filaments."),
     (("diverging road", "two roads", "forked path", "two paths", "choice path"),
      "choice_paths", "sweep",
      "Two physically distinct roads split in opposite directions; the camera follows the fork."),
