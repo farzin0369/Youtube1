@@ -14,8 +14,8 @@
 .brand{font-weight:800;color:#fff;letter-spacing:.35em}
 .copy{position:absolute;left:8%;right:8%;bottom:13%;text-align:center;min-height:28%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .kicker{font-size:2.1vh;letter-spacing:.08em;color:#70dcff;font-weight:800;margin-bottom:2vh;text-shadow:0 0 18px #1ba9ff}
-h1{font-size:7.2vh;line-height:1.08;margin:0;font-weight:900;letter-spacing:-.04em;text-shadow:0 0 35px rgba(64,169,255,.45);max-width:100%}
-.sub{font-size:3.1vh;line-height:1.35;color:#d6e5f7;margin-top:2vh;letter-spacing:0;max-width:95%}
+h1{font-size:8.4vh;line-height:1.08;margin:0;font-weight:900;letter-spacing:-.04em;text-shadow:0 0 35px rgba(64,169,255,.45);max-width:100%}
+.sub{font-size:3.5vh;line-height:1.35;color:#d6e5f7;margin-top:2vh;letter-spacing:0;max-width:95%}
 .rule{height:2px;width:26%;margin:3vh auto;background:linear-gradient(90deg,transparent,#52dfff,transparent);box-shadow:0 0 18px #26bfff}
 .caption{font-size:1.8vh;color:#8fa8c5;letter-spacing:.08em;margin-top:1.8vh}
 .fade{opacity:0;transform:translateY(24px)}
@@ -82,7 +82,7 @@ const orbit=new THREE.Mesh(new THREE.TorusGeometry(.85,.012,8,100),new THREE.Mes
 function smooth(a,b,x){let t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)}
 window.seek=(t)=>{
  const p=t/20;
- r1.rotation.z=.25+t*.45;r2.rotation.z=-.2-t*.32;r3.rotation.z=.1+t*.2;dust.rotation.y=t*.5;stars.rotation.y=t*.004;
+ r1.rotation.z=.25+t*.45;r2.rotation.z=-.2-t*.32;r3.rotation.z=.1+t*.2;dust.rotation.y=t*.5;stars.rotation.y=t*.004;horizon.rotation.z=t*.42;horizon.scale.setScalar(1+Math.sin(t*3.2)*.055);clockGroup.rotation.z=Math.sin(t*1.8)*.045;ray.material.opacity=.72+.25*Math.sin(t*5);
  const approach=smooth(0,8,t),pull=smooth(10,18,t);
  ray.visible=t>=3.2&&t<7.1;horizon.visible=t>=7.1&&t<11.2;
  clockGroup.visible=t>=11.2&&t<15.4;sun.visible=t>=15.4&&t<18.3;earth.visible=t>=15.4&&t<18.3;orbit.visible=t>=15.4&&t<18.3;
@@ -96,7 +96,7 @@ window.seek=(t)=>{
  const beats=[
   [0,3.2,'یک سؤال عجیب...','اگر به سیاه‌چاله نزدیک شوی؟','پاسخ، عجیب‌تر از تصور توست',''],
   [3.2,7.1,'راز اول','نور هم خم می‌شود','گرانشِ شدید، مسیر نور را کج می‌کند','نور • گرانش'],
-  [7.1,11.2,'راز دوم','افق رویداد','از این مرز به بعد، حتی نور راه فرار ندارد','مرز بی‌بازگشت'],
+  [7.1,8.45,'راز دوم','افق رویداد','از این مرز به بعد، حتی نور راه فرار ندارد','مرز بی‌بازگشت'],\n  [8.45,9.35,'','','',''],\n  [9.35,11.2,'راز دوم','افق رویداد','حتی نور هم نمی‌تواند بازگردد','مرز بی‌بازگشت'],
   [11.2,15.4,'راز سوم','زمان کُند می‌شود','از نگاه ناظر دوردست، ساعتِ نزدیک سیاه‌چاله کندتر می‌گذرد','زمان • نسبیت'],
   [15.4,18.3,'حقیقت مهم','همه‌چیز را نمی‌بلعد!','اگر خورشید هم‌جرمِ خودش سیاه‌چاله می‌شد، مدار زمین تقریباً همان می‌ماند','گرانش از فاصله'],
   [18.3,20.01,'حالا تو بگو','کدام راز عجیب‌تر بود؟','برای راز بعدی، BAMO را دنبال کن','BAMO']
@@ -104,7 +104,7 @@ window.seek=(t)=>{
  let beat=beats.find(b=>t>=b[0]&&t<b[1])||beats[beats.length-1];
  for(const [id,value] of [['kicker',beat[2]],['title',beat[3]],['sub',beat[4]],['caption',beat[5]]])document.getElementById(id).textContent=value;
  const local=Math.min(1,(t-beat[0])/(beat[1]-beat[0]));
- for(const id of ['kicker','title','rule','sub','caption']){const e=document.getElementById(id);e.style.opacity=Math.min(1,local*5,(1-local)*5+0.15);e.style.transform='translateY('+(18*(1-Math.min(1,local*5)))+'px)';}
+ for(const id of ['kicker','title','rule','sub','caption']){const e=document.getElementById(id);const visible=beat[2]!=='';e.style.opacity=visible?Math.min(1,local*5,(1-local)*5+0.15):0;e.style.transform='translateY('+(18*(1-Math.min(1,local*5)))+'px)';}
  document.getElementById('progress').style.width=(p*100)+'%';
 };
 window.seek(0);
