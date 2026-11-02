@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="duration" content="12">
 <meta name="message" content="BAMO | سفر به سیاه‌چاله">
+<script type="importmap">{"imports":{"three":"/assets/vendor/three.module.min.js"}}</script>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02030a;color:#fff;font-family:system-ui,sans-serif}
 #scene{position:absolute;inset:0;width:100%;height:100%}
@@ -23,7 +24,8 @@ h1{font-size:12vw;line-height:.98;margin:0;font-weight:900;letter-spacing:-.055e
 <div class="top"><span class="brand">B A M O</span><span>DEEP SPACE / 001</span></div>
 <div class="copy"><div class="kicker fade" id="kicker">THE EVENT HORIZON</div><h1 class="fade" id="title">سیاه‌چاله</h1><div class="rule fade" id="rule"></div><div class="sub fade" id="sub">جایی که نور هم راه بازگشت ندارد</div><div class="caption fade" id="caption">GRAVITY • SPACE • TIME</div></div>
 <script type="module">
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from 'three';
+import '/core/engine/page-api.js';
 const canvas=document.querySelector('#scene');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
 renderer.setPixelRatio(1);renderer.setSize(1080,1920,false);renderer.setClearColor(0x02030a,1);
@@ -59,12 +61,12 @@ window.seek=(t)=>{
  core.scale.setScalar(1+pull*.12);glow.material.opacity=.08+Math.sin(t*2)*.035;
  renderer.render(scene,camera);
  for(const [id,a,b] of [['kicker',.6,11.7],['title',1,11.7],['rule',1.7,11.7],['sub',2,11.7],['caption',2.8,11.7]]){
-  const e=document.getElementById(id),v=smooth(a,a+.8,t)*(1-smooth(b-.55,b,t));e.style.opacity=v;e.style.transform='translateY('+(24*(1-v))+'px';
+  const e=document.getElementById(id),v=smooth(a,a+.8,t)*(1-smooth(b-.55,b,t));e.style.opacity=v;e.style.transform='translateY('+(24*(1-v))+'px)';
  }
 };
 window.seek(0);
 </script>
-<audio data-synth="low-boom" data-at="0.15" data-gain="-9"></audio>
+<audio data-synth="whoosh" data-at="0.15" data-gain="-9"></audio>
 <audio data-synth="whoosh" data-at="1.0" data-gain="-13"></audio>
 <audio data-synth="chime" data-at="3.0" data-gain="-11"></audio>
 </body></html>
