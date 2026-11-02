@@ -1,0 +1,55 @@
+name: BAMO HyperFrames Neon Engine CPU Validation
+
+on:
+  push:
+    branches: ["feat/bamo-hyperframes-neon-v2"]
+    paths:
+      - "engines/hyperframes/**"
+      - ".github/workflows/bamo_hyperframes_engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: bamo-hyperframes-neon-validation
+  cancel-in-progress: false
+
+jobs:
+  render-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: engines/hyperframes/package.json
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
+      - name: Install HyperFrames
+        working-directory: engines/hyperframes
+        run: npm install
+      - name: Check renderer environment
+        working-directory: engines/hyperframes
+        run: npx hyperframes doctor
+      - name: Lint composition
+        working-directory: engines/hyperframes
+        run: npx hyperframes lint ./index.html --json
+      - name: Render actual neon motion graphics MP4
+        working-directory: engines/hyperframes
+        run: npx hyperframes render -c ./index.html -o ./output/BAMO-neon-reference.mp4
+      - name: Verify encoded video
+        working-directory: engines/hyperframes
+        run: |
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json output/BAMO-neon-reference.mp4
+          ffprobe -v error -show_entries format=duration,size -of json output/BAMO-neon-reference.mp4
+          test "$(stat -c%s output/BAMO-neon-reference.mp4)" -gt 100000
+      - name: Upload MP4 for visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-HyperFrames-Neon-${{ github.run_id }}
+          path: engines/hyperframes/output/BAMO-neon-reference.mp4
+          retention-days: 7
