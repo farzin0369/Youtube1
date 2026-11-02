@@ -53,10 +53,14 @@ jobs:
           import json
           p=json.load(open('/tmp/bamo-video-probe.json'))
           v=next(s for s in p['streams'] if s.get('codec_type')=='video')
+          a=next((s for s in p['streams'] if s.get('codec_type')=='audio'), None)
           duration=float(p['format']['duration'])
           assert v['width'] < v['height'], f"Expected vertical 9:16, got {v['width']}x{v['height']}"
-          assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"\na=next((s for s in p['streams'] if s.get('codec_type')=='audio'), None)\nassert a is not None, 'Expected a mixed audio track'\nassert v['codec_name'] == 'h264', f\"Expected H.264, got {v['codec_name']}\"
-          print(f"PASS: vertical {v['width']}x{v['height']}, {duration:.2f}s")
+          assert abs(duration-20) <= 0.25, f"Expected 20 seconds, got {duration}"
+          assert a is not None, 'Expected a mixed audio track'
+          assert v['codec_name'] == 'h264', f"Expected H.264, got {v['codec_name']}"
+          print(f"PASS: vertical {v['width']}x{v['height]}, {duration:.2f}s, audio={a['codec_name']}")
+
           PY
       - uses: actions/upload-artifact@v4
         with:
