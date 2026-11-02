@@ -35,21 +35,31 @@ jobs:
       - name: Check renderer environment
         working-directory: engines/hyperframes
         run: npx hyperframes doctor
-      - name: Lint composition
+      - name: Lint neon geometry composition
         working-directory: engines/hyperframes
         run: npx hyperframes lint ./index.html --json
-      - name: Render actual neon motion graphics MP4
+      - name: Lint distinct wave interference composition
+        working-directory: engines/hyperframes
+        run: npx hyperframes lint ./wave-interference.html --json
+      - name: Render neon geometry MP4
         working-directory: engines/hyperframes
         run: npx hyperframes render -c ./index.html -o ./output/BAMO-neon-reference.mp4
-      - name: Verify encoded video
+      - name: Render distinct wave interference MP4
+        working-directory: engines/hyperframes
+        run: npx hyperframes render -c ./wave-interference.html -o ./output/BAMO-wave-interference.mp4
+      - name: Verify both encoded videos
         working-directory: engines/hyperframes
         run: |
-          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json output/BAMO-neon-reference.mp4
-          ffprobe -v error -show_entries format=duration,size -of json output/BAMO-neon-reference.mp4
-          test "$(stat -c%s output/BAMO-neon-reference.mp4)" -gt 100000
-      - name: Upload MP4 for visual review
+          for f in output/BAMO-neon-reference.mp4 output/BAMO-wave-interference.mp4; do
+            ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,r_frame_rate -of json "$f"
+            ffprobe -v error -show_entries format=duration,size -of json "$f"
+            test "$(stat -c%s "$f")" -gt 100000
+          done
+      - name: Upload MP4s for visual review
         uses: actions/upload-artifact@v4
         with:
-          name: BAMO-HyperFrames-Neon-${{ github.run_id }}
-          path: engines/hyperframes/output/BAMO-neon-reference.mp4
+          name: BAMO-HyperFrames-Visual-Samples-${{ github.run_id }}
+          path: |
+            engines/hyperframes/output/BAMO-neon-reference.mp4
+            engines/hyperframes/output/BAMO-wave-interference.mp4
           retention-days: 7
