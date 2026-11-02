@@ -27,7 +27,6 @@ jobs:
           git clone --depth 1 https://github.com/vawe-hq/vawe.git /tmp/vawe
           cd /tmp/vawe
           npm install
-          npm install three
           npx puppeteer browsers install chrome
           npx puppeteer --version
           bin/vawe doctor
