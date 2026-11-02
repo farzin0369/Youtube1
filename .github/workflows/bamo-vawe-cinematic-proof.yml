@@ -1,0 +1,48 @@
+name: BAMO Vawe cinematic proof
+on:
+  push:
+    branches: [feat/bamo-vawe-cinematic-proof]
+    paths:
+      - 'engines/vawe-proof/**'
+      - '.github/workflows/bamo-vawe-cinematic-proof.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Clone and install Vawe
+        run: |
+          git clone --depth 1 https://github.com/vawe-hq/vawe.git /tmp/vawe
+          cd /tmp/vawe
+          npm install
+          npm install three
+          npx puppeteer browsers install chrome
+          bin/vawe doctor
+      - name: Render cinematic 3D sample
+        run: |
+          mkdir -p /tmp/vawe/films/bamo-black-hole
+          cp engines/vawe-proof/black-hole/page.html /tmp/vawe/films/bamo-black-hole/page.html
+          cd /tmp/vawe
+          bin/vawe dev films/bamo-black-hole/page.html --no-judge --fast
+          test -s out/bamo-black-hole-draft.mp4
+          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of json out/bamo-black-hole-draft.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Vawe-Black-Hole-Proof
+          path: |
+            /tmp/vawe/out/bamo-black-hole-draft.mp4
+            /tmp/vawe/out/bamo-black-hole-draft.png
+          if-no-files-found: error
+          retention-days: 14
