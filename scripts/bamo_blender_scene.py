@@ -386,6 +386,74 @@ def scene_sunrise(gold, blue, dark, frames):
         cloud.location.x += 1.0 if index == 0 else -0.8
         cloud.keyframe_insert(data_path="location", frame=frames)
 
+
+def scene_starfield(gold, blue, dark, frames):
+    """Dense 3D starfield with a curved planetary horizon and animated stellar parallax."""
+    ground(dark)
+    sphere("Planetary night horizon", (0, 8.5, -7.2), 9.0, material("Blue planet limb", (0.018, 0.055, 0.13), 0.25, 0.42, 0.12))
+    for i in range(180):
+        angle = (i * 2.399963229728653) % math.tau
+        radius = 3.0 + (i % 17) * 0.48
+        z = 1.2 + ((i * 37) % 29) * 0.22
+        star = sphere("Distant star", (math.cos(angle)*radius, 5.0 + (i%11)*0.12, z),
+                      0.025 + (i%5)*0.012, gold if i%7==0 else blue)
+        key_scale(star, (1, frames), (0.7, 1.25 if i%3==0 else 0.9))
+    sphere("Bright foreground star", (-1.2, 2.5, 3.0), 0.16, gold)
+
+
+def scene_cosmic_shells(gold, blue, dark, frames):
+    """Nested 3D shells of stars around an observer, illustrating Olbers' paradox."""
+    sphere("Observer Earth", (0, 0, 1.1), 0.48, blue)
+    for layer, radius in enumerate((1.8, 3.0, 4.3, 5.7)):
+        shell = torus("Cosmic distance shell", (0, 0, 1.1), radius, 0.025, gold if layer%2==0 else blue,
+                      (math.pi/2, 0, 0))
+        shell.keyframe_insert(data_path="rotation_euler", frame=1)
+        shell.rotation_euler.z += math.radians(18 + layer*7)
+        shell.keyframe_insert(data_path="rotation_euler", frame=frames)
+        count = 18 + layer*10
+        for n in range(count):
+            angle = math.tau*n/count
+            star = sphere("Star on cosmic shell",
+                          (radius*math.cos(angle), radius*math.sin(angle), 1.1 + 0.22*math.sin(angle*3)),
+                          0.07 if layer<2 else 0.045, gold if n%4==0 else blue)
+            key_scale(star, (1, frames), (0.65, 1.1))
+
+
+def scene_expanding_spacetime(gold, blue, dark, frames):
+    """Animated expanding spacetime grid with propagating, redshifting light."""
+    for x in range(-5, 6):
+        curve("Spacetime longitudinal grid", [(x*0.72, y, 0.15 + 0.018*x*x) for y in (-5,-2.5,0,2.5,5)],
+              0.018, blue)
+    for y in range(-5, 6):
+        curve("Spacetime transverse grid", [(x, y*0.72, 0.15 + 0.018*y*y) for x in (-5,-2.5,0,2.5,5)],
+              0.018, gold)
+    for i in range(3):
+        ray = curve("Traveling photon path",
+                    [(-4.2, -2+i*2, 0.55+i*0.18), (-1.5, -1+i*2, 1.0+i*0.18),
+                     (1.4, 0.2+i*2, 1.55+i*0.18), (4.3, 1.5+i*2, 2.0+i*0.18)],
+                    0.055, gold if i==0 else blue)
+        ray.keyframe_insert(data_path="scale", frame=1)
+        ray.scale = (1.0, 1.0, 0.72)
+        ray.keyframe_insert(data_path="scale", frame=frames)
+    for i, x in enumerate((-3,0,3)):
+        sphere("Expanding universe marker", (x, 0.2, 0.7+i*0.25), 0.18, gold if i==1 else blue)
+
+
+def scene_cosmic_web(gold, blue, dark, frames):
+    """Volumetric cosmic web of galaxy clusters connected by luminous filaments."""
+    nodes = [(-4,1,1),(-2,3,2),(0,0,1.5),(2,3,2.6),(4,1,1.3),
+             (-3,-2,2.4),(-1,-3,1),(2,-2,2.1),(4,-3,1.4),(0,4,1.1)]
+    edges = [(0,1),(1,2),(2,3),(3,4),(0,5),(5,6),(6,2),(2,7),(7,8),(7,4),(1,9),(9,3),(5,2),(2,8)]
+    for idx,(a,b) in enumerate(edges):
+        curve("Cosmic web filament", [nodes[a],nodes[b]], 0.045, blue if idx%3 else gold)
+    for idx,point in enumerate(nodes):
+        cluster = sphere("Galaxy cluster", point, 0.28 if idx%3 else 0.43, gold if idx%2==0 else blue)
+        key_scale(cluster, (1,frames), (0.85,1.12))
+        for arm in range(3):
+            angle = math.tau*arm/3
+            sphere("Galaxy in cluster", (point[0]+math.cos(angle)*0.55,point[1]+math.sin(angle)*0.55,point[2]+0.18),
+                   0.07, blue if arm%2 else gold)
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
@@ -464,6 +532,14 @@ def main():
         scene_launch(gold, blue, dark, frames)
     elif motif == "sunrise":
         scene_sunrise(gold, blue, dark, frames)
+    elif motif == "starfield":
+        scene_starfield(gold, blue, dark, frames)
+    elif motif == "cosmic_shells":
+        scene_cosmic_shells(gold, blue, dark, frames)
+    elif motif == "expanding_spacetime":
+        scene_expanding_spacetime(gold, blue, dark, frames)
+    elif motif == "cosmic_web":
+        scene_cosmic_web(gold, blue, dark, frames)
     else:
         raise RuntimeError("No cinematic Blender scene builder exists for motif: " + motif)
 
