@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run planner and scene graph tests
+      - name: Run planner, scene graph and audio timeline tests
         working-directory: engines/omnivision
         run: |
           npm test

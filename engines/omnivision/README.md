@@ -16,3 +16,7 @@ Each narration beat carries a verbatim caption, semantic subject intent, environ
 ## Current boundary
 
 The graph is an intermediate representation. A production renderer still must consume it to generate frames, Persian TTS must provide measured word/phoneme timestamps, and a mux stage must align narration, music, SFX and captions before export. Heuristic topic classification is a fallback, not claimed deep semantic understanding.
+
+## Audio-visual timing layer
+
+`src/timeline.mjs` accepts measured word-boundary events from a TTS provider and maps each word to its authored scene. It creates phrase captions and per-word visual emphasis cues on one shared clock. It rejects non-monotonic timestamps, missing word events, scene/audio duration mismatch, and caption timing errors. This layer consumes measured timing; it does not fabricate phoneme alignment.

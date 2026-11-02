@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "BAMO text-to-cinematic-scene compiler",
-  "scripts": { "plan": "node src/cli.mjs", "test": "node --test" },
-  "engines": { "node": ">=20" }
+  "scripts": {
+    "plan": "node src/cli.mjs",
+    "test": "node --test",
+    "timeline": "node src/timeline-cli.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }
