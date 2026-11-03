@@ -232,7 +232,16 @@ def normalize_scene_graph(raw: Any) -> Any:
             elif kind in {"aim", "look_at", "arrow"}:
                 kind = "point_to"
             rel["kind"] = kind
-            rewritten.append(rel)
+            # Local models sometimes refer to a pre-normalized or stale object ID.
+            # Keep the executable graph, but discard only unusable edges; object
+            # validation below remains strict and never invents missing objects.
+            if (
+                rel["from"] in seen
+                and rel["to"] in seen
+                and rel["from"] != rel["to"]
+                and kind in {"connect", "orbit", "point_to"}
+            ):
+                rewritten.append(rel)
         graph["relationships"] = rewritten
     return graph
 
