@@ -42,15 +42,8 @@ SCENES = [
         "mood": "wonder",
     },
 ]
-# Fail fast before TTS/rendering if any authored scene lacks its intended 3D builder.
-from app.bamo_scene_director import plan_scene
-_EXPECTED_MOTIFS = ("starfield", "cosmic_shells", "expanding_spacetime", "cosmic_web")
-for _index, (_scene, _expected) in enumerate(zip(SCENES, _EXPECTED_MOTIFS), start=1):
-    _plan = plan_scene(_scene["spoken_text"], _scene["visual_query"])
-    if _plan.get("motif") != _expected:
-        raise SystemExit(
-            f"Scene {_index} mapped to {_plan.get('motif')!r}; expected {_expected!r}."
-        )
+# The semantic AI director now authors a fresh executable scene graph per
+# narration segment; do not gate the new engine through the legacy finite motif map.
 
 SCRIPT = " ".join(scene["spoken_text"] for scene in SCENES)
 tts = synthesize_with_captions(SCRIPT, AUDIO, CAPTIONS, scenes=SCENES)
