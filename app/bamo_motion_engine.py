@@ -328,8 +328,8 @@ def render_omnivision_pipeline(pipeline: dict[str,Any], output: str|Path) -> Pat
       "wavefront":"science","field-lines":"science","particle-stream":"science","force-vector":"science",
       "parametric-curve":"geometry","coordinate-lattice":"geometry","polyhedron":"geometry","equation-field":"geometry",
       "molecule":"molecule","orbital-cloud":"atom","reaction-vessel":"chemistry","crystal-lattice":"geometry",
-      "monument":"journey","terrain-relief":"journey","artifact":"geometry","city-silhouette":"journey",
-      "hero-character":"abstract","comic-prop":"abstract","reaction-pose":"abstract","stage-set":"abstract"}
+      "monument":"history","terrain-relief":"journey","artifact":"history","city-silhouette":"history",
+      "hero-character":"story","comic-prop":"story","reaction-pose":"story","stage-set":"story"}
     camera_map={"orbit":"orbit","push_in":"push_in","tracking":"tracking","sweep":"sweep"}
     for index,scene in enumerate(graph["scenes"]):
         start=float(scene["start"]); end=float(scene["end"])
