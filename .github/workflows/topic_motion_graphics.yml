@@ -11,6 +11,8 @@ on:
       - app/bamo_production_renderer.py
       - app/bamo_motion_engine.py
       - app/bamo_scene_director.py
+      - app/bamo_ai_director.py
+      - tests/test_bamo_ai_director.py
       - scripts/bamo_blender_scene.py
       - app/spiritual_tts.py
 
@@ -40,6 +42,10 @@ jobs:
           python -m pip install -r requirements.txt
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+      - name: Validate semantic AI director and scene-graph safety
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest -q tests/test_bamo_ai_director.py tests/test_bamo_motion_engine.py tests/test_bamo_scene_director.py
       - name: Render new topic with BAMO CPU 3D engine
         env:
           PYTHONPATH: ${{ github.workspace }}
