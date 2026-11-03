@@ -171,11 +171,15 @@ def direct_scene(*, narration: str, visual_brief: str, overlay: str = "",
     # A separate editorial pass checks the authored composition against the
     # literal sentence before any expensive Blender frames are rendered.
     critique_system = (
-        "You are an independent visual-story editor. Compare narration with the proposed "
-        "3D scene graph. Check literal semantic alignment, explanatory correctness, object "
-        "relationships, visual clarity, and whether the shot communicates the exact sentence. "
+        "You are an independent semantic accuracy editor, not an art director. Compare the "
+        "exact narration with the proposed 3D scene graph. Reject ONLY a factual error, a "
+        "wrong subject, a missing essential mechanism, or a composition that plainly depicts "
+        "a different meaning. Do NOT reject for subjective aesthetic preferences, object size "
+        "preferences, optional realism, camera framing suggestions, or alternative design ideas. "
+        "If the main subject, action and relationships communicate the narration, verdict MUST "
+        "be pass with score >= 85; list optional polish only as non-blocking notes. "
         "Return ONLY JSON: {score: integer 0-100, verdict: 'pass'|'revise', issues: [strings], "
-        "revision_brief: string}. A mismatch in subject or mechanism must be revise."
+        "revision_brief: string}. Only semantic/factual mismatches justify revise."
     )
     critique_prompt = json.dumps({
         "narration_exact": narration, "visual_brief": visual_brief,
