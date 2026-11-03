@@ -65,3 +65,14 @@ def test_director_generates_per_scene_graph(monkeypatch):
     assert plan["semantic_review_score"] == 94
     assert plan["critic_provider"] == "test:critic"
     assert plan["narration_exact"] == "دو منبع انرژی با هم برهم‌کنش دارند"
+
+
+def test_director_rejects_semantic_score_below_prompt_threshold(monkeypatch):
+    response = json.dumps(valid_graph())
+    replies = iter([
+        (response, "test:director"),
+        (json.dumps({"score": 84, "verdict": "pass", "issues": [], "revision_brief": ""}), "test:critic"),
+    ])
+    monkeypatch.setattr("app.bamo_ai_director.generate_text", lambda *a, **k: next(replies))
+    with pytest.raises(ValueError, match="rejected its own semantic composition"):
+        direct_scene(narration="دو منبع انرژی با هم برهم‌کنش دارند", visual_brief="two energy sources interact")
