@@ -120,16 +120,19 @@ def validate_render_package(
             except (OSError, UnicodeError) as exc:
                 errors.append("shorts_ass_read_failed: " + type(exc).__name__)
         visual_source = str(render_meta.get("visual_source") or "")
-        scene_match_ok = render_meta.get("scene_query_match") is True or (
-            visual_source == "bamo-cpu-3d-motion"
-            and render_meta.get("scene_visual_alignment_verified") is True
-        )
+        # A keyword-selected motif is a render plan, not proof that rendered
+        # frames depict the narrated subject. Require independent scene evidence.
+        scene_match_ok = render_meta.get("scene_query_match") is True
+        checks["semantic_alignment"] = {
+            "verified": scene_match_ok,
+            "status": "verified" if scene_match_ok else "not_independently_verified",
+        }
         if not scene_match_ok:
             errors.append("shorts_scene_visual_queries_not_verified")
         publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
         publishable_3d = (
             visual_source == "bamo-cpu-3d-motion"
-            and render_meta.get("scene_visual_alignment_verified") is True
+            and render_meta.get("scene_query_match") is True
         )
         test_stills_are_allowed = (
             visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
