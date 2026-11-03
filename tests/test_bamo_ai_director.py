@@ -42,11 +42,13 @@ def test_scene_graph_rejects_duplicate_ids():
         validate_scene_graph(graph)
 
 
-def test_scene_graph_rejects_relationships_to_missing_objects():
+def test_scene_graph_soft_drops_relationships_to_missing_objects():
+    """Local LLMs often emit stale relationship IDs; drop the edge, keep the graph."""
     graph = valid_graph()
     graph["relationships"][0]["to"] = "missing"
-    with pytest.raises(ValueError, match="invalid objects"):
-        validate_scene_graph(graph)
+    plan = validate_scene_graph(graph)
+    assert plan["relationships"] == []
+    assert len(plan["objects"]) == 3
 
 
 def test_normalize_drops_only_stale_relationship_edges():
