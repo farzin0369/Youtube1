@@ -26,9 +26,9 @@ captions.write_text(
 )
 scenes = [
     {"spoken_text": "یک تصمیم مهم", "visual_query": "two diverging paths", "on_screen_text": "یک تصمیم مهم"},
-    {"spoken_text": "دفتر و نوشتن", "visual_query": "notebook journal", "on_screen_text": "از نو شروع کن"},
-    {"spoken_text": "طلوع و امید", "visual_query": "sunrise light", "on_screen_text": "نور امید"},
-    {"spoken_text": "اتم و الکترون", "visual_query": "atomic orbit", "on_screen_text": "جهان اتم"},
+    {"spoken_text": "پیوند مولکولی", "visual_query": "chemistry molecule bonds", "on_screen_text": "پیوندهای شیمیایی"},
+    {"spoken_text": "هندسه و منحنی", "visual_query": "3D geometry coordinate grid and curve", "on_screen_text": "هندسه در حرکت"},
+    {"spoken_text": "قانون حرکت و نیرو", "visual_query": "physics wavefront and force vectors", "on_screen_text": "نیرو و حرکت"},
 ]
 timings = [
     {"start_seconds": 0.0, "end_seconds": 4.3},
