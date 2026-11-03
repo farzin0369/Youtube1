@@ -52,6 +52,7 @@ export function compileSceneGraph(plan) {
     };
   });
   const duration = scenes.at(-1).end;
+  const pauses = scenes.slice(1).map((scene, i) => ({ start: scenes[i].end, end: scene.start })).filter(p => p.end - p.start > 0.02);
   return { schema:"bamo.scene-graph/1.0", engine:"BAMO OMNIVISION", topic, duration, aspect:plan.input?.aspect || "9:16", fps:30, resolution:{width:1080,height:1920}, audio:{narrationTrack:"external-aligned-track", musicTrack:"optional-score", sfxTrack:"event-cues", masterClock:"scene-timecode"}, scenes, validation:{continuousTimeline:true, captionsVerbatim:true, perSceneUniqueSeed:true} };
 }
 export function validateSceneGraph(graph) {
@@ -60,11 +61,14 @@ export function validateSceneGraph(graph) {
   if(!Array.isArray(graph?.scenes) || !graph.scenes.length) errors.push("missing scenes");
   let cursor=0;
   for(const scene of graph?.scenes || []) {
-    if(Math.abs(scene.start-cursor)>.01) errors.push(`timeline gap/overlap at ${scene.id}`);
+    const gap = scene.start - cursor;
+    if(gap < -.01) errors.push(`timeline overlap at ${scene.id}`);
+    if(gap > .72) errors.push(`unmodelled pause exceeds limit at ${scene.id}`);
     if(scene.end<=scene.start) errors.push(`invalid duration at ${scene.id}`);
     if(scene.overlays?.[0]?.text!==scene.narration) errors.push(`caption mismatch at ${scene.id}`);
     if(!scene.animation?.camera?.length || !scene.objects?.length) errors.push(`missing 3D/camera data at ${scene.id}`);
     cursor=scene.end;
   }
+  if((graph?.pauses||[]).some(p=>p.end<=p.start||p.start<0)) errors.push("invalid explicit pause");
   return {ok:errors.length===0,errors};
 }
