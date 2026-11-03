@@ -19,3 +19,19 @@ def test_atomic_subject_keeps_atomic_visual():
 def test_decision_gets_diverging_paths():
     plan = plan_scene("یک تصمیم مهم", "two diverging paths")
     assert plan["motif"] == "choice_paths"
+
+
+def test_physics_uses_wave_and_force_visuals():
+    assert plan_scene("قانون حرکت و نیرو", "physics force vectors")["motif"] == "physics"
+
+
+def test_chemistry_is_not_misclassified_as_atomic_orbit():
+    assert plan_scene("پیوند مولکولی", "chemistry molecule bonds")["motif"] == "molecule"
+
+
+def test_history_uses_architecture_and_terrain():
+    assert plan_scene("تمدن باستانی", "ancient civilization")["motif"] == "history"
+
+
+def test_story_uses_character_stage_visuals():
+    assert plan_scene("داستان یک قهرمان", "hero character narrative")["motif"] == "story"
