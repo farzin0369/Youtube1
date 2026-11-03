@@ -152,6 +152,10 @@ def add_camera(frames, camera_style):
             start, finish = (-4.5, -11.5, 4.2), (4.2, -8.2, 3.0)
         elif camera_style == "sweep":
             start, finish = (-5.5, -10.5, 5.0), (5.5, -8.8, 3.5)
+        elif camera_style == "crane":
+            start, finish = (0, -12.0, 8.5), (0, -9.0, 3.0)
+        elif camera_style == "static":
+            start, finish = (0, -11.0, 4.5), (0, -11.0, 4.5)
         else:
             raise RuntimeError("Unsupported camera motion: " + camera_style)
         for frame, location, focus in (
@@ -612,6 +616,65 @@ def scene_wave_interference(gold, blue, dark, frames):
     curve("Interference horizontal axis", [(-4.5, 0, 0.18), (4.5, 0, 0.18)], 0.012, blue)
     curve("Interference vertical axis", [(0, -4.5, 0.18), (0, 4.5, 0.18)], 0.012, gold)
 
+def hex_rgb(value):
+    raw = str(value).lstrip("#")
+    return tuple(int(raw[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+
+def scene_from_ai_graph(graph, frames):
+    """Execute a validated semantic scene graph authored by the AI director."""
+    palette = graph["palette"]
+    colors = {"key": hex_rgb(palette["key"]), "accent": hex_rgb(palette["accent"]),
+              "neutral": (0.68, 0.73, 0.82), "dark": (0.025, 0.04, 0.07)}
+    mats = {role: material("AI Director " + role, color, 0.32, 0.3, 0.12 if role in {"key", "accent"} else 0.0)
+            for role, color in colors.items()}
+    objects = {}
+    for item in graph["objects"]:
+        kind, location, scale = item["kind"], tuple(item["position"]), tuple(item["scale"])
+        name = "AI_" + item["id"]
+        if kind == "sphere": bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=24, radius=1, location=location)
+        elif kind == "cube": bpy.ops.mesh.primitive_cube_add(size=1, location=location)
+        elif kind == "cylinder": bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=1, depth=2, location=location)
+        elif kind in {"torus", "ring"}: bpy.ops.mesh.primitive_torus_add(major_segments=64, minor_segments=12, location=location)
+        elif kind == "cone": bpy.ops.mesh.primitive_cone_add(vertices=48, radius1=1, radius2=0.05, depth=2, location=location)
+        elif kind == "icosphere": bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=1, location=location)
+        elif kind == "line":
+            start = Vector(location); finish = start + Vector(scale)
+            objects[item["id"]] = curve(name, [start, finish], 0.025, mats[item["material"]]); continue
+        obj = bpy.context.object; obj.name = name; obj.scale = scale
+        obj.rotation_euler = tuple(item["rotation"]); assign(obj, mats[item["material"]]); smooth(obj)
+        objects[item["id"]] = obj
+        action, amount = item["action"], float(item["action_amount"])
+        base_loc, base_rot = obj.location.copy(), obj.rotation_euler.copy()
+        for frame, factor in ((1, 0.0), (max(2, frames), 1.0)):
+            obj.location = base_loc.copy(); obj.rotation_euler = base_rot.copy(); obj.scale = scale
+            if action == "rise": obj.location.z += amount * factor
+            elif action == "fall": obj.location.z -= amount * factor
+            elif action == "travel_x": obj.location.x += amount * factor
+            elif action == "travel_y": obj.location.y += amount * factor
+            elif action == "rotate": obj.rotation_euler.z += amount * factor
+            elif action == "orbit":
+                angle = amount * factor; radius = max(0.8, abs(amount))
+                obj.location.x += math.cos(angle) * radius - radius; obj.location.y += math.sin(angle) * radius
+            elif action == "pulse":
+                pulse = 1.0 + 0.16 * math.sin(factor * math.pi * 2.0)
+                obj.scale = tuple(component * pulse for component in scale)
+            elif action == "reveal": obj.scale = tuple(max(0.001, component * (0.05 + 0.95 * factor)) for component in scale)
+            obj.keyframe_insert(data_path="location", frame=frame)
+            obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+            obj.keyframe_insert(data_path="scale", frame=frame)
+    for relation in graph.get("relationships", []):
+        a, b = objects[relation["from"]], objects[relation["to"]]
+        start, finish = a.location.copy(), b.location.copy()
+        if relation["kind"] == "orbit":
+            mid = (start + finish) * 0.5; radius = max(0.15, (finish - start).length * 0.5)
+            points = [mid + Vector((math.cos(i * math.tau / 32) * radius, math.sin(i * math.tau / 32) * radius, 0.0)) for i in range(33)]
+            curve("AI relationship orbit", points, 0.018, mats["accent"], cyclic=True)
+        else: curve("AI relationship " + relation["kind"], [start, finish], 0.018, mats["accent"])
+    ground(mats["dark"])
+    return graph.get("camera", {}).get("move", "push_in")
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
@@ -626,6 +689,7 @@ def main():
     frames = max(1, int(cfg["frame_count"]))
     motif = str(cfg["motif"])
     camera_style = str(cfg["camera"])
+    scene_graph = cfg.get("scene_graph")
 
     # Premium dark-stage palette with warm metallic highlights and cool rim light.
     gold = material("BAMO warm gold", (0.82, 0.48, 0.12), 0.72, 0.22, 0.55)
@@ -673,7 +737,10 @@ def main():
     scene.render.use_file_extension = True
 
     lighting((1.0, 0.68, 0.32), (0.18, 0.48, 1.0))
-    if motif == "choice_paths":
+    if motif == "ai_scene":
+        if not isinstance(scene_graph, dict): raise RuntimeError("AI scene graph missing from Blender render config")
+        camera_style = scene_from_ai_graph(scene_graph, frames)
+    elif motif == "choice_paths":
         scene_choice(gold, blue, dark, frames)
     elif motif == "journey":
         scene_journey(gold, blue, dark, frames)
