@@ -93,9 +93,12 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
         zoom=(1+.1*math.sin(t*.65)+.045*math.sin(t*1.4+index)) if camera=='orbit' else (1+.24*t/max(duration,.5) if camera=='push_in' else 1+.12*math.sin(t*1.2))
         im=Image.new("RGB",(sw,sh),tuple(int(v*.72) for v in base))
         d=ImageDraw.Draw(im,"RGBA")
-        for p in range(42):
-            x=(p*83+t*(12+p%5)*(-1 if p%2 else 1))%sw; y=(p*137+t*(8+p%7))%sh; r=1+p%3
-            d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,75))
+        # Star fields belong only to abstract/space scenes; concrete subjects
+        # must not inherit decorative astronomy unrelated to their narration.
+        if motif in ("abstract", "astronomy"):
+            for p in range(42):
+                x=(p*83+t*(12+p%5)*(-1 if p%2 else 1))%sw; y=(p*137+t*(8+p%7))%sh; r=1+p%3
+                d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,75))
         cx,cy,_,_=_project_3d(0,0,0,ang,zoom,sw,sh)
         # Generic cube/orbits are reserved for unknown abstract scenes only.
         # Topic-specific scenes must not inherit unrelated cube imagery.
@@ -209,13 +212,44 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
             for x,y,dep,sc in projected:
                 r=max(7,int(sc*.18)); d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,235),outline=(255,255,255,230),width=2)
         elif motif == "launch":
-            for q in range(4):
-                rr=65+q*38+int(10*math.sin(t*2+q))
-                d.ellipse((cx-rr,cy-rr,cx+rr,cy+rr),outline=(*glow,max(65,210-q*35)),width=3)
-            d.line((cx,cy+100,cx,cy-105),fill=(*glow,245),width=7)
-            d.polygon([(cx,cy-125),(cx-20,cy-90),(cx+20,cy-90)],fill=(*glow,245))
-        halo=Image.new("RGBA",(sw,sh),(0,0,0,0)); ImageDraw.Draw(halo).ellipse((cx-135,cy-135,cx+135,cy+135),fill=(*glow,30))
-        im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
+            # A rising beacon, not a generic orbital diagram.
+            d.line((cx,cy+145,cx,cy-115),fill=(*glow,245),width=7)
+            d.polygon([(cx,cy-145),(cx-22,cy-105),(cx+22,cy-105)],fill=(*glow,245))
+            for q in range(7):
+                yy=cy+115-q*35
+                d.line((cx-34-q*5,yy,cx+34+q*5,yy),fill=(*glow,max(55,210-q*20)),width=2)
+        elif motif == "writing":
+            # Open notebook, visible page split, animated writing line and pen.
+            left=[(70,300),(cx-8,330),(cx-8,610),(70,575)]
+            right=[(cx+8,330),(410,300),(410,575),(cx+8,610)]
+            d.polygon(left,fill=(222,213,185,235),outline=(255,245,215,255))
+            d.polygon(right,fill=(242,235,214,245),outline=(255,245,215,255))
+            d.line((cx,330,cx,610),fill=(95,78,58,230),width=5)
+            progress=min(1.0,t/max(.5,duration))
+            for q in range(7):
+                yy=370+q*29
+                endx= cx-32+int(progress*125)
+                d.line((cx+28,yy,min(390,endx+q*4),yy),fill=(50,78,105,190),width=3)
+            px= cx+95+int(35*math.sin(t*1.3)); py=355+int(45*math.cos(t*1.1))
+            d.line((px,py,px+38,py-48),fill=(205,155,72,255),width=8)
+            d.polygon([(px+38,py-48),(px+47,py-60),(px+31,py-55)],fill=(35,35,42,255))
+        elif motif == "sunrise":
+            # Layered horizon, rising sun and spreading light rays.
+            horizon=cy+110
+            d.rectangle((0,horizon,sw,sh),fill=(15,24,42,255))
+            d.polygon([(0,horizon+75),(95,horizon-12),(180,horizon+50),(285,horizon-25),(sw,horizon+62),(sw,sh),(0,sh)],fill=(28,43,62,255))
+            sun_y=horizon-35-int(65*min(1.0,t/max(.5,duration)))
+            for q in range(12):
+                a=q*math.tau/12+t*.08
+                x1=cx+math.cos(a)*65; y1=sun_y+math.sin(a)*65
+                x2=cx+math.cos(a)*145; y2=sun_y+math.sin(a)*145
+                d.line((x1,y1,x2,y2),fill=(255,205,120,125),width=3)
+            sr=38+int(3*math.sin(t*2))
+            d.ellipse((cx-sr,sun_y-sr,cx+sr,sun_y+sr),fill=(255,207,125,255),outline=(255,240,195,255),width=3)
+        halo=Image.new("RGBA",(sw,sh),(0,0,0,0))
+        if motif in ("abstract", "astronomy", "sunrise"):
+            ImageDraw.Draw(halo).ellipse((cx-135,cy-135,cx+135,cy+135),fill=(*glow,30))
+            im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
         im.save(frames/f"{frame:05d}.jpg",quality=88)
     _run(["ffmpeg","-y","-framerate",str(fps),"-i",str(frames/"%05d.jpg"),"-vf",f"scale={width}:{height}:flags=lanczos,fade=t=in:st=0:d=0.25,fade=t=out:st={max(0,duration-.3):.3f}:d=0.3,format=yuv420p","-t",f"{duration:.3f}","-an","-c:v","libx264","-preset","veryfast","-crf","22","-pix_fmt","yuv420p",str(path)])
 
