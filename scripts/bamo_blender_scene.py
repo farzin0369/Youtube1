@@ -634,15 +634,24 @@ def scene_from_ai_graph(graph, frames):
     palette = graph["palette"]
     world = bpy.context.scene.world
     world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs["Color"].default_value = (*hex_rgb(palette["background"]), 1)
+    background = world.node_tree.nodes["Background"]
+    background.inputs["Color"].default_value = (*hex_rgb(palette["background"]), 1)
+    if "Strength" in background.inputs:
+        background.inputs["Strength"].default_value = 0.45
     colors = {"key": hex_rgb(palette["key"]), "accent": hex_rgb(palette["accent"]),
               "neutral": (0.68, 0.73, 0.82), "dark": (0.025, 0.04, 0.07)}
-    mats = {role: material("AI Director " + role, color, 0.32, 0.3, 0.12 if role in {"key", "accent"} else 0.0)
-            for role, color in colors.items()}
+    mats = {
+        "key": material("AI Director key", colors["key"], 0.22, 0.2, 2.6),
+        "accent": material("AI Director accent", colors["accent"], 0.18, 0.24, 2.2),
+        "neutral": material("AI Director neutral", colors["neutral"], 0.12, 0.34, 0.45),
+        "dark": material("AI Director dark", colors["dark"], 0.05, 0.5, 0.0),
+    }
     objects = {}
+    rest_locations = {}
     for item in graph["objects"]:
         kind, location, scale = item["kind"], tuple(item["position"]), tuple(item["scale"])
         name = "AI_" + item["id"]
+        rest_locations[item["id"]] = Vector(location)
         if kind == "sphere": bpy.ops.mesh.primitive_uv_sphere_add(segments=40, ring_count=24, radius=1, location=location)
         elif kind == "cube": bpy.ops.mesh.primitive_cube_add(size=1, location=location)
         elif kind == "cylinder": bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=1, depth=2, location=location)
@@ -656,32 +665,52 @@ def scene_from_ai_graph(graph, frames):
         obj.rotation_euler = tuple(item["rotation"]); assign(obj, mats[item["material"]]); smooth(obj)
         objects[item["id"]] = obj
         action, amount = item["action"], float(item["action_amount"])
-        base_loc, base_rot = obj.location.copy(), obj.rotation_euler.copy()
-        for frame, factor in ((1, 0.0), (max(2, frames), 1.0)):
-            obj.location = base_loc.copy(); obj.rotation_euler = base_rot.copy(); obj.scale = scale
+        base_loc, base_rot, base_scale = obj.location.copy(), obj.rotation_euler.copy(), obj.scale.copy()
+        # Five samples so pulse/orbit are visible. Two endpoints make sin(0) and
+        # sin(2π) identical, which previously froze pulse motion.
+        for factor in (0.0, 0.25, 0.5, 0.75, 1.0):
+            frame = 1 if factor <= 0 else max(2, int(round(1 + (frames - 1) * factor)))
+            obj.location = base_loc.copy()
+            obj.rotation_euler = base_rot.copy()
+            obj.scale = base_scale.copy()
             if action == "rise": obj.location.z += amount * factor
             elif action == "fall": obj.location.z -= amount * factor
             elif action == "travel_x": obj.location.x += amount * factor
             elif action == "travel_y": obj.location.y += amount * factor
             elif action == "rotate": obj.rotation_euler.z += amount * factor
             elif action == "orbit":
-                angle = amount * factor; radius = max(0.8, abs(amount))
-                obj.location.x += math.cos(angle) * radius - radius; obj.location.y += math.sin(angle) * radius
+                angle = amount * factor
+                radius = max(0.8, abs(amount) if abs(amount) > 0.2 else 1.2)
+                obj.location.x += math.cos(angle) * radius - radius
+                obj.location.y += math.sin(angle) * radius
             elif action == "pulse":
-                pulse = 1.0 + 0.16 * math.sin(factor * math.pi * 2.0)
-                obj.scale = tuple(component * pulse for component in scale)
-            elif action == "reveal": obj.scale = tuple(max(0.001, component * (0.05 + 0.95 * factor)) for component in scale)
+                pulse = 1.0 + 0.18 * math.sin(factor * math.tau)
+                obj.scale = tuple(component * pulse for component in base_scale)
+            elif action == "reveal":
+                reveal = 0.05 + 0.95 * factor
+                obj.scale = tuple(max(0.001, component * reveal) for component in base_scale)
             obj.keyframe_insert(data_path="location", frame=frame)
             obj.keyframe_insert(data_path="rotation_euler", frame=frame)
             obj.keyframe_insert(data_path="scale", frame=frame)
+        obj.location = base_loc.copy()
+        obj.rotation_euler = base_rot.copy()
+        obj.scale = base_scale.copy()
+        if obj.animation_data and obj.animation_data.action:
+            for fcurve in obj.animation_data.action.fcurves:
+                for point in fcurve.keyframe_points:
+                    point.interpolation = "LINEAR"
     for relation in graph.get("relationships", []):
-        a, b = objects[relation["from"]], objects[relation["to"]]
-        start, finish = a.location.copy(), b.location.copy()
+        a_id, b_id = relation["from"], relation["to"]
+        start, finish = rest_locations[a_id], rest_locations[b_id]
         if relation["kind"] == "orbit":
-            mid = (start + finish) * 0.5; radius = max(0.15, (finish - start).length * 0.5)
+            mid = (start + finish) * 0.5
+            radius = max(0.15, (finish - start).length * 0.5)
             points = [mid + Vector((math.cos(i * math.tau / 32) * radius, math.sin(i * math.tau / 32) * radius, 0.0)) for i in range(33)]
-            curve("AI relationship orbit", points, 0.018, mats["accent"], cyclic=True)
-        else: curve("AI relationship " + relation["kind"], [start, finish], 0.018, mats["accent"])
+            curve("AI relationship orbit", points, 0.02, mats["accent"], cyclic=True)
+        elif relation["kind"] == "connect" and (finish - start).length > 0.05:
+            cylinder_between("AI bond " + a_id + " " + b_id, start, finish, 0.035, mats["accent"])
+        else:
+            curve("AI relationship " + relation["kind"], [start, finish], 0.02, mats["accent"])
     ground(mats["dark"])
     return graph.get("camera", {}).get("move", "push_in")
 

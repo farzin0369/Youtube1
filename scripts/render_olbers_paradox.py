@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from pathlib import Path
 
 from app.bamo_production_renderer import render_bamo_shorts
@@ -54,17 +55,21 @@ if not tts.get("voice") or not tts.get("narrator_locked"):
 if not AUDIO.exists() or AUDIO.stat().st_size < 10_000:
     raise SystemExit("Persian narration audio is missing or unexpectedly small.")
 
-render = render_bamo_shorts(
-    title=TITLE,
-    thumbnail_text="راز تاریکی آسمان",
-    audio_path=AUDIO,
-    captions_path=CAPTIONS,
-    out_dir=OUT,
-    run_id="science-olbers-paradox",
-    scenes=SCENES,
-    scene_timings=tts.get("scene_timings") or [],
-    hook_overlay=SCENES[0]["on_screen_text"],
-)
+try:
+    render = render_bamo_shorts(
+        title=TITLE,
+        thumbnail_text="راز تاریکی آسمان",
+        audio_path=AUDIO,
+        captions_path=CAPTIONS,
+        out_dir=OUT,
+        run_id="science-olbers-paradox",
+        scenes=SCENES,
+        scene_timings=tts.get("scene_timings") or [],
+        hook_overlay=SCENES[0]["on_screen_text"],
+    )
+except Exception:
+    (OUT / "director-failure.txt").write_text(traceback.format_exc(), encoding="utf-8")
+    raise
 qa = validate_render_package(render, AUDIO, video_format="shorts", tts_meta=tts)
 evidence = {
     "topic": "Olbers paradox / why the night sky is dark",

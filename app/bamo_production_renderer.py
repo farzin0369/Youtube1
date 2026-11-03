@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.bamo_motion_engine import render_project
-from app.bamo_ai_director import direct_scene
+from app.bamo_ai_director import direct_scene, ensure_distinct_camera_moves
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
@@ -48,6 +48,7 @@ def render_bamo_shorts(
     visual_plans = []
     story_context = " | ".join(str(item.get("spoken_text") or "") for item in scenes)
     prior_theses = []
+    prior_cameras = []
     for scene, duration in zip(scenes, durations):
         narration = str(scene.get("spoken_text") or "").strip()
         visual_prompt = str(scene.get("visual_query") or "").strip()
@@ -57,15 +58,18 @@ def render_bamo_shorts(
         plan = direct_scene(
             narration=narration, visual_brief=visual_prompt, overlay=overlay,
             duration_seconds=duration, story_context=story_context,
-            previous_visual_theses=prior_theses,
+            previous_visual_theses=prior_theses, previous_camera_moves=prior_cameras,
         )
         prior_theses.append(plan["visual_thesis"])
+        prior_cameras.append(plan["camera"]["move"])
         visual_plans.append(plan)
+    ensure_distinct_camera_moves(visual_plans)
+    for plan, duration, scene in zip(visual_plans, durations, scenes):
         render_scenes.append({
             "duration": duration,
-            "text": overlay,
-            "narration": narration,
-            "visual_prompt": visual_prompt,
+            "text": str(scene.get("on_screen_text") or "").strip(),
+            "narration": str(scene.get("spoken_text") or "").strip(),
+            "visual_prompt": str(scene.get("visual_query") or "").strip(),
             "background": "",
             "accent": "",
             "scene_graph": {key: plan[key] for key in ("camera", "palette", "objects", "relationships", "visual_thesis")},
