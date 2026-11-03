@@ -18,7 +18,7 @@ def test_project_validation_preserves_scene_narration_and_visual_brief():
 
 def test_scene_director_selects_topic_matched_3d_motifs_and_camera_moves():
     assert plan_scene("یک تصمیم مهم", "two diverging paths")["motif"] == "choice_paths"
-    assert plan_scene("ساختن عادت", "writing in notebook")["motif"] == "growth_steps"
+    assert plan_scene("ساختن عادت", "writing in notebook")["motif"] == "writing"
     assert plan_scene("اتم و الکترون", "atomic orbit")["motif"] == "atom"
     assert plan_scene("هندسه و دایره", "geometry circle")["motif"] == "geometry"
     assert plan_scene("طلوع و امید", "sunrise light")["camera"] == "push_in"
