@@ -532,41 +532,85 @@ def scene_neon_ellipse(gold, blue, dark, frames):
 
 
 def scene_wave_interference(gold, blue, dark, frames):
-    """Two animated wave sources create a spatial interference field."""
+    """Two coherent sources drive a continuous, animated 3D interference surface."""
     ground(dark)
     cyan = neon_material("Interference cyan wave", (0.02, 0.65, 1.0), 4.2)
     magenta = neon_material("Interference magenta wave", (0.92, 0.08, 0.48), 4.2)
     white = neon_material("Interference bright maxima", (0.82, 0.95, 1.0), 4.8)
     source_a, source_b = (-2.0, 0.0, 1.5), (2.0, 0.0, 1.5)
+
+    # Two visible point sources and expanding circular wavefronts.
     for source, mat, label in ((source_a, magenta, "A"), (source_b, cyan, "B")):
         sphere("Wave source " + label, source, 0.22, white)
-        for ring_index in range(5):
-            ring = torus("Expanding wavefront " + label, source, 0.34 + ring_index * 0.55,
-                         0.022, mat, (0.0, 0.0, 0.0))
+        for ring_index in range(6):
+            ring = torus("Expanding wavefront " + label, source, 0.30 + ring_index * 0.48,
+                         0.018, mat, (0.0, 0.0, 0.0))
             ring.scale = (0.08, 0.08, 0.08)
             ring.keyframe_insert(data_path="scale", frame=1)
             ring.scale = (1.0, 1.0, 1.0)
-            ring.keyframe_insert(data_path="scale", frame=max(2, int(frames * (0.45 + ring_index * 0.1))))
+            ring.keyframe_insert(data_path="scale", frame=max(2, int(frames * (0.35 + ring_index * 0.1))))
             linear_animation(ring)
-    # Constructive/destructive interference is encoded in the 3D height field.
-    for ix in range(17):
-        x = -4.0 + ix * 0.5
-        for iy in range(17):
-            y = -4.0 + iy * 0.5
-            da = math.hypot(x - source_a[0], y)
-            db = math.hypot(x - source_b[0], y)
-            amplitude = (math.cos(da * 2.7) + math.cos(db * 2.7)) * 0.5
-            z = 0.42 + amplitude * 0.62
-            color = white if abs(amplitude) > 0.72 else (cyan if amplitude >= 0 else magenta)
-            dot = sphere("Interference field sample", (x, y, z), 0.055 + abs(amplitude) * 0.045, color)
-            dot.keyframe_insert(data_path="location", frame=1)
-            dot.location.z = z + 0.18 * math.sin((ix + iy) * 0.45)
-            dot.keyframe_insert(data_path="location", frame=frames)
-            linear_animation(dot)
-    # Fine coordinate axes make the two-source geometry legible in depth.
+
+    # A connected 49x49 mesh replaces the old disconnected particle-only field.
+    # Height is the sum of two coherent wave amplitudes; face colors reveal
+    # constructive maxima and destructive minima across the whole surface.
+    divisions = 49
+    extent = 4.2
+    vertices = []
+    faces = []
+    amplitudes = []
+    for iy in range(divisions):
+        y = -extent + (2.0 * extent * iy / (divisions - 1))
+        for ix in range(divisions):
+            x = -extent + (2.0 * extent * ix / (divisions - 1))
+            da = math.hypot(x - source_a[0], y - source_a[1])
+            db = math.hypot(x - source_b[0], y - source_b[1])
+            amplitude = 0.5 * (math.cos(da * 2.7) + math.cos(db * 2.7))
+            amplitudes.append(amplitude)
+            vertices.append((x, y, 0.42 + amplitude * 0.72))
+    for iy in range(divisions - 1):
+        for ix in range(divisions - 1):
+            a = iy * divisions + ix
+            b = a + 1
+            c = b + divisions
+            d = a + divisions
+            faces.append((a, b, c, d))
+
+    mesh = bpy.data.meshes.new("Continuous interference height field")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.materials.append(cyan)
+    mesh.materials.append(magenta)
+    mesh.materials.append(white)
+    mesh.update()
+    surface = bpy.data.objects.new("Continuous 3D interference surface", mesh)
+    bpy.context.scene.collection.objects.link(surface)
+    for polygon in mesh.polygons:
+        values = [amplitudes[index] for index in polygon.vertices]
+        mean_amp = sum(values) / len(values)
+        polygon.material_index = 2 if abs(mean_amp) > 0.72 else (0 if mean_amp >= 0 else 1)
+        polygon.use_smooth = True
+
+    # Animate the wave phase through a shape key so the interference pattern evolves.
+    basis = surface.shape_key_add(name="Basis")
+    animated = surface.shape_key_add(name="Travelling wave phase")
+    for index, vertex in enumerate(animated.data):
+        x, y, _ = vertices[index]
+        da = math.hypot(x - source_a[0], y)
+        db = math.hypot(x - source_b[0], y)
+        amplitude = 0.5 * (math.cos(da * 2.7 + 0.9) + math.cos(db * 2.7 + 0.9))
+        vertex.co.z = 0.42 + amplitude * 0.72
+    animated.value = 0.0
+    animated.keyframe_insert(data_path="value", frame=1)
+    animated.value = 1.0
+    animated.keyframe_insert(data_path="value", frame=frames)
+    linear_animation(animated)
+
+    # Fine luminous grid traces make the continuous height field readable in depth.
+    for offset in (-3.0, -1.5, 0.0, 1.5, 3.0):
+        curve("Interference field grid X", [(-extent, offset, 0.48), (extent, offset, 0.48)], 0.006, blue)
+        curve("Interference field grid Y", [(offset, -extent, 0.48), (offset, extent, 0.48)], 0.006, gold)
     curve("Interference horizontal axis", [(-4.5, 0, 0.18), (4.5, 0, 0.18)], 0.012, blue)
     curve("Interference vertical axis", [(0, -4.5, 0.18), (0, 4.5, 0.18)], 0.012, gold)
-
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
