@@ -54,8 +54,14 @@ def test_json_parser_accepts_fenced_json():
 
 def test_director_generates_per_scene_graph(monkeypatch):
     response = json.dumps(valid_graph())
-    monkeypatch.setattr("app.bamo_ai_director.generate_text", lambda *a, **k: (response, "test:director"))
+    replies = iter([
+        (response, "test:director"),
+        (json.dumps({"score": 94, "verdict": "pass", "issues": [], "revision_brief": ""}), "test:critic"),
+    ])
+    monkeypatch.setattr("app.bamo_ai_director.generate_text", lambda *a, **k: next(replies))
     plan = direct_scene(narration="دو منبع انرژی با هم برهم‌کنش دارند", visual_brief="two energy sources interact")
     assert plan["motif"] == "ai_scene"
     assert plan["provider"] == "test:director"
+    assert plan["semantic_review_score"] == 94
+    assert plan["critic_provider"] == "test:critic"
     assert plan["narration_exact"] == "دو منبع انرژی با هم برهم‌کنش دارند"
