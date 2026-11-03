@@ -27,3 +27,12 @@ def test_scene_director_selects_topic_matched_3d_motifs_and_camera_moves():
 def test_unmatched_visual_prompt_is_not_claimed_as_verified():
     plan = plan_scene("یک موضوع ناشناخته", "unclassified visual subject")
     assert plan["motif"] == "abstract"
+
+
+def test_project_validation_preserves_omnivision_render_directives():
+    directive = {"motif": "geometry", "camera": "sweep", "description": "A 3D curve"}
+    project = validate_project({
+        "format": "short",
+        "scenes": [{"duration": 2, "text": "", "visual_plan": directive}],
+    })
+    assert project["scenes"][0]["visual_plan"] == directive
