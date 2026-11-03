@@ -32,6 +32,12 @@ jobs:
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_MODEL: ${{ vars.LLM_MODEL }}
+      USE_LOCAL_LLM: "1"
+      LOCAL_LLM_MODEL: qwen2.5:7b
+      LLM_TIMEOUT_SECONDS: "900"
+      OLLAMA_TIMEOUT_SECONDS: "900"
+      OLLAMA_NUM_CTX: "4096"
+      OLLAMA_NUM_PREDICT: "4096"
       BAMO_BLENDER_SAMPLES: "16"
       BAMO_BLENDER_RESOLUTION_PERCENTAGE: "50"
       BAMO_BLENDER_THREADS: "2"
@@ -48,6 +54,18 @@ jobs:
           python -m pip install pytest
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+      - name: Start local CPU language model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/bamo-ollama.log 2>&1 &)
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull qwen2.5:7b
       - name: Validate semantic AI director and scene-graph safety
         env:
           PYTHONPATH: ${{ github.workspace }}
