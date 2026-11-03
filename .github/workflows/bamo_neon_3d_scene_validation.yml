@@ -26,9 +26,10 @@ jobs:
     timeout-minutes: 45
     env:
       PYTHONPATH: ${{ github.workspace }}
-      BAMO_BLENDER_SAMPLES: "2"
-      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
+      BAMO_BLENDER_SAMPLES: "16"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
       BAMO_BLENDER_THREADS: "2"
+      BAMO_BLENDER_DENOISE: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,7 +42,7 @@ jobs:
           sudo apt-get install -y -qq blender ffmpeg fonts-noto-core
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Render neon ellipse and wave interference scenes in Blender Cycles CPU
+      - name: Render full-resolution denoised neon ellipse and wave interference scenes in Blender Cycles CPU
         run: python scripts/test_bamo_neon_3d_scenes.py
       - name: Upload MP4, evidence and review frames
         if: always()
