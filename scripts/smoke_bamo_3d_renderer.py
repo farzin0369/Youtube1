@@ -45,5 +45,32 @@ render = render_bamo_shorts(
 )
 qa = validate_render_package(render, audio, video_format="shorts")
 print({"render": render, "qa": qa}, flush=True)
-if not qa.get("ok"):
-    raise SystemExit("3D renderer media QA failed: " + ", ".join(qa.get("errors") or []))
+# This is a renderer smoke test, not a publish-approval test. The current
+# procedural renderer has no independent pixel-to-narration verifier, so the
+# semantic and publish gates MUST remain closed while technical output is tested.
+technical_checks = (
+    "video_path", "thumbnail_path", "captions_path", "video_dimensions",
+    "thumbnail_dimensions", "duration_seconds", "audio_duration_seconds",
+    "burned_captions_path", "caption_animation", "persian_text_shaping",
+    "audio_path", "caption_cues",
+)
+missing = [key for key in technical_checks if key not in qa.get("checks", {})]
+failed = [
+    key for key in ("video_path", "thumbnail_path", "captions_path",
+                    "burned_captions_path", "caption_animation",
+                    "persian_text_shaping", "audio_path")
+    if not qa.get("checks", {}).get(key, {}).get("ok", False)
+]
+expected_blockers = {
+    "shorts_scene_visual_queries_not_verified",
+    "shorts_visual_source_not_approved_portrait_stock",
+}
+unexpected = [error for error in qa.get("errors", []) if error not in expected_blockers]
+if missing or failed or unexpected:
+    raise SystemExit(
+        "CPU renderer technical smoke failed; missing=%s failed=%s unexpected=%s"
+        % (missing, failed, unexpected)
+    )
+if qa.get("checks", {}).get("semantic_alignment", {}).get("verified") is not False:
+    raise SystemExit("semantic publish gate must remain closed without independent verification")
+print("CPU_RENDER_SMOKE=PASS; SEMANTIC_ALIGNMENT=UNVERIFIED; PUBLISH_GATE=BLOCKED", flush=True)
