@@ -7,6 +7,7 @@ on:
       - "app/bamo_scene_director.py"
       - "app/bamo_production_renderer.py"
       - "app/media_qa.py"
+      - "app/spiritual_video.py"
       - "scripts/smoke_bamo_3d_renderer.py"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
