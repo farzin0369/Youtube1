@@ -1,7 +1,7 @@
 name: BAMO approved CPU 3D renderer smoke test
 on:
   push:
-    branches: ["feat/bamo-production-3d-auto-factory"]
+    branches: ["feat/bamo-production-3d-auto-factory", "feat/bamo-omnivision-engine"]
     paths:
       - "app/bamo_motion_engine.py"
       - "app/bamo_scene_director.py"
