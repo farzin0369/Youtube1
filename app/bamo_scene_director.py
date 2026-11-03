@@ -1,38 +1,33 @@
-"""Caption-aware deterministic scene director for BAMO's CPU 3D renderer.
-
-Maps authored captions to visual metaphors and camera moves. Explicit visual_prompt
-adds direction; captions are never rewritten by this module.
-"""
+"""Caption-aware topic director for BAMO's CPU motion renderer."""
 from __future__ import annotations
 
 def plan_scene(caption: str, visual_prompt: str = "") -> dict[str, str]:
     text = f"{caption} {visual_prompt}".lower()
+    # Specific subjects come first; generic metaphor rules must never steal them.
     rules = [
-        (("شروع", "آغاز", "همین حالا", "start", "begin"), "launch", "push_in",
-         "A luminous three-dimensional portal opens and a rising arrow signals the first decisive action."),
-        (("انتخاب", "تصمیم", "دو راه", "choice", "decision"), "choice_paths", "sweep",
-         "Two distinct three-dimensional paths diverge; camera tracks the chosen route."),
-        (("قدم", "مسیر", "راه", "سفر", "journey", "step"), "journey", "tracking",
-         "A dimensional pathway advances toward a visible destination; camera follows it."),
+        (("دفتر", "نوشتن", "یادداشت", "ژورنال", "قلم", "کتاب", "notebook", "journal", "writing", "pen", "book"), "writing", "tracking",
+         "An open three-dimensional notebook with turning pages and a luminous pen writing the key idea."),
+        (("طلوع", "سپیده", "خورشید", "صبح", "آفتاب", "sunrise", "sun", "dawn"), "sunrise", "push_in",
+         "A cinematic sunrise emerges over a layered horizon; rays spread as the camera pushes toward the light."),
+        (("اتم", "الکترون", "پروتون", "نوترون", "atom", "electron", "proton", "neutron"), "atom", "orbit",
+         "A scientific atomic model with a nucleus and distinct electron paths."),
+        (("مولکول", "شیمی", "پیوند", "واکنش", "ماده", "molecule", "chemistry", "bond", "reaction"), "molecule", "tracking",
+         "A molecular structure assembles from linked atoms; camera travels along the bonds."),
+        (("انتخاب", "تصمیم", "دو راه", "دوراهی", "choice", "decision", "fork"), "choice_paths", "sweep",
+         "Two clearly separated three-dimensional routes diverge toward different destinations; camera follows one route."),
         (("رشد", "پیشرفت", "ساخت", "آینده", "موفق", "growth", "progress", "future"), "growth_steps", "push_in",
-         "A rising sequence of solid 3D steps builds upward as the camera cranes forward."),
-        (("اتم", "الکترون", "فیزیک", "ذره", "atom", "physics"), "atom", "orbit",
-         "Scientific orbital geometry with a controlled camera orbit."),
-        (("مولکول", "شیمی", "پیوند", "ماده", "molecule", "chemistry"), "molecule", "tracking",
-         "A connected molecular structure forms from linked 3D nodes; camera travels along bonds."),
+         "A rising sequence of solid architectural steps builds upward as the camera cranes forward."),
+        (("فیزیک", "موج", "نیرو", "ذره", "physics", "wave", "force", "particle"), "science", "tracking",
+         "A physical wavefront and force vectors move through a measurable field."),
         (("هندسه", "زاویه", "دایره", "مکعب", "ریاضی", "geometry", "math", "number", "shape"), "geometry", "sweep",
-         "A geometric construction assembles in 3D with a sweeping camera reveal."),
-        (("فکر", "ذهن", "باران", "پنجره", "thinking", "mind", "rain", "window", "decision"), "choice_paths", "sweep",
-         "Two dimensional routes separate and converge as the camera sweeps along the selected direction."),
-        (("دفتر", "نوشتن", "یادداشت", "ژورنال", "notebook", "journal", "writing", "task"), "growth_steps", "tracking",
-         "A sequence of solid steps assembles from a written intention; camera tracks forward."),
-        (("طلوع", "سپیده", "خورشید", "نور", "امید", "sunrise", "sun", "light", "hope", "prayer", "quran", "faith"), "launch", "push_in",
-         "A luminous portal and rising light form a hopeful three-dimensional reveal."),
-        (("کوه", "جنگل", "تاریخ", "باستان", "امپراتوری", "mountain", "forest", "history", "ancient", "empire"), "journey", "tracking",
-         "A dimensional path advances toward a distant horizon; camera follows the route."),
+         "A geometric construction assembles in three dimensions with a sweeping camera reveal."),
+        (("مسیر", "راه", "سفر", "کوه", "جنگل", "تاریخ", "باستان", "journey", "mountain", "forest", "history", "ancient"), "journey", "tracking",
+         "A dimensional pathway advances through a layered environment toward a visible destination."),
+        (("امید", "نور", "ایمان", "قرآن", "دعا", "hope", "light", "faith", "quran", "prayer"), "sunrise", "push_in",
+         "Warm light breaks across a cinematic horizon, revealing a hopeful destination."),
     ]
     for words, motif, camera, description in rules:
         if any(word in text for word in words):
             return {"motif": motif, "camera": camera, "description": description}
     return {"motif": "abstract", "camera": "orbit",
-            "description": "A restrained 3D metaphor derived from the caption, with a cinematic orbit."}
+            "description": "A restrained abstract 3D transition; use only when no concrete subject can be identified."}
