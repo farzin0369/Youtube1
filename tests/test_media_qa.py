@@ -183,3 +183,24 @@ def test_shorts_quality_gate_rejects_missing_caption_animation_or_shaping(tmp_pa
     assert not result["ok"]
     assert "shorts_caption_animation_missing_or_invalid" in result["errors"]
     assert "shorts_persian_text_shaping_not_configured" in result["errors"]
+
+
+
+def test_cpu_3d_keyword_plan_cannot_claim_semantic_alignment_or_pass_publish_qa(tmp_path: Path):
+    meta, audio = _short_package(tmp_path)
+    meta.update({
+        "visual_source": "bamo-cpu-3d-motion",
+        "scene_query_match": False,
+        # Legacy heuristic flag must not be accepted as semantic evidence.
+        "scene_visual_alignment_verified": True,
+        "duration_seconds": 24.0,
+    })
+    meta.pop("duration", None)
+    result = validate_render_package(meta, audio, video_format="shorts")
+    assert not result["ok"]
+    assert result["checks"]["semantic_alignment"] == {
+        "verified": False,
+        "status": "not_independently_verified",
+    }
+    assert "shorts_scene_visual_queries_not_verified" in result["errors"]
+    assert "shorts_visual_source_not_approved_portrait_stock" in result["errors"]
