@@ -22,7 +22,7 @@ def validate_project(project: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(scene,dict): raise ValueError(f"Scene {index} must be an object")
         duration = float(scene.get("duration",4))
         if not math.isfinite(duration) or duration < .5 or duration > 60: raise ValueError(f"Scene {index} duration must be between 0.5 and 60 seconds")
-        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip(),"visual_prompt":str(scene.get("visual_prompt") or "").strip(),"narration":str(scene.get("narration") or "").strip()})
+        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip(),"visual_prompt":str(scene.get("visual_prompt") or "").strip(),"narration":str(scene.get("narration") or "").strip(),"scene_graph":scene.get("scene_graph")})
     return {"format":fmt,"scenes":clean}
 
 def _ass_time(seconds: float) -> str:
@@ -76,6 +76,9 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
     camera = str(visual_plan.get("camera") or "").strip()
     if not motif or not camera:
         raise ValueError("Every Blender scene requires a validated subject motif and camera path")
+    scene_graph = visual_plan.get("scene_graph")
+    if motif == "ai_scene" and not isinstance(scene_graph, dict):
+        raise ValueError("AI-authored Blender scene requires a validated scene graph")
 
     frame_count = max(1, int(math.ceil(float(duration) * fps)))
     work = clip.parent / f".blender_scene_{index:03d}"
@@ -85,6 +88,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
     config = {
         "width": int(width), "height": int(height), "fps": int(fps),
         "frame_count": frame_count, "motif": motif, "camera": camera,
+        "scene_graph": scene_graph,
         "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "16")),
         "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
         "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
@@ -146,7 +150,12 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
             continue
         else:
             from app.bamo_scene_director import plan_scene
-            visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
+            if scene.get("scene_graph"):
+                visual_plan = {"motif": "ai_scene", "camera": scene["scene_graph"].get("camera", {}).get("move", "push_in"),
+                               "scene_graph": scene["scene_graph"]}
+            else:
+                from app.bamo_scene_director import plan_scene
+                visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
             _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
             clips.append(clip)
             continue
