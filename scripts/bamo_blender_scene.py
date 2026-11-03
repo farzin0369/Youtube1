@@ -24,6 +24,78 @@ from bamo_blender_motifs_a import (
 )
 from bamo_blender_motifs_b import scene_from_ai_graph
 
+def _setup_cinematic_compositor(scene, cfg):
+    """Bloom + optional film grain + mild chromatic aberration in compositor."""
+    scene.use_nodes = True
+    tree = scene.node_tree
+    tree.nodes.clear()
+    render_layers = tree.nodes.new("CompositorNodeRLayers")
+    render_layers.location = (-600, 0)
+
+    last = render_layers.outputs["Image"]
+
+    glare = tree.nodes.new("CompositorNodeGlare")
+    glare.glare_type = "FOG_GLOW"
+    glare.threshold = 0.65
+    glare.quality = "HIGH"
+    try:
+        glare.size = 8
+    except Exception:
+        pass
+    glare.location = (-350, 80)
+    tree.links.new(last, glare.inputs["Image"])
+    last = glare.outputs["Image"]
+
+    if cfg.get("cinematic_effects", True):
+        ca = float(cfg.get("chromatic_aberration") or 0.0)
+        if ca > 0.0:
+            sep = tree.nodes.new("CompositorNodeSepRGBA")
+            sep.location = (-120, 120)
+            tree.links.new(last, sep.inputs["Image"])
+            blur_r = tree.nodes.new("CompositorNodeBlur")
+            blur_r.filter_type = "FAST_GAUSS"
+            blur_r.size_x = max(1, int(ca * 800))
+            blur_r.size_y = 0
+            blur_r.location = (80, 200)
+            tree.links.new(sep.outputs["R"], blur_r.inputs["Image"])
+            blur_b = tree.nodes.new("CompositorNodeBlur")
+            blur_b.filter_type = "FAST_GAUSS"
+            blur_b.size_x = max(1, int(ca * 800))
+            blur_b.size_y = 0
+            blur_b.location = (80, 40)
+            tree.links.new(sep.outputs["B"], blur_b.inputs["Image"])
+            comb = tree.nodes.new("CompositorNodeCombRGBA")
+            comb.location = (280, 120)
+            tree.links.new(blur_r.outputs["Image"], comb.inputs["R"])
+            tree.links.new(sep.outputs["G"], comb.inputs["G"])
+            tree.links.new(blur_b.outputs["Image"], comb.inputs["B"])
+            tree.links.new(sep.outputs["A"], comb.inputs["A"])
+            last = comb.outputs["Image"]
+
+        grain_amt = float(cfg.get("film_grain") or 0.0)
+        if grain_amt > 0.0:
+            noise = tree.nodes.new("CompositorNodeTexture")
+            noise.location = (-120, -180)
+            # Procedural noise via Mix with slight brightness variation.
+            mix = tree.nodes.new("CompositorNodeMixRGB")
+            mix.blend_type = "OVERLAY"
+            mix.inputs["Fac"].default_value = min(0.35, max(0.0, grain_amt))
+            mix.location = (480, 0)
+            tree.links.new(last, mix.inputs["Image1"])
+            # If texture node has no texture, fall back to slight gamma only.
+            try:
+                tex = bpy.data.textures.new("BAMO_FilmGrain", type="NOISE")
+                noise.texture = tex
+                tree.links.new(noise.outputs["Color"], mix.inputs["Image2"])
+            except Exception:
+                mix.inputs["Image2"].default_value = (0.5, 0.5, 0.5, 1.0)
+            last = mix.outputs["Image"]
+
+    composite = tree.nodes.new("CompositorNodeComposite")
+    composite.location = (720, 0)
+    tree.links.new(last, composite.inputs["Image"])
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
@@ -63,6 +135,17 @@ def main():
             scene.cycles.use_denoising = False
         except Exception:
             pass
+
+    # Motion blur: off by default for fast preview; enable via config/env.
+    use_mb = bool(cfg.get("motion_blur", False))
+    scene.render.use_motion_blur = use_mb
+    if use_mb:
+        scene.render.motion_blur_shutter = 0.45
+        try:
+            scene.cycles.motion_blur_position = "CENTER"
+        except Exception:
+            pass
+
     scene.render.threads_mode = "FIXED"
     scene.render.threads = int(cfg.get("threads", 2))
     scene.render.resolution_x = width
@@ -79,19 +162,10 @@ def main():
         scene.view_settings.view_transform = "AgX"
     except TypeError:
         scene.view_settings.view_transform = "Filmic"
-    scene.use_nodes = True
-    compositor = scene.node_tree
-    compositor.nodes.clear()
-    render_layers = compositor.nodes.new("CompositorNodeRLayers")
-    glow = compositor.nodes.new("CompositorNodeGlare")
-    glow.glare_type = "FOG_GLOW"
-    glow.threshold = 1.25
-    glow.quality = "HIGH"
-    composite = compositor.nodes.new("CompositorNodeComposite")
-    compositor.links.new(render_layers.outputs["Image"], glow.inputs["Image"])
-    compositor.links.new(glow.outputs["Image"], composite.inputs["Image"])
     scene.render.image_settings.color_depth = "8"
     scene.render.use_file_extension = True
+
+    _setup_cinematic_compositor(scene, cfg)
 
     lighting((1.0, 0.68, 0.32), (0.18, 0.48, 1.0))
     if motif == "ai_scene":
@@ -124,7 +198,6 @@ def main():
     elif motif == "cosmic_shells":
         scene_cosmic_shells(gold, blue, dark, frames)
     else:
-        # Safe fallback so unsupported legacy motif names still produce frames
         ground(dark)
         from bamo_blender_primitives import sphere, torus
         sphere("Focus sphere", (0, 0, 1.2), 0.8, gold)
