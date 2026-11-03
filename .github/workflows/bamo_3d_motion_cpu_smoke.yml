@@ -1,4 +1,4 @@
-name: BAMO approved CPU 3D renderer smoke test
+name: BAMO CPU 3D renderer preview smoke test
 on:
   push:
     branches: ["feat/bamo-production-3d-auto-factory"]
@@ -7,6 +7,7 @@ on:
       - "app/bamo_scene_director.py"
       - "app/bamo_production_renderer.py"
       - "app/media_qa.py"
+      - "app/spiritual_video.py"
       - "scripts/smoke_bamo_3d_renderer.py"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
@@ -36,6 +37,7 @@ jobs:
       - name: Run renderer and media QA smoke test
         env:
           PYTHONPATH: ${{ github.workspace }}
+          CHANNEL_BRAND: BAMO
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
           # Fast, low-resolution CI smoke settings only. Production render
@@ -49,6 +51,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BAMO-approved-CPU-3D-render-smoke-${{ github.run_id }}
+          name: BAMO-CPU-3D-preview-smoke-${{ github.run_id }}
           path: output/bamo-3d-smoke/
           retention-days: 7
