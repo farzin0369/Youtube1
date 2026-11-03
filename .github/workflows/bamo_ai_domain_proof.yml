@@ -10,6 +10,7 @@ on:
       - .github/workflows/bamo_ai_domain_proof.yml
       - app/bamo_ai_director.py
       - scripts/bamo_blender_scene.py
+      - scripts/bamo_blender_motifs_b.py
 
 permissions:
   contents: read
@@ -17,7 +18,7 @@ permissions:
 jobs:
   render-ai-domains:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       TTS_PROVIDER: edge-tts
       TTS_VOICE: fa-IR-FaridNeural
@@ -34,8 +35,9 @@ jobs:
       OLLAMA_TIMEOUT_SECONDS: "900"
       OLLAMA_NUM_CTX: "4096"
       OLLAMA_NUM_PREDICT: "4096"
-      BAMO_BLENDER_SAMPLES: "16"
-      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "50"
+      # Production-preview quality on CPU (not the 2-sample smoke trash)
+      BAMO_BLENDER_SAMPLES: "48"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
       BAMO_BLENDER_THREADS: "2"
       BAMO_BLENDER_DENOISE: "false"
     steps:
