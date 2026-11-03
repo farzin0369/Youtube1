@@ -75,8 +75,6 @@ def render_bamo_shorts(
             "scene_graph": {key: plan[key] for key in ("camera", "palette", "objects", "relationships", "visual_thesis")},
         })
 
-    # Scene uniqueness is semantic: reject duplicate authored compositions, not a
-    # shared renderer identifier. The same renderer executes different scene graphs.
     signatures = [
         tuple((obj["kind"], tuple(obj["position"]), obj["role"]) for obj in plan["objects"])
         for plan in visual_plans
@@ -113,17 +111,15 @@ def render_bamo_shorts(
         "-i", str(silent_path), "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music_path),
         "-filter_complex", mix, "-map", "0:v:0", "-map", "[aout]",
         "-vf", f"subtitles='{escaped_subs}'", "-t", f"{audio_duration:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-        "-pix_fmt", "yuv420p", "-r", "24", "-c:a", "aac", "-b:a", "160k",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p", "-r", "24", "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart", str(final_path),
     ]
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(900, int(audio_duration * 18)))
     if not final_path.is_file() or final_path.stat().st_size < 100_000:
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
-    width, height = 720, 1280
-    # Keyword matching is not proof. Only a manifest that references the actual
-    # rendered scene frames and records human review can establish alignment.
+    width, height = 1080, 1920
     visual_review_path = out_dir / "visual-review.json"
     from app.bamo_visual_review import validate_visual_review
     visual_review = validate_visual_review(visual_review_path, expected_scenes=4)
@@ -147,7 +143,7 @@ def render_bamo_shorts(
         "video_width": width,
         "video_height": height,
         "video_format": "shorts",
-        "caption_font_size": 48,
+        "caption_font_size": 52,
         "caption_animation_profile": "phrase-pop-fade-v1",
         "persian_text_shaping": "noto-naskh-unicode-rtl",
         "hook_overlay": str(hook_overlay or ""),
