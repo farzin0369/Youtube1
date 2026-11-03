@@ -81,7 +81,7 @@ def test_omnivision_adapter_passes_measured_audio_captions_and_pause(monkeypatch
     assert result == tmp_path / "rendered.mp4"
     assert captured["audio"] == str(tmp_path / "voice.wav")
     assert captured["timeline"]["captions"][0]["start"] == 1.0
-    assert captured["project"]["scenes"][0]["visual_plan"]["motif"] == "geometry"
-    assert captured["project"]["scenes"][0]["visual_plan"]["camera"] == "tracking"
     assert captured["project"]["scenes"][0]["duration"] == 0.8
+    assert captured["project"]["scenes"][1]["visual_plan"]["motif"] == "geometry"
+    assert captured["project"]["scenes"][1]["visual_plan"]["camera"] == "sweep"
     assert captured["project"]["scenes"][1]["duration"] == 2.2
