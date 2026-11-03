@@ -117,6 +117,64 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
         "-pix_fmt", "yuv420p", str(path),
     ], timeout=max(900, int(float(duration) * 18)))
 
+def _render_blender_scene(clip: Path, duration: float, width: int, height: int, fps: int,
+                         index: int, visual_plan: dict[str, Any]) -> None:
+    """Render one authored motif with Blender Cycles on CPU; never use a 2D fallback."""
+    blender = shutil.which(os.getenv("BLENDER_BIN", "blender"))
+    if not blender:
+        raise RuntimeError("Blender is required for BAMO 3D production; software-render fallback is disabled")
+    script = Path(__file__).resolve().parents[1] / "scripts" / "bamo_blender_scene.py"
+    if not script.is_file():
+        raise RuntimeError(f"BAMO Blender scene builder is missing: {script}")
+    motif = str(visual_plan.get("motif") or "").strip()
+    camera = str(visual_plan.get("camera") or "").strip()
+    if not motif or not camera:
+        raise ValueError("Every Blender scene requires a validated subject motif and camera path")
+
+    frame_count = max(1, int(math.ceil(float(duration) * fps)))
+    work = clip.parent / f".blender_scene_{index:03d}"
+    frames_dir = work / "frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    config_path = work / "scene.json"
+    config = {
+        "width": int(width), "height": int(height), "fps": int(fps),
+        "frame_count": frame_count, "motif": motif, "camera": camera,
+        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "16")),
+        "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
+        "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
+    }
+    if not 1 <= config["resolution_percentage"] <= 100:
+        raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
+    if config["samples"] < 1 or config["threads"] < 1:
+        raise ValueError("Blender samples and CPU threads must be positive")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
+               "--", str(config_path), str(frames_dir)]
+    timeout = max(900, int(frame_count * 20))
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode:
+        raise RuntimeError(
+            "Blender Cycles CPU render failed; no alternate renderer was used. "
+            f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
+        )
+    expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
+    missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
+    if missing:
+        raise RuntimeError("Blender did not produce all expected frames: " + ", ".join(missing[:12]))
+
+    _run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-framerate", str(fps), "-start_number", "1", "-i", str(frames_dir / "frame_%04d.png"),
+        "-frames:v", str(frame_count), "-vf", f"scale={width}:{height}:flags=lanczos,format=yuv420p",
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(clip),
+    ], timeout=max(900, int(frame_count * 8)))
+    if not clip.is_file() or clip.stat().st_size < 10_000:
+        raise RuntimeError("Blender frames could not be encoded into a valid scene MP4")
+    shutil.rmtree(work, ignore_errors=True)
+
+
 def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None) -> Path:
     """Render an MP4 on CPU. No GPU, API key, or network access is used."""
     spec=validate_project(project)
@@ -142,7 +200,7 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
         else:
             from app.bamo_scene_director import plan_scene
             visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
-            _render_3d_scene(clip,duration,width,height,fps,index,bg,accent,visual_plan)
+            _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
             clips.append(clip)
             continue
 
