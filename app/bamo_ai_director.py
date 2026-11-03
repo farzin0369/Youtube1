@@ -192,7 +192,7 @@ def direct_scene(*, narration: str, visual_brief: str, overlay: str = "",
     )
     critique = _parse_json(critique_raw)
     score = int(critique.get("score", 0))
-    if critique.get("verdict") != "pass" or score < 80 or not isinstance(critique.get("issues"), list):
+    if critique.get("verdict") != "pass" or score < 85 or not isinstance(critique.get("issues"), list):
         raise ValueError(
             "AI scene director rejected its own semantic composition; revise before rendering: "
             + "; ".join(str(issue) for issue in critique.get("issues", [])[:4])
