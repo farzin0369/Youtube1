@@ -55,6 +55,7 @@ def render_bamo_shorts(
             "text": overlay,
             "narration": narration,
             "visual_prompt": visual_prompt,
+            "visual_plan": plan,
             "background": "",
             "accent": "",
         })
@@ -97,7 +98,6 @@ def render_bamo_shorts(
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -121,7 +121,9 @@ def render_bamo_shorts(
         "persian_text_shaping": "noto-naskh-unicode-rtl",
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
-        "scene_visual_alignment_verified": plans_grounded,
+        # Keyword heuristics choose a motif; they do not independently verify pixels.
+        "scene_visual_alignment_verified": False,
+        "scene_semantic_alignment_status": "not_independently_verified",
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
         "music_ducking": True,
