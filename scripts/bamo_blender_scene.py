@@ -117,7 +117,7 @@ def key_scale(obj, frames, values):
         obj.keyframe_insert(data_path="scale", frame=frame)
 
 
-def add_camera(frames, camera_style):
+def add_camera(frames, camera_style, camera_angle="eye"):
     bpy.ops.object.camera_add(location=(0, -12.5, 5.2))
     camera = bpy.context.object
     camera.name = "BAMO_Cinematic_Camera"
@@ -166,6 +166,14 @@ def add_camera(frames, camera_style):
             camera.keyframe_insert(data_path="location", frame=frame)
             target.location = focus
             target.keyframe_insert(data_path="location", frame=frame)
+    # Apply the AI director's requested camera elevation to the animated path.
+    elevation = {"low": -1.8, "eye": 0.0, "high": 2.0, "top": 5.0}.get(camera_angle, 0.0)
+    if elevation and camera.animation_data and camera.animation_data.action:
+        for fcurve in camera.animation_data.action.fcurves:
+            if fcurve.data_path == "location" and fcurve.array_index == 2:
+                for keyframe in fcurve.keyframe_points:
+                    keyframe.co.y += elevation
+                fcurve.update()
     camera.data.dof.use_dof = True
     camera.data.dof.focus_object = target
     camera.data.dof.aperture_fstop = 4.5
@@ -624,6 +632,9 @@ def hex_rgb(value):
 def scene_from_ai_graph(graph, frames):
     """Execute a validated semantic scene graph authored by the AI director."""
     palette = graph["palette"]
+    world = bpy.context.scene.world
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value = (*hex_rgb(palette["background"]), 1)
     colors = {"key": hex_rgb(palette["key"]), "accent": hex_rgb(palette["accent"]),
               "neutral": (0.68, 0.73, 0.82), "dark": (0.025, 0.04, 0.07)}
     mats = {role: material("AI Director " + role, color, 0.32, 0.3, 0.12 if role in {"key", "accent"} else 0.0)
@@ -690,6 +701,7 @@ def main():
     motif = str(cfg["motif"])
     camera_style = str(cfg["camera"])
     scene_graph = cfg.get("scene_graph")
+    camera_angle = "eye"
 
     # Premium dark-stage palette with warm metallic highlights and cool rim light.
     gold = material("BAMO warm gold", (0.82, 0.48, 0.12), 0.72, 0.22, 0.55)
@@ -740,6 +752,7 @@ def main():
     if motif == "ai_scene":
         if not isinstance(scene_graph, dict): raise RuntimeError("AI scene graph missing from Blender render config")
         camera_style = scene_from_ai_graph(scene_graph, frames)
+        camera_angle = scene_graph.get("camera", {}).get("angle", "eye")
     elif motif == "choice_paths":
         scene_choice(gold, blue, dark, frames)
     elif motif == "journey":
@@ -775,7 +788,7 @@ def main():
     else:
         raise RuntimeError("No cinematic Blender scene builder exists for motif: " + motif)
 
-    add_camera(frames, camera_style)
+    add_camera(frames, camera_style, camera_angle)
     scene.frame_set(1)
     bpy.ops.render.render(animation=True)
 
