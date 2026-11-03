@@ -439,7 +439,7 @@ def make_thumbnail(title: str, text: str, out_path: Path) -> Path:
     draw.ellipse((850, -170, 1420, 400), outline=(207, 179, 112), width=5)
     draw.ellipse((905, -115, 1365, 345), outline=(207, 179, 112), width=2)
     draw.rounded_rectangle((70, 64, 330, 124), radius=20, fill=(193, 157, 91))
-    brand = str(env("CHANNEL_BRAND") or "ImamAli110")[:24]
+    brand = str(env("CHANNEL_BRAND") or "BAMO  •  #12bamo")[:24]
     brand_persian = bool(re.search(r"[\u0600-\u06FF]", brand))
     brand_font = _font(30, persian=brand_persian)
     try:
