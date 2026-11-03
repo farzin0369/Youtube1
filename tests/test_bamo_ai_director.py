@@ -49,6 +49,14 @@ def test_scene_graph_rejects_relationships_to_missing_objects():
         validate_scene_graph(graph)
 
 
+def test_normalize_drops_only_stale_relationship_edges():
+    graph = valid_graph()
+    graph["relationships"].append({"from": "source_a", "to": "stale_shell_id", "kind": "orbit"})
+    normalized = normalize_scene_graph(graph)
+    plan = validate_scene_graph(normalized)
+    assert plan["relationships"] == [{"from": "source_a", "to": "field", "kind": "connect"}]
+
+
 def test_json_parser_accepts_fenced_json():
     fence = chr(96) * 3
     assert _parse_json(fence + "json\n" + json.dumps(valid_graph()) + "\n" + fence)["visual_thesis"].startswith("Two objects")
