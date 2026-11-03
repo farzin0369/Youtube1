@@ -157,7 +157,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
                 pr=max(5,int(ps*(.11+ring*.018)))
                 d.ellipse((px-pr,py-pr,px+pr,py+pr),fill=(105+ring*35,170+ring*15,235,245),outline=(255,255,255,210),width=2)
             d.ellipse((cx-star_r,cy-star_r,cx+star_r,cy+star_r),fill=(255,205,105,250),outline=(255,245,205,255),width=3)
-        elif motif == "science":
+        elif motif in ("science", "physics"):
             # Animated wavefronts and field vectors, rather than decorative orbital rings.
             for ring in range(1,7):
                 rr=ring*27+int((t*42)%27)
@@ -211,6 +211,26 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
                 d.line((projected[a][0:2],projected[b][0:2]),fill=(*glow,220),width=5)
             for x,y,dep,sc in projected:
                 r=max(7,int(sc*.18)); d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,235),outline=(255,255,255,230),width=2)
+        elif motif == "history":
+            # Historical architecture and terrain establish a recognizable place/time.
+            d.polygon([(0,sh*.70),(sw*.18,sh*.53),(sw*.34,sh*.67),(sw*.55,sh*.48),(sw*.78,sh*.64),(sw,sh*.52),(sw,sh),(0,sh)],fill=(25,34,48,255))
+            # Monumental gate with columns and a stepped pediment.
+            gate=[(sw*.24,sh*.67),(sw*.24,sh*.43),(sw*.32,sh*.34),(sw*.68,sh*.34),(sw*.76,sh*.43),(sw*.76,sh*.67)]
+            d.polygon(gate,fill=(*glow,75),outline=(*glow,235))
+            d.rectangle((sw*.37,sh*.47,sw*.63,sh*.70),fill=(12,19,31,255),outline=(230,210,170,220),width=3)
+            for x in (sw*.29,sw*.34,sw*.66,sw*.71):
+                d.rectangle((x-5,sh*.43,x+5,sh*.67),fill=(220,205,175,190))
+            # Slow foreground parallax bands.
+            shift=int((t*16)%80)
+            d.line((0,sh*.78+shift*.08,sw,sh*.78-shift*.08),fill=(*glow,160),width=3)
+        elif motif == "story":
+            # Character silhouette and a lit scene stage, not abstract geometry.
+            d.ellipse((cx-34,cy-145,cx+34,cy-77),fill=(18,24,38,255),outline=(*glow,245),width=4)
+            d.polygon([(cx-48,cy-72),(cx+48,cy-72),(cx+78,cy+110),(cx-78,cy+110)],fill=(20,30,48,255),outline=(*glow,230))
+            d.line((cx-35,cy-20,cx-115,cy+55),fill=(*glow,230),width=12)
+            d.line((cx+35,cy-20,cx+105,cy-78),fill=(*glow,230),width=12)
+            d.polygon([(0,sh*.78),(sw*.5,sh*.61),(sw,sh*.78),(sw,sh),(0,sh)],fill=(24,30,44,255))
+            d.ellipse((cx-155,cy-205,cx+155,cy+205),outline=(*glow,100),width=3)
         elif motif == "launch":
             # A rising beacon, not a generic orbital diagram.
             d.line((cx,cy+145,cx,cy-115),fill=(*glow,245),width=7)
