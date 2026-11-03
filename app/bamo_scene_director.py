@@ -9,6 +9,12 @@ from __future__ import annotations
 # Specific visual-query vocabulary is deliberately evaluated before narration.
 # Each entry maps to a real Blender scene builder in scripts/bamo_blender_scene.py.
 VISUAL_RULES = [
+    (("wave interference", "interference pattern", "two wave sources", "constructive interference", "destructive interference", "تداخل موج", "تداخل دو موج", "موج های هم‌پوشان", "موج‌های همپوشان"),
+     "wave_interference", "orbit",
+     "Two distinct animated wave sources produce expanding wavefronts and a physically readable 3D interference field."),
+    (("neon ellipse", "elliptical orbit", "orbiting particles", "geometric web", "luminous ellipse", "ellipse mesh", "بیضی نئونی", "مدار بیضوی", "نقاط نورانی", "شبکه هندسی"),
+     "neon_ellipse_mesh", "orbit",
+     "A luminous three-dimensional ellipse with orbiting particles, persistent curved light trails and a progressively denser chord mesh."),
     (("starfield", "night sky", "starry sky", "stars", "stellar", "آسمان شب", "ستاره", "ستارگان"),
      "starfield", "sweep",
      "A deep three-dimensional starfield above a curved planetary night horizon, with individually animated stars."),
