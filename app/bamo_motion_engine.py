@@ -33,7 +33,7 @@ def _ass_time(seconds: float) -> str:
 def _ass_escape(value: str) -> str:
     return value.replace("\\",r"\\").replace("{",r"\{").replace("}",r"\}").replace("\n",r"\N")
 
-def _write_ass(scenes: list[dict[str,Any]], path: Path, width: int, height: int) -> None:
+def _write_ass(scenes: list[dict[str,Any]], path: Path, width: int, height: int, caption_events: list[dict[str,Any]]|None=None) -> None:
     hero_size=max(38,int(width*.066)); brand_size=max(22,int(width*.032)); margin=max(42,int(width*.08))
     header=f"""[Script Info]
 ScriptType: v4.00+
@@ -50,13 +50,21 @@ Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HCC080C16,&H8
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    events=[]; cursor=0.0
-    for scene in scenes:
-        duration=scene["duration"]
-        if scene["text"]:
-            events.append(f"Dialogue: 0,{_ass_time(cursor+.12)},{_ass_time(cursor+duration-.12)},Brand,,0,0,0,,BAMO  •  #12bamo")
-            events.append(f"Dialogue: 1,{_ass_time(cursor+.18)},{_ass_time(cursor+duration-.12)},Main,,0,0,0,,{{\\fad(220,220)}}{_ass_escape(scene['text'])}")
-        cursor += duration
+    events=[]
+    if caption_events is not None:
+        for caption in caption_events:
+            start=float(caption["start"]); end=float(caption["end"]); text=str(caption["text"]).strip()
+            if end<=start or not text: continue
+            events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Brand,,0,0,0,,BAMO  •  #12bamo")
+            events.append(f"Dialogue: 1,{_ass_time(start)},{_ass_time(end)},Main,,0,0,0,,{{\\fad(90,110)}}{_ass_escape(text)}")
+    else:
+        cursor=0.0
+        for scene in scenes:
+            duration=scene["duration"]
+            if scene["text"]:
+                events.append(f"Dialogue: 0,{_ass_time(cursor+.12)},{_ass_time(cursor+duration-.12)},Brand,,0,0,0,,BAMO  •  #12bamo")
+                events.append(f"Dialogue: 1,{_ass_time(cursor+.18)},{_ass_time(cursor+duration-.12)},Main,,0,0,0,,{{\\fad(220,220)}}{_ass_escape(scene['text'])}")
+            cursor += duration
     path.write_text(header+"\n".join(events)+"\n",encoding="utf-8")
 
 def _run(command: list[str], timeout: int=900) -> None:
@@ -152,7 +160,7 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
         im.save(frames/f"{frame:05d}.jpg",quality=88)
     _run(["ffmpeg","-y","-framerate",str(fps),"-i",str(frames/"%05d.jpg"),"-vf",f"scale={width}:{height}:flags=lanczos,fade=t=in:st=0:d=0.25,fade=t=out:st={max(0,duration-.3):.3f}:d=0.3,format=yuv420p","-t",f"{duration:.3f}","-an","-c:v","libx264","-preset","veryfast","-crf","22","-pix_fmt","yuv420p",str(path)])
 
-def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None) -> Path:
+def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None, timeline: dict[str,Any]|None=None) -> Path:
     """Render an MP4 on CPU. No GPU, API key, or network access is used."""
     spec=validate_project(project)
     if not shutil.which("ffmpeg"): raise RuntimeError("FFmpeg is required on the runner")
@@ -176,14 +184,14 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
             continue
         else:
             from app.bamo_scene_director import plan_scene
-            visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
+            visual_plan = scene.get("visual_plan") or plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
             _render_3d_scene(clip,duration,width,height,fps,index,bg,accent,visual_plan)
             clips.append(clip)
             continue
 
     concat=work/"concat.txt"; concat.write_text("".join(f"file '{p.as_posix()}'\n" for p in clips),encoding="utf-8")
     silent=work/"silent.mp4"; _run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy","-an",str(silent)])
-    ass=work/"captions.ass"; _write_ass(spec["scenes"],ass,width,height)
+    ass=work/"captions.ass"; _write_ass(spec["scenes"],ass,width,height,(timeline or {}).get("captions"))
     command=["ffmpeg","-y","-i",str(silent)]
     audio_path=Path(audio).expanduser().resolve() if audio else None
     if audio_path:
@@ -194,6 +202,44 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
     _run(command)
     if not out.is_file() or out.stat().st_size<10000: raise RuntimeError("Rendered MP4 is missing or unexpectedly small")
     return out
+
+def render_omnivision_pipeline(pipeline: dict[str,Any], output: str|Path) -> Path:
+    """Render a validated Omnivision graph/timeline with measured caption timecodes."""
+    if not isinstance(pipeline,dict) or pipeline.get("schema")!="bamo.omnivision-pipeline/1.0":
+        raise ValueError("A compiled BAMO Omnivision pipeline is required")
+    graph=pipeline.get("graph") or {}; timeline=pipeline.get("timeline") or {}
+    if not pipeline.get("validation",{}).get("ok") or not graph.get("scenes") or not timeline.get("validation",{}).get("ok"):
+        raise ValueError("Omnivision graph and measured timeline must both be validated")
+    scenes=[]; cursor=0.0
+    motif_map={"planet":"astronomy","accretion-disc":"astronomy","star-cluster":"astronomy","nebula":"astronomy",
+      "wavefront":"science","field-lines":"science","particle-stream":"science","force-vector":"science",
+      "parametric-curve":"geometry","coordinate-lattice":"geometry","polyhedron":"geometry","equation-field":"geometry",
+      "molecule":"molecule","orbital-cloud":"atom","reaction-vessel":"chemistry","crystal-lattice":"geometry",
+      "monument":"journey","terrain-relief":"journey","artifact":"geometry","city-silhouette":"journey",
+      "hero-character":"abstract","comic-prop":"abstract","reaction-pose":"abstract","stage-set":"abstract"}
+    camera_map={"orbit":"orbit","push_in":"push_in","tracking":"tracking","sweep":"sweep"}
+    for index,scene in enumerate(graph["scenes"]):
+        start=float(scene["start"]); end=float(scene["end"])
+        if start<cursor-.02 or end<=start: raise ValueError("Omnivision scene timecodes overlap or are invalid")
+        if start>cursor+.02:
+            scenes.append({"duration":start-cursor,"text":"","narration":"","visual_plan":{"motif":"abstract","camera":"orbit","description":"A quiet transition preserving the measured narration pause."}})
+        subject=(scene.get("visual") or {}).get("subject","")
+        camera_keys=((scene.get("animation") or {}).get("camera") or [])
+        camera="push_in"
+        if len(camera_keys)>1:
+            first=camera_keys[0].get("position",[0,0,0]); last=camera_keys[-1].get("position",[0,0,0])
+            delta=sum((float(last[i])-float(first[i]))**2 for i in range(min(len(first),len(last))))
+            camera="sweep" if delta>8 else "tracking"
+        visual_plan={"motif":motif_map.get(subject,"abstract"),"camera":camera_map.get(camera,camera),
+          "description":(scene.get("visual") or {}).get("semanticPrompt","")}
+        scenes.append({"duration":end-start,"text":"","narration":scene.get("narration",""),
+          "visual_prompt":(scene.get("visual") or {}).get("semanticPrompt",""),"visual_plan":visual_plan})
+        cursor=end
+    project={"format":"short" if graph.get("aspect")=="9:16" else "long","fps":int(graph.get("fps",24)),"scenes":scenes}
+    audio_path=(pipeline.get("audio") or {}).get("path")
+    if not audio_path: raise ValueError("The pipeline must include the measured TTS audio path")
+    return render_project(project,output,audio=audio_path,timeline=timeline)
+
 
 def load_project(path: str|Path) -> dict[str,Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
