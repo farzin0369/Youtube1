@@ -63,60 +63,6 @@ def _run(command: list[str], timeout: int=900) -> None:
     if result.returncode: raise RuntimeError(f"FFmpeg failed ({result.returncode}): {result.stderr[-3000:]}")
 
 
-def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=None):
-    """Render a genuine animated Blender scene on CPU; never fall back to 2D primitives."""
-    visual_plan = visual_plan or {}
-    motif = str(visual_plan.get("motif") or "abstract")
-    camera = str(visual_plan.get("camera") or "orbit")
-    blender = shutil.which("blender")
-    if not blender:
-        raise RuntimeError("Blender is required for production 3D rendering; no procedural fallback is permitted.")
-
-    root = Path(__file__).resolve().parents[1]
-    script = root / "scripts" / "bamo_blender_scene.py"
-    if not script.is_file():
-        raise FileNotFoundError("BAMO Blender scene builder is missing: " + str(script))
-
-    frame_count = max(1, round(float(duration) * int(fps)))
-    frames_dir = path.parent / f"frames_{index:03d}"
-    if frames_dir.exists():
-        shutil.rmtree(frames_dir)
-    frames_dir.mkdir(parents=True, exist_ok=True)
-    config_path = path.parent / f"blender_scene_{index:03d}.json"
-    config = {
-        "width": int(width), "height": int(height), "fps": int(fps),
-        "frame_count": frame_count, "motif": motif, "camera": camera,
-        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "24")),
-        "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
-        "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
-    }
-    config_path.write_text(json.dumps(config), encoding="utf-8")
-    command = [
-        blender, "--background", "--factory-startup", "--python", str(script),
-        "--", str(config_path), str(frames_dir),
-    ]
-    result = subprocess.run(
-        command, capture_output=True, text=True,
-        timeout=max(900, int(float(duration) * int(fps) * 3.0)),
-    )
-    if result.returncode:
-        raise RuntimeError("Blender CPU render failed: " + (result.stderr or result.stdout)[-5000:])
-    first_frame = frames_dir / "frame_0001.png"
-    if not first_frame.is_file():
-        raise RuntimeError("Blender completed without producing the expected PNG frame sequence")
-
-    fadeout = max(0.0, float(duration) - 0.3)
-    _run([
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-framerate", str(fps), "-start_number", "1",
-        "-i", str(frames_dir / "frame_%04d.png"),
-        "-vf", f"scale={width}:{height}:flags=lanczos,fade=t=in:st=0:d=0.25,"
-               f"fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p",
-        "-t", f"{float(duration):.3f}", "-an",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-        "-pix_fmt", "yuv420p", str(path),
-    ], timeout=max(900, int(float(duration) * 18)))
-
 def _render_blender_scene(clip: Path, duration: float, width: int, height: int, fps: int,
                          index: int, visual_plan: dict[str, Any]) -> None:
     """Render one authored motif with Blender Cycles on CPU; never use a 2D fallback."""
@@ -142,6 +88,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "16")),
         "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
         "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
+        "denoise": os.getenv("BAMO_BLENDER_DENOISE", "true").lower() == "true",
     }
     if not 1 <= config["resolution_percentage"] <= 100:
         raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
