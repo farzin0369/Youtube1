@@ -53,7 +53,7 @@ export function compileSceneGraph(plan) {
   });
   const duration = scenes.at(-1).end;
   const pauses = scenes.slice(1).map((scene, i) => ({ start: scenes[i].end, end: scene.start })).filter(p => p.end - p.start > 0.02);
-  return { schema:"bamo.scene-graph/1.0", engine:"BAMO OMNIVISION", topic, duration, aspect:plan.input?.aspect || "9:16", fps:30, resolution:{width:1080,height:1920}, audio:{narrationTrack:"external-aligned-track", musicTrack:"optional-score", sfxTrack:"event-cues", masterClock:"scene-timecode"}, scenes, validation:{continuousTimeline:true, captionsVerbatim:true, perSceneUniqueSeed:true} };
+  return { schema:"bamo.scene-graph/1.0", engine:"BAMO OMNIVISION", topic, duration, pauses, aspect:plan.input?.aspect || "9:16", fps:30, resolution:{width:1080,height:1920}, audio:{narrationTrack:"external-aligned-track", musicTrack:"optional-score", sfxTrack:"event-cues", masterClock:"scene-timecode"}, scenes, validation:{continuousTimeline:true, captionsVerbatim:true, perSceneUniqueSeed:true} };
 }
 export function validateSceneGraph(graph) {
   const errors=[];
