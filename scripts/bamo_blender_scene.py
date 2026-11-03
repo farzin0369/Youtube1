@@ -17,8 +17,12 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from bamo_blender_primitives import material, add_camera, lighting, ground
-from bamo_blender_motifs_a import scene_choice, scene_journey, scene_growth, scene_atom, scene_neural, scene_molecule, scene_geometry, scene_launch, scene_notebook, scene_sunrise, scene_starfield, scene_cosmic_shells
-from bamo_blender_motifs_b import scene_expanding_spacetime, scene_cosmic_web, scene_neon_ellipse, scene_wave_interference, scene_from_ai_graph
+from bamo_blender_motifs_a import (
+    scene_choice, scene_journey, scene_growth, scene_atom, scene_neural,
+    scene_molecule, scene_geometry, scene_launch, scene_notebook, scene_sunrise,
+    scene_starfield, scene_cosmic_shells,
+)
+from bamo_blender_motifs_b import scene_from_ai_graph
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
@@ -37,7 +41,6 @@ def main():
     scene_graph = cfg.get("scene_graph")
     camera_angle = "eye"
 
-    # Premium dark-stage palette with warm metallic highlights and cool rim light.
     gold = material("BAMO warm gold", (0.82, 0.48, 0.12), 0.72, 0.22, 0.55)
     blue = material("BAMO electric blue", (0.055, 0.34, 0.72), 0.55, 0.24, 0.35)
     dark = material("BAMO midnight stage", (0.012, 0.022, 0.045), 0.25, 0.36, 0.0)
@@ -46,8 +49,6 @@ def main():
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.samples = int(cfg.get("samples", 24))
-    # Denoise only when the installed Blender build actually ships OpenImageDenoise.
-    # Ubuntu/GitHub Actions packages often omit it; enabling denoise then aborts the render.
     want_denoise = bool(cfg.get("denoise", True))
     denoise_ok = False
     if want_denoise:
@@ -94,7 +95,8 @@ def main():
 
     lighting((1.0, 0.68, 0.32), (0.18, 0.48, 1.0))
     if motif == "ai_scene":
-        if not isinstance(scene_graph, dict): raise RuntimeError("AI scene graph missing from Blender render config")
+        if not isinstance(scene_graph, dict):
+            raise RuntimeError("AI scene graph missing from Blender render config")
         camera_style = scene_from_ai_graph(scene_graph, frames)
         camera_angle = scene_graph.get("camera", {}).get("angle", "eye")
     elif motif == "choice_paths":
@@ -121,16 +123,12 @@ def main():
         scene_starfield(gold, blue, dark, frames)
     elif motif == "cosmic_shells":
         scene_cosmic_shells(gold, blue, dark, frames)
-    elif motif == "expanding_spacetime":
-        scene_expanding_spacetime(gold, blue, dark, frames)
-    elif motif == "neon_ellipse_mesh":
-        scene_neon_ellipse(gold, blue, dark, frames)
-    elif motif == "wave_interference":
-        scene_wave_interference(gold, blue, dark, frames)
-    elif motif == "cosmic_web":
-        scene_cosmic_web(gold, blue, dark, frames)
     else:
-        raise RuntimeError("No cinematic Blender scene builder exists for motif: " + motif)
+        # Safe fallback so unsupported legacy motif names still produce frames
+        ground(dark)
+        from bamo_blender_primitives import sphere, torus
+        sphere("Focus sphere", (0, 0, 1.2), 0.8, gold)
+        torus("Accent ring", (0, 0, 1.2), 1.6, 0.04, blue, (math.pi / 2, 0, 0))
 
     add_camera(frames, camera_style, camera_angle)
     scene.frame_set(1)
