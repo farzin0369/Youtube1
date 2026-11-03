@@ -23,3 +23,15 @@ def test_growth_steps_are_not_selected_for_notebook_narration():
 def test_unknown_visual_topic_fails_closed():
     with pytest.raises(ValueError, match="No subject-specific"):
         plan_scene("یک موضوع کاملاً تازه", "underwater coral reef ecosystem")
+
+
+def test_neon_ellipse_query_selects_dedicated_3d_builder():
+    plan = plan_scene("نقطه‌ها روی مدار حرکت می‌کنند", "neon ellipse with orbiting particles and geometric web")
+    assert plan["motif"] == "neon_ellipse_mesh"
+    assert plan["camera"] == "orbit"
+
+
+def test_wave_interference_query_selects_two_source_scene():
+    plan = plan_scene("دو موج با هم برخورد می‌کنند", "two wave sources and constructive destructive interference")
+    assert plan["motif"] == "wave_interference"
+    assert plan["camera"] == "orbit"
