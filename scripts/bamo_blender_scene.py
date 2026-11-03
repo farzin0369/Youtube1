@@ -454,6 +454,120 @@ def scene_cosmic_web(gold, blue, dark, frames):
             sphere("Galaxy in cluster", (point[0]+math.cos(angle)*0.55,point[1]+math.sin(angle)*0.55,point[2]+0.18),
                    0.07, blue if arm%2 else gold)
 
+
+def neon_material(name, color, strength=3.5):
+    """Emission-first material for crisp neon geometry and compositor bloom."""
+    mat = material(name, color, metallic=0.18, roughness=0.22, emission=strength)
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf and "Emission Strength" in bsdf.inputs:
+        bsdf.inputs["Emission Strength"].default_value = strength
+    return mat
+
+
+def linear_animation(obj):
+    """Keep orbital and wave motion at constant speed between authored keys."""
+    animation = getattr(obj, "animation_data", None)
+    action = getattr(animation, "action", None) if animation else None
+    if not action:
+        return
+    for fc in getattr(action, "fcurves", []):
+        for point in fc.keyframe_points:
+            point.interpolation = "LINEAR"
+
+
+def scene_neon_ellipse(gold, blue, dark, frames):
+    """BAMO signature scene: neon ellipse, orbiting particles, chords and 3D trails."""
+    ground(dark)
+    cyan = neon_material("BAMO neon cyan", (0.025, 0.62, 0.95), 4.8)
+    violet = neon_material("BAMO neon violet", (0.34, 0.12, 0.92), 3.8)
+    amber = neon_material("BAMO neon amber", (1.0, 0.39, 0.055), 4.2)
+    white = neon_material("BAMO particle core", (0.78, 0.94, 1.0), 5.5)
+    center = (0.0, 0.0, 2.0)
+    # Main ellipse and two faint construction orbits occupy different depths.
+    for idx, (rx, ry, z, mat, bevel) in enumerate((
+        (3.7, 5.25, 2.0, cyan, 0.045),
+        (3.05, 4.35, 2.12, violet, 0.018),
+        (4.25, 5.9, 1.82, amber, 0.014),
+    )):
+        pts = [(rx * math.cos(math.tau * i / 160), ry * math.sin(math.tau * i / 160), z)
+               for i in range(161)]
+        curve("Neon ellipse orbit %02d" % idx, pts, bevel, mat, cyclic=True)
+    # A 3D chord mesh grows from sparse links to a dense mathematical web.
+    nodes = []
+    count = 18
+    for i in range(count):
+        angle = math.tau * i / count
+        nodes.append((3.7 * math.cos(angle), 5.25 * math.sin(angle), 2.0 + 0.24 * math.sin(2 * angle)))
+    for step in (2, 5, 7):
+        for i in range(count):
+            j = (i + step) % count
+            if i < j:
+                curve("Neon geometric chord", [nodes[i], nodes[j]], 0.012 if step > 2 else 0.022,
+                      violet if step == 2 else cyan)
+    # Persistent curved trails are actual 3D splines, not painted pixels.
+    for i in range(8):
+        angle = math.tau * i / 8
+        trail = []
+        for q in range(36):
+            u = angle - 0.9 + 0.9 * q / 35
+            trail.append((3.7 * math.cos(u), 5.25 * math.sin(u), 2.0 + 0.24 * math.sin(2*u)))
+        curve("Accumulating particle light trail", trail, 0.028, amber if i % 2 else cyan)
+    # A rotating parent gives the particle system continuous, deterministic motion.
+    orbit = bpy.data.objects.new("BAMO orbital particle rig", None)
+    bpy.context.scene.collection.objects.link(orbit)
+    orbit.location = center
+    for i in range(count):
+        angle = math.tau * i / count
+        particle = sphere("Orbiting luminous particle", (0, 0, 0), 0.105 if i % 3 else 0.16,
+                          white if i % 5 == 0 else (amber if i % 3 == 0 else cyan))
+        particle.parent = orbit
+        particle.location = (3.7 * math.cos(angle), 5.25 * math.sin(angle), 0.24 * math.sin(2*angle))
+    orbit.rotation_euler.z = 0.0
+    orbit.keyframe_insert(data_path="rotation_euler", frame=1)
+    orbit.rotation_euler.z = math.tau
+    orbit.keyframe_insert(data_path="rotation_euler", frame=frames)
+    linear_animation(orbit)
+    # A luminous focal nucleus anchors the composition.
+    sphere("Neon geometry focal nucleus", center, 0.24, white)
+
+
+def scene_wave_interference(gold, blue, dark, frames):
+    """Two animated wave sources create a spatial interference field."""
+    ground(dark)
+    cyan = neon_material("Interference cyan wave", (0.02, 0.65, 1.0), 4.2)
+    magenta = neon_material("Interference magenta wave", (0.92, 0.08, 0.48), 4.2)
+    white = neon_material("Interference bright maxima", (0.82, 0.95, 1.0), 4.8)
+    source_a, source_b = (-2.0, 0.0, 1.5), (2.0, 0.0, 1.5)
+    for source, mat, label in ((source_a, magenta, "A"), (source_b, cyan, "B")):
+        sphere("Wave source " + label, source, 0.22, white)
+        for ring_index in range(5):
+            ring = torus("Expanding wavefront " + label, source, 0.34 + ring_index * 0.55,
+                         0.022, mat, (0.0, 0.0, 0.0))
+            ring.scale = (0.08, 0.08, 0.08)
+            ring.keyframe_insert(data_path="scale", frame=1)
+            ring.scale = (1.0, 1.0, 1.0)
+            ring.keyframe_insert(data_path="scale", frame=max(2, int(frames * (0.45 + ring_index * 0.1))))
+            linear_animation(ring)
+    # Constructive/destructive interference is encoded in the 3D height field.
+    for ix in range(17):
+        x = -4.0 + ix * 0.5
+        for iy in range(17):
+            y = -4.0 + iy * 0.5
+            da = math.hypot(x - source_a[0], y)
+            db = math.hypot(x - source_b[0], y)
+            amplitude = (math.cos(da * 2.7) + math.cos(db * 2.7)) * 0.5
+            z = 0.42 + amplitude * 0.62
+            color = white if abs(amplitude) > 0.72 else (cyan if amplitude >= 0 else magenta)
+            dot = sphere("Interference field sample", (x, y, z), 0.055 + abs(amplitude) * 0.045, color)
+            dot.keyframe_insert(data_path="location", frame=1)
+            dot.location.z = z + 0.18 * math.sin((ix + iy) * 0.45)
+            dot.keyframe_insert(data_path="location", frame=frames)
+            linear_animation(dot)
+    # Fine coordinate axes make the two-source geometry legible in depth.
+    curve("Interference horizontal axis", [(-4.5, 0, 0.18), (4.5, 0, 0.18)], 0.012, blue)
+    curve("Interference vertical axis", [(0, -4.5, 0.18), (0, 4.5, 0.18)], 0.012, gold)
+
+
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
     config_path, output_dir = args[0], args[1]
@@ -538,6 +652,10 @@ def main():
         scene_cosmic_shells(gold, blue, dark, frames)
     elif motif == "expanding_spacetime":
         scene_expanding_spacetime(gold, blue, dark, frames)
+    elif motif == "neon_ellipse_mesh":
+        scene_neon_ellipse(gold, blue, dark, frames)
+    elif motif == "wave_interference":
+        scene_wave_interference(gold, blue, dark, frames)
     elif motif == "cosmic_web":
         scene_cosmic_web(gold, blue, dark, frames)
     else:
