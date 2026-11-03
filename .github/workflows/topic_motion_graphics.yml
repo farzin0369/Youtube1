@@ -9,6 +9,7 @@ on:
       - scripts/render_olbers_paradox.py
       - .github/workflows/topic_motion_graphics.yml
       - app/bamo_production_renderer.py
+      - app/bamo_motion_engine.py
       - app/bamo_scene_director.py
       - scripts/bamo_blender_scene.py
       - app/spiritual_tts.py
