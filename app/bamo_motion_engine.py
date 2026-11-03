@@ -96,30 +96,34 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
         for p in range(42):
             x=(p*83+t*(12+p%5)*(-1 if p%2 else 1))%sw; y=(p*137+t*(8+p%7))%sh; r=1+p%3
             d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,75))
-        verts=[_project_3d(x*.82,y*.82,z*.82,ang+t*.28,zoom,sw,sh) for x,y,z in [(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)]]
-        faces=[((0,1,2,3),.4),((4,5,6,7),.72),((0,1,5,4),.58),((2,3,7,6),.82),((1,2,6,5),.95),((0,3,7,4),.3)]; items=[]
-        for face,light in faces:
-            pts=[(verts[q][0],verts[q][1]) for q in face]; shade=tuple(int(v*light) for v in glow)
-            items.append((sum(verts[q][2] for q in face)/4,"poly",pts,(*shade,215)))
-        for j in range(3):
-            ph=t*(.85+j*.16)+j*2.1+index; sx,sy,dep,sc=_project_3d(1.65*math.cos(ph),.72*math.sin(ph*1.3),1.55*math.sin(ph),ang,zoom,sw,sh)
-            r=max(5,int(sc*(.24 if j else .31))); col=(*glow,235) if j==0 else ((105,175,220,230) if j==1 else (225,170,95,230))
-            items.append((dep,"sphere",(sx,sy,r),col))
-        for _,kind,data,col in sorted(items,key=lambda a:a[0],reverse=True):
-            if kind=="poly":
-                d.polygon(data,fill=col); d.line(data+[data[0]],fill=(235,220,190,200),width=2)
-            else:
-                sx,sy,r=data
-                for q in range(r,0,-1):
-                    shade=tuple(int(min(255, v * (0.34 + 0.82 * (1 - q / r * 0.55)))) for v in col[:3])
-                    d.ellipse((sx-q,sy-q,sx+q,sy+q),fill=(*shade,col[3]))
-                d.ellipse((sx-r*.48,sy-r*.62,sx-r*.08,sy-r*.22),fill=(255,255,255,125))
         cx,cy,_,_=_project_3d(0,0,0,ang,zoom,sw,sh)
-        for rr in (1.65,2):
-            pts=[]
-            for q in range(65):
-                a=q*math.tau/64+t*.25; xx,yy,_,_=_project_3d(rr*math.cos(a),.25*math.sin(a),rr*math.sin(a),ang,zoom,sw,sh); pts.append((xx,yy))
-            d.line(pts,fill=(*glow,110),width=2)
+        # Generic cube/orbits are reserved for unknown abstract scenes only.
+        # Topic-specific scenes must not inherit unrelated cube imagery.
+        if motif == "abstract":
+            verts=[_project_3d(x*.82,y*.82,z*.82,ang+t*.28,zoom,sw,sh) for x,y,z in [(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)]]
+            faces=[((0,1,2,3),.4),((4,5,6,7),.72),((0,1,5,4),.58),((2,3,7,6),.82),((1,2,6,5),.95),((0,3,7,4),.3)]; items=[]
+            for face,light in faces:
+                pts=[(verts[q][0],verts[q][1]) for q in face]; shade=tuple(int(v*light) for v in glow)
+                items.append((sum(verts[q][2] for q in face)/4,"poly",pts,(*shade,215)))
+            for j in range(3):
+                ph=t*(.85+j*.16)+j*2.1+index; sx,sy,dep,sc=_project_3d(1.65*math.cos(ph),.72*math.sin(ph*1.3),1.55*math.sin(ph),ang,zoom,sw,sh)
+                r=max(5,int(sc*(.24 if j else .31))); col=(*glow,235) if j==0 else ((105,175,220,230) if j==1 else (225,170,95,230))
+                items.append((dep,"sphere",(sx,sy,r),col))
+            for _,kind,data,col in sorted(items,key=lambda a:a[0],reverse=True):
+                if kind=="poly":
+                    d.polygon(data,fill=col); d.line(data+[data[0]],fill=(235,220,190,200),width=2)
+                else:
+                    sx,sy,r=data
+                    for q in range(r,0,-1):
+                        shade=tuple(int(min(255, v * (0.34 + 0.82 * (1 - q / r * 0.55)))) for v in col[:3])
+                        d.ellipse((sx-q,sy-q,sx+q,sy+q),fill=(*shade,col[3]))
+                    d.ellipse((sx-r*.48,sy-r*.62,sx-r*.08,sy-r*.22),fill=(255,255,255,125))
+            cx,cy,_,_=_project_3d(0,0,0,ang,zoom,sw,sh)
+            for rr in (1.65,2):
+                pts=[]
+                for q in range(65):
+                    a=q*math.tau/64+t*.25; xx,yy,_,_=_project_3d(rr*math.cos(a),.25*math.sin(a),rr*math.sin(a),ang,zoom,sw,sh); pts.append((xx,yy))
+                d.line(pts,fill=(*glow,110),width=2)
         if motif in ("choice_paths", "journey"):
             for branch in (-1, 1):
                 pts=[]
