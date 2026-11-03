@@ -20,5 +20,5 @@ test("joins Persian TTS scene and measured word timings into a validated AV pipe
 });
 test("refuses guessed or missing TTS alignment",()=>{
   assert.throws(()=>compileAudioVisualPipeline("متن", {...tts,word_events:[]}),/word events/);
-  assert.throws(()=>compileAudioVisualPipeline("متن", {...tts,scene_timings:[{start_seconds:0,end_seconds:1}]}),/scene count/);
+  assert.throws(()=>compileAudioVisualPipeline("متن", {...tts,scene_timings:[{start_seconds:0,end_seconds:2},{start_seconds:2,end_seconds:4}]}),/scene count/);
 });
