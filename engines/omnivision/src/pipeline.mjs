@@ -23,8 +23,10 @@ export function compileAudioVisualPipeline(script, ttsResult, { aspect = "9:16" 
     if (!Number.isFinite(scenes[i].start) || !Number.isFinite(scenes[i].end) || scenes[i].end <= scenes[i].start) {
       throw new Error("TTS returned invalid scene boundaries");
     }
-    if (i && Math.abs(scenes[i].start - scenes[i - 1].end) > 0.02) {
-      throw new Error("TTS scene boundaries contain an unmodelled pause; preserve the pause explicitly before rendering");
+    if (i) {
+      const gap = scenes[i].start - scenes[i - 1].end;
+      if (gap < -0.02) throw new Error("TTS scene boundaries overlap");
+      if (gap > 0.72) throw new Error("TTS pause exceeds the supported explicit-silence window");
     }
   }
   const alignedPlan = { ...plan, scenes };
