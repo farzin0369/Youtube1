@@ -6,6 +6,8 @@ motif builders are not an acceptable substitute for this proof.
 """
 from __future__ import annotations
 
+# vector-hardening companion run for truncated Qwen scene graphs
+
 import json
 import traceback
 from pathlib import Path
