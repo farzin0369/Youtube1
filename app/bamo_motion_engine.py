@@ -134,7 +134,62 @@ def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=
                 corners=[(x0,y0,0),(x0+.48,y0,0),(x0+.48,y0+.22,0),(x0,y0+.22,0)]
                 pts=[_project_3d(*v,ang,zoom,sw,sh)[:2] for v in corners]
                 d.polygon(pts,fill=(*glow,95+q*22),outline=(*glow,230))
-        elif motif in ("atom", "science", "geometry"):
+        elif motif == "astronomy":
+            # Distinct planetary scene: luminous central star, orbit tracks and orbiting planets.
+            star_r=25+int(4*math.sin(t*2.1))
+            for ring in (1,2,3):
+                rr=72+ring*57
+                pts=[]
+                for q in range(121):
+                    a=q*math.tau/120+t*(.12+ring*.035)
+                    x,y,_,_=_project_3d((rr/100)*math.cos(a),.10*math.sin(a*2),(rr/100)*math.sin(a),ang,zoom,sw,sh)
+                    pts.append((x,y))
+                d.line(pts,fill=(*glow,105+ring*22),width=2)
+                a=t*(.55/ring)+ring*1.7
+                px,py,_,ps=_project_3d((rr/100)*math.cos(a),.10*math.sin(a*2),(rr/100)*math.sin(a),ang,zoom,sw,sh)
+                pr=max(5,int(ps*(.11+ring*.018)))
+                d.ellipse((px-pr,py-pr,px+pr,py+pr),fill=(105+ring*35,170+ring*15,235,245),outline=(255,255,255,210),width=2)
+            d.ellipse((cx-star_r,cy-star_r,cx+star_r,cy+star_r),fill=(255,205,105,250),outline=(255,245,205,255),width=3)
+        elif motif == "science":
+            # Animated wavefronts and field vectors, rather than decorative orbital rings.
+            for ring in range(1,7):
+                rr=ring*27+int((t*42)%27)
+                d.arc((cx-rr,cy-rr,cx+rr,cy+rr),start=195,end=345,fill=(*glow,max(45,220-ring*25)),width=3)
+            for q in range(13):
+                x=35+q*34
+                phase=t*3+q*.42
+                pts=[(x,sh*.5+math.sin(k/8+phase)*38) for k in range(100)]
+                d.line(pts,fill=(*glow,190),width=2)
+            for q in range(9):
+                x=45+q*48
+                y=sh*.5+math.sin(t*2+q*.6)*35
+                d.line((x,y-24,x,y+24),fill=(210,225,245,180),width=2)
+                d.polygon([(x,y+30),(x-6,y+18),(x+6,y+18)],fill=(210,225,245,210))
+        elif motif == "geometry":
+            # Parametric construction: a moving curve over a perspective coordinate lattice.
+            for q in range(-5,6):
+                pts=[]
+                for k in range(41):
+                    u=k/40
+                    x,y,_,_=_project_3d(q*.34,-1.65+u*3.3,0,ang,zoom,sw,sh)
+                    pts.append((x,y))
+                d.line(pts,fill=(*glow,95),width=1)
+                pts=[]
+                for k in range(41):
+                    u=k/40
+                    x,y,_,_=_project_3d(-1.7+u*3.4,q*.30,0,ang,zoom,sw,sh)
+                    pts.append((x,y))
+                d.line(pts,fill=(*glow,95),width=1)
+            curve=[]
+            for q in range(181):
+                u=q/180*math.tau*1.5
+                x,y,_,_=_project_3d(1.25*math.cos(u),.72*math.sin(2*u+t*.8),.45*math.sin(u),ang,zoom,sw,sh)
+                curve.append((x,y))
+            d.line(curve,fill=(245,225,170,245),width=4)
+            for q in range(0,181,18):
+                x,y=curve[q]
+                d.ellipse((x-4,y-4,x+4,y+4),fill=(*glow,245))
+        elif motif in ("atom",):
             for tilt in (0, math.pi/3, -math.pi/3):
                 pts=[]
                 for q in range(90):
