@@ -43,6 +43,7 @@ jobs:
           BAMO_BLENDER_SAMPLES: "2"
           BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
           BAMO_BLENDER_THREADS: "2"
+          BAMO_BLENDER_DENOISE: "false"
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()
