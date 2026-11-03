@@ -151,9 +151,36 @@ def direct_scene(*, narration: str, visual_brief: str, overlay: str = "",
         SYSTEM, prompt, max_tokens=1800, temperature=0.55, json_mode=True, timeout=180,
     )
     plan = validate_scene_graph(_parse_json(response))
+    # A separate editorial pass checks the authored composition against the
+    # literal sentence before any expensive Blender frames are rendered.
+    critique_system = (
+        "You are an independent visual-story editor. Compare narration with the proposed "
+        "3D scene graph. Check literal semantic alignment, explanatory correctness, object "
+        "relationships, visual clarity, and whether the shot communicates the exact sentence. "
+        "Return ONLY JSON: {score: integer 0-100, verdict: 'pass'|'revise', issues: [strings], "
+        "revision_brief: string}. A mismatch in subject or mechanism must be revise."
+    )
+    critique_prompt = json.dumps({
+        "narration_exact": narration, "visual_brief": visual_brief,
+        "visual_thesis": plan["visual_thesis"], "camera": plan["camera"],
+        "objects": plan["objects"], "relationships": plan["relationships"],
+    }, ensure_ascii=False)
+    critique_raw, critique_provider = generate_text(
+        critique_system, critique_prompt, max_tokens=500, temperature=0.1,
+        json_mode=True, timeout=120,
+    )
+    critique = _parse_json(critique_raw)
+    score = int(critique.get("score", 0))
+    if critique.get("verdict") != "pass" or score < 80 or not isinstance(critique.get("issues"), list):
+        raise ValueError(
+            "AI scene director rejected its own semantic composition; revise before rendering: "
+            + "; ".join(str(issue) for issue in critique.get("issues", [])[:4])
+        )
     plan.update({
         "motif": "ai_scene", "matched_by": "semantic_ai_director",
         "camera_style": plan["camera"]["move"], "provider": provider,
+        "critic_provider": critique_provider, "semantic_review_score": score,
+        "semantic_review": critique,
         "narration_exact": narration, "visual_brief": visual_brief,
         "duration_seconds": float(duration_seconds),
     })
