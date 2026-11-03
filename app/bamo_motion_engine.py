@@ -8,7 +8,15 @@ import json, math, os, shutil, subprocess
 from pathlib import Path
 from typing import Any
 
-FORMATS = {"short": (720,1280), "vertical": (720,1280), "long": (1280,720), "landscape": (1280,720), "square": (1080,1080)}
+# Primary Shorts output is full vertical HD. Preview CI can still downscale via
+# BAMO_BLENDER_RESOLUTION_PERCENTAGE without changing the authored frame size.
+FORMATS = {
+    "short": (1080, 1920),
+    "vertical": (1080, 1920),
+    "long": (1920, 1080),
+    "landscape": (1920, 1080),
+    "square": (1080, 1080),
+}
 PALETTES = [("0x10172a","0xb98b43"),("0x111827","0x3b82a0"),("0x1c1424","0xbd5964"),("0x101d20","0xb6a36a"),("0x191624","0x7d76b8")]
 
 def validate_project(project: dict[str, Any]) -> dict[str, Any]:
@@ -33,7 +41,7 @@ def _ass_escape(value: str) -> str:
     return value.replace("\\",r"\\").replace("{",r"\{").replace("}",r"\}").replace("\n",r"\N")
 
 def _write_ass(scenes: list[dict[str,Any]], path: Path, width: int, height: int) -> None:
-    hero_size=max(38,int(width*.066)); brand_size=max(22,int(width*.032)); margin=max(42,int(width*.08))
+    hero_size=max(42,int(width*.055)); brand_size=max(24,int(width*.028)); margin=max(48,int(width*.07))
     header=f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -89,10 +97,14 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "width": int(width), "height": int(height), "fps": int(fps),
         "frame_count": frame_count, "motif": motif, "camera": camera,
         "scene_graph": scene_graph,
-        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "16")),
+        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "24")),
         "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
         "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
         "denoise": os.getenv("BAMO_BLENDER_DENOISE", "true").lower() == "true",
+        "motion_blur": os.getenv("BAMO_BLENDER_MOTION_BLUR", "false").lower() == "true",
+        "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035")),
+        "chromatic_aberration": float(os.getenv("BAMO_BLENDER_CA", "0.0012")),
+        "cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",
     }
     if not 1 <= config["resolution_percentage"] <= 100:
         raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
@@ -102,7 +114,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
 
     command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
                "--", str(config_path), str(frames_dir)]
-    timeout = max(900, int(frame_count * 20))
+    timeout = max(900, int(frame_count * 25))
     result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     if result.returncode:
         raise RuntimeError(
@@ -118,7 +130,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-framerate", str(fps), "-start_number", "1", "-i", str(frames_dir / "frame_%04d.png"),
         "-frames:v", str(frame_count), "-vf", f"scale={width}:{height}:flags=lanczos,format=yuv420p",
-        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(clip),
     ], timeout=max(900, int(frame_count * 8)))
     if not clip.is_file() or clip.stat().st_size < 10_000:
@@ -144,7 +156,7 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
             vf=(f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
                 f"zoompan=z='min(zoom+0.0007,1.08)':d={max(1,round(duration*fps))}:s={width}x{height}:fps={fps},"
                 f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
-            cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p",str(clip)]
+            cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p",str(clip)]
             _run(cmd)
             clips.append(clip)
             continue
@@ -154,7 +166,6 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
                 visual_plan = {"motif": "ai_scene", "camera": scene["scene_graph"].get("camera", {}).get("move", "push_in"),
                                "scene_graph": scene["scene_graph"]}
             else:
-                from app.bamo_scene_director import plan_scene
                 visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
             _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
             clips.append(clip)
@@ -169,7 +180,7 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
         if not audio_path.is_file(): raise FileNotFoundError(f"Audio file not found: {audio_path}")
         command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-shortest"]
     else: command += ["-vf",f"ass={ass.as_posix()}","-an"]
-    command += ["-c:v","libx264","-preset","veryfast","-crf","21","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]
+    command += ["-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]
     _run(command)
     if not out.is_file() or out.stat().st_size<10000: raise RuntimeError("Rendered MP4 is missing or unexpectedly small")
     return out
