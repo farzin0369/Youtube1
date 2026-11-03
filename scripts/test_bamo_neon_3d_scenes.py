@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -48,8 +49,8 @@ evidence = {
     "frames": int(stream["nb_read_frames"]),
     "duration": float(data["format"]["duration"]),
     "scenes": ["neon_ellipse_mesh", "wave_interference"],
-    "samples": 2,
-    "resolution_percentage": 25,
+    "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "16")),
+    "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
 }
 (out / "render-evidence.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
 for stamp, name in (("1.0", "ellipse-review.png"), ("3.5", "wave-review.png")):
