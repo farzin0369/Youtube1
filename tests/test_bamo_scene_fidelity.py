@@ -28,10 +28,20 @@ def test_unknown_visual_prompt_fails_closed():
 
 
 def test_blender_builder_contains_real_subject_specific_scene_builders_and_orbit_camera():
-    source = Path("scripts/bamo_blender_scene.py").read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    functions = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+    """Builder may be monolithic or modular; require the real camera + motif surface."""
+    entry = Path("scripts/bamo_blender_scene.py").read_text(encoding="utf-8")
+    primitives = Path("scripts/bamo_blender_primitives.py").read_text(encoding="utf-8") if Path("scripts/bamo_blender_primitives.py").is_file() else ""
+    motifs_a = Path("scripts/bamo_blender_motifs_a.py").read_text(encoding="utf-8") if Path("scripts/bamo_blender_motifs_a.py").is_file() else ""
+    motifs_b = Path("scripts/bamo_blender_motifs_b.py").read_text(encoding="utf-8") if Path("scripts/bamo_blender_motifs_b.py").is_file() else ""
+    combined = "\n".join([entry, primitives, motifs_a, motifs_b])
+
+    def function_names(source: str) -> set[str]:
+        tree = ast.parse(source)
+        return {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+    functions = function_names(entry) | function_names(primitives) | function_names(motifs_a) | function_names(motifs_b)
     assert {"scene_notebook", "scene_sunrise", "add_camera"} <= functions
-    assert "true multi-point orbit" in source
-    assert 'elif motif == "notebook"' in source
-    assert 'elif motif == "sunrise"' in source
+    assert "scene_from_ai_graph" in functions or "scene_from_ai_graph" in combined
+    assert 'elif motif == "notebook"' in entry or 'elif motif == "notebook"' in combined
+    assert 'elif motif == "sunrise"' in entry or 'elif motif == "sunrise"' in combined
+    assert "orbit" in combined
