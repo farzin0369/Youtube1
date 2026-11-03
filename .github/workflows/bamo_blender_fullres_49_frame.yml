@@ -26,6 +26,7 @@ jobs:
       BAMO_BLENDER_SAMPLES: "16"
       BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
       BAMO_BLENDER_THREADS: "2"
+      BAMO_BLENDER_DENOISE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
