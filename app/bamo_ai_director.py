@@ -150,7 +150,24 @@ def direct_scene(*, narration: str, visual_brief: str, overlay: str = "",
     response, provider = generate_text(
         SYSTEM, prompt, max_tokens=1800, temperature=0.55, json_mode=True, timeout=180,
     )
-    plan = validate_scene_graph(_parse_json(response))
+    try:
+        plan = validate_scene_graph(_parse_json(response))
+    except (ValueError, TypeError, json.JSONDecodeError) as first_error:
+        # Providers occasionally emit almost-JSON despite json_mode. Ask once
+        # for a strict repair; never silently guess or render malformed data.
+        repair_prompt = json.dumps({
+            "task": "Repair the supplied response into one valid JSON object matching the scene graph schema. Preserve its intended visual meaning. Output JSON only, with all commas, quotes, arrays and numbers valid.",
+            "validation_error": str(first_error),
+            "malformed_response": str(response)[:12000],
+            "narration_exact": narration,
+            "visual_brief": visual_brief,
+        }, ensure_ascii=False)
+        repaired, repair_provider = generate_text(
+            SYSTEM, repair_prompt, max_tokens=1800, temperature=0.0,
+            json_mode=True, timeout=180,
+        )
+        plan = validate_scene_graph(_parse_json(repaired))
+        provider = f"{provider}+json-repair:{repair_provider}"
     # A separate editorial pass checks the authored composition against the
     # literal sentence before any expensive Blender frames are rendered.
     critique_system = (
