@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.bamo_motion_engine import render_project
-from app.bamo_scene_director import plan_scene
+from app.bamo_ai_director import direct_scene
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
@@ -46,13 +46,20 @@ def render_bamo_shorts(
 
     render_scenes = []
     visual_plans = []
+    story_context = " | ".join(str(item.get("spoken_text") or "") for item in scenes)
+    prior_theses = []
     for scene, duration in zip(scenes, durations):
         narration = str(scene.get("spoken_text") or "").strip()
         visual_prompt = str(scene.get("visual_query") or "").strip()
         overlay = str(scene.get("on_screen_text") or "").strip()
         if not narration or not visual_prompt or not overlay:
             raise ValueError("Each 3D scene needs narration, a specific visual query, and Persian overlay text")
-        plan = plan_scene(narration, visual_prompt)
+        plan = direct_scene(
+            narration=narration, visual_brief=visual_prompt, overlay=overlay,
+            duration_seconds=duration, story_context=story_context,
+            previous_visual_theses=prior_theses,
+        )
+        prior_theses.append(plan["visual_thesis"])
         visual_plans.append(plan)
         render_scenes.append({
             "duration": duration,
@@ -61,13 +68,17 @@ def render_bamo_shorts(
             "visual_prompt": visual_prompt,
             "background": "",
             "accent": "",
+            "scene_graph": {key: plan[key] for key in ("camera", "palette", "objects", "relationships", "visual_thesis")},
         })
 
-    motifs = [plan["motif"] for plan in visual_plans]
-    if len(set(motifs)) != len(motifs):
-        raise ValueError(
-            "Repeated visual motif detected inside one Short; author distinct scene visuals before rendering."
-        )
+    # Scene uniqueness is semantic: reject duplicate authored compositions, not a
+    # shared renderer identifier. The same renderer executes different scene graphs.
+    signatures = [
+        tuple((obj["kind"], tuple(obj["position"]), obj["role"]) for obj in plan["objects"])
+        for plan in visual_plans
+    ]
+    if len(set(signatures)) != len(signatures):
+        raise ValueError("AI director repeated an identical 3D composition within one Short")
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
     silent_path = out_dir / "bamo-3d-silent.mp4"
@@ -144,7 +155,9 @@ def render_bamo_shorts(
         "production_visuals_approved": production_approved,
         "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
-        "camera_motion": [plan.get("camera") for plan in visual_plans],
+        "camera_motion": [plan.get("camera", {}).get("move") for plan in visual_plans],
+        "ai_director_provider_models": sorted({plan.get("provider", "unknown") for plan in visual_plans}),
+        "ai_scene_theses": [plan.get("visual_thesis") for plan in visual_plans],
         "render_backend": "blender-cycles-cpu",
         "test_visuals_only": False,
         "music_ducking": True,
