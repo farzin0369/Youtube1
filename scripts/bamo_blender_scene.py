@@ -25,74 +25,73 @@ from bamo_blender_motifs_a import (
 from bamo_blender_motifs_b import scene_from_ai_graph
 
 def _setup_cinematic_compositor(scene, cfg):
-    """Bloom + optional film grain + mild chromatic aberration in compositor."""
+    """Bloom + mild chromatic aberration. Avoid Texture nodes (fragile on headless)."""
     scene.use_nodes = True
     tree = scene.node_tree
     tree.nodes.clear()
     render_layers = tree.nodes.new("CompositorNodeRLayers")
-    render_layers.location = (-600, 0)
+    render_layers.location = (-500, 0)
 
     last = render_layers.outputs["Image"]
 
     glare = tree.nodes.new("CompositorNodeGlare")
     glare.glare_type = "FOG_GLOW"
-    glare.threshold = 0.65
-    glare.quality = "HIGH"
+    glare.threshold = 0.7
+    glare.quality = "MEDIUM"
     try:
-        glare.size = 8
+        glare.size = 7
     except Exception:
         pass
-    glare.location = (-350, 80)
+    glare.location = (-250, 40)
     tree.links.new(last, glare.inputs["Image"])
     last = glare.outputs["Image"]
 
     if cfg.get("cinematic_effects", True):
         ca = float(cfg.get("chromatic_aberration") or 0.0)
         if ca > 0.0:
-            sep = tree.nodes.new("CompositorNodeSepRGBA")
-            sep.location = (-120, 120)
-            tree.links.new(last, sep.inputs["Image"])
-            blur_r = tree.nodes.new("CompositorNodeBlur")
-            blur_r.filter_type = "FAST_GAUSS"
-            blur_r.size_x = max(1, int(ca * 800))
-            blur_r.size_y = 0
-            blur_r.location = (80, 200)
-            tree.links.new(sep.outputs["R"], blur_r.inputs["Image"])
-            blur_b = tree.nodes.new("CompositorNodeBlur")
-            blur_b.filter_type = "FAST_GAUSS"
-            blur_b.size_x = max(1, int(ca * 800))
-            blur_b.size_y = 0
-            blur_b.location = (80, 40)
-            tree.links.new(sep.outputs["B"], blur_b.inputs["Image"])
-            comb = tree.nodes.new("CompositorNodeCombRGBA")
-            comb.location = (280, 120)
-            tree.links.new(blur_r.outputs["Image"], comb.inputs["R"])
-            tree.links.new(sep.outputs["G"], comb.inputs["G"])
-            tree.links.new(blur_b.outputs["Image"], comb.inputs["B"])
-            tree.links.new(sep.outputs["A"], comb.inputs["A"])
-            last = comb.outputs["Image"]
+            try:
+                sep = tree.nodes.new("CompositorNodeSepRGBA")
+                sep.location = (-50, 100)
+                tree.links.new(last, sep.inputs["Image"])
+                blur_r = tree.nodes.new("CompositorNodeBlur")
+                blur_r.filter_type = "FAST_GAUSS"
+                blur_r.size_x = max(1, int(ca * 600))
+                blur_r.size_y = 0
+                blur_r.location = (150, 180)
+                tree.links.new(sep.outputs["R"], blur_r.inputs["Image"])
+                blur_b = tree.nodes.new("CompositorNodeBlur")
+                blur_b.filter_type = "FAST_GAUSS"
+                blur_b.size_x = max(1, int(ca * 600))
+                blur_b.size_y = 0
+                blur_b.location = (150, 20)
+                tree.links.new(sep.outputs["B"], blur_b.inputs["Image"])
+                comb = tree.nodes.new("CompositorNodeCombRGBA")
+                comb.location = (350, 100)
+                tree.links.new(blur_r.outputs["Image"], comb.inputs["R"])
+                tree.links.new(sep.outputs["G"], comb.inputs["G"])
+                tree.links.new(blur_b.outputs["Image"], comb.inputs["B"])
+                tree.links.new(sep.outputs["A"], comb.inputs["A"])
+                last = comb.outputs["Image"]
+            except Exception:
+                # Keep bloom-only path if CA nodes are unavailable on this Blender build.
+                pass
 
         grain_amt = float(cfg.get("film_grain") or 0.0)
         if grain_amt > 0.0:
-            noise = tree.nodes.new("CompositorNodeTexture")
-            noise.location = (-120, -180)
-            # Procedural noise via Mix with slight brightness variation.
-            mix = tree.nodes.new("CompositorNodeMixRGB")
-            mix.blend_type = "OVERLAY"
-            mix.inputs["Fac"].default_value = min(0.35, max(0.0, grain_amt))
-            mix.location = (480, 0)
-            tree.links.new(last, mix.inputs["Image1"])
-            # If texture node has no texture, fall back to slight gamma only.
             try:
-                tex = bpy.data.textures.new("BAMO_FilmGrain", type="NOISE")
-                noise.texture = tex
-                tree.links.new(noise.outputs["Color"], mix.inputs["Image2"])
+                # Soft contrast lift as a deterministic grain substitute on CPU builds
+                # without reliable procedural texture compositing.
+                bright = tree.nodes.new("CompositorNodeBrightContrast")
+                bright.inputs["Bright"].default_value = 0.0
+                bright.inputs["Contrast"].default_value = min(0.12, grain_amt * 2.0)
+                bright.location = (520, 40)
+                tree.links.new(last, bright.inputs["Image"])
+                last = bright.outputs["Image"]
             except Exception:
-                mix.inputs["Image2"].default_value = (0.5, 0.5, 0.5, 1.0)
-            last = mix.outputs["Image"]
+                pass
 
     composite = tree.nodes.new("CompositorNodeComposite")
-    composite.location = (720, 0)
+    composite.location = (740, 0)
     tree.links.new(last, composite.inputs["Image"])
 
 
@@ -136,7 +135,6 @@ def main():
         except Exception:
             pass
 
-    # Motion blur: off by default for fast preview; enable via config/env.
     use_mb = bool(cfg.get("motion_blur", False))
     scene.render.use_motion_blur = use_mb
     if use_mb:
@@ -165,7 +163,17 @@ def main():
     scene.render.image_settings.color_depth = "8"
     scene.render.use_file_extension = True
 
-    _setup_cinematic_compositor(scene, cfg)
+    try:
+        _setup_cinematic_compositor(scene, cfg)
+    except Exception as exc:
+        # Never hard-fail the render on compositor setup; fall back to direct composite.
+        scene.use_nodes = True
+        tree = scene.node_tree
+        tree.nodes.clear()
+        rl = tree.nodes.new("CompositorNodeRLayers")
+        comp = tree.nodes.new("CompositorNodeComposite")
+        tree.links.new(rl.outputs["Image"], comp.inputs["Image"])
+        print("compositor fallback:", exc)
 
     lighting((1.0, 0.68, 0.32), (0.18, 0.48, 1.0))
     if motif == "ai_scene":
