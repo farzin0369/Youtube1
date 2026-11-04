@@ -1,0 +1,92 @@
+name: BAMO infra gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-visual-review-and-scene-fidelity
+    paths:
+      - "app/bamo_procedural_domains.py"
+      - "app/bamo_ai_director.py"
+      - "scripts/restore_bamo_ai_director.py"
+      - "scripts/render_ai_domain_proof.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-infra-gate
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Python + ffmpeg (no Blender)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Restore director + procedural plans + TTS
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          TTS_PROVIDER: edge-tts
+          TTS_VOICE: fa-IR-FaridNeural
+          BAMO_FORCE_PROCEDURAL: "1"
+        run: |
+          set -euo pipefail
+          python3 scripts/restore_bamo_ai_director.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from app.bamo_ai_director import normalize_scene_graph, validate_scene_graph
+          from app.bamo_procedural_domains import try_procedural_domain
+
+          scenes = [
+            ("mathematics", "در یک بیضی، مجموع فاصله هر نقطه تا دو کانون همیشه ثابت می‌ماند.", "3D ellipse with two foci", "بیضی"),
+            ("chemistry", "در مولکول آب، دو اتم هیدروژن با پیوند به یک اتم اکسیژن وصل می‌شوند.", "water molecule H2O", "مولکول آب"),
+            ("physics", "وقتی دو موج هم‌فاز به هم می‌رسند، نوارهای روشن تداخل سازنده ساخته می‌شود.", "wave interference", "تداخل"),
+          ]
+          out = Path("output/bamo-infra-gate")
+          out.mkdir(parents=True, exist_ok=True)
+          plans = []
+          for domain, narration, brief, overlay in scenes:
+              raw = try_procedural_domain(narration=narration, visual_brief=brief, overlay=overlay, duration_seconds=4.0)
+              assert raw is not None, domain
+              plan = validate_scene_graph(normalize_scene_graph(raw))
+              plan["domain"] = domain
+              plan["matched_by"] = "procedural_domain_author"
+              plans.append(plan)
+              print(domain, "objects", len(plan["objects"]), "camera", plan["camera"]["move"])
+          ids = [tuple(o["id"] for o in p["objects"]) for p in plans]
+          assert len(set(ids)) == 3, "domains must differ"
+          (out / "plans.json").write_text(json.dumps(plans, ensure_ascii=False, indent=2), encoding="utf-8")
+          print("PROCEDURAL_OK", len(plans))
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          from app.spiritual_tts import synthesize_with_captions
+          out = Path("output/bamo-infra-gate")
+          audio = out / "voice.mp3"
+          caps = out / "captions.srt"
+          text = "در یک بیضی، مجموع فاصله هر نقطه تا دو کانون همیشه ثابت می‌ماند."
+          r = synthesize_with_captions(text, audio, caps)
+          assert r.get("ok"), r
+          assert audio.exists() and audio.stat().st_size > 5000
+          print("TTS_OK", r.get("provider"), audio.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bamo-infra-gate-${{ github.run_id }}
+          path: output/bamo-infra-gate/
+          if-no-files-found: warn
