@@ -29,9 +29,9 @@ jobs:
           python3 scripts/bamo_self_heal.py --syntax-only
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
-          git add app/bamo_ai_director.py app/spiritual_video.py || true
+          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json || true
           if ! git diff --cached --quiet; then
-            git commit -m "self-heal: auto-repair director/ASS syntax"
+            git commit -m "self-heal: apply/learn rules before render"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
@@ -66,6 +66,7 @@ jobs:
           curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
           ollama pull qwen2.5:7b
       - name: Run renderer and media QA smoke test
+        id: smoke
         env:
           PYTHONPATH: ${{ github.workspace }}
           CHANNEL_BRAND: BAMO
@@ -91,7 +92,22 @@ jobs:
           BAMO_BLENDER_CA: "0"
           BAMO_BLENDER_FILM_GRAIN: "0"
           BAMO_CINEMATIC_EFFECTS: "true"
-        run: python scripts/smoke_bamo_3d_renderer.py
+        run: python scripts/smoke_bamo_3d_renderer.py 2>&1 | tee /tmp/bamo-smoke.log
+      - name: Auto-learn from failure log
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          python3 scripts/bamo_self_heal.py --syntax-only --learn-from /tmp/bamo-smoke.log || true
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_heal_rules.json app/bamo_ai_director.py app/spiritual_video.py || true
+          if ! git diff --cached --quiet; then
+            git commit -m "auto-learn: promote heal rule from smoke failure"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+          fi
+          mkdir -p output/bamo-3d-smoke
+          cp -f /tmp/bamo-smoke.log output/bamo-3d-smoke/smoke-failure.log || true
+          if [ -f output/heal_memory.jsonl ]; then cp output/heal_memory.jsonl output/bamo-3d-smoke/; fi
       - name: Upload rendered MP4 and QA evidence
         if: always()
         uses: actions/upload-artifact@v4
