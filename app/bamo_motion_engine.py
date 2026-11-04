@@ -147,7 +147,13 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
     expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
     missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
     if missing:
-        raise RuntimeError("Blender did not produce all expected frames: " + ", ".join(missing[:12]))
+        produced = sorted(p.name for p in frames_dir.glob("*"))[:40]
+        raise RuntimeError(
+            "Blender did not produce all expected frames: " + ", ".join(missing[:12])
+            + f"; output_dir={frames_dir}; files={produced}; "
+            + f"stdout={result.stdout[-5000:] if result else ''}; "
+            + f"stderr={result.stderr[-5000:] if result else ''}"
+        )
 
     _run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
