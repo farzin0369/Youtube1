@@ -39,7 +39,7 @@ jobs:
       - name: Install Blender and FFmpeg
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq blender ffmpeg fonts-noto-core
+          sudo apt-get install -y -qq blender ffmpeg libegl1 libgl1 libgbm1 libxkbcommon0 libwayland-egl1 xvfb mesa-vulkan-drivers fonts-noto-core
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
       - name: Render quality-balanced 3D neon ellipse and wave interference scenes (CPU-optimized sampling) in Blender Cycles CPU
