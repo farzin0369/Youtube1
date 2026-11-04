@@ -110,11 +110,63 @@ def key_scale(obj, frames, values):
         obj.keyframe_insert(data_path="scale", frame=frame)
 
 
+def _ease_smoothstep(t: float) -> float:
+    t = max(0.0, min(1.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _catmull_rom(p0, p1, p2, p3, t: float):
+    """Interpolate between p1 and p2 with Catmull-Rom; t in [0, 1]."""
+    t2 = t * t
+    t3 = t2 * t
+    return 0.5 * (
+        (2.0 * p1)
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+    )
+
+
+def _sample_path(control_points, samples: int):
+    """Dense samples along a Catmull-Rom path through control_points."""
+    pts = [Vector(p) for p in control_points]
+    if len(pts) == 1:
+        return [pts[0].copy() for _ in range(max(2, samples))]
+    if len(pts) == 2:
+        out = []
+        for i in range(max(2, samples)):
+            t = _ease_smoothstep(i / max(1, samples - 1))
+            out.append(pts[0].lerp(pts[1], t))
+        return out
+    # Pad ends for Catmull-Rom
+    padded = [pts[0]] + pts + [pts[-1]]
+    segments = len(pts) - 1
+    out = []
+    for i in range(max(2, samples)):
+        u = _ease_smoothstep(i / max(1, samples - 1)) * segments
+        seg = min(segments - 1, int(u))
+        local_t = u - seg
+        p0, p1, p2, p3 = padded[seg], padded[seg + 1], padded[seg + 2], padded[seg + 3]
+        out.append(_catmull_rom(p0, p1, p2, p3, local_t))
+    return out
+
+
+def _subtle_shake(frame: int, amplitude: float = 0.018) -> Vector:
+    """Deterministic micro-shake so previews stay reproducible."""
+    # Low-frequency combination — reads as handheld, not noise.
+    x = math.sin(frame * 0.17) * amplitude + math.sin(frame * 0.41) * amplitude * 0.35
+    y = math.cos(frame * 0.13) * amplitude * 0.8 + math.sin(frame * 0.29) * amplitude * 0.25
+    z = math.sin(frame * 0.23) * amplitude * 0.45
+    return Vector((x, y, z))
+
+
 def add_camera(frames, camera_style, camera_angle="eye"):
     bpy.ops.object.camera_add(location=(0, -12.5, 5.2))
     camera = bpy.context.object
     camera.name = "BAMO_Cinematic_Camera"
-    camera.data.lens = 48
+    camera.data.lens = 50
+    camera.data.clip_start = 0.1
+    camera.data.clip_end = 500.0
     bpy.ops.object.empty_add(type="PLAIN_AXES", location=(0, 0, 1.2))
     target = bpy.context.object
     target.name = "Camera_Focus"
@@ -124,50 +176,64 @@ def add_camera(frames, camera_style, camera_angle="eye"):
     track.up_axis = "UP_Y"
 
     end = max(2, frames)
+    samples = max(12, min(end, 48))
+
     if camera_style == "orbit":
         radius = 11.5
-        for frame, angle, height in (
-            (1, math.radians(-28), 4.5),
-            (max(2, int(end * 0.25)), math.radians(-12), 4.9),
-            (max(3, int(end * 0.50)), math.radians(8), 4.7),
-            (max(4, int(end * 0.75)), math.radians(25), 4.2),
-            (end, math.radians(42), 4.0),
-        ):
-            camera.location = (radius * math.sin(angle), -radius * math.cos(angle), height)
-            camera.keyframe_insert(data_path="location", frame=frame)
-            target.location = (0.2 * math.sin(angle), 0.0, 1.3)
-            target.keyframe_insert(data_path="location", frame=frame)
+        cam_controls = []
+        focus_controls = []
+        for angle_deg, height in ((-28, 4.5), (-12, 4.9), (8, 4.7), (25, 4.2), (42, 4.0)):
+            angle = math.radians(angle_deg)
+            cam_controls.append((radius * math.sin(angle), -radius * math.cos(angle), height))
+            focus_controls.append((0.25 * math.sin(angle), 0.0, 1.3))
+    elif camera_style == "push_in":
+        cam_controls = [(0, -14.0, 5.5), (0, -11.0, 4.4), (0, -8.2, 3.3)]
+        focus_controls = [(0, 0, 1.0), (0.1, 0, 1.15), (0.25, 0, 1.35)]
+    elif camera_style == "tracking":
+        cam_controls = [(-4.5, -11.5, 4.2), (-1.0, -10.0, 3.8), (4.2, -8.2, 3.0)]
+        focus_controls = [(-0.5, 0, 1.1), (0.0, 0, 1.2), (0.4, 0, 1.3)]
+    elif camera_style == "sweep":
+        cam_controls = [(-5.5, -10.5, 5.0), (0.0, -9.5, 4.2), (5.5, -8.8, 3.5)]
+        focus_controls = [(-0.3, 0, 1.1), (0.1, 0, 1.25), (0.4, 0, 1.35)]
+    elif camera_style == "crane":
+        cam_controls = [(0, -12.0, 8.5), (0.3, -10.5, 5.5), (0, -9.0, 3.0)]
+        focus_controls = [(0, 0, 1.4), (0.1, 0, 1.25), (0.2, 0, 1.15)]
+    elif camera_style == "static":
+        cam_controls = [(0, -11.0, 4.5), (0, -11.0, 4.5)]
+        focus_controls = [(0, 0, 1.2), (0, 0, 1.2)]
     else:
-        if camera_style == "push_in":
-            start, finish = (0, -14, 5.5), (0, -8.2, 3.3)
-        elif camera_style == "tracking":
-            start, finish = (-4.5, -11.5, 4.2), (4.2, -8.2, 3.0)
-        elif camera_style == "sweep":
-            start, finish = (-5.5, -10.5, 5.0), (5.5, -8.8, 3.5)
-        elif camera_style == "crane":
-            start, finish = (0, -12.0, 8.5), (0, -9.0, 3.0)
-        elif camera_style == "static":
-            start, finish = (0, -11.0, 4.5), (0, -11.0, 4.5)
-        else:
-            raise RuntimeError("Unsupported camera motion: " + camera_style)
-        for frame, location, focus in (
-            (1, start, (0, 0, 1.0)),
-            (end, finish, (0.3, 0.0, 1.35)),
-        ):
-            camera.location = location
-            camera.keyframe_insert(data_path="location", frame=frame)
-            target.location = focus
-            target.keyframe_insert(data_path="location", frame=frame)
+        raise RuntimeError("Unsupported camera motion: " + camera_style)
+
+    cam_path = _sample_path(cam_controls, samples)
+    focus_path = _sample_path(focus_controls, samples)
     elevation = {"low": -1.8, "eye": 0.0, "high": 2.0, "top": 5.0}.get(camera_angle, 0.0)
-    if elevation and camera.animation_data and camera.animation_data.action:
+
+    for i, (cam_loc, focus_loc) in enumerate(zip(cam_path, focus_path)):
+        frame = 1 + int(i * (end - 1) / max(1, samples - 1))
+        shake = _subtle_shake(frame) if camera_style != "static" else Vector((0, 0, 0))
+        camera.location = (cam_loc.x + shake.x, cam_loc.y + shake.y, cam_loc.z + elevation + shake.z)
+        camera.keyframe_insert(data_path="location", frame=frame)
+        target.location = (focus_loc.x, focus_loc.y, focus_loc.z)
+        target.keyframe_insert(data_path="location", frame=frame)
+
+    if camera.animation_data and camera.animation_data.action:
         for fcurve in camera.animation_data.action.fcurves:
-            if fcurve.data_path == "location" and fcurve.array_index == 2:
-                for keyframe in fcurve.keyframe_points:
-                    keyframe.co.y += elevation
-                fcurve.update()
+            for point in fcurve.keyframe_points:
+                point.interpolation = "BEZIER"
+                point.easing = "EASE_IN_OUT"
+    if target.animation_data and target.animation_data.action:
+        for fcurve in target.animation_data.action.fcurves:
+            for point in fcurve.keyframe_points:
+                point.interpolation = "BEZIER"
+                point.easing = "EASE_IN_OUT"
+
     camera.data.dof.use_dof = True
     camera.data.dof.focus_object = target
-    camera.data.dof.aperture_fstop = 4.5
+    camera.data.dof.aperture_fstop = 3.6
+    try:
+        camera.data.dof.aperture_blades = 6
+    except Exception:
+        pass
     bpy.context.scene.camera = camera
 
 
