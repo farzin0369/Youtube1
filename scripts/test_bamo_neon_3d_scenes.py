@@ -7,7 +7,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from app.bamo_motion_engine import render_project
+from app.bamo_motion_engine import FORMATS, render_project
 
 out = Path("output/bamo-neon-3d-validation")
 out.mkdir(parents=True, exist_ok=True)
@@ -39,10 +39,12 @@ probe = subprocess.run(
 )
 data = json.loads(probe.stdout)
 stream = data["streams"][0]
+engine = os.getenv("BAMO_BLENDER_ENGINE", "BLENDER_WORKBENCH").upper()
 evidence = {
-    "renderer": "BAMO Blender Cycles CPU",
+    "renderer": f"BAMO Blender {engine} CPU",
     "video": str(video),
     "bytes": video.stat().st_size,
+    "codec": stream.get("codec_name"),
     "width": stream["width"],
     "height": stream["height"],
     "frame_rate": stream["r_frame_rate"],
@@ -60,8 +62,11 @@ for stamp, name in (("1.0", "ellipse-review.png"), ("3.5", "wave-review.png")):
         check=True, timeout=60,
     )
 print(json.dumps(evidence, ensure_ascii=False, indent=2), flush=True)
-if (stream["width"], stream["height"]) != (720, 1280):
-    raise SystemExit("Expected portrait 720x1280 output")
+expected_width, expected_height = FORMATS["short"]
+if (stream["width"], stream["height"]) != (expected_width, expected_height):
+    raise SystemExit(f"Expected portrait {expected_width}x{expected_height} output")
+if stream.get("codec_name") != "h264":
+    raise SystemExit(f"Expected H.264 video, got {stream.get('codec_name')}")
 if stream["r_frame_rate"] != "24/1" or int(stream["nb_read_frames"]) != 120:
     raise SystemExit("Expected exactly 120 frames at 24 FPS")
 if video.stat().st_size < 100_000:

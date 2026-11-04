@@ -6,6 +6,14 @@ on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - work/bamo-integrated-safe-20261104
+    paths:
+      - app/bamo_motion_engine.py
+      - scripts/bamo_blender_scene.py
+      - .github/workflows/bamo_autopilot_continuous.yml
   push:
     branches:
       - main
@@ -79,7 +87,7 @@ jobs:
       - name: Install CPU media stack
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender libegl1 libgl1 libgbm1 libxkbcommon0 libwayland-egl1 xvfb mesa-vulkan-drivers
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
       - name: AI-directed three-domain CPU preview benchmark (no YouTube)
@@ -91,8 +99,11 @@ jobs:
           LOCAL_LLM_MODEL: qwen2.5:3b
           OLLAMA_KEEP_ALIVE: "3600"
           OLLAMA_NUM_CTX: "4096"
+          BAMO_BLENDER_ENGINE: BLENDER_WORKBENCH
+          BAMO_BLENDER_TIMEOUT_SECONDS: "1200"
+          BAMO_BLENDER_RENDER_ATTEMPTS: "3"
           BAMO_BLENDER_SAMPLES: "8"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "60"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "70"
           BAMO_BLENDER_DENOISE: "false"
           BAMO_AUTOPILOT_COUNCIL: "false"
           BAMO_AUTOPILOT_PUBLISH: "false"

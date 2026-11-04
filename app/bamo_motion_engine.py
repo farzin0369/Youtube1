@@ -1,6 +1,6 @@
 """CPU-first Blender 3D motion renderer and FFmpeg compositor for BAMO.
 
-Every generated scene is a real Blender 3D scene rendered on CPU. Missing Blender
+Every generated scene is a real Blender 3D scene rendered on CPU (Workbench by default; Cycles optional). Missing Blender
 or unsupported subject motifs are hard failures; there is no flat-shape fallback.
 """
 from __future__ import annotations
@@ -73,7 +73,7 @@ def _run(command: list[str], timeout: int=900) -> None:
 
 def _render_blender_scene(clip: Path, duration: float, width: int, height: int, fps: int,
                          index: int, visual_plan: dict[str, Any]) -> None:
-    """Render one authored motif with Blender Cycles on CPU; never use a 2D fallback."""
+    """Render one authored motif with Blender on CPU; never use a 2D fallback."""
     blender = shutil.which(os.getenv("BLENDER_BIN", "blender"))
     if not blender:
         raise RuntimeError("Blender is required for BAMO 3D production; software-render fallback is disabled")
@@ -105,6 +105,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035")),
         "chromatic_aberration": float(os.getenv("BAMO_BLENDER_CA", "0.0012")),
         "cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",
+        "render_engine": os.getenv("BAMO_BLENDER_ENGINE", "BLENDER_WORKBENCH").upper(),
     }
     if not 1 <= config["resolution_percentage"] <= 100:
         raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
@@ -114,17 +115,53 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
 
     command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
                "--", str(config_path), str(frames_dir)]
-    timeout = max(900, int(frame_count * 25))
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
-    if result.returncode:
-        raise RuntimeError(
-            "Blender Cycles CPU render failed; no alternate renderer was used. "
-            f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
-        )
+    # Workbench needs an OpenGL context. Hosted Linux runners have no display,
+    # so use Mesa through Xvfb when available.
+    if config["render_engine"] == "BLENDER_WORKBENCH" and not os.getenv("DISPLAY"):
+        xvfb = shutil.which("xvfb-run")
+        if xvfb:
+            command = [xvfb, "-a", "--server-args=-screen 0 1280x1920x24", *command]
+    timeout = max(300, int(os.getenv("BAMO_BLENDER_TIMEOUT_SECONDS", "1200")))
+    attempts = max(1, min(3, int(os.getenv("BAMO_BLENDER_RENDER_ATTEMPTS", "3"))))
     expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
+
+    def completed_frames() -> bool:
+        return all(path.is_file() and path.stat().st_size >= 1000 for path in expected)
+
+    result = None
+    for attempt in range(1, attempts + 1):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            if completed_frames():
+                # A runner can terminate Blender during shutdown after every frame
+                # has already been flushed. The image sequence remains verifiable.
+                break
+            if attempt == attempts:
+                raise RuntimeError(
+                    f"Blender render timed out after {attempts} resumable attempts "
+                    f"({timeout}s each); completed frame files were preserved. "
+                    f"partial stderr={str(exc.stderr or '')[-1800:]}"
+                ) from exc
+            continue
+        if result.returncode == 0 or completed_frames():
+            # Accept a non-zero shutdown (for example, a Blender segfault after
+            # saving the final frame) only when the entire expected sequence is
+            # present and non-empty. Partial renders still fail closed.
+            break
+        # After the final attempt, report missing frames below with the exact
+        # frame names. Do not mask that actionable failure with a generic exit.
+    if result is None:
+        raise RuntimeError("Blender renderer exited without producing a result")
     missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
     if missing:
-        raise RuntimeError("Blender did not produce all expected frames: " + ", ".join(missing[:12]))
+        produced = sorted(p.name for p in frames_dir.glob("*"))[:40]
+        raise RuntimeError(
+            "Blender did not produce all expected frames: " + ", ".join(missing[:12])
+            + f"; output_dir={frames_dir}; files={produced}; "
+            + f"stdout={result.stdout[-5000:] if result else ''}; "
+            + f"stderr={result.stderr[-5000:] if result else ''}"
+        )
 
     _run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -151,25 +188,19 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
         bg=scene["background"] or bg; accent=scene["accent"] or accent
         fadeout=max(0,duration-.3)
         if scene["image"]:
-            image_path=Path(scene["image"]).expanduser().resolve()
-            if not image_path.is_file(): raise FileNotFoundError(f"Scene image not found: {image_path}")
-            vf=(f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
-                f"zoompan=z='min(zoom+0.0007,1.08)':d={max(1,round(duration*fps))}:s={width}x{height}:fps={fps},"
-                f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
-            cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p",str(clip)]
-            _run(cmd)
-            clips.append(clip)
-            continue
+            raise ValueError(
+                f"Scene {index + 1} contains a still-image asset, but BAMO production "
+                "requires a subject-matched Blender 3D scene. Convert the image into "
+                "a supported 3D scene_graph/visual_prompt; static-image zoompan is disabled."
+            )
+        from app.bamo_scene_director import plan_scene
+        if scene.get("scene_graph"):
+            visual_plan = {"motif": "ai_scene", "camera": scene["scene_graph"].get("camera", {}).get("move", "push_in"),
+                           "scene_graph": scene["scene_graph"]}
         else:
-            from app.bamo_scene_director import plan_scene
-            if scene.get("scene_graph"):
-                visual_plan = {"motif": "ai_scene", "camera": scene["scene_graph"].get("camera", {}).get("move", "push_in"),
-                               "scene_graph": scene["scene_graph"]}
-            else:
-                visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
-            _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
-            clips.append(clip)
-            continue
+            visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
+        _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
+        clips.append(clip)
 
     concat=work/"concat.txt"; concat.write_text("".join(f"file '{p.as_posix()}'\n" for p in clips),encoding="utf-8")
     silent=work/"silent.mp4"; _run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy","-an",str(silent)])

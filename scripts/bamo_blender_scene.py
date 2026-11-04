@@ -117,23 +117,39 @@ def main():
     dark = material("BAMO midnight stage", (0.012, 0.022, 0.045), 0.25, 0.36, 0.0)
 
     scene = bpy.context.scene
-    scene.render.engine = "CYCLES"
-    scene.cycles.device = "CPU"
-    scene.cycles.samples = int(cfg.get("samples", 24))
-    want_denoise = bool(cfg.get("denoise", True))
-    denoise_ok = False
-    if want_denoise:
-        try:
-            scene.cycles.denoiser = "OPENIMAGEDENOISE"
-            scene.cycles.use_denoising = True
-            denoise_ok = True
-        except (AttributeError, TypeError, ValueError, RuntimeError):
-            denoise_ok = False
-    if not denoise_ok:
-        try:
+    render_engine = str(cfg.get("render_engine", "BLENDER_WORKBENCH")).upper()
+    if render_engine not in {"BLENDER_WORKBENCH", "CYCLES"}:
+        raise RuntimeError("Unsupported BAMO render engine: " + render_engine)
+    scene.render.engine = render_engine
+    if render_engine == "CYCLES":
+        scene.cycles.device = "CPU"
+        scene.cycles.samples = int(cfg.get("samples", 24))
+        want_denoise = bool(cfg.get("denoise", True))
+        denoise_ok = False
+        if want_denoise:
+            try:
+                scene.cycles.denoiser = "OPENIMAGEDENOISE"
+                scene.cycles.use_denoising = True
+                denoise_ok = True
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                denoise_ok = False
+        if not denoise_ok:
             scene.cycles.use_denoising = False
-        except Exception:
-            pass
+    else:
+        # Workbench is Blender's real 3D raster renderer: fast, deterministic,
+        # CPU-friendly, and suitable for the neon motion-graphics scene grammar.
+        # It preserves meshes, materials, camera animation, shadows, cavity and
+        # compositor bloom without the path-tracing cost that timed out CI.
+        shading = scene.display.shading
+        shading.light = "STUDIO"
+        shading.studio_light = "paint.sl"
+        shading.color_type = "MATERIAL"
+        shading.show_shadows = True
+        shading.show_cavity = True
+        shading.cavity_type = "BOTH"
+        shading.cavity_ridge_factor = 1.35
+        shading.cavity_valley_factor = 1.1
+        shading.show_specular_highlight = True
 
     use_mb = bool(cfg.get("motion_blur", False))
     scene.render.use_motion_blur = use_mb
@@ -154,7 +170,7 @@ def main():
     scene.frame_end = frames
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGB"
-    scene.render.filepath = os.path.join(output_dir, "frame_")
+    scene.render.filepath = os.path.join(output_dir, "frame_0001")
     scene.render.film_transparent = False
     try:
         scene.view_settings.view_transform = "AgX"
@@ -213,7 +229,16 @@ def main():
 
     add_camera(frames, camera_style, camera_angle)
     scene.frame_set(1)
-    bpy.ops.render.render(animation=True)
+    # Frame checkpoints make a timed-out runner resumable: valid frames are kept,
+    # corrupt/empty frames are rendered again, and the process never starts over
+    # from frame 1 after a transient failure.
+    for frame in range(1, frames + 1):
+        frame_path = os.path.join(output_dir, f"frame_{frame:04d}.png")
+        if os.path.isfile(frame_path) and os.path.getsize(frame_path) > 1000:
+            continue
+        scene.frame_set(frame)
+        bpy.context.scene.render.filepath = os.path.join(output_dir, f"frame_{frame:04d}")
+        bpy.ops.render.render(write_still=True)
 
 
 if __name__ == "__main__":

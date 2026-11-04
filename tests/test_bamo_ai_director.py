@@ -66,6 +66,14 @@ def test_normalize_maps_construction_material_to_supported_neutral_role():
     assert plan["objects"][0]["material"] == "neutral"
 
 
+def test_normalize_maps_chemistry_bond_material_to_supported_neutral_role():
+    graph = valid_graph()
+    graph["objects"][2]["kind"] = "cylinder"
+    graph["objects"][2]["material"] = "bond"
+    plan = validate_scene_graph(normalize_scene_graph(graph))
+    assert plan["objects"][2]["material"] == "neutral"
+
+
 def test_json_parser_accepts_fenced_json():
     fence = chr(96) * 3
     assert _parse_json(fence + "json\n" + json.dumps(valid_graph()) + "\n" + fence)["visual_thesis"].startswith("Two objects")

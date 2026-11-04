@@ -199,7 +199,9 @@ def normalize_scene_graph(raw: Any) -> Any:
                 material = "key"
             elif material in {"secondary", "highlight"}:
                 material = "accent"
-            elif material in {"metal", "glass", "stone", "white", "gray", "grey", "construction"}:
+            elif material in {"metal", "glass", "stone", "white", "gray", "grey", "construction", "bond", "connector", "covalent_bond"}:
+                # AI chemistry plans commonly describe a bond connector as its own material role.
+                # Map it to the supported neutral shader rather than rejecting an otherwise valid molecule.
                 material = "neutral"
             elif material in {"shadow", "black"}:
                 material = "dark"
