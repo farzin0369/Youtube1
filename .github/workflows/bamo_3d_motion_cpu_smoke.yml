@@ -12,8 +12,10 @@ on:
       - "app/spiritual_video.py"
       - "scripts/smoke_bamo_3d_renderer.py"
       - "scripts/harden_director_vectors.py"
+      - "scripts/patch_ass_playres.py"
       - "scripts/bamo_blender_scene.py"
       - "scripts/bamo_blender_motifs_b.py"
+      - "scripts/bamo_blender_primitives.py"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
     branches: ["main"]
@@ -32,15 +34,16 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: feat/bamo-visual-review-and-scene-fidelity
-      - name: Harden AI director vectors for truncated Qwen JSON
+      - name: Harden director vectors and ASS PlayRes for 1080x1920
         run: |
           set -euo pipefail
           python3 scripts/harden_director_vectors.py || true
+          python3 scripts/patch_ass_playres.py || true
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
-          git add app/bamo_ai_director.py
+          git add app/bamo_ai_director.py app/spiritual_video.py || true
           if ! git diff --cached --quiet; then
-            git commit -m "Harden AI director vector parsing for truncated Qwen JSON"
+            git commit -m "Apply director vector harden and ASS 1080x1920 PlayRes"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
