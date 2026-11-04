@@ -105,6 +105,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035")),
         "chromatic_aberration": float(os.getenv("BAMO_BLENDER_CA", "0.0012")),
         "cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",
+        "render_engine": os.getenv("BAMO_BLENDER_ENGINE", "BLENDER_WORKBENCH").upper(),
     }
     if not 1 <= config["resolution_percentage"] <= 100:
         raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
@@ -114,13 +115,29 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
 
     command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
                "--", str(config_path), str(frames_dir)]
-    timeout = max(900, int(frame_count * 25))
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
-    if result.returncode:
-        raise RuntimeError(
-            "Blender Cycles CPU render failed; no alternate renderer was used. "
-            f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
-        )
+    timeout = max(300, int(os.getenv("BAMO_BLENDER_TIMEOUT_SECONDS", "1200")))
+    attempts = max(1, min(3, int(os.getenv("BAMO_BLENDER_RENDER_ATTEMPTS", "3"))))
+    result = None
+    for attempt in range(1, attempts + 1):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            if attempt == attempts:
+                raise RuntimeError(
+                    f"Blender render timed out after {attempts} resumable attempts "
+                    f"({timeout}s each); completed frame files were preserved. "
+                    f"partial stderr={str(exc.stderr or '')[-1800:]}"
+                ) from exc
+            continue
+        if result.returncode == 0:
+            break
+        if attempt == attempts:
+            raise RuntimeError(
+                f"Blender {config['render_engine']} render failed after {attempts} attempts; "
+                f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
+            )
+    if result is None or result.returncode:
+        raise RuntimeError("Blender renderer exited without a successful result")
     expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
     missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
     if missing:
