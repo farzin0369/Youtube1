@@ -1,17 +1,23 @@
 name: BAMO Autopilot continuous brain
 
-# NOTE: GitHub only runs `schedule` from the repository DEFAULT branch.
-# Until this workflow exists on the default branch, use workflow_dispatch.
+# Scheduled runs become active only after this workflow is merged to the default branch.
+# Manual runs execute the selected branch itself; previews never publish to YouTube.
 on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/bamo_autopilot_continuous.yml
 
+# This workflow may generate repair proposals and preview artifacts, but must not push code.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: bamo-autopilot-continuous
+  group: bamo-autopilot-continuous-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: feat/bamo-visual-review-and-scene-fidelity
+          ref: ${{ github.ref }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -31,21 +37,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Self-heal syntax + brain tick
+          python -m pip install pytest
+      - name: Run regression suite, self-heal syntax check, and brain tick
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
+          test -f scripts/bamo_self_heal.py || { echo "Self-heal engine is not present on this ref"; exit 1; }
+          test -f scripts/bamo_brain_tick.py || { echo "Brain tick is not present on this ref"; exit 1; }
+          python -m pytest -q
           python3 scripts/bamo_self_heal.py --syntax-only
           python3 scripts/bamo_brain_tick.py
-          git config user.name "bamo-bot"
-          git config user.email "bamo-bot@users.noreply.github.com"
-          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
-          if ! git diff --cached --quiet; then
-            git commit -m "autopilot continuous: heal + brain score + research notes"
-            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
-          fi
-      - name: Upload brain state
+          mkdir -p output/bamo-audit
+          git diff --binary > output/bamo-audit/heal-proposal.patch
+      - name: Upload brain state and uncommitted repair proposal
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -54,68 +59,68 @@ jobs:
             state/autopilot/
             state/research/
             output/heal_memory.jsonl
+            output/bamo-audit/heal-proposal.patch
           if-no-files-found: warn
           retention-days: 14
 
   produce-preview:
     needs: brain-and-heal
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          ref: feat/bamo-visual-review-and-scene-fidelity
+          ref: ${{ github.ref }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install media stack
+      - name: Install CPU media stack
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Self-heal full + optional smoke
+      - name: AI-directed three-domain CPU preview benchmark (no YouTube)
         env:
           PYTHONPATH: ${{ github.workspace }}
           USE_LOCAL_LLM: "1"
           BAMO_PREFER_LOCAL_LLM: "1"
-          LOCAL_LLM_MODEL: qwen2.5:7b
-          BAMO_BLENDER_SAMPLES: "4"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
+          # Candidate model for a measured preview run; not production-approved.
+          LOCAL_LLM_MODEL: qwen2.5:3b
+          OLLAMA_KEEP_ALIVE: "3600"
+          OLLAMA_NUM_CTX: "4096"
+          BAMO_BLENDER_SAMPLES: "8"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "60"
           BAMO_BLENDER_DENOISE: "false"
           BAMO_AUTOPILOT_COUNCIL: "false"
-          BAMO_AUTOPILOT_SKIP_PRODUCE: "false"
+          BAMO_AUTOPILOT_PUBLISH: "false"
         run: |
           set -euo pipefail
           python3 scripts/bamo_self_heal.py --syntax-only
-          if command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; then
-            (ollama serve > /tmp/ollama.log 2>&1 &) || true
-            sleep 5
-            ollama pull qwen2.5:7b || true
+          if ! command -v ollama >/dev/null 2>&1; then
+            curl -fsSL https://ollama.com/install.sh -o /tmp/ollama-install.sh
+            sh /tmp/ollama-install.sh
           fi
-          python scripts/smoke_bamo_3d_renderer.py
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          evidence = Path('output/bamo-3d-smoke/smoke-evidence.json')
-          if not evidence.is_file():
-              raise SystemExit('Renderer smoke produced no evidence file')
-          data = json.loads(evidence.read_text(encoding='utf-8'))
-          video = Path(data.get('video_path') or '')
-          if not data.get('ok') or not video.is_file() or video.stat().st_size < 100_000:
-              raise SystemExit('Renderer smoke did not produce a valid non-empty video')
-          if data.get('video_width') != 1080 or data.get('video_height') != 1920:
-              raise SystemExit('Renderer smoke output is not 1080x1920')
-          print(f"RENDER_SMOKE_VERIFIED {video} {video.stat().st_size} bytes")
-          PY
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull qwen2.5:3b
+          python scripts/render_ai_domain_proof.py
           python3 scripts/bamo_brain_tick.py
+          mkdir -p output/bamo-audit
+          git diff --binary > output/bamo-audit/heal-proposal.patch
       - name: Upload preview artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-continuous-preview-${{ github.run_id }}
-          path: output/bamo-3d-smoke/
+          name: bamo-ai-domain-preview-${{ github.run_id }}
+          path: |
+            output/bamo-ai-three-domain/
+            output/bamo-audit/heal-proposal.patch
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
