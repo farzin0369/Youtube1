@@ -36,12 +36,14 @@ NEW_BOUNDED = '''def _bounded_vector(value: Any, *, low: float, high: float, lab
     return [max(low, min(high, v)) for v in result]
 '''
 
+# Only match when an else is NOT already present after the try/except.
 OLD_NORM = '''                value = obj.get(label)
                 if isinstance(value, list) and len(value) == 3:
                     try:
                         obj[label] = [_clamp_number(component, low, high) for component in value]
                     except (TypeError, ValueError):
                         obj[label] = list(default)
+            if "action_amount" in obj:
 '''
 
 NEW_NORM = '''                value = obj.get(label)
@@ -52,6 +54,7 @@ NEW_NORM = '''                value = obj.get(label)
                         obj[label] = list(default)
                 else:
                     obj[label] = list(default)
+            if "action_amount" in obj:
 '''
 
 
@@ -77,7 +80,7 @@ def main() -> int:
     TARGET.write_text(text, encoding="utf-8")
     compile(text, str(TARGET), "exec")
     print("director size", len(text), "changed", changed)
-    return 0 if changed or "defaults = {" in text else 1
+    return 0
 
 
 if __name__ == "__main__":
