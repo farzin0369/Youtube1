@@ -1,0 +1,101 @@
+name: Patch AI director vector defaults
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-visual-review-and-scene-fidelity
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Harden position/scale/rotation parsing
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          from pathlib import Path
+          path = Path("app/bamo_ai_director.py")
+          text = path.read_text()
+          old_n = '''            for label, low, high, default in (
+                ("position", -6.0, 6.0, [0.0, 0.0, 1.0]),
+                ("scale", 0.05, 4.0, [1.0, 1.0, 1.0]),
+                ("rotation", -6.28, 6.28, [0.0, 0.0, 0.0]),
+            ):
+                value = obj.get(label)
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+'''
+          new_n = '''            for label, low, high, default in (
+                ("position", -6.0, 6.0, [0.0, 0.0, 1.0]),
+                ("scale", 0.05, 4.0, [1.0, 1.0, 1.0]),
+                ("rotation", -6.28, 6.28, [0.0, 0.0, 0.0]),
+            ):
+                value = obj.get(label)
+                # Qwen sometimes emits truncated or non-list vectors in long graphs.
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+                else:
+                    obj[label] = list(default)
+'''
+          old_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != 3:
+        raise ValueError(f"{label} must be a three-number vector")
+    result = [float(v) for v in value]
+    if not all(math.isfinite(v) and low <= v <= high for v in result):
+        raise ValueError(f"{label} contains an out-of-range value")
+    return result
+'''
+          new_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    defaults = {
+        "position": [0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0],
+        "rotation": [0.0, 0.0, 0.0],
+    }
+    if not isinstance(value, list) or len(value) != 3:
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    try:
+        result = [float(v) for v in value]
+    except (TypeError, ValueError):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    if not all(math.isfinite(v) for v in result):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    return [max(low, min(high, v)) for v in result]
+'''
+          changed = False
+          if old_n in text:
+              text = text.replace(old_n, new_n, 1)
+              changed = True
+              print("normalize vector defaults applied")
+          else:
+              print("normalize block already patched or missing")
+          if old_v in text:
+              text = text.replace(old_v, new_v, 1)
+              changed = True
+              print("bounded_vector soft defaults applied")
+          else:
+              print("bounded_vector already patched or missing")
+          if not changed and "Qwen sometimes emits truncated" in text and "defaults = {" in text:
+              print("already fully patched")
+          elif not changed:
+              raise SystemExit("could not locate patch targets")
+          path.write_text(text)
+          compile(text, "app/bamo_ai_director.py", "exec")
+          print("patched size", len(text))
+          PY
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py
+          if git diff --cached --quiet; then
+            echo "no file change"
+          else
+            git commit -m "Harden AI director vector parsing for truncated Qwen JSON"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity
+          fi

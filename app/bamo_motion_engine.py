@@ -1,15 +1,22 @@
-"""CPU-first hybrid motion-graphics renderer for BAMO.
+"""CPU-first Blender 3D motion renderer and FFmpeg compositor for BAMO.
 
-FFmpeg is the dependable daily renderer. Optional local images are animated
-with zoom/pan; scenes without assets use procedural animated backgrounds.
-Remotion, Manim and Blender are optional specialist adapters, not requirements.
+Every generated scene is a real Blender 3D scene rendered on CPU. Missing Blender
+or unsupported subject motifs are hard failures; there is no flat-shape fallback.
 """
 from __future__ import annotations
-import json, math, shutil, subprocess
+import json, math, os, shutil, subprocess
 from pathlib import Path
 from typing import Any
 
-FORMATS = {"short": (720,1280), "vertical": (720,1280), "long": (1280,720), "landscape": (1280,720), "square": (1080,1080)}
+# Primary Shorts output is full vertical HD. Preview CI can still downscale via
+# BAMO_BLENDER_RESOLUTION_PERCENTAGE without changing the authored frame size.
+FORMATS = {
+    "short": (1080, 1920),
+    "vertical": (1080, 1920),
+    "long": (1920, 1080),
+    "landscape": (1920, 1080),
+    "square": (1080, 1080),
+}
 PALETTES = [("0x10172a","0xb98b43"),("0x111827","0x3b82a0"),("0x1c1424","0xbd5964"),("0x101d20","0xb6a36a"),("0x191624","0x7d76b8")]
 
 def validate_project(project: dict[str, Any]) -> dict[str, Any]:
@@ -23,7 +30,7 @@ def validate_project(project: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(scene,dict): raise ValueError(f"Scene {index} must be an object")
         duration = float(scene.get("duration",4))
         if not math.isfinite(duration) or duration < .5 or duration > 60: raise ValueError(f"Scene {index} duration must be between 0.5 and 60 seconds")
-        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip(),"visual_prompt":str(scene.get("visual_prompt") or "").strip(),"narration":str(scene.get("narration") or "").strip()})
+        clean.append({"duration":duration,"text":str(scene.get("on_screen_text") or scene.get("text") or "").strip(),"image":str(scene.get("image") or "").strip(),"background":str(scene.get("background") or "").strip(),"accent":str(scene.get("accent") or "").strip(),"visual_prompt":str(scene.get("visual_prompt") or "").strip(),"narration":str(scene.get("narration") or "").strip(),"scene_graph":scene.get("scene_graph")})
     return {"format":fmt,"scenes":clean}
 
 def _ass_time(seconds: float) -> str:
@@ -34,7 +41,7 @@ def _ass_escape(value: str) -> str:
     return value.replace("\\",r"\\").replace("{",r"\{").replace("}",r"\}").replace("\n",r"\N")
 
 def _write_ass(scenes: list[dict[str,Any]], path: Path, width: int, height: int) -> None:
-    hero_size=max(38,int(width*.066)); brand_size=max(22,int(width*.032)); margin=max(42,int(width*.08))
+    hero_size=max(42,int(width*.055)); brand_size=max(24,int(width*.028)); margin=max(48,int(width*.07))
     header=f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -64,93 +71,72 @@ def _run(command: list[str], timeout: int=900) -> None:
     if result.returncode: raise RuntimeError(f"FFmpeg failed ({result.returncode}): {result.stderr[-3000:]}")
 
 
-def _project_3d(x,y,z,angle,zoom,w,h):
-    ca,sa=math.cos(angle),math.sin(angle); xr,zr=x*ca-z*sa,x*sa+z*ca
-    dep=5.8-zr; scale=min(w,h)*.48*zoom/max(1.2,dep)
-    return w*.5+xr*scale,h*.5-y*scale,dep,scale
+def _render_blender_scene(clip: Path, duration: float, width: int, height: int, fps: int,
+                         index: int, visual_plan: dict[str, Any]) -> None:
+    """Render one authored motif with Blender Cycles on CPU; never use a 2D fallback."""
+    blender = shutil.which(os.getenv("BLENDER_BIN", "blender"))
+    if not blender:
+        raise RuntimeError("Blender is required for BAMO 3D production; software-render fallback is disabled")
+    script = Path(__file__).resolve().parents[1] / "scripts" / "bamo_blender_scene.py"
+    if not script.is_file():
+        raise RuntimeError(f"BAMO Blender scene builder is missing: {script}")
+    motif = str(visual_plan.get("motif") or "").strip()
+    camera = str(visual_plan.get("camera") or "").strip()
+    if not motif or not camera:
+        raise ValueError("Every Blender scene requires a validated subject motif and camera path")
+    scene_graph = visual_plan.get("scene_graph")
+    if motif == "ai_scene" and not isinstance(scene_graph, dict):
+        raise ValueError("AI-authored Blender scene requires a validated scene graph")
 
-def _render_3d_scene(path,duration,width,height,fps,index,bg,accent,visual_plan=None):
-    visual_plan = visual_plan or {}
-    motif = visual_plan.get('motif', 'abstract')
-    camera = visual_plan.get('camera', 'orbit')
-    """CPU software 3D scene: shaded cube, orbiting spheres, rings and animated camera."""
-    from PIL import Image,ImageDraw,ImageFilter
-    def rgb(v):
-        v=v.replace("0x","").replace("#","")
-        return tuple(int(v[i:i+2],16) for i in (0,2,4))
-    base,glow=rgb(bg),rgb(accent); sw,sh=480,854
-    frames=path.parent/f"frames_{index:03d}"; frames.mkdir(parents=True,exist_ok=True)
-    for frame in range(max(1,round(duration*fps))):
-        t=frame/fps; ang=t*({'orbit':.42,'push_in':.12,'tracking':.28,'sweep':.62}.get(camera,.42))+index*.7
-        zoom=(1+.1*math.sin(t*.65)+.045*math.sin(t*1.4+index)) if camera=='orbit' else (1+.24*t/max(duration,.5) if camera=='push_in' else 1+.12*math.sin(t*1.2))
-        im=Image.new("RGB",(sw,sh),tuple(int(v*.72) for v in base))
-        d=ImageDraw.Draw(im,"RGBA")
-        for p in range(42):
-            x=(p*83+t*(12+p%5)*(-1 if p%2 else 1))%sw; y=(p*137+t*(8+p%7))%sh; r=1+p%3
-            d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,75))
-        verts=[_project_3d(x*.82,y*.82,z*.82,ang+t*.28,zoom,sw,sh) for x,y,z in [(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)]]
-        faces=[((0,1,2,3),.4),((4,5,6,7),.72),((0,1,5,4),.58),((2,3,7,6),.82),((1,2,6,5),.95),((0,3,7,4),.3)]; items=[]
-        for face,light in faces:
-            pts=[(verts[q][0],verts[q][1]) for q in face]; shade=tuple(int(v*light) for v in glow)
-            items.append((sum(verts[q][2] for q in face)/4,"poly",pts,(*shade,215)))
-        for j in range(3):
-            ph=t*(.85+j*.16)+j*2.1+index; sx,sy,dep,sc=_project_3d(1.65*math.cos(ph),.72*math.sin(ph*1.3),1.55*math.sin(ph),ang,zoom,sw,sh)
-            r=max(5,int(sc*(.24 if j else .31))); col=(*glow,235) if j==0 else ((105,175,220,230) if j==1 else (225,170,95,230))
-            items.append((dep,"sphere",(sx,sy,r),col))
-        for _,kind,data,col in sorted(items,key=lambda a:a[0],reverse=True):
-            if kind=="poly":
-                d.polygon(data,fill=col); d.line(data+[data[0]],fill=(235,220,190,200),width=2)
-            else:
-                sx,sy,r=data
-                for q in range(r,0,-1):
-                    shade=tuple(int(min(255, v * (0.34 + 0.82 * (1 - q / r * 0.55)))) for v in col[:3])
-                    d.ellipse((sx-q,sy-q,sx+q,sy+q),fill=(*shade,col[3]))
-                d.ellipse((sx-r*.48,sy-r*.62,sx-r*.08,sy-r*.22),fill=(255,255,255,125))
-        cx,cy,_,_=_project_3d(0,0,0,ang,zoom,sw,sh)
-        for rr in (1.65,2):
-            pts=[]
-            for q in range(65):
-                a=q*math.tau/64+t*.25; xx,yy,_,_=_project_3d(rr*math.cos(a),.25*math.sin(a),rr*math.sin(a),ang,zoom,sw,sh); pts.append((xx,yy))
-            d.line(pts,fill=(*glow,110),width=2)
-        if motif in ("choice_paths", "journey"):
-            for branch in (-1, 1):
-                pts=[]
-                for q in range(30):
-                    u=q/29; px,py,_,_=_project_3d(branch*(.12+1.9*u),-.75+1.15*u,.35*math.sin(u*math.pi),ang,zoom,sw,sh)
-                    pts.append((px,py))
-                d.line(pts,fill=(*glow,220 if branch==1 else 125),width=5)
-                ex,ey=pts[-1]; d.ellipse((ex-7,ey-7,ex+7,ey+7),fill=(*glow,240))
-        elif motif in ("growth_steps", "progress"):
-            for q in range(6):
-                x0=-1.8+q*.55; y0=-.8+q*.27
-                corners=[(x0,y0,0),(x0+.48,y0,0),(x0+.48,y0+.22,0),(x0,y0+.22,0)]
-                pts=[_project_3d(*v,ang,zoom,sw,sh)[:2] for v in corners]
-                d.polygon(pts,fill=(*glow,95+q*22),outline=(*glow,230))
-        elif motif in ("atom", "science", "geometry"):
-            for tilt in (0, math.pi/3, -math.pi/3):
-                pts=[]
-                for q in range(90):
-                    a=q*math.tau/89+t*.35
-                    x,y,_,_=_project_3d(2.05*math.cos(a),.72*math.sin(a)*math.cos(tilt),1.5*math.sin(a)*math.sin(tilt),ang,zoom,sw,sh)
-                    pts.append((x,y))
-                d.line(pts,fill=(*glow,190),width=3)
-        elif motif in ("molecule", "chemistry"):
-            nodes=[(-1.35,0,0),(-.45,.8,.3),(.55,.65,-.3),(1.35,-.1,.2),(.25,-.85,.4)]
-            projected=[_project_3d(*v,ang,zoom,sw,sh) for v in nodes]
-            for a,b in ((0,1),(1,2),(2,3),(2,4),(4,0)):
-                d.line((projected[a][0:2],projected[b][0:2]),fill=(*glow,220),width=5)
-            for x,y,dep,sc in projected:
-                r=max(7,int(sc*.18)); d.ellipse((x-r,y-r,x+r,y+r),fill=(*glow,235),outline=(255,255,255,230),width=2)
-        elif motif == "launch":
-            for q in range(4):
-                rr=65+q*38+int(10*math.sin(t*2+q))
-                d.ellipse((cx-rr,cy-rr,cx+rr,cy+rr),outline=(*glow,max(65,210-q*35)),width=3)
-            d.line((cx,cy+100,cx,cy-105),fill=(*glow,245),width=7)
-            d.polygon([(cx,cy-125),(cx-20,cy-90),(cx+20,cy-90)],fill=(*glow,245))
-        halo=Image.new("RGBA",(sw,sh),(0,0,0,0)); ImageDraw.Draw(halo).ellipse((cx-135,cy-135,cx+135,cy+135),fill=(*glow,30))
-        im=Image.alpha_composite(im.convert("RGBA"),halo.filter(ImageFilter.GaussianBlur(42))).convert("RGB")
-        im.save(frames/f"{frame:05d}.jpg",quality=88)
-    _run(["ffmpeg","-y","-framerate",str(fps),"-i",str(frames/"%05d.jpg"),"-vf",f"scale={width}:{height}:flags=lanczos,fade=t=in:st=0:d=0.25,fade=t=out:st={max(0,duration-.3):.3f}:d=0.3,format=yuv420p","-t",f"{duration:.3f}","-an","-c:v","libx264","-preset","veryfast","-crf","22","-pix_fmt","yuv420p",str(path)])
+    frame_count = max(1, int(math.ceil(float(duration) * fps)))
+    work = clip.parent / f".blender_scene_{index:03d}"
+    frames_dir = work / "frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    config_path = work / "scene.json"
+    config = {
+        "width": int(width), "height": int(height), "fps": int(fps),
+        "frame_count": frame_count, "motif": motif, "camera": camera,
+        "scene_graph": scene_graph,
+        "samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "24")),
+        "threads": int(os.getenv("BAMO_BLENDER_THREADS", "2")),
+        "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
+        "denoise": os.getenv("BAMO_BLENDER_DENOISE", "true").lower() == "true",
+        "motion_blur": os.getenv("BAMO_BLENDER_MOTION_BLUR", "false").lower() == "true",
+        "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035")),
+        "chromatic_aberration": float(os.getenv("BAMO_BLENDER_CA", "0.0012")),
+        "cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",
+    }
+    if not 1 <= config["resolution_percentage"] <= 100:
+        raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
+    if config["samples"] < 1 or config["threads"] < 1:
+        raise ValueError("Blender samples and CPU threads must be positive")
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
+               "--", str(config_path), str(frames_dir)]
+    timeout = max(900, int(frame_count * 25))
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode:
+        raise RuntimeError(
+            "Blender Cycles CPU render failed; no alternate renderer was used. "
+            f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
+        )
+    expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
+    missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
+    if missing:
+        raise RuntimeError("Blender did not produce all expected frames: " + ", ".join(missing[:12]))
+
+    _run([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-framerate", str(fps), "-start_number", "1", "-i", str(frames_dir / "frame_%04d.png"),
+        "-frames:v", str(frame_count), "-vf", f"scale={width}:{height}:flags=lanczos,format=yuv420p",
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(clip),
+    ], timeout=max(900, int(frame_count * 8)))
+    if not clip.is_file() or clip.stat().st_size < 10_000:
+        raise RuntimeError("Blender frames could not be encoded into a valid scene MP4")
+    shutil.rmtree(work, ignore_errors=True)
+
 
 def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|None=None) -> Path:
     """Render an MP4 on CPU. No GPU, API key, or network access is used."""
@@ -170,14 +156,18 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
             vf=(f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
                 f"zoompan=z='min(zoom+0.0007,1.08)':d={max(1,round(duration*fps))}:s={width}x{height}:fps={fps},"
                 f"fade=t=in:st=0:d=0.25,fade=t=out:st={fadeout:.3f}:d=0.3,format=yuv420p")
-            cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p",str(clip)]
+            cmd=["ffmpeg","-y","-loop","1","-i",str(image_path),"-t",f"{duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p",str(clip)]
             _run(cmd)
             clips.append(clip)
             continue
         else:
             from app.bamo_scene_director import plan_scene
-            visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
-            _render_3d_scene(clip,duration,width,height,fps,index,bg,accent,visual_plan)
+            if scene.get("scene_graph"):
+                visual_plan = {"motif": "ai_scene", "camera": scene["scene_graph"].get("camera", {}).get("move", "push_in"),
+                               "scene_graph": scene["scene_graph"]}
+            else:
+                visual_plan = plan_scene(scene.get('narration') or scene['text'], scene.get('visual_prompt', ''))
+            _render_blender_scene(clip,duration,width,height,fps,index,visual_plan)
             clips.append(clip)
             continue
 
@@ -190,7 +180,7 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
         if not audio_path.is_file(): raise FileNotFoundError(f"Audio file not found: {audio_path}")
         command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-shortest"]
     else: command += ["-vf",f"ass={ass.as_posix()}","-an"]
-    command += ["-c:v","libx264","-preset","veryfast","-crf","21","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]
+    command += ["-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]
     _run(command)
     if not out.is_file() or out.stat().st_size<10000: raise RuntimeError("Rendered MP4 is missing or unexpectedly small")
     return out

@@ -17,6 +17,24 @@ def normalize_text(value: str) -> str:
     return " ".join(text.split())
 
 
+def topic_tokens(value: str) -> set[str]:
+    """Normalize Persian/English topic phrases while ignoring brand and filler words."""
+    stop = {"bamo", "12bamo", "short", "shorts", "و", "از", "در", "با", "برای",
+            "که", "این", "آن", "یک", "the", "a", "an", "and", "of", "in", "to",
+            "راز", "حقیقت", "کشف", "عجیب", "جالب", "مهم"}
+    result = set()
+    for token in normalize_text(value).split():
+        if token in stop:
+            continue
+        for suffix in ("های", "ها", "ان"):
+            if token.endswith(suffix) and len(token) > len(suffix) + 2:
+                token = token[:-len(suffix)]
+                break
+        if token:
+            result.add(token)
+    return result
+
+
 def content_fingerprint(script: str) -> str:
     normalized = normalize_text(script)
     if not normalized:
@@ -37,14 +55,14 @@ def add_fingerprint_tag(tags: list[str], script: str) -> list[str]:
     return (clean[:19] + [fingerprint])
 
 
-def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any]]:
-    """Read the authenticated channel's own uploads playlist, including private/scheduled uploads.
+def fetch_recent_channel_videos(*, max_results: int | None = None) -> list[dict[str, Any]]:
+    """Read the authenticated channel's complete uploads playlist, including private/scheduled uploads.
 
     This is intentionally a hard dependency for production publishing: if the channel
     inventory cannot be read, BAMO must not guess that a topic is new.
     """
-    if not 1 <= max_results <= 200:
-        raise ValueError("max_results must be between 1 and 200")
+    if max_results is not None and max_results < 1:
+        raise ValueError("max_results must be positive when supplied")
     from googleapiclient.discovery import build
     from app.youtube_client import _build_credentials
 
@@ -62,10 +80,11 @@ def fetch_recent_channel_videos(*, max_results: int = 100) -> list[dict[str, Any
 
     ids: list[str] = []
     page_token = None
-    while len(ids) < max_results:
+    while max_results is None or len(ids) < max_results:
+        remaining = 50 if max_results is None else min(50, max_results - len(ids))
         response = youtube.playlistItems().list(
             part="contentDetails", playlistId=uploads_id,
-            maxResults=min(50, max_results - len(ids)), pageToken=page_token,
+            maxResults=remaining, pageToken=page_token,
         ).execute()
         for item in response.get("items") or []:
             video_id = ((item.get("contentDetails") or {}).get("videoId"))
@@ -120,6 +139,8 @@ def build_generation_history(local_history: dict[str, Any], channel_videos: list
             "video_id": video_id,
             "description": str(row.get("description") or ""),
             "tags": list(row.get("tags") or []),
+            "script": str(row.get("script") or ""),
+            "script_fingerprint": str(row.get("script_fingerprint") or ""),
             "uploaded_at": row.get("published_at"),
             "source": "youtube",
         })
@@ -127,24 +148,56 @@ def build_generation_history(local_history: dict[str, Any], channel_videos: list
 
 
 def find_duplicate(candidate: dict[str, Any], channel_videos: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Detect exact fingerprints and exact/near-identical titles against real channel uploads."""
+    """Reject reused scripts, fingerprints, and same/near-same topics before upload."""
     title = normalize_text(str(candidate.get("title") or ""))
-    fingerprint = fingerprint_tag(str(candidate.get("script") or ""))
+    topic = normalize_text(str(candidate.get("topic") or ""))
+    script = normalize_text(str(candidate.get("script") or ""))
+    fingerprint = content_fingerprint(script)
+    fingerprint_tag_value = FINGERPRINT_PREFIX + fingerprint
+    candidate_tokens = set(script.split())
+
     for video in channel_videos:
         if not isinstance(video, dict):
             continue
         tags = {str(tag).strip() for tag in (video.get("tags") or [])}
-        if fingerprint in tags:
+        stored_fingerprint = str(video.get("script_fingerprint") or "").strip()
+        if fingerprint_tag_value in tags or stored_fingerprint == fingerprint:
             return {"reason": "content_fingerprint_match", "video_id": video.get("video_id"),
                     "title": video.get("title")}
-        previous = normalize_text(str(video.get("title") or ""))
-        if title and previous:
-            similarity = SequenceMatcher(None, title, previous).ratio()
-            if title == previous or similarity >= 0.90:
+
+        previous_title = normalize_text(str(video.get("title") or ""))
+        if title and previous_title:
+            similarity = SequenceMatcher(None, title, previous_title).ratio()
+            if title == previous_title or similarity >= 0.90:
                 return {"reason": "duplicate_or_near_duplicate_title", "similarity": round(similarity, 3),
                         "video_id": video.get("video_id"), "title": video.get("title")}
-    return None
 
+        previous_topic = normalize_text(str(video.get("topic") or ""))
+        if topic and previous_topic:
+            similarity = SequenceMatcher(None, topic, previous_topic).ratio()
+            current_topic_tokens = topic_tokens(topic)
+            previous_topic_tokens = topic_tokens(previous_topic)
+            token_overlap = (
+                len(current_topic_tokens & previous_topic_tokens)
+                / max(1, len(current_topic_tokens | previous_topic_tokens))
+            )
+            if topic == previous_topic or similarity >= 0.84 or token_overlap >= 0.68:
+                return {"reason": "duplicate_or_near_duplicate_topic",
+                        "similarity": round(similarity, 3),
+                        "token_overlap": round(token_overlap, 3),
+                        "video_id": video.get("video_id"), "title": video.get("title")}
+
+        previous_script = normalize_text(str(video.get("script") or ""))
+        previous_tokens = set(previous_script.split())
+        if len(candidate_tokens) >= 12 and len(previous_tokens) >= 12:
+            overlap = len(candidate_tokens & previous_tokens) / max(1, len(candidate_tokens | previous_tokens))
+            sequence_similarity = SequenceMatcher(None, script, previous_script).ratio()
+            if overlap >= 0.72 or sequence_similarity >= 0.84:
+                return {"reason": "duplicate_or_near_duplicate_script",
+                        "token_overlap": round(overlap, 3),
+                        "similarity": round(sequence_similarity, 3),
+                        "video_id": video.get("video_id"), "title": video.get("title")}
+    return None
 
 def require_unique(candidate: dict[str, Any], channel_videos: list[dict[str, Any]]) -> None:
     duplicate = find_duplicate(candidate, channel_videos)

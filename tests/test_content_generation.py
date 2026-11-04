@@ -137,10 +137,24 @@ def test_hosted_model_is_used_and_local_model_stays_off(monkeypatch):
     assert provider.startswith("pollinations:")
 
 
+def test_explicit_local_preference_runs_before_anonymous_hosted_fallback(monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.setenv("USE_LOCAL_LLM", "1")
+    monkeypatch.setenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
+    monkeypatch.setenv("BAMO_PREFER_LOCAL_LLM", "1")
+    names = [name for name, _call in llm_provider.provider_chain()]
+    assert names[0] == "ollama:qwen2.5:7b"
+    assert names[-1] == "pollinations:openai"
+
+
 def test_local_model_is_only_a_last_resort_when_explicitly_enabled(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.setenv("USE_LOCAL_LLM", "1")
+    monkeypatch.delenv("BAMO_PREFER_LOCAL_LLM", raising=False)
 
     def broken(*args, **kwargs):
         raise RuntimeError("cloud down")

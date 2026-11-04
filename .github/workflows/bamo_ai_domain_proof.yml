@@ -1,0 +1,159 @@
+name: BAMO — AI-authored three-domain CPU proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-visual-review-and-scene-fidelity
+    paths:
+      - scripts/render_ai_domain_proof.py
+      - .github/workflows/bamo_ai_domain_proof.yml
+      - app/bamo_ai_director.py
+      - scripts/bamo_blender_scene.py
+      - scripts/bamo_blender_motifs_b.py
+
+permissions:
+  contents: write
+
+jobs:
+  render-ai-domains:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      TTS_PROVIDER: edge-tts
+      TTS_VOICE: fa-IR-FaridNeural
+      CHANNEL_BRAND: BAMO
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      USE_LOCAL_LLM: "1"
+      BAMO_PREFER_LOCAL_LLM: "1"
+      LOCAL_LLM_MODEL: qwen2.5:7b
+      LLM_TIMEOUT_SECONDS: "900"
+      OLLAMA_TIMEOUT_SECONDS: "900"
+      OLLAMA_NUM_CTX: "4096"
+      OLLAMA_NUM_PREDICT: "4096"
+      BAMO_BLENDER_SAMPLES: "48"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
+      BAMO_BLENDER_THREADS: "2"
+      BAMO_BLENDER_DENOISE: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - name: Harden director vector parsing for truncated Qwen JSON
+        run: |
+          set -euo pipefail
+          python3 << 'PY'
+          from pathlib import Path
+          path = Path("app/bamo_ai_director.py")
+          text = path.read_text()
+          old_n = '''            for label, low, high, default in (
+                ("position", -6.0, 6.0, [0.0, 0.0, 1.0]),
+                ("scale", 0.05, 4.0, [1.0, 1.0, 1.0]),
+                ("rotation", -6.28, 6.28, [0.0, 0.0, 0.0]),
+            ):
+                value = obj.get(label)
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+'''
+          new_n = '''            for label, low, high, default in (
+                ("position", -6.0, 6.0, [0.0, 0.0, 1.0]),
+                ("scale", 0.05, 4.0, [1.0, 1.0, 1.0]),
+                ("rotation", -6.28, 6.28, [0.0, 0.0, 0.0]),
+            ):
+                value = obj.get(label)
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+                else:
+                    obj[label] = list(default)
+'''
+          old_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != 3:
+        raise ValueError(f"{label} must be a three-number vector")
+    result = [float(v) for v in value]
+    if not all(math.isfinite(v) and low <= v <= high for v in result):
+        raise ValueError(f"{label} contains an out-of-range value")
+    return result
+'''
+          new_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    defaults = {
+        "position": [0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0],
+        "rotation": [0.0, 0.0, 0.0],
+    }
+    if not isinstance(value, list) or len(value) != 3:
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    try:
+        result = [float(v) for v in value]
+    except (TypeError, ValueError):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    if not all(math.isfinite(v) for v in result):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    return [max(low, min(high, v)) for v in result]
+'''
+          if old_n in text:
+              text = text.replace(old_n, new_n, 1)
+              print("normalize patched")
+          if old_v in text:
+              text = text.replace(old_v, new_v, 1)
+              print("bounded_vector patched")
+          path.write_text(text)
+          compile(text, "app/bamo_ai_director.py", "exec")
+          print("director ready", len(text))
+          PY
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py
+          if ! git diff --cached --quiet; then
+            git commit -m "Harden AI director vector parsing for truncated Qwen JSON"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+      - name: Cache local Qwen weights
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-qwen2.5-7b-v1-${{ runner.os }}
+      - name: Start local CPU language model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/bamo-ollama.log 2>&1 &)
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull qwen2.5:7b
+      - name: Direct and render three domains
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python scripts/render_ai_domain_proof.py
+      - name: Upload MP4 and AI scene graphs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-ai-three-domain-${{ github.run_id }}
+          path: output/bamo-ai-three-domain/
+          retention-days: 7
+          if-no-files-found: warn

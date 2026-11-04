@@ -1,0 +1,38 @@
+name: Restore BAMO AI director from healthy commit
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-visual-review-and-scene-fidelity
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore director from baf59fa + soft-drop relationships
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/baf59fa9cfa6/app/bamo_ai_director.py" -o app/bamo_ai_director.py
+          python3 << 'PY'
+          from pathlib import Path
+          text = Path("app/bamo_ai_director.py").read_text()
+          old = '''    clean_relationships = []\n    for relation in relationships:\n        if not isinstance(relation, dict):\n            raise ValueError("relationship must be an object")\n        source, target, kind = str(relation.get("from", "")), str(relation.get("to", "")), str(relation.get("kind", ""))\n        if source not in seen or target not in seen or source == target or kind not in {"connect", "orbit", "point_to"}:\n            raise ValueError("relationship references invalid objects")\n        clean_relationships.append({"from": source, "to": target, "kind": kind})\n'''
+          new = '''    clean_relationships = []\n    for relation in relationships:\n        if not isinstance(relation, dict):\n            continue\n        source, target, kind = str(relation.get("from", "")), str(relation.get("to", "")), str(relation.get("kind", ""))\n        if source not in seen or target not in seen or source == target or kind not in {"connect", "orbit", "point_to"}:\n            continue\n        clean_relationships.append({"from": source, "to": target, "kind": kind})\n'''
+          if old not in text:
+              raise SystemExit("expected relationship block not found")
+          text = text.replace(old, new, 1)
+          Path("app/bamo_ai_director.py").write_text(text)
+          compile(text, "app/bamo_ai_director.py", "exec")
+          print("restored+patched", len(text))
+          PY
+          # remove broken modular stubs if present
+          rm -f app/bamo_ai_director_head.py app/bamo_ai_director_tail1.py app/bamo_ai_director_tail2.py app/bamo_ai_director_impl.py || true
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add -A app/
+          git status
+          git commit -m "Restore bamo_ai_director.py from baf59fa with soft-drop relationships" || echo "no changes"
+          git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity

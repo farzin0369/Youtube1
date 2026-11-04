@@ -1,0 +1,51 @@
+name: BAMO Blender full-resolution 49-frame proof
+
+on:
+  push:
+    branches:
+      - feat/bamo-visual-review-and-scene-fidelity
+    paths:
+      - app/bamo_motion_engine.py
+      - scripts/bamo_blender_scene.py
+      - scripts/test_bamo_blender_fullres.py
+      - .github/workflows/bamo_blender_fullres_49_frame.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-blender-fullres-proof-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  full-resolution-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      BAMO_BLENDER_SAMPLES: "16"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
+      BAMO_BLENDER_THREADS: "2"
+      BAMO_BLENDER_DENOISE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Blender and media dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq blender ffmpeg fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Render and verify 49 full-resolution Blender frames
+        run: python scripts/test_bamo_blender_fullres.py
+      - name: Upload full-resolution MP4 and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-Blender-full-resolution-49-frames-${{ github.run_id }}
+          path: output/bamo-blender-fullres-49/
+          retention-days: 7
+          if-no-files-found: error

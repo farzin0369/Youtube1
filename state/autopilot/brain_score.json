@@ -1,0 +1,26 @@
+{
+  "ts": "2026-11-04T02:06:02Z",
+  "score": 16.0,
+  "components": {
+    "heal_rules": 11.0,
+    "council": 2.0,
+    "render": 0.0,
+    "research": 3.0,
+    "cycle": 0.0
+  },
+  "notes": [
+    "heal_rules=3",
+    "council_preflight_missing",
+    "council_post_missing",
+    "research_notes=1"
+  ],
+  "publish_score_required": 100,
+  "publish_ready_by_brain": false,
+  "honest_limits": {
+    "is_agi": false,
+    "studies_all_github": false,
+    "auto_merges_foreign_code": false,
+    "second_by_second": false,
+    "million_subs_guaranteed": false
+  }
+}

@@ -1,0 +1,54 @@
+name: BAMO neon 3D scene integration validation
+
+on:
+  push:
+    branches: ["feat/bamo-visual-review-and-scene-fidelity"]
+    paths:
+      - "app/bamo_motion_engine.py"
+      - "app/bamo_scene_director.py"
+      - "scripts/bamo_blender_scene.py"
+      - "scripts/test_bamo_neon_3d_scenes.py"
+      - ".github/workflows/bamo_neon_3d_scene_validation.yml"
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-neon-3d-validation-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  render-neon-scenes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      BAMO_BLENDER_SAMPLES: "8"
+      BAMO_BLENDER_RESOLUTION_PERCENTAGE: "75"
+      BAMO_BLENDER_THREADS: "2"
+      BAMO_BLENDER_DENOISE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Blender and FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq blender ffmpeg fonts-noto-core
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Render quality-balanced 3D neon ellipse and wave interference scenes (CPU-optimized sampling) in Blender Cycles CPU
+        run: python scripts/test_bamo_neon_3d_scenes.py
+      - name: Upload MP4, evidence and review frames
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMO-neon-3D-scene-validation-${{ github.run_id }}
+          path: output/bamo-neon-3d-validation/
+          retention-days: 7
+          if-no-files-found: error

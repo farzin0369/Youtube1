@@ -45,3 +45,50 @@ def test_unique_candidate_passes():
         {"title": "BAMO | یک کشف تازه در فیزیک", "script": "متن متفاوت"},
         [{"title": "BAMO | تاریخ معماری ایران", "video_id": "old", "tags": []}],
     )
+
+
+
+def test_near_duplicate_topic_is_rejected_even_when_title_changes():
+    candidate = {
+        "title": "BAMO | یک کشف تازه",
+        "topic": "مسیرهای عصبی مغز",
+        "script": "متن کاملاً متفاوت و تازه برای این آزمون",
+    }
+    videos = [{
+        "title": "BAMO | راز مسیرهای عصبی مغز",
+        "topic": "مسیرهای عصبی مغز",
+        "video_id": "old-topic",
+        "tags": [],
+    }]
+    duplicate = find_duplicate(candidate, videos)
+    assert duplicate["reason"] == "duplicate_or_near_duplicate_topic"
+
+
+def test_near_duplicate_saved_script_is_rejected_without_youtube_tag():
+    script = "این یک متن نسبتاً طولانی برای بررسی شباهت محتوای ویدئو است و باید تکرار آن شناسایی شود"
+    candidate = {"title": "عنوان تازه", "topic": "موضوع تازه", "script": script}
+    videos = [{
+        "title": "عنوان قدیمی", "topic": "موضوع قبلی",
+        "script": script + " و یک جمله اضافه",
+        "video_id": "local-history", "tags": [],
+    }]
+    duplicate = find_duplicate(candidate, videos)
+    assert duplicate["reason"] == "duplicate_or_near_duplicate_script"
+
+
+
+def test_persian_topic_suffixes_and_brand_prefix_do_not_hide_duplicates():
+    candidate = {
+        "title": "BAMO | یک کشف تازه",
+        "topic": "مغز و مسیر عصبی",
+        "script": "متن جدید و متفاوت برای این آزمایش",
+    }
+    videos = [{
+        "title": "BAMO | راز مسیرهای عصبی مغز",
+        "topic": "BAMO | راز مسیرهای عصبی مغز",
+        "video_id": "old-neural-topic",
+        "tags": [],
+    }]
+    duplicate = find_duplicate(candidate, videos)
+    assert duplicate["reason"] == "duplicate_or_near_duplicate_topic"
+    assert duplicate["token_overlap"] >= 0.68

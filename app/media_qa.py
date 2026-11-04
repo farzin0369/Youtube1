@@ -16,6 +16,7 @@ def _srt_timestamp(value: str) -> float:
 
 def validate_render_package(
     render_meta: dict[str, Any], audio_path: Path | None = None, *, video_format: str | None = None,
+    tts_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     checks: dict[str, Any] = {}
@@ -90,6 +91,30 @@ def validate_render_package(
             errors.append("audio_duration_invalid")
 
     if mode == "shorts":
+        if render_meta.get("production_visuals_approved") is not True:
+            errors.append("shorts_visuals_not_production_approved")
+        tts = tts_meta if isinstance(tts_meta, dict) else (render_meta.get("tts_evidence") or {})
+        provider = str(tts.get("provider") or "").strip().lower()
+        voice = str(tts.get("voice") or "").strip()
+        try:
+            caption_count = int(tts.get("caption_count") or 0)
+            tts_duration = float(tts.get("duration_seconds") or 0)
+        except (TypeError, ValueError):
+            caption_count, tts_duration = 0, 0.0
+        speech_ok = (
+            tts.get("ok") is True
+            and provider in {"edge-tts", "elevenlabs"}
+            and bool(voice)
+            and tts.get("narrator_locked") is True
+            and caption_count >= 6
+            and tts_duration > 0
+        )
+        checks["persian_narration"] = {
+            "ok": speech_ok, "provider": provider or None, "voice": voice or None,
+            "caption_count": caption_count,
+        }
+        if not speech_ok:
+            errors.append("shorts_real_persian_narration_not_verified")
         try:
             font_size = int(render_meta.get("caption_font_size") or 0)
             checks["caption_font_size"] = font_size
@@ -120,20 +145,28 @@ def validate_render_package(
             except (OSError, UnicodeError) as exc:
                 errors.append("shorts_ass_read_failed: " + type(exc).__name__)
         visual_source = str(render_meta.get("visual_source") or "")
-        scene_match_ok = render_meta.get("scene_query_match") is True or (
-            visual_source == "bamo-cpu-3d-motion"
-            and render_meta.get("scene_visual_alignment_verified") is True
-        )
-        if not scene_match_ok:
-            errors.append("shorts_scene_visual_queries_not_verified")
         publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
+        visual_review = {"ok": False, "errors": ["3d_visual_review_manifest_not_supplied"]}
+        if visual_source == "bamo-cpu-3d-motion":
+            review_path = render_meta.get("visual_review_path")
+            if review_path:
+                from app.bamo_visual_review import validate_visual_review
+                visual_review = validate_visual_review(review_path, expected_scenes=4)
+            checks["human_frame_review"] = visual_review
         publishable_3d = (
             visual_source == "bamo-cpu-3d-motion"
             and render_meta.get("scene_visual_alignment_verified") is True
+            and visual_review.get("ok") is True
         )
         test_stills_are_allowed = (
             visual_source == "provided stills" and render_meta.get("test_visuals_only") is True
         )
+        scene_match_ok = (
+            (publishable_stock and render_meta.get("scene_query_match") is True)
+            or publishable_3d or test_stills_are_allowed
+        )
+        if not scene_match_ok:
+            errors.append("shorts_scene_visual_queries_not_verified")
         if not publishable_stock and not publishable_3d and not test_stills_are_allowed:
             errors.append("shorts_visual_source_not_approved_portrait_stock")
         if test_stills_are_allowed:

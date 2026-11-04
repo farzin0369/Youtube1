@@ -1,0 +1,107 @@
+name: BAMO Autopilot continuous brain
+
+# NOTE: GitHub only runs `schedule` from the repository DEFAULT branch.
+# Until this workflow exists on the default branch, use workflow_dispatch.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bamo-autopilot-continuous
+  cancel-in-progress: false
+
+jobs:
+  brain-and-heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install minimal Python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Self-heal syntax + brain tick
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python3 scripts/bamo_self_heal.py --syntax-only
+          python3 scripts/bamo_brain_tick.py
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
+          if ! git diff --cached --quiet; then
+            git commit -m "autopilot continuous: heal + brain score + research notes"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+          fi
+      - name: Upload brain state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-brain-${{ github.run_id }}
+          path: |
+            state/autopilot/
+            state/research/
+            output/heal_memory.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+  produce-preview:
+    needs: brain-and-heal
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install media stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Self-heal full + optional smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          USE_LOCAL_LLM: "1"
+          BAMO_PREFER_LOCAL_LLM: "1"
+          LOCAL_LLM_MODEL: qwen2.5:7b
+          BAMO_BLENDER_SAMPLES: "4"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
+          BAMO_BLENDER_DENOISE: "false"
+          BAMO_AUTOPILOT_COUNCIL: "false"
+          BAMO_AUTOPILOT_SKIP_PRODUCE: "false"
+        run: |
+          set -euo pipefail
+          python3 scripts/bamo_self_heal.py --syntax-only
+          if command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; then
+            (ollama serve > /tmp/ollama.log 2>&1 &) || true
+            sleep 5
+            ollama pull qwen2.5:7b || true
+          fi
+          python scripts/smoke_bamo_3d_renderer.py || true
+          python3 scripts/bamo_brain_tick.py
+      - name: Upload preview artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-continuous-preview-${{ github.run_id }}
+          path: output/bamo-3d-smoke/
+          if-no-files-found: warn
+          retention-days: 7

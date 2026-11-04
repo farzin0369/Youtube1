@@ -9,6 +9,12 @@ No paid subscription is required. Providers are tried in this order:
 4. Local Ollama only when ``USE_LOCAL_LLM=1``. It is off by default because
    the small local model was writing unusable Shorts copy.
 
+When ``BAMO_PREFER_LOCAL_LLM=1`` is also set, Ollama is tried immediately
+after any configured keyed provider and before Pollinations. GitHub Actions
+run 41693079551 showed Pollinations failing on every call
+(``pollinations:openai:LLMUnavailable``) and delaying the working local
+``qwen2.5:7b`` path. This does not change the pinned local model.
+
 Every provider failure is isolated: a rate-limited or unreachable cloud
 provider falls through to the next one instead of killing the run.
 Credentials are never logged.
@@ -63,6 +69,7 @@ def _chat_completions(
     temperature: float,
     json_mode: bool,
     timeout: float,
+    max_attempts: int = 3,
 ) -> str:
     """One OpenAI-compatible chat completion with bounded retry on transient errors."""
     body: dict[str, Any] = {
@@ -73,7 +80,7 @@ def _chat_completions(
         ],
         "temperature": temperature,
     }
-    if "pollinations.ai" in base_url:
+    if "pollinations.ai" in base_url or "openrouter.ai" in base_url:
         body["max_tokens"] = max_tokens
     else:
         body["max_completion_tokens"] = max_tokens
@@ -81,7 +88,7 @@ def _chat_completions(
         body["response_format"] = {"type": "json_object"}
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_error: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(max(1, min(3, int(max_attempts)))):
         request = urllib.request.Request(
             f"{base_url}/chat/completions",
             data=payload,
@@ -164,15 +171,28 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             f"openai-compatible:{model}",
             lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
         ))
-    chain.append((
+    use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
+    prefer_local = use_local and (env("BAMO_PREFER_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
+    local_entry = (
+        f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}",
+        _ollama_call,
+    )
+    pollinations = (
         "pollinations:openai",
         lambda system, prompt, **kw: _chat_completions(
             "https://text.pollinations.ai/openai", "anonymous", "openai", system, prompt, **kw
         ),
-    ))
-    use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
-    if use_local:
-        chain.append((f"ollama:{env('LOCAL_LLM_MODEL') or DEFAULT_LOCAL_MODEL}", _ollama_call))
+    )
+    # Keyed providers stay first. Preferring local only moves Ollama ahead of
+    # the anonymous hosted fallback, which failed closed on every call in
+    # Actions run 41693079551 and was burning minutes before Qwen could answer.
+    if prefer_local:
+        chain.append(local_entry)
+        chain.append(pollinations)
+    else:
+        chain.append(pollinations)
+        if use_local:
+            chain.append(local_entry)
     return chain
 
 

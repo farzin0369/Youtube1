@@ -1,28 +1,39 @@
-name: BAMO approved CPU 3D renderer smoke test
+name: BAMO CPU 3D renderer preview smoke test
 on:
   push:
-    branches: ["feat/bamo-production-3d-auto-factory"]
+    branches: ["feat/bamo-visual-review-and-scene-fidelity"]
     paths:
-      - "app/bamo_motion_engine.py"
-      - "app/bamo_scene_director.py"
-      - "app/bamo_production_renderer.py"
-      - "app/media_qa.py"
-      - "scripts/smoke_bamo_3d_renderer.py"
+      - "app/**"
+      - "scripts/**"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
     branches: ["main"]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
-  group: bamo-approved-3d-smoke
+  group: bamo-approved-3d-smoke-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - name: Self-heal syntax (before deps)
+        run: |
+          set -euo pipefail
+          python3 scripts/bamo_self_heal.py --syntax-only
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "self-heal: apply/learn rules before render"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -30,17 +41,77 @@ jobs:
       - name: Install CPU media dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-noto-core
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
-      - name: Run renderer and media QA smoke test
+      - name: Self-heal full import gate (after deps)
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: python scripts/smoke_bamo_3d_renderer.py
+        run: python3 scripts/bamo_self_heal.py
+      - name: Cache local Qwen weights
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-qwen2.5-7b-v1-${{ runner.os }}
+      - name: Start local CPU language model
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/bamo-ollama.log 2>&1 &)
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull qwen2.5:7b
+      - name: Run renderer and media QA smoke test
+        id: smoke
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          CHANNEL_BRAND: BAMO
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          USE_LOCAL_LLM: "1"
+          BAMO_PREFER_LOCAL_LLM: "1"
+          LOCAL_LLM_MODEL: qwen2.5:7b
+          LLM_TIMEOUT_SECONDS: "900"
+          OLLAMA_TIMEOUT_SECONDS: "900"
+          OLLAMA_NUM_CTX: "4096"
+          OLLAMA_NUM_PREDICT: "4096"
+          TTS_PROVIDER: edge-tts
+          TTS_VOICE: fa-IR-FaridNeural
+          BAMO_BLENDER_SAMPLES: "4"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
+          BAMO_BLENDER_THREADS: "2"
+          BAMO_BLENDER_DENOISE: "false"
+          BAMO_BLENDER_MOTION_BLUR: "false"
+          BAMO_BLENDER_CA: "0"
+          BAMO_BLENDER_FILM_GRAIN: "0"
+          BAMO_CINEMATIC_EFFECTS: "true"
+        run: python scripts/smoke_bamo_3d_renderer.py 2>&1 | tee /tmp/bamo-smoke.log
+      - name: Auto-learn from failure log
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          python3 scripts/bamo_self_heal.py --syntax-only --learn-from /tmp/bamo-smoke.log || true
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_heal_rules.json app/bamo_ai_director.py app/spiritual_video.py || true
+          if ! git diff --cached --quiet; then
+            git commit -m "auto-learn: promote heal rule from smoke failure"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+          fi
+          mkdir -p output/bamo-3d-smoke
+          cp -f /tmp/bamo-smoke.log output/bamo-3d-smoke/smoke-failure.log || true
+          if [ -f output/heal_memory.jsonl ]; then cp output/heal_memory.jsonl output/bamo-3d-smoke/; fi
       - name: Upload rendered MP4 and QA evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BAMO-approved-CPU-3D-render-smoke-${{ github.run_id }}
+          name: BAMO-CPU-3D-preview-smoke-${{ github.run_id }}
           path: output/bamo-3d-smoke/
           retention-days: 7

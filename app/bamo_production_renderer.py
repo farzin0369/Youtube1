@@ -1,16 +1,20 @@
-"""Production adapter for the approved CPU 3D motion-graphics engine."""
+"""Production adapter for Blender CPU 3D scenes; preview-only until visual approval."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from app.bamo_motion_engine import render_project
-from app.bamo_scene_director import plan_scene
+from app.bamo_ai_director import direct_scene, ensure_distinct_camera_moves
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
 )
+
+# Approval is opt-in and is never inferred from a successful render.
+PRODUCTION_VISUALS_APPROVED = os.getenv("BAMO_PRODUCTION_VISUALS_APPROVED", "false").lower() == "true"
 
 
 def render_bamo_shorts(
@@ -25,7 +29,7 @@ def render_bamo_shorts(
     scene_timings: list[dict[str, float]],
     hook_overlay: str,
 ) -> dict[str, Any]:
-    """Render four scene-locked procedural 3D scenes, Persian voice, captions and ducked ambience."""
+    """Render four subject-specific Blender 3D scenes, Persian voice, captions and ducked ambience."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if len(scenes) != 4 or len(scene_timings) != 4:
@@ -42,22 +46,41 @@ def render_bamo_shorts(
 
     render_scenes = []
     visual_plans = []
+    story_context = " | ".join(str(item.get("spoken_text") or "") for item in scenes)
+    prior_theses = []
+    prior_cameras = []
     for scene, duration in zip(scenes, durations):
         narration = str(scene.get("spoken_text") or "").strip()
         visual_prompt = str(scene.get("visual_query") or "").strip()
         overlay = str(scene.get("on_screen_text") or "").strip()
         if not narration or not visual_prompt or not overlay:
             raise ValueError("Each 3D scene needs narration, a specific visual query, and Persian overlay text")
-        plan = plan_scene(narration, visual_prompt)
+        plan = direct_scene(
+            narration=narration, visual_brief=visual_prompt, overlay=overlay,
+            duration_seconds=duration, story_context=story_context,
+            previous_visual_theses=prior_theses, previous_camera_moves=prior_cameras,
+        )
+        prior_theses.append(plan["visual_thesis"])
+        prior_cameras.append(plan["camera"]["move"])
         visual_plans.append(plan)
+    ensure_distinct_camera_moves(visual_plans)
+    for plan, duration, scene in zip(visual_plans, durations, scenes):
         render_scenes.append({
             "duration": duration,
-            "text": overlay,
-            "narration": narration,
-            "visual_prompt": visual_prompt,
+            "text": str(scene.get("on_screen_text") or "").strip(),
+            "narration": str(scene.get("spoken_text") or "").strip(),
+            "visual_prompt": str(scene.get("visual_query") or "").strip(),
             "background": "",
             "accent": "",
+            "scene_graph": {key: plan[key] for key in ("camera", "palette", "objects", "relationships", "visual_thesis")},
         })
+
+    signatures = [
+        tuple((obj["kind"], tuple(obj["position"]), obj["role"]) for obj in plan["objects"])
+        for plan in visual_plans
+    ]
+    if len(set(signatures)) != len(signatures):
+        raise ValueError("AI director repeated an identical 3D composition within one Short")
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
     silent_path = out_dir / "bamo-3d-silent.mp4"
@@ -88,16 +111,20 @@ def render_bamo_shorts(
         "-i", str(silent_path), "-i", str(audio_path), "-stream_loop", "-1", "-i", str(music_path),
         "-filter_complex", mix, "-map", "0:v:0", "-map", "[aout]",
         "-vf", f"subtitles='{escaped_subs}'", "-t", f"{audio_duration:.3f}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-        "-pix_fmt", "yuv420p", "-r", "24", "-c:a", "aac", "-b:a", "160k",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p", "-r", "24", "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart", str(final_path),
     ]
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(900, int(audio_duration * 18)))
     if not final_path.is_file() or final_path.stat().st_size < 100_000:
         raise RuntimeError("Approved 3D renderer produced an empty final MP4")
 
-    width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
+    width, height = 1080, 1920
+    visual_review_path = out_dir / "visual-review.json"
+    from app.bamo_visual_review import validate_visual_review
+    visual_review = validate_visual_review(visual_review_path, expected_scenes=4)
+    plans_grounded = visual_review.get("ok") is True
+    production_approved = PRODUCTION_VISUALS_APPROVED and plans_grounded
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -116,14 +143,23 @@ def render_bamo_shorts(
         "video_width": width,
         "video_height": height,
         "video_format": "shorts",
-        "caption_font_size": 48,
+        "caption_font_size": 52,
         "caption_animation_profile": "phrase-pop-fade-v1",
         "persian_text_shaping": "noto-naskh-unicode-rtl",
         "hook_overlay": str(hook_overlay or ""),
         "scene_query_match": False,
         "scene_visual_alignment_verified": plans_grounded,
+        "visual_alignment_status": "human_frame_review_passed" if plans_grounded else "not_verified_requires_frame_level_review",
+        "visual_review_path": str(visual_review_path),
+        "visual_review_evidence": visual_review,
+        "production_visuals_approved": production_approved,
+        "visual_quality_tier": "blender-cpu-3d-preview",
         "scene_visual_plans": visual_plans,
+        "camera_motion": [plan.get("camera", {}).get("move") for plan in visual_plans],
+        "ai_director_provider_models": sorted({plan.get("provider", "unknown") for plan in visual_plans}),
+        "ai_scene_theses": [plan.get("visual_thesis") for plan in visual_plans],
+        "render_backend": "blender-cycles-cpu",
         "test_visuals_only": False,
         "music_ducking": True,
-        "renderer": "BAMO CPU 3D motion engine",
+        "renderer": "BAMO Blender CPU 3D cinematic preview (not yet production-approved)",
     }
