@@ -1,17 +1,8 @@
-"""BAMO Autopilot — practical autonomy layer (not AGI).
+"""BAMO Autopilot — practical autonomy layer with 11-agent council gates.
 
-What this is:
-- A closed decision loop: observe → decide → produce → review → learn → (optional) publish
-- Uses existing modules: self-heal, AI director, production renderer, agent council, YouTube client
-- Growth policy scores packaging and recommends next actions
+Loop: observe → decide → heal → council preflight → produce → council post-render → learn → optional publish
 
-What this is NOT:
-- A superhuman mind
-- A guarantee of millions of subscribers
-- Unrestricted self-modification of arbitrary code
-
-Publish remains gated by env flags so the engine can run fully autonomous
-production offline while channel upload stays an explicit operator choice.
+Publish stays gated by env flags.
 """
 from __future__ import annotations
 
@@ -28,10 +19,11 @@ ROOT = Path(__file__).resolve().parents[1]
 STATE_DIR = ROOT / "state" / "autopilot"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Hard gates — autonomy never silently bypasses these.
 PUBLISH_ENABLED = os.getenv("BAMO_AUTOPILOT_PUBLISH", "false").lower() == "true"
 PRODUCTION_VISUALS_APPROVED = os.getenv("BAMO_PRODUCTION_VISUALS_APPROVED", "false").lower() == "true"
-SELF_UPGRADE_COMMIT = os.getenv("BAMO_AUTOPILOT_COMMIT_HEALS", "true").lower() == "true"
+COUNCIL_ENABLED = os.getenv("BAMO_AUTOPILOT_COUNCIL", "true").lower() == "true"
+COUNCIL_STRICT = os.getenv("BAMO_AUTOPILOT_COUNCIL_STRICT", "false").lower() == "true"
+SKIP_PRODUCE = os.getenv("BAMO_AUTOPILOT_SKIP_PRODUCE", "false").lower() == "true"
 
 
 @dataclass
@@ -48,8 +40,113 @@ def _run(cmd: list[str], timeout: int = 600) -> tuple[int, str]:
     return result.returncode, out
 
 
+def _default_candidate_package() -> dict[str, Any]:
+    return {
+        "title": "یک انتخاب کوچک مسیر فردا را عوض می‌کند",
+        "topic": "روان‌شناسی تصمیم و عادت‌های کوچک",
+        "script": (
+            "گاهی یک انتخاب کوچک، مسیر فردا را عوض می‌کند. "
+            "مغز ما با تمرین، مسیرهای تازه می‌سازد. "
+            "گام‌به‌گام پیش برو؛ هر پله یک پیشرفت است. "
+            "فردا از همین شروع ساده ساخته می‌شود."
+        ),
+        "description": "موشن‌گرافیک سه‌بعدی درباره قدرت انتخاب‌های کوچک و رشد تدریجی.",
+        "tags": ["روانشناسی", "عادت", "انگیزشی", "BAMO", "موشن_گرافیک"],
+        "thumbnail_text": "انتخاب کوچک",
+        "scenes": [
+            {
+                "spoken_text": "گاهی یک انتخاب کوچک، مسیر فردا را عوض می‌کند.",
+                "visual_query": "two diverging glowing paths with a central choice sphere",
+                "on_screen_text": "انتخاب کوچک",
+            },
+            {
+                "spoken_text": "مغز ما با تمرین، مسیرهای تازه می‌سازد.",
+                "visual_query": "neural network nodes lighting up in sequence",
+                "on_screen_text": "مسیرهای تازه",
+            },
+            {
+                "spoken_text": "گام‌به‌گام پیش برو؛ هر پله یک پیشرفت است.",
+                "visual_query": "ascending geometric steps toward a bright peak",
+                "on_screen_text": "گام‌به‌گام",
+            },
+            {
+                "spoken_text": "فردا از همین شروع ساده ساخته می‌شود.",
+                "visual_query": "sunrise over a calm horizon with rising light",
+                "on_screen_text": "شروع ساده",
+            },
+        ],
+    }
+
+
+def _load_history() -> list[dict[str, Any]]:
+    history_path = ROOT / "state" / "youtube_history.json"
+    if not history_path.is_file():
+        return []
+    try:
+        data = json.loads(history_path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return list(data.get("items") or [])
+    except json.JSONDecodeError:
+        return []
+    return []
+
+
+def _run_council(
+    content: dict[str, Any],
+    *,
+    render: dict[str, Any] | None = None,
+    media_qa: dict[str, Any] | None = None,
+    phase: str = "preflight",
+) -> dict[str, Any]:
+    if not COUNCIL_ENABLED:
+        return {
+            "ok": True,
+            "skipped": True,
+            "phase": phase,
+            "gate": "SKIPPED",
+            "reason": "BAMO_AUTOPILOT_COUNCIL=false",
+        }
+    try:
+        from app.bamo_agent_council import review_with_council
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "phase": phase, "error": f"council_import:{exc}", "gate": "ERROR"}
+
+    memory_dir = STATE_DIR / "council_memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        report = review_with_council(
+            content,
+            render=render or {},
+            media_qa=media_qa or {},
+            memory_dir=memory_dir,
+            history=_load_history(),
+        )
+        report["ok"] = True
+        report["phase"] = phase
+        out = STATE_DIR / f"council_{phase}_{int(time.time())}.json"
+        out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        (STATE_DIR / f"last_council_{phase}.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return report
+    except Exception as exc:  # noqa: BLE001
+        payload = {
+            "ok": False,
+            "phase": phase,
+            "gate": "BLOCKED",
+            "error": str(exc),
+        }
+        (STATE_DIR / f"last_council_{phase}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        if COUNCIL_STRICT:
+            raise
+        return payload
+
+
 def observe() -> dict[str, Any]:
-    """Collect system health and recent memory."""
     memory_path = ROOT / "output" / "heal_memory.jsonl"
     recent_failures: list[dict[str, Any]] = []
     if memory_path.is_file():
@@ -61,25 +158,37 @@ def observe() -> dict[str, Any]:
                 continue
     rules_path = ROOT / "app" / "bamo_heal_rules.json"
     rules = json.loads(rules_path.read_text(encoding="utf-8")) if rules_path.is_file() else {"rules": []}
+    last_pre = STATE_DIR / "last_council_preflight.json"
+    last_post = STATE_DIR / "last_council_post_render.json"
+
+    def _gate(path: Path) -> str | None:
+        if not path.is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8")).get("gate")
+        except json.JSONDecodeError:
+            return None
+
     return {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "heal_rules": len(rules.get("rules") or []),
         "recent_events": recent_failures[-10:],
         "publish_enabled": PUBLISH_ENABLED,
         "visuals_approved": PRODUCTION_VISUALS_APPROVED,
+        "council_enabled": COUNCIL_ENABLED,
+        "council_strict": COUNCIL_STRICT,
+        "last_council_preflight_gate": _gate(last_pre),
+        "last_council_post_render_gate": _gate(last_post),
     }
 
 
 def decide(observation: dict[str, Any]) -> list[Decision]:
-    """Policy: heal first, then produce, then review, then optionally publish."""
     decisions: list[Decision] = []
-    # Always self-heal before any expensive work.
     decisions.append(Decision(
         action="self_heal",
         reason="Mandatory preflight: repair known issues and learn from recent failures",
         priority=10,
     ))
-    # If heal memory shows repeated syntax failures, prioritize learning cycle.
     syntax_hits = sum(
         1 for e in observation.get("recent_events") or []
         if e.get("error_type") == "SyntaxError" or "syntax" in str(e.get("event", ""))
@@ -90,94 +199,203 @@ def decide(observation: dict[str, Any]) -> list[Decision]:
             reason=f"Repeated syntax failures in memory ({syntax_hits}); force learning cycle",
             priority=15,
         ))
+
     decisions.append(Decision(
-        action="produce_preview",
-        reason="Generate a real 3D preview short to advance quality evidence",
-        priority=40,
+        action="council_preflight",
+        reason="11-agent council reviews package before heavy render",
+        priority=25,
     ))
+
+    if not SKIP_PRODUCE:
+        decisions.append(Decision(
+            action="produce_preview",
+            reason="Generate a real 3D preview short unless strict council preflight blocked",
+            priority=40,
+            metadata={"depends_on": "council_preflight"},
+        ))
+        decisions.append(Decision(
+            action="council_post_render",
+            reason="11-agent council re-evaluates with render evidence",
+            priority=55,
+            metadata={"depends_on": "produce_preview"},
+        ))
+    else:
+        decisions.append(Decision(
+            action="skip_produce",
+            reason="BAMO_AUTOPILOT_SKIP_PRODUCE=true",
+            priority=40,
+        ))
+
     decisions.append(Decision(
         action="editorial_score",
-        reason="Score packaging for growth/retention/SEO without publishing",
-        priority=60,
+        reason="Persist growth/retention recommendation from council gates",
+        priority=70,
     ))
+
     if PUBLISH_ENABLED and PRODUCTION_VISUALS_APPROVED:
         decisions.append(Decision(
             action="publish_youtube",
-            reason="Operator explicitly enabled publish + visuals approved",
+            reason="Operator enabled publish; still requires council gate PASS",
             priority=90,
+            metadata={"requires_council_gate": "PASS"},
         ))
     else:
         decisions.append(Decision(
             action="skip_publish",
-            reason="Publish gated (set BAMO_AUTOPILOT_PUBLISH=true and BAMO_PRODUCTION_VISUALS_APPROVED=true to enable)",
+            reason="Publish gated (BAMO_AUTOPILOT_PUBLISH + BAMO_PRODUCTION_VISUALS_APPROVED)",
             priority=90,
-            metadata={"publish_enabled": PUBLISH_ENABLED, "visuals_approved": PRODUCTION_VISUALS_APPROVED},
         ))
     return sorted(decisions, key=lambda d: d.priority)
 
 
-def execute(decision: Decision) -> dict[str, Any]:
-    """Execute one decision; never swallow failures."""
+def execute(decision: Decision, context: dict[str, Any]) -> dict[str, Any]:
     if decision.action == "self_heal":
         code, out = _run([sys.executable, str(ROOT / "scripts" / "bamo_self_heal.py"), "--syntax-only"], timeout=120)
         return {"ok": code == 0, "log": out[-4000:], "action": decision.action}
+
     if decision.action == "deep_learn":
         mem = ROOT / "output" / "heal_memory.jsonl"
         log = mem.read_text(encoding="utf-8") if mem.is_file() else ""
-        code, out = _run(
-            [sys.executable, str(ROOT / "scripts" / "bamo_self_heal.py"), "--syntax-only", "--learn-from", "-"],
-            timeout=120,
-        )
-        # feed via stdin not supported in _run easily — call engine directly
         sys.path.insert(0, str(ROOT / "scripts"))
         from bamo_heal_engine import run_learning_cycle
 
         result = run_learning_cycle(log)
-        return {"ok": True, "learned": result, "action": decision.action, "heal_exit": code, "log": out[-2000:]}
+        return {"ok": True, "learned": result, "action": decision.action}
+
+    if decision.action == "council_preflight":
+        package = context.setdefault("package", _default_candidate_package())
+        report = _run_council(package, render={}, media_qa={}, phase="preflight")
+        context["council_preflight"] = report
+        blocked = report.get("gate") == "BLOCKED"
+        return {
+            "ok": not blocked or not COUNCIL_STRICT,
+            "blocked": blocked,
+            "gate": report.get("gate"),
+            "average_score": report.get("average_score"),
+            "approvals": report.get("approvals"),
+            "critical_issues": report.get("critical_issues"),
+            "action": decision.action,
+            "error": report.get("error"),
+        }
+
     if decision.action == "produce_preview":
+        pre = context.get("council_preflight") or {}
+        if COUNCIL_STRICT and pre.get("gate") == "BLOCKED":
+            return {
+                "ok": False,
+                "skipped": True,
+                "action": decision.action,
+                "reason": "council_preflight_blocked",
+            }
         code, out = _run([sys.executable, str(ROOT / "scripts" / "smoke_bamo_3d_renderer.py")], timeout=3600)
-        return {"ok": code == 0, "log": out[-6000:], "action": decision.action}
+        evidence_path = ROOT / "output" / "bamo-3d-smoke" / "smoke-evidence.json"
+        render: dict[str, Any] = {}
+        if evidence_path.is_file():
+            try:
+                evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+                render = {
+                    "visual_source": "bamo-cpu-3d-motion",
+                    "visual_scene_count": len(evidence.get("visual_plans") or []),
+                    "scene_visual_plans": evidence.get("visual_plans"),
+                    "render_backend": "blender-cycles-cpu",
+                    "visual_quality_tier": "blender-cpu-3d-preview",
+                    "production_visuals_approved": PRODUCTION_VISUALS_APPROVED,
+                    "video_path": evidence.get("video_path"),
+                    "video_width": evidence.get("video_width"),
+                    "video_height": evidence.get("video_height"),
+                }
+            except json.JSONDecodeError:
+                pass
+        context["render"] = render
+        context["produce_ok"] = code == 0
+        return {"ok": code == 0, "log": out[-6000:], "action": decision.action, "render": render}
+
+    if decision.action == "council_post_render":
+        if not context.get("produce_ok"):
+            return {
+                "ok": False,
+                "skipped": True,
+                "action": decision.action,
+                "reason": "produce_preview_failed",
+            }
+        package = context.get("package") or _default_candidate_package()
+        render = context.get("render") or {}
+        report = _run_council(package, render=render, media_qa={"ok": True}, phase="post_render")
+        context["council_post_render"] = report
+        blocked = report.get("gate") == "BLOCKED"
+        return {
+            "ok": not blocked or not COUNCIL_STRICT,
+            "blocked": blocked,
+            "gate": report.get("gate"),
+            "average_score": report.get("average_score"),
+            "approvals": report.get("approvals"),
+            "action": decision.action,
+            "error": report.get("error"),
+        }
+
     if decision.action == "editorial_score":
-        # Lightweight local growth score without requiring full council LLM spend.
+        pre = context.get("council_preflight") or {}
+        post = context.get("council_post_render") or {}
         score = {
-            "hook_strength": 70,
-            "visual_ambition": 65,
-            "seo_ready": 60,
-            "retention_risk": 40,
-            "recommendation": "Improve scene specificity and first-second visual punch before scaling publish volume",
+            "source": "council",
+            "preflight_gate": pre.get("gate"),
+            "post_render_gate": post.get("gate"),
+            "preflight_average": pre.get("average_score"),
+            "post_render_average": post.get("average_score"),
+            "recommendation": (
+                "Council PASS — candidate eligible for human visual review / gated publish"
+                if post.get("gate") == "PASS" or pre.get("gate") == "PASS"
+                else "Council blocked or incomplete — revise hook, scene specificity, or claims before scaling"
+            ),
         }
         path = STATE_DIR / "last_editorial_score.json"
         path.write_text(json.dumps(score, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": True, "score": score, "action": decision.action}
+
     if decision.action == "publish_youtube":
+        post = context.get("council_post_render") or context.get("council_preflight") or {}
+        if post.get("gate") != "PASS":
+            return {
+                "ok": False,
+                "action": decision.action,
+                "error": "council_gate_not_PASS",
+                "gate": post.get("gate"),
+            }
+        if not (PUBLISH_ENABLED and PRODUCTION_VISUALS_APPROVED):
+            return {"ok": False, "action": decision.action, "error": "publish_gates_closed"}
         return {
             "ok": False,
             "action": decision.action,
-            "error": "Publish path reserved: wire through existing youtube_client only when operator enables gates",
+            "error": "Publish path reserved: call existing youtube_client only after operator enables gates and reviews MP4",
         }
-    if decision.action == "skip_publish":
+
+    if decision.action in {"skip_publish", "skip_produce"}:
         return {"ok": True, "action": decision.action, "reason": decision.reason}
+
     return {"ok": False, "action": decision.action, "error": "unknown_action"}
 
 
-def run_cycle() -> dict[str, Any]:
-    """One full autopilot cycle."""
+def run_cycle(package: dict[str, Any] | None = None) -> dict[str, Any]:
     observation = observe()
     decisions = decide(observation)
+    context: dict[str, Any] = {"package": package or _default_candidate_package()}
     results = []
     for decision in decisions:
         try:
-            results.append({"decision": asdict(decision), "result": execute(decision)})
+            results.append({"decision": asdict(decision), "result": execute(decision, context)})
         except Exception as exc:  # noqa: BLE001
             results.append({"decision": asdict(decision), "result": {"ok": False, "error": str(exc)}})
+            if COUNCIL_STRICT and decision.action.startswith("council_"):
+                break
     report = {
         "observation": observation,
         "results": results,
-        "autonomy_level": "practical_autopilot_v1",
+        "context_keys": sorted(context.keys()),
+        "autonomy_level": "practical_autopilot_v2_council",
         "claims": {
             "superhuman": False,
             "guaranteed_million_subs": False,
-            "self_modifying_arbitrary_code": False,
+            "council_connected": True,
             "self_heal_and_learn_rules": True,
             "decision_loop": True,
         },
