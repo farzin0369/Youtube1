@@ -3,20 +3,8 @@ on:
   push:
     branches: ["feat/bamo-visual-review-and-scene-fidelity"]
     paths:
-      - "app/bamo_motion_engine.py"
-      - "app/bamo_scene_director.py"
-      - "app/bamo_production_renderer.py"
-      - "app/bamo_ai_director.py"
-      - "app/llm_provider.py"
-      - "app/media_qa.py"
-      - "app/spiritual_video.py"
-      - "scripts/smoke_bamo_3d_renderer.py"
-      - "scripts/harden_director_vectors.py"
-      - "scripts/fix_director_syntax.py"
-      - "scripts/patch_ass_playres.py"
-      - "scripts/bamo_blender_scene.py"
-      - "scripts/bamo_blender_motifs_b.py"
-      - "scripts/bamo_blender_primitives.py"
+      - "app/**"
+      - "scripts/**"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
     branches: ["main"]
@@ -35,19 +23,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: feat/bamo-visual-review-and-scene-fidelity
-      - name: Repair director syntax, harden vectors, ASS PlayRes
+      - name: Self-heal critical modules and commit repairs
         run: |
           set -euo pipefail
-          python3 scripts/fix_director_syntax.py
-          python3 scripts/harden_director_vectors.py || true
-          python3 scripts/fix_director_syntax.py
-          python3 scripts/patch_ass_playres.py || true
-          python3 -c "import pathlib; compile(pathlib.Path('app/bamo_ai_director.py').read_text(), 'app/bamo_ai_director.py', 'exec'); print('director compiles')"
+          python3 scripts/bamo_self_heal.py
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
           git add app/bamo_ai_director.py app/spiritual_video.py || true
           if ! git diff --cached --quiet; then
-            git commit -m "Repair director syntax and keep vector/ASS harden"
+            git commit -m "self-heal: auto-repair director/ASS before render"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
