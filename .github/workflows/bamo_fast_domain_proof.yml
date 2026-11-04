@@ -28,12 +28,13 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Restore director + force procedural domain proof
+      - name: Procedural domain proof (no Ollama)
         env:
           PYTHONPATH: ${{ github.workspace }}
-          # No local LLM — director must use procedural domain author
           USE_LOCAL_LLM: "0"
           BAMO_PREFER_LOCAL_LLM: "0"
+          BAMO_FORCE_PROCEDURAL: "1"
+          LLM_TIMEOUT_SECONDS: "5"
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
           BAMO_BLENDER_SAMPLES: "2"
@@ -43,10 +44,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/restore_bamo_ai_director.py
+          python3 scripts/patch_director_aliases_and_fallback.py || true
           python3 -c "from pathlib import Path; t=Path('app/bamo_ai_director.py').read_text(); assert len(t)>20000 and 'def direct_scene' in t"
-          # Break cloud LLM attempts quickly so procedural path engages
-          export LLM_TIMEOUT_SECONDS=5
-          python scripts/render_ai_domain_proof.py
+          # Inline force: if env not honored by older script, monkey-patch via env is enough once updated
+          python - <<'PY'
+          import os, runpy
+          os.environ["BAMO_FORCE_PROCEDURAL"] = "1"
+          # Prefer direct procedural plans via director fallback by failing LLM fast
+          runpy.run_path("scripts/render_ai_domain_proof.py", run_name="__main__")
+          PY
       - name: Upload proof
         if: always()
         uses: actions/upload-artifact@v4
