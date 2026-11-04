@@ -622,13 +622,14 @@ ScriptType: v4.00+
 WrapStyle: 0
 ScaledBorderAndShadow: yes
 Kerning: yes
-PlayResX: 720
-PlayResY: 1280
+PlayResX: 1080
+PlayResY: 1920
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Default,Noto Naskh Arabic,48,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,2,50,50,220,1
-Style: Hook,Noto Naskh Arabic,56,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,10,0,8,46,46,300,1
+Style: Default,Noto Naskh Arabic,54,&H00FFFFFF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,12,1,2,64,64,260,1
+Style: Hook,Noto Naskh Arabic,64,&H003EC9FF,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,12,1,8,56,56,340,1
+Style: Emphasis,Noto Naskh Arabic,58,&H00D5A64B,&H0000FFFF,&H99000000,&HAA111924,-1,0,0,0,100,100,0,0,3,12,1,2,64,64,260,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
