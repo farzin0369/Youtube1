@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "description": "Declarative self-heal rules for BAMO. Only regex_replace + compile verify are allowed. No eval.",
+  "rules": [
+    {
+      "id": "director-collapse-duplicate-else",
+      "enabled": true,
+      "file": "app/bamo_ai_director.py",
+      "match": {
+        "error_type": "SyntaxError",
+        "message_contains": ["invalid syntax"]
+      },
+      "repair": {
+        "type": "regex_replace",
+        "pattern": "(else:\\n                    obj\\[label\\] = list\\(default\\)\\n)(?:                else:\\n                    obj\\[label\\] = list\\(default\\)\\n)+",
+        "replacement": "\\1",
+        "count": 0
+      },
+      "verify": "compile",
+      "learned": false,
+      "hits": 0
+    },
+    {
+      "id": "director-soft-bounded-vector",
+      "enabled": true,
+      "file": "app/bamo_ai_director.py",
+      "match": {
+        "error_type": "ValueError",
+        "message_contains": ["must be a three-number vector", "out-of-range value"]
+      },
+      "repair": {
+        "type": "regex_replace",
+        "pattern": "def _bounded_vector\\(value: Any, \\*, low: float, high: float, label: str\\) -> list\\[float\\]:\\n    if not isinstance\\(value, list\\) or len\\(value\\) != 3:\\n        raise ValueError\\(f\\\"\\{label\\} must be a three-number vector\\\"\\)\\n    result = \\[float\\(v\\) for v in value\\]\\n    if not all\\(math\\.isfinite\\(v\\) and low <= v <= high for v in result\\):\\n        raise ValueError\\(f\\\"\\{label\\} contains an out-of-range value\\\"\\)\\n    return result\\n",
+        "replacement": "def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:\\n    defaults = {\\n        \\\"position\\\": [0.0, 0.0, 1.0],\\n        \\\"scale\\\": [1.0, 1.0, 1.0],\\n        \\\"rotation\\\": [0.0, 0.0, 0.0],\\n    }\\n    if not isinstance(value, list) or len(value) != 3:\\n        return list(defaults.get(label, [0.0, 0.0, 0.0]))\\n    try:\\n        result = [float(v) for v in value]\\n    except (TypeError, ValueError):\\n        return list(defaults.get(label, [0.0, 0.0, 0.0]))\\n    if not all(math.isfinite(v) for v in result):\\n        return list(defaults.get(label, [0.0, 0.0, 0.0]))\\n    return [max(low, min(high, v)) for v in result]\\n",
+        "count": 1
+      },
+      "verify": "compile",
+      "learned": false,
+      "hits": 0
+    },
+    {
+      "id": "ass-playres-1080x1920",
+      "enabled": true,
+      "file": "app/spiritual_video.py",
+      "match": {
+        "error_type": "QualityGate",
+        "message_contains": ["PlayResX: 720"]
+      },
+      "repair": {
+        "type": "multi_replace",
+        "replacements": [
+          {"old": "PlayResX: 720", "new": "PlayResX: 1080"},
+          {"old": "PlayResY: 1280", "new": "PlayResY: 1920"}
+        ]
+      },
+      "verify": "compile",
+      "learned": false,
+      "hits": 0
+    }
+  ]
+}
