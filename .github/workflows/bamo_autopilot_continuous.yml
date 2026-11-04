@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/bamo_autopilot_continuous.yml
 
 permissions:
   contents: write
