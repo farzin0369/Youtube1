@@ -1,0 +1,129 @@
+"""Semantic AI film director: turns narration into a validated, executable 3D scene graph.
+
+The LLM authors the visual composition per scene. Blender is the deterministic renderer,
+not the creative decision maker. Unknown subjects are planned compositionally rather than
+mapped to a finite list of keyword motifs. Provider failure is fail-closed.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import math
+import re
+from typing import Any
+
+from app.llm_provider import generate_text
+
+LOGGER = logging.getLogger(__name__)
+
+SYSTEM = """You are BAMO's autonomous film director and 3D cinematography designer.
+Understand the meaning of the supplied narration and design a visually literal, cinematic,
+original scene that communicates that exact meaning without generic filler.
+Return ONLY valid JSON. Do not merely repeat a visual search query. Design a coherent shot:
+objects, spatial relationships, action, camera movement, depth, composition and lighting intent.
+Use only the executable scene grammar below; never invent unsupported commands.
+Scene graph schema:
+{
+ "visual_thesis":"one sentence explaining what the viewer should understand",
+ "camera":{"move":"push_in|orbit|tracking|sweep|crane|static","angle":"low|eye|high|top","focus":"short object name"},
+ "palette":{"background":"#RRGGBB","key":"#RRGGBB","accent":"#RRGGBB"},
+ "objects":[
+  {"id":"unique_snake_case","kind":"sphere|cube|cylinder|torus|cone|icosphere|ring|line",
+   "role":"what this object means in the narration",
+   "position":[x,y,z],"scale":[x,y,z],"rotation":[x,y,z],
+   "material":"key|accent|neutral|dark",
+   "action":"rise|fall|rotate|orbit|pulse|travel_x|travel_y|reveal|none",
+   "action_amount":number}
+ ],
+ "relationships":[{"from":"object_id","to":"object_id","kind":"connect|orbit|point_to"}]
+}
+Limits: 3-12 objects, each id unique, positions within -6..6, scales 0.05..4,
+rotations within -6.28..6.28, action_amount within -4..4. Use meaningful spatial
+relationships. A science explanation must depict the actual mechanism; a story must
+depict its actual characters/setting/action; abstract ideas need a concrete metaphor
+that preserves the sentence's meaning. No text objects; Persian typography is composited
+from the canonical narration timeline by the editor. No arbitrary code, scripts, URLs,
+file paths, or external assets. Make every shot composition distinct and appropriate.
+Choose a camera move that is not already listed in previous_camera_moves when one of
+the six legal moves is still unused.
+""".strip()
+
+CAMERA_MOVES = ("push_in", "orbit", "tracking", "sweep", "crane", "static")
+_KIND_ALIASES = {
+    "ball": "sphere", "orb": "sphere", "uv_sphere": "sphere", "planet": "sphere", "star": "sphere",
+    "box": "cube", "cuboid": "cube", "block": "cube",
+    "cyl": "cylinder", "tube": "cylinder", "rod": "cylinder", "bond": "cylinder",
+    "donut": "torus", "doughnut": "torus", "ellipse": "torus",
+    "pyramid": "cone",
+    "ico": "icosphere", "polyhedron": "icosphere",
+    "curve": "line", "path": "line", "segment": "line", "axis": "line", "ray": "line",
+}
+_ACTION_ALIASES = {
+    "spin": "rotate", "spinning": "rotate", "yaw": "rotate",
+    "rotate_y": "rotate", "rotate_x": "rotate", "rotate_z": "rotate",
+    "turn": "rotate", "turn_y": "rotate",
+    "up": "rise", "ascend": "rise", "lift": "rise",
+    "down": "fall", "descend": "fall", "drop": "fall",
+    "move_x": "travel_x", "slide_x": "travel_x", "translate_x": "travel_x",
+    "move_y": "travel_y", "slide_y": "travel_y",
+    "scale": "pulse", "breathe": "pulse", "throb": "pulse", "scale_up": "reveal",
+    "appear": "reveal", "fade_in": "reveal", "grow": "reveal",
+    "idle": "none", "static": "none", "still": "none", "": "none",
+}
+_MOVE_ALIASES = {
+    "dolly": "push_in", "dolly_in": "push_in", "zoom": "push_in", "push": "push_in",
+    "orbit_around": "orbit", "arc": "orbit",
+    "track": "tracking", "follow": "tracking",
+    "pan": "sweep", "lateral": "sweep",
+    "crane_up": "crane", "pedestal": "crane", "rise": "crane",
+    "locked": "static", "fixed": "static", "hold": "static",
+}
+_ANGLE_ALIASES = {
+    "bird": "top", "birds_eye": "top", "overhead": "top", "aerial": "top",
+    "worm": "low", "hero": "low", "ground": "low",
+    "medium": "eye", "level": "eye", "neutral": "eye",
+}
+_DOMAIN_HINTS = (
+    (("ستاره", "کیهان", "کهکشان", "مدار", "آسمان شب", "star", "orbit", "galaxy", "cosmos", "olbers", "اولبرس", "انبساط"),
+     "astronomy: show stars, nested shells or orbits, scale, and expanding space. Do not substitute generic floating cubes."),
+    (("موج", "تداخل", "wave", "interference", "نوسان"),
+     "wave physics: two distinct sources, expanding wavefronts, and a visible interference relationship."),
+    (("مولکول", "اتم", "پیوند", "شیمی", "molecule", "atom", "bond", "chemistry"),
+     "chemistry: atoms are spheres, bonds are connectors between them, arranged as a readable 3D structure."),
+    (("ریاضی", "بیضی", "منحنی", "اثبات", "هندسه", "ellipse", "geometry", "equation", "math"),
+     "mathematics: curves, ellipses, axes and construction lines that demonstrate the stated relation."),
+    (("نورون", "سیناپس", "مغز", "عصب", "neural", "synapse", "brain"),
+     "neuroscience: branching nodes linked by connectors, with a pulse traveling along the links."),
+    (("تاریخ", "معماری", "باستان", "امپراتوری", "ancient", "architecture", "empire"),
+     "history: a concrete place or object from the sentence, with depth and a purposeful camera move."),
+)
+
+
+def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    defaults = {
+        "position": [0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0],
+        "rotation": [0.0, 0.0, 0.0],
+    }
+    if not isinstance(value, list) or len(value) != 3:
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    try:
+        result = [float(v) for v in value]
+    except (TypeError, ValueError):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    if not all(math.isfinite(v) for v in result):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    return [max(low, min(high, v)) for v in result]
+
+
+def _clamp_number(value: Any, low: float, high: float) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("non-finite number")
+    return max(low, min(high, number))
+
+
+def _slug_id(raw: Any, index: int) -> str:
+    text = re.sub(r"[^a-z0-9_]+", "_", str(raw or "").strip().lower())
+    text = re.sub(r"_+", "_", text).strip("_")
+    if not text or not text[0].is
