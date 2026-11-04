@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """BAMO self-heal bootstrap — runs before any production/smoke render.
 
-Goals:
-- Detect and repair known broken states in critical modules
-- Compile-check the render path before spending minutes on Blender/Ollama
-- Exit non-zero only when recovery is impossible (fail-closed, not silent)
+Modes:
+  --syntax-only  repair + compile critical files (no third-party imports)
+  (default)      also import the production path (requires deps installed)
 
-This is not full autonomy. It is the first mandatory self-repair gate so the
-pipeline does not die mid-path on preventable SyntaxError / patch residue.
+Fail-closed: exit 1 if recovery is impossible.
 """
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -39,7 +38,6 @@ def _repair_director_duplicate_else(text: str) -> tuple[str, list[str]]:
     if fixed != text:
         notes.append("removed_duplicate_else_blocks")
         text = fixed
-    # Soft-bounded vector if still hard-raising
     hard = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
     if not isinstance(value, list) or len(value) != 3:
         raise ValueError(f"{label} must be a three-number vector")
@@ -67,7 +65,6 @@ def _repair_director_duplicate_else(text: str) -> tuple[str, list[str]]:
     if hard in text:
         text = text.replace(hard, soft, 1)
         notes.append("softened_bounded_vector")
-    # Ensure else-default once for normalize vectors
     if "else:\n                    obj[label] = list(default)" not in text:
         needle = '''                value = obj.get(label)
                 if isinstance(value, list) and len(value) == 3:
@@ -102,7 +99,7 @@ def _repair_ass_playres(text: str) -> tuple[str, list[str]]:
     return text, notes
 
 
-def heal() -> int:
+def heal(*, syntax_only: bool = False) -> int:
     report: list[str] = []
     errors: list[str] = []
 
@@ -132,15 +129,15 @@ def heal() -> int:
         except SyntaxError as exc:
             errors.append(f"syntax:{path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
 
-    # Smoke import path if PYTHONPATH is workspace
-    sys.path.insert(0, str(ROOT))
-    try:
-        import app.bamo_ai_director  # noqa: F401
-        import app.bamo_motion_engine  # noqa: F401
-        import app.bamo_production_renderer  # noqa: F401
-        report.append("import_ok:production_path")
-    except Exception as exc:  # noqa: BLE001 — surface any bootstrap failure
-        errors.append(f"import_fail:{type(exc).__name__}:{exc}")
+    if not syntax_only:
+        sys.path.insert(0, str(ROOT))
+        try:
+            import app.bamo_ai_director  # noqa: F401
+            import app.bamo_motion_engine  # noqa: F401
+            import app.bamo_production_renderer  # noqa: F401
+            report.append("import_ok:production_path")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"import_fail:{type(exc).__name__}:{exc}")
 
     print("BAMO_SELF_HEAL_REPORT")
     for line in report:
@@ -150,9 +147,12 @@ def heal() -> int:
         for line in errors:
             print("  !", line)
         return 1
-    print("BAMO_SELF_HEAL_OK")
+    print("BAMO_SELF_HEAL_OK", "syntax_only" if syntax_only else "full")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(heal())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--syntax-only", action="store_true")
+    args = parser.parse_args()
+    raise SystemExit(heal(syntax_only=args.syntax_only))
