@@ -64,7 +64,7 @@ jobs:
   produce-preview:
     needs: brain-and-heal
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
