@@ -1,0 +1,57 @@
+name: BAMO balanced quality proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-balanced-quality-proof
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install stack
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Quality-patched domain proof (24 samples)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          BAMO_FORCE_PROCEDURAL: "1"
+          USE_LOCAL_LLM: "0"
+          TTS_PROVIDER: edge-tts
+          TTS_VOICE: fa-IR-FaridNeural
+          BAMO_BLENDER_SAMPLES: "24"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "40"
+          BAMO_BLENDER_DENOISE: "true"
+          BAMO_BLENDER_SEED: "17"
+          BAMO_BLENDER_EXPOSURE: "-0.35"
+          BAMO_BLENDER_FILM_GRAIN: "0"
+          BAMO_BLENDER_THREADS: "2"
+          BAMO_AUTOPILOT_PUBLISH: "false"
+        run: |
+          set -euo pipefail
+          python3 scripts/restore_bamo_ai_director.py
+          python3 scripts/apply_quality_patches.py
+          python scripts/render_ai_domain_proof.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bamo-balanced-quality-${{ github.run_id }}
+          path: output/bamo-ai-three-domain/
+          if-no-files-found: warn
+          retention-days: 14
