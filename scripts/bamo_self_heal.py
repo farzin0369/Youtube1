@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
-"""BAMO self-heal bootstrap — runs before any production/smoke render.
+"""BAMO self-heal bootstrap with auto-learning rule engine.
 
 Modes:
   --syntax-only  repair + compile critical files (no third-party imports)
   (default)      also import the production path (requires deps installed)
+  --learn-from FILE  parse traceback, learn/promote rules, re-heal
 
 Fail-closed: exit 1 if recovery is impossible.
 """
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from bamo_heal_engine import (  # noqa: E402
+    apply_rules_to_tree,
+    learn_from_syntax_error,
+    learn_from_traceback,
+)
+
 CRITICAL = [
     ROOT / "app" / "bamo_ai_director.py",
     ROOT / "app" / "bamo_production_renderer.py",
@@ -28,97 +36,18 @@ CRITICAL = [
 ]
 
 
-def _repair_director_duplicate_else(text: str) -> tuple[str, list[str]]:
-    notes: list[str] = []
-    fixed = re.sub(
-        r"(else:\n                    obj\[label\] = list\(default\)\n)(?:                else:\n                    obj\[label\] = list\(default\)\n)+",
-        r"\1",
-        text,
-    )
-    if fixed != text:
-        notes.append("removed_duplicate_else_blocks")
-        text = fixed
-    hard = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
-    if not isinstance(value, list) or len(value) != 3:
-        raise ValueError(f"{label} must be a three-number vector")
-    result = [float(v) for v in value]
-    if not all(math.isfinite(v) and low <= v <= high for v in result):
-        raise ValueError(f"{label} contains an out-of-range value")
-    return result
-'''
-    soft = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
-    defaults = {
-        "position": [0.0, 0.0, 1.0],
-        "scale": [1.0, 1.0, 1.0],
-        "rotation": [0.0, 0.0, 0.0],
-    }
-    if not isinstance(value, list) or len(value) != 3:
-        return list(defaults.get(label, [0.0, 0.0, 0.0]))
-    try:
-        result = [float(v) for v in value]
-    except (TypeError, ValueError):
-        return list(defaults.get(label, [0.0, 0.0, 0.0]))
-    if not all(math.isfinite(v) for v in result):
-        return list(defaults.get(label, [0.0, 0.0, 0.0]))
-    return [max(low, min(high, v)) for v in result]
-'''
-    if hard in text:
-        text = text.replace(hard, soft, 1)
-        notes.append("softened_bounded_vector")
-    if "else:\n                    obj[label] = list(default)" not in text:
-        needle = '''                value = obj.get(label)
-                if isinstance(value, list) and len(value) == 3:
-                    try:
-                        obj[label] = [_clamp_number(component, low, high) for component in value]
-                    except (TypeError, ValueError):
-                        obj[label] = list(default)
-            if "action_amount" in obj:
-'''
-        repl = '''                value = obj.get(label)
-                if isinstance(value, list) and len(value) == 3:
-                    try:
-                        obj[label] = [_clamp_number(component, low, high) for component in value]
-                    except (TypeError, ValueError):
-                        obj[label] = list(default)
-                else:
-                    obj[label] = list(default)
-            if "action_amount" in obj:
-'''
-        if needle in text:
-            text = text.replace(needle, repl, 1)
-            notes.append("added_normalize_else_default")
-    return text, notes
-
-
-def _repair_ass_playres(text: str) -> tuple[str, list[str]]:
-    notes: list[str] = []
-    if "PlayResX: 720" in text and "PlayResY: 1280" in text:
-        text = text.replace("PlayResX: 720", "PlayResX: 1080", 1)
-        text = text.replace("PlayResY: 1280", "PlayResY: 1920", 1)
-        notes.append("ass_playres_1080x1920")
-    return text, notes
-
-
-def heal(*, syntax_only: bool = False) -> int:
+def heal(*, syntax_only: bool = False, learn_log: str | None = None) -> int:
     report: list[str] = []
     errors: list[str] = []
 
-    director = ROOT / "app" / "bamo_ai_director.py"
-    if director.is_file():
-        raw = director.read_text(encoding="utf-8")
-        fixed, notes = _repair_director_duplicate_else(raw)
-        if notes:
-            director.write_text(fixed, encoding="utf-8")
-            report.extend(f"director:{n}" for n in notes)
+    if learn_log:
+        promoted = learn_from_traceback(learn_log)
+        report.extend(f"learned:{rid}" for rid in promoted)
 
-    spiritual = ROOT / "app" / "spiritual_video.py"
-    if spiritual.is_file():
-        raw = spiritual.read_text(encoding="utf-8")
-        fixed, notes = _repair_ass_playres(raw)
-        if notes:
-            spiritual.write_text(fixed, encoding="utf-8")
-            report.extend(f"spiritual:{n}" for n in notes)
+    applied = apply_rules_to_tree()
+    report.extend(f"rule:{rid}" for rid in applied)
 
+    # Second pass: if any critical file still fails compile, try learn_from_syntax_error
     for path in CRITICAL:
         if not path.is_file():
             errors.append(f"missing:{path.relative_to(ROOT)}")
@@ -127,7 +56,17 @@ def heal(*, syntax_only: bool = False) -> int:
             compile(path.read_text(encoding="utf-8"), str(path), "exec")
             report.append(f"compile_ok:{path.relative_to(ROOT)}")
         except SyntaxError as exc:
-            errors.append(f"syntax:{path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
+            promoted = learn_from_syntax_error(path, exc.lineno, exc.msg or "invalid syntax")
+            if promoted:
+                report.extend(f"learned:{rid}" for rid in promoted)
+                try:
+                    compile(path.read_text(encoding="utf-8"), str(path), "exec")
+                    report.append(f"compile_ok_after_learn:{path.relative_to(ROOT)}")
+                    continue
+                except SyntaxError as exc2:
+                    errors.append(f"syntax:{path.relative_to(ROOT)}:{exc2.lineno}:{exc2.msg}")
+            else:
+                errors.append(f"syntax:{path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
 
     if not syntax_only:
         sys.path.insert(0, str(ROOT))
@@ -154,5 +93,12 @@ def heal(*, syntax_only: bool = False) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--syntax-only", action="store_true")
+    parser.add_argument("--learn-from", type=str, default=None, help="traceback file or -")
     args = parser.parse_args()
-    raise SystemExit(heal(syntax_only=args.syntax_only))
+    log_text = None
+    if args.learn_from:
+        if args.learn_from == "-":
+            log_text = sys.stdin.read()
+        else:
+            log_text = Path(args.learn_from).read_text(encoding="utf-8")
+    raise SystemExit(heal(syntax_only=args.syntax_only, learn_log=log_text))
