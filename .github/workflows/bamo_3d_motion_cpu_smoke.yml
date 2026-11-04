@@ -23,15 +23,15 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: feat/bamo-visual-review-and-scene-fidelity
-      - name: Self-heal critical modules and commit repairs
+      - name: Self-heal syntax (before deps)
         run: |
           set -euo pipefail
-          python3 scripts/bamo_self_heal.py
+          python3 scripts/bamo_self_heal.py --syntax-only
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
           git add app/bamo_ai_director.py app/spiritual_video.py || true
           if ! git diff --cached --quiet; then
-            git commit -m "self-heal: auto-repair director/ASS before render"
+            git commit -m "self-heal: auto-repair director/ASS syntax"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
@@ -44,6 +44,10 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
+      - name: Self-heal full import gate (after deps)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python3 scripts/bamo_self_heal.py
       - name: Cache local Qwen weights
         uses: actions/cache@v4
         with:
