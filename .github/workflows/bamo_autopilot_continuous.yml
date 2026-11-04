@@ -47,7 +47,7 @@ jobs:
           git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
           if ! git diff --cached --quiet; then
             git commit -m "autopilot continuous: heal + brain score + research notes"
-            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity
           fi
       - name: Upload brain state
         if: always()
@@ -80,7 +80,7 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Self-heal + optional smoke (no YouTube)
+      - name: Self-heal + required renderer smoke (no YouTube)
         env:
           PYTHONPATH: ${{ github.workspace }}
           USE_LOCAL_LLM: "1"
@@ -95,11 +95,18 @@ jobs:
           set -euo pipefail
           python3 scripts/bamo_self_heal.py --syntax-only
           if command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; then
-            (ollama serve > /tmp/ollama.log 2>&1 &) || true
-            sleep 5
-            ollama pull qwen2.5:7b || true
+            (ollama serve > /tmp/ollama.log 2>&1 &) 
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then break; fi
+              sleep 2
+            done
+            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+            ollama pull qwen2.5:7b
+          else
+            echo "Ollama installation failed; renderer smoke cannot use its configured local model."
+            exit 1
           fi
-          python scripts/smoke_bamo_3d_renderer.py || true
+          python scripts/smoke_bamo_3d_renderer.py
           python3 scripts/bamo_brain_tick.py
       - name: Upload preview artifacts
         if: always()
