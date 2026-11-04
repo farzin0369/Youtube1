@@ -115,6 +115,12 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
 
     command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
                "--", str(config_path), str(frames_dir)]
+    # Workbench needs an OpenGL context. Hosted Linux runners have no display,
+    # so use Mesa through Xvfb when available.
+    if config["render_engine"] == "BLENDER_WORKBENCH" and not os.getenv("DISPLAY"):
+        xvfb = shutil.which("xvfb-run")
+        if xvfb:
+            command = [xvfb, "-a", "--server-args=-screen 0 1280x1920x24", *command]
     timeout = max(300, int(os.getenv("BAMO_BLENDER_TIMEOUT_SECONDS", "1200")))
     attempts = max(1, min(3, int(os.getenv("BAMO_BLENDER_RENDER_ATTEMPTS", "3"))))
     result = None
