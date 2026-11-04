@@ -123,11 +123,20 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
             command = [xvfb, "-a", "--server-args=-screen 0 1280x1920x24", *command]
     timeout = max(300, int(os.getenv("BAMO_BLENDER_TIMEOUT_SECONDS", "1200")))
     attempts = max(1, min(3, int(os.getenv("BAMO_BLENDER_RENDER_ATTEMPTS", "3"))))
+    expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
+
+    def completed_frames() -> bool:
+        return all(path.is_file() and path.stat().st_size >= 1000 for path in expected)
+
     result = None
     for attempt in range(1, attempts + 1):
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
+            if completed_frames():
+                # A runner can terminate Blender during shutdown after every frame
+                # has already been flushed. The image sequence remains verifiable.
+                break
             if attempt == attempts:
                 raise RuntimeError(
                     f"Blender render timed out after {attempts} resumable attempts "
@@ -135,16 +144,18 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
                     f"partial stderr={str(exc.stderr or '')[-1800:]}"
                 ) from exc
             continue
-        if result.returncode == 0:
+        if result.returncode == 0 or completed_frames():
+            # Accept a non-zero shutdown (for example, a Blender segfault after
+            # saving the final frame) only when the entire expected sequence is
+            # present and non-empty. Partial renders still fail closed.
             break
         if attempt == attempts:
             raise RuntimeError(
                 f"Blender {config['render_engine']} render failed after {attempts} attempts; "
                 f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
             )
-    if result is None or result.returncode:
-        raise RuntimeError("Blender renderer exited without a successful result")
-    expected = [frames_dir / f"frame_{frame:04d}.png" for frame in range(1, frame_count + 1)]
+    if result is None:
+        raise RuntimeError("Blender renderer exited without producing a result")
     missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
     if missing:
         produced = sorted(p.name for p in frames_dir.glob("*"))[:40]
