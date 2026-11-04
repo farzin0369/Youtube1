@@ -95,7 +95,21 @@ jobs:
             sleep 5
             ollama pull qwen2.5:7b || true
           fi
-          python scripts/smoke_bamo_3d_renderer.py || true
+          python scripts/smoke_bamo_3d_renderer.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          evidence = Path('output/bamo-3d-smoke/smoke-evidence.json')
+          if not evidence.is_file():
+              raise SystemExit('Renderer smoke produced no evidence file')
+          data = json.loads(evidence.read_text(encoding='utf-8'))
+          video = Path(data.get('video_path') or '')
+          if not data.get('ok') or not video.is_file() or video.stat().st_size < 100_000:
+              raise SystemExit('Renderer smoke did not produce a valid non-empty video')
+          if data.get('video_width') != 1080 or data.get('video_height') != 1920:
+              raise SystemExit('Renderer smoke output is not 1080x1920')
+          print(f"RENDER_SMOKE_VERIFIED {video} {video.stat().st_size} bytes")
+          PY
           python3 scripts/bamo_brain_tick.py
       - name: Upload preview artifacts
         if: always()
