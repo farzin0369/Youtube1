@@ -29,19 +29,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Self-heal + director procedural patch + brain
+      - name: Self-heal + director patches + brain
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
           python3 scripts/bamo_self_heal.py --syntax-only || true
           python3 scripts/patch_director_procedural_fallback.py || true
+          python3 scripts/patch_director_aliases_and_fallback.py || true
           python3 scripts/bamo_brain_tick.py
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
           git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
           if ! git diff --cached --quiet; then
-            git commit -m "autopilot continuous: heal + procedural fallback + brain"
+            git commit -m "autopilot continuous: heal + director harden + brain"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - name: Upload brain state
@@ -80,18 +81,19 @@ jobs:
           USE_LOCAL_LLM: "1"
           BAMO_PREFER_LOCAL_LLM: "1"
           LOCAL_LLM_MODEL: qwen2.5:3b
-          LLM_TIMEOUT_SECONDS: "300"
-          OLLAMA_TIMEOUT_SECONDS: "300"
-          OLLAMA_NUM_PREDICT: "900"
+          LLM_TIMEOUT_SECONDS: "180"
+          OLLAMA_TIMEOUT_SECONDS: "180"
+          OLLAMA_NUM_PREDICT: "700"
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
-          BAMO_BLENDER_SAMPLES: "8"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "50"
+          BAMO_BLENDER_SAMPLES: "4"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
           BAMO_BLENDER_DENOISE: "false"
           BAMO_AUTOPILOT_PUBLISH: "false"
         run: |
           set -euo pipefail
           python3 scripts/patch_director_procedural_fallback.py
+          python3 scripts/patch_director_aliases_and_fallback.py
           python3 scripts/bamo_self_heal.py --syntax-only
           if curl -fsSL https://ollama.com/install.sh | sh; then
             (ollama serve > /tmp/ollama.log 2>&1 &) || true
