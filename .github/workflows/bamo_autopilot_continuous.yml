@@ -44,7 +44,7 @@ jobs:
           python3 scripts/bamo_brain_tick.py
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
-          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
+          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot
           if ! git diff --cached --quiet; then
             git commit -m "autopilot continuous: heal + brain score + research notes"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity
@@ -80,14 +80,14 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Self-heal + required renderer smoke (no YouTube)
+      - name: Self-heal + AI-directed multi-domain render proof (no YouTube)
         env:
           PYTHONPATH: ${{ github.workspace }}
           USE_LOCAL_LLM: "1"
           BAMO_PREFER_LOCAL_LLM: "1"
           LOCAL_LLM_MODEL: qwen2.5:7b
-          BAMO_BLENDER_SAMPLES: "4"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
+          BAMO_BLENDER_SAMPLES: "48"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "100"
           BAMO_BLENDER_DENOISE: "false"
           BAMO_AUTOPILOT_COUNCIL: "false"
           BAMO_AUTOPILOT_PUBLISH: "false"
@@ -106,13 +106,13 @@ jobs:
             echo "Ollama installation failed; renderer smoke cannot use its configured local model."
             exit 1
           fi
-          python scripts/smoke_bamo_3d_renderer.py
+          python scripts/render_ai_domain_proof.py
           python3 scripts/bamo_brain_tick.py
       - name: Upload preview artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-continuous-preview-${{ github.run_id }}
-          path: output/bamo-3d-smoke/
+          name: bamo-ai-domain-preview-${{ github.run_id }}
+          path: output/bamo-ai-three-domain/
           if-no-files-found: warn
           retention-days: 7
