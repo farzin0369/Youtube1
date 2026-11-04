@@ -4,7 +4,6 @@ name: BAMO Autopilot continuous brain
 # Until this workflow exists on the default branch, use workflow_dispatch.
 on:
   schedule:
-    # Every 6 hours — continuous improvement without burning the free Actions budget.
     - cron: "0 */6 * * *"
   workflow_dispatch:
 
@@ -58,12 +57,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # Heavy render is separate so brain/heal still runs even when Blender budget is tight.
   produce-preview:
     needs: brain-and-heal
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.event_name == 'workflow_dispatch' || github.run_number % 2 == 0
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,7 +90,6 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/bamo_self_heal.py --syntax-only
-          # Ollama is optional on continuous runs; smoke may be skipped if model pull fails.
           if command -v ollama >/dev/null 2>&1 || curl -fsSL https://ollama.com/install.sh | sh; then
             (ollama serve > /tmp/ollama.log 2>&1 &) || true
             sleep 5
