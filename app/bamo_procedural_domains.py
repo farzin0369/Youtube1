@@ -8,7 +8,6 @@ Always labeled matched_by=procedural_domain_author so evidence is honest.
 """
 from __future__ import annotations
 
-import math
 from typing import Any
 
 
@@ -17,7 +16,6 @@ def _base_camera(move: str, focus: str) -> dict[str, Any]:
 
 
 def plan_ellipse(*, duration_seconds: float, overlay: str, narration: str) -> dict[str, Any]:
-    # Two foci + ellipse ring + moving test point (action orbit around center).
     objects = [
         {
             "id": "focus_a",
@@ -201,10 +199,10 @@ def plan_wave_interference(*, duration_seconds: float, overlay: str, narration: 
             "kind": "torus",
             "role": "expanding wavefront from source A",
             "position": [-1.8, 0.0, 1.2],
-            "scale": [1.0, 1.0, 0.08],
+            "scale": [0.6, 0.6, 0.08],
             "rotation": [1.5708, 0.0, 0.0],
             "material": "accent",
-            "action": "scale_up",
+            "action": "reveal",
             "action_amount": 1.4,
         },
         {
@@ -212,10 +210,10 @@ def plan_wave_interference(*, duration_seconds: float, overlay: str, narration: 
             "kind": "torus",
             "role": "expanding wavefront from source B",
             "position": [1.8, 0.0, 1.2],
-            "scale": [1.0, 1.0, 0.08],
+            "scale": [0.6, 0.6, 0.08],
             "rotation": [1.5708, 0.0, 0.0],
             "material": "accent",
-            "action": "scale_up",
+            "action": "reveal",
             "action_amount": 1.4,
         },
         {
