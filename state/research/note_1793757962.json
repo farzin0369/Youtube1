@@ -1,0 +1,13 @@
+{
+  "ts": "2026-11-04T02:06:02Z",
+  "topic": "self_heal_policy",
+  "findings": [
+    "Only regex/multi_replace/collapse repairs with compile verify",
+    "Never eval model-written patches",
+    "Promote successful repairs into bamo_heal_rules.json"
+  ],
+  "sources": [
+    "internal:bamo_heal_engine"
+  ],
+  "policy": "notes_only_no_auto_merge"
+}
