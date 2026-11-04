@@ -1,6 +1,6 @@
 import pytest
 
-from app.bamo_motion_engine import _render_blender_scene, validate_project
+from app.bamo_motion_engine import _render_blender_scene, render_project, validate_project
 from app.bamo_scene_director import plan_scene
 
 
@@ -92,3 +92,25 @@ def test_blender_shutdown_crash_with_missing_frames_still_fails(tmp_path, monkey
             {"motif": "ai_scene", "camera": "orbit", "scene_graph": {"objects": []}},
         )
 
+
+
+def test_still_image_scene_is_rejected_instead_of_using_2d_zoompan(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    image = tmp_path / "still.png"
+    image.write_bytes(b"placeholder")
+    monkeypatch.setattr("app.bamo_motion_engine.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+
+    with pytest.raises(ValueError, match="static-image zoompan is disabled"):
+        render_project(
+            {
+                "format": "short",
+                "scenes": [{
+                    "duration": 1,
+                    "text": "موضوع آزمایشی",
+                    "image": str(image),
+                    "visual_prompt": "atomic orbit",
+                }],
+            },
+            tmp_path / "out.mp4",
+        )
