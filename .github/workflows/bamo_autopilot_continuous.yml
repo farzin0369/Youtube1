@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - work/bamo-integrated-safe-20261104
     paths:
       - app/bamo_motion_engine.py
       - scripts/bamo_blender_scene.py
