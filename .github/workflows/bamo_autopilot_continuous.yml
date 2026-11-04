@@ -10,12 +10,12 @@ permissions:
 
 concurrency:
   group: bamo-autopilot-continuous
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   brain-and-heal:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +58,7 @@ jobs:
   produce-domain-proof:
     needs: brain-and-heal
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,13 +80,13 @@ jobs:
           USE_LOCAL_LLM: "1"
           BAMO_PREFER_LOCAL_LLM: "1"
           LOCAL_LLM_MODEL: qwen2.5:3b
-          LLM_TIMEOUT_SECONDS: "120"
-          OLLAMA_TIMEOUT_SECONDS: "120"
-          OLLAMA_NUM_PREDICT: "600"
+          LLM_TIMEOUT_SECONDS: "90"
+          OLLAMA_TIMEOUT_SECONDS: "90"
+          OLLAMA_NUM_PREDICT: "500"
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
-          BAMO_BLENDER_SAMPLES: "4"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "30"
+          BAMO_BLENDER_SAMPLES: "2"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
           BAMO_BLENDER_DENOISE: "false"
           BAMO_AUTOPILOT_PUBLISH: "false"
         run: |
