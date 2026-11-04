@@ -2,7 +2,7 @@
 
 Loop: observe → decide → heal → council preflight → produce → council post-render → learn → optional publish
 
-Publish stays gated by env flags.
+Publish stays gated by env flags AND brain self-score == 100.
 """
 from __future__ import annotations
 
@@ -235,9 +235,9 @@ def decide(observation: dict[str, Any]) -> list[Decision]:
     if PUBLISH_ENABLED and PRODUCTION_VISUALS_APPROVED:
         decisions.append(Decision(
             action="publish_youtube",
-            reason="Operator enabled publish; still requires council gate PASS",
+            reason="Operator enabled publish; requires council PASS and brain score 100",
             priority=90,
-            metadata={"requires_council_gate": "PASS"},
+            metadata={"requires_council_gate": "PASS", "requires_brain_score": 100},
         ))
     else:
         decisions.append(Decision(
@@ -361,12 +361,27 @@ def execute(decision: Decision, context: dict[str, Any]) -> dict[str, Any]:
                 "error": "council_gate_not_PASS",
                 "gate": post.get("gate"),
             }
+        try:
+            from app.bamo_brain import assess
+            brain = assess()
+            context["brain"] = brain
+            if not brain.get("publish_ready_by_brain") or float(brain.get("score") or 0) < 100:
+                return {
+                    "ok": False,
+                    "action": decision.action,
+                    "error": "brain_score_not_100",
+                    "brain_score": brain.get("score"),
+                    "publish_ready_by_brain": brain.get("publish_ready_by_brain"),
+                }
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "action": decision.action, "error": f"brain_assess:{exc}"}
         if not (PUBLISH_ENABLED and PRODUCTION_VISUALS_APPROVED):
             return {"ok": False, "action": decision.action, "error": "publish_gates_closed"}
         return {
             "ok": False,
             "action": decision.action,
-            "error": "Publish path reserved: call existing youtube_client only after operator enables gates and reviews MP4",
+            "error": "Publish path reserved: call existing youtube_client only after brain=100, gates open, and human-reviewed MP4 once",
+            "brain_score": context.get("brain", {}).get("score"),
         }
 
     if decision.action in {"skip_publish", "skip_produce"}:
@@ -387,17 +402,26 @@ def run_cycle(package: dict[str, Any] | None = None) -> dict[str, Any]:
             results.append({"decision": asdict(decision), "result": {"ok": False, "error": str(exc)}})
             if COUNCIL_STRICT and decision.action.startswith("council_"):
                 break
+    try:
+        from app.bamo_brain import assess, seed_baseline_research
+        seed_baseline_research()
+        context["brain"] = assess()
+    except Exception as exc:  # noqa: BLE001
+        context["brain"] = {"error": str(exc), "score": 0}
     report = {
         "observation": observation,
         "results": results,
         "context_keys": sorted(context.keys()),
-        "autonomy_level": "practical_autopilot_v2_council",
+        "brain": context.get("brain"),
+        "autonomy_level": "practical_autopilot_v3_brain",
         "claims": {
             "superhuman": False,
             "guaranteed_million_subs": False,
             "council_connected": True,
+            "brain_self_score": True,
             "self_heal_and_learn_rules": True,
             "decision_loop": True,
+            "auto_merge_foreign_code": False,
         },
     }
     out = STATE_DIR / f"cycle_{int(time.time())}.json"
