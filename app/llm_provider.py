@@ -2,18 +2,15 @@
 
 No paid subscription is required. Providers are tried in this order:
 
-1. ``GROQ_API_KEY`` — free tier of Groq (OpenAI-compatible).
-2. ``LLM_BASE_URL`` + ``LLM_API_KEY`` — any OpenAI-compatible gateway
-   (OpenRouter, Together, DeepInfra, a self-hosted vLLM, ...).
-3. Pollinations anonymous text endpoint (a hosted instruct model, no key).
-4. Local Ollama only when ``USE_LOCAL_LLM=1``. It is off by default because
-   the small local model was writing unusable Shorts copy.
+1. Local Ollama when ``USE_LOCAL_LLM=1`` and ``BAMO_PREFER_LOCAL_LLM=1``.
+2. Optional ``GROQ_API_KEY`` — the Groq OpenAI-compatible endpoint.
+3. Optional ``LLM_BASE_URL`` + ``LLM_API_KEY`` — an OpenAI-compatible gateway.
+4. Pollinations anonymous text endpoint (hosted fallback, no key).
+5. Local Ollama last when ``USE_LOCAL_LLM=1`` without local preference.
 
-When ``BAMO_PREFER_LOCAL_LLM=1`` is also set, Ollama is tried immediately
-after any configured keyed provider and before Pollinations. GitHub Actions
-run 41693079551 showed Pollinations failing on every call
-(``pollinations:openai:LLMUnavailable``) and delaying the working local
-``qwen2.5:7b`` path. This does not change the pinned local model.
+Local-first mode keeps production independent of external API credentials.
+When local inference fails, optional keyed providers and the anonymous hosted
+fallback may be tried; no API key is required by the provider chain.
 
 Every provider failure is isolated: a rate-limited or unreachable cloud
 provider falls through to the next one instead of killing the run.
@@ -158,19 +155,7 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
     """Ordered provider candidates for the current environment."""
     chain: list[tuple[str, Callable[..., str]]] = []
     groq = _groq_config()
-    if groq:
-        base, key, model = groq
-        chain.append((
-            f"groq:{model}",
-            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
-        ))
     generic = _generic_config()
-    if generic:
-        base, key, model = generic
-        chain.append((
-            f"openai-compatible:{model}",
-            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
-        ))
     use_local = (env("USE_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
     prefer_local = use_local and (env("BAMO_PREFER_LOCAL_LLM") or "").strip().lower() in {"1", "true", "yes", "on"}
     local_entry = (
@@ -183,16 +168,23 @@ def provider_chain() -> list[tuple[str, Callable[..., str]]]:
             "https://text.pollinations.ai/openai", "anonymous", "openai", system, prompt, **kw
         ),
     )
-    # Keyed providers stay first. Preferring local only moves Ollama ahead of
-    # the anonymous hosted fallback, which failed closed on every call in
-    # Actions run 41693079551 and was burning minutes before Qwen could answer.
     if prefer_local:
         chain.append(local_entry)
-        chain.append(pollinations)
-    else:
-        chain.append(pollinations)
-        if use_local:
-            chain.append(local_entry)
+    if groq:
+        base, key, model = groq
+        chain.append((
+            f"groq:{model}",
+            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+        ))
+    if generic:
+        base, key, model = generic
+        chain.append((
+            f"openai-compatible:{model}",
+            lambda system, prompt, **kw: _chat_completions(base, key, model, system, prompt, **kw),
+        ))
+    chain.append(pollinations)
+    if use_local and not prefer_local:
+        chain.append(local_entry)
     return chain
 
 

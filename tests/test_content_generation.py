@@ -138,7 +138,7 @@ def test_hosted_model_is_used_and_local_model_stays_off(monkeypatch):
 
 
 def test_explicit_local_preference_runs_before_anonymous_hosted_fallback(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "optional-test-key")
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
@@ -147,6 +147,7 @@ def test_explicit_local_preference_runs_before_anonymous_hosted_fallback(monkeyp
     monkeypatch.setenv("BAMO_PREFER_LOCAL_LLM", "1")
     names = [name for name, _call in llm_provider.provider_chain()]
     assert names[0] == "ollama:qwen2.5:7b"
+    assert names[1].startswith("groq:")
     assert names[-1] == "pollinations:openai"
 
 

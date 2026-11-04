@@ -23,8 +23,8 @@ schedule:
   cadence: six-times-daily
 
 publishing:
-  mode: public
-  public_publish_enabled: true
+  mode: private
+  public_publish_enabled: false
   require_human_approval: false
   category_id: "22"
   default_language: fa

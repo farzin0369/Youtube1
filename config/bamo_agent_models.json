@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Pinned one-to-one specialist model routing. Keep every model_id unique.",
+  "description": "Optional per-role model preferences. Eleven specialist roles remain independent even when using the same local/free fallback model.",
   "agents": {
     "trend_researcher": {
       "provider": "groq",

@@ -37,11 +37,17 @@ jobs:
     timeout-minutes: 120
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       BAMO_PRODUCTION_VISUALS_APPROVED: ${{ vars.BAMO_PRODUCTION_VISUALS_APPROVED || 'false' }}
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
-      BAMO_AGENT_CONCURRENCY: "4"
-      BAMO_AGENT_TIMEOUT_SECONDS: "90"
+      USE_LOCAL_LLM: "1"
+      BAMO_PREFER_LOCAL_LLM: "1"
+      BAMO_USE_PINNED_AGENT_MODELS: "false"
+      LOCAL_LLM_MODEL: "qwen2.5:3b"
+      OLLAMA_KEEP_ALIVE: "1800"
+      OLLAMA_NUM_CTX: "4096"
+      OLLAMA_TIMEOUT_SECONDS: "600"
+      BAMO_AGENT_CONCURRENCY: "2"
+      BAMO_AGENT_TIMEOUT_SECONDS: "600"
       LLM_TIMEOUT_SECONDS: "180"
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -80,13 +86,28 @@ jobs:
           mkdir -p state output logs
           test -f state/history.json || printf '{"recent": []}\n' > state/history.json
           test -f state/comment_replies.json || printf '{"replied": {}}\n' > state/comment_replies.json
-      - name: Text model
-        run: echo "Text uses free Groq when configured, otherwise anonymous Pollinations; paid gateways and local model services are disabled."
-      - name: Verify all 11-agent provider credentials before production
-        if: github.event_name == 'schedule' || inputs.publish == true || inputs.upload_private == true
+      - name: Cache local Ollama model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bamo-qwen25-3b-${{ runner.os }}-v1
+      - name: Install local CPU model and start Qwen fallback
         run: |
-          test -n "$GROQ_API_KEY" || { echo "GROQ_API_KEY is required by the pinned BAMO specialist agents."; exit 1; }
-          test -n "$OPENROUTER_API_KEY" || { echo "OPENROUTER_API_KEY is required by the pinned BAMO specialist agents."; exit 1; }
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          sudo systemctl stop ollama || true
+          nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:11434/api/tags >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true || { echo "Local Ollama service did not become ready."; exit 1; }
+          ollama pull qwen2.5:3b
+          ollama list
       - name: Verify YouTube credentials before any production work
         if: false # Safety lock: no YouTube upload until cinematic visuals are production-approved.
         run: |
@@ -100,7 +121,7 @@ jobs:
           PY
       - name: Safe preview only — public publishing paused
         run: |
-          echo "PUBLIC AND PRIVATE UPLOADS ARE PAUSED UNTIL CINEMATIC VISUAL QA IS APPROVED."
+          echo "No paid API key is required; Qwen2.5:3b local CPU is primary. Public/private uploads remain paused until the weighted QA gate is implemented and passes."
           python scripts/daily_run.py --dry-run
       - name: Upload production evidence
         if: always()

@@ -72,6 +72,11 @@ def next_publish_at(now: datetime | None = None, *, lead_minutes: int = 30) -> s
     return min(candidates).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _public_mode_enabled(channel_config: dict[str, Any]) -> bool:
+    publishing = channel_config.get("publishing") or {}
+    return publishing.get("mode") == "public" and publishing.get("public_publish_enabled") is True
+
+
 def _publication_quality_gate(
     *, render: dict[str, Any], media_quality: dict[str, Any],
     editorial_review: dict[str, Any], agent_council: dict[str, Any],
@@ -108,8 +113,7 @@ def _publication_quality_gate(
         and agent_council.get("agents_expected") == 11
         and agent_council.get("agents_completed") == 11
         and agent_council.get("approvals") == 11
-        and agent_council.get("distinct_model_ids_observed") == 11
-        and agent_council.get("distinct_provider_models_observed") == 11
+        and agent_council.get("distinct_agent_roles_observed") == 11
         and not agent_council.get("agent_errors")
         and not agent_council.get("critical_issues")
         and len(reviews) == 11
@@ -223,7 +227,7 @@ def _publication_quality_gate(
         "independent_reviewers": len(reviews),
         "review_scores": [review.get("score") for review in reviews if isinstance(review, dict)],
         "blockers": blockers,
-        "policy": "The model-consensus score is not the weighted video-quality score. Public scheduling requires all nine weighted categories, non-empty evidence files, exact computed 100/100, passing media/frame QA, and unanimous 11/11 distinct-model scores of 100 with high confidence.",
+        "policy": "The model-consensus score is not the weighted video-quality score. Public scheduling requires all nine weighted categories, non-empty evidence files, exact computed 100/100, passing media/frame QA, and unanimous 11/11 independent specialist-role scores of 100 with high confidence.",
     }
 
 
@@ -327,6 +331,9 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
                 "Public/private publishing is paused: the current procedural renderer is preview-only. "
                 "Enable publishing only after the cinematic 3D renderer passes visual approval."
             )
+        channel_config = load_channel_config()
+        if not dry_run and not upload_private and not _public_mode_enabled(channel_config):
+            raise RuntimeError("Public publishing is disabled in config/channel.yaml until all release gates pass.")
         history = _load_state(state_path)
         channel_videos: list[dict[str, Any]] = []
         if not dry_run:
@@ -336,7 +343,6 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             generation_history = build_generation_history(history, channel_videos)
         else:
             generation_history = history
-        channel_config = load_channel_config()
         content_format = str((channel_config.get("content") or {}).get("production_format") or "long").lower()
         if content_format not in {"shorts", "long"}:
             raise ValueError("config content.production_format must be 'shorts' or 'long'")

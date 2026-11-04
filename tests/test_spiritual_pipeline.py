@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from app.spiritual_content import validate_content, word_count
-from app.spiritual_pipeline import QUALITY_WEIGHTS, _publication_quality_gate, next_publish_at
+from app.spiritual_pipeline import QUALITY_WEIGHTS, _public_mode_enabled, _publication_quality_gate, next_publish_at
 from app.spiritual_tts import phrase_cues, TICKS_PER_SECOND
 from app.spiritual_comments import _spam, SENSITIVE_TERMS
 from app.spiritual_video import _get_with_backoff
@@ -118,6 +118,7 @@ def _perfect_release_inputs(tmp_path):
         "agent_council": {
             "ok": True, "gate": "PASS", "agents_expected": 11,
             "agents_completed": 11, "approvals": 11,
+            "distinct_agent_roles_observed": 11,
             "distinct_model_ids_observed": 11,
             "distinct_provider_models_observed": 11,
             "average_score": 100, "independent_reviews": reviews,
@@ -184,12 +185,40 @@ def test_github_schedule_has_six_tehran_publication_runs():
     assert [row["cron"] for row in workflow["on"]["schedule"]] == ["30 3 * * *", "30 6 * * *", "30 8 * * *", "30 11 * * *", "30 14 * * *", "30 17 * * *"]
 
 
+def test_daily_workflow_is_local_first_key_optional_and_upload_paused():
+    workflow = yaml.safe_load(Path(".github/workflows/daily_run.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["produce"]
+    env = job["env"]
+    steps = job["steps"]
+    assert env["USE_LOCAL_LLM"] == "1"
+    assert env["BAMO_PREFER_LOCAL_LLM"] == "1"
+    assert env["LOCAL_LLM_MODEL"] == "qwen2.5:3b"
+    assert env["BAMO_USE_PINNED_AGENT_MODELS"] == "false"
+    assert "GROQ_API_KEY" in env  # optional fallback; no credential-verification step
+    assert "OPENROUTER_API_KEY" not in env
+    assert not any("Verify all 11-agent provider credentials" in step.get("name", "") for step in steps)
+    assert any("ollama pull qwen2.5:3b" in step.get("run", "") for step in steps)
+    assert next(step for step in steps if step.get("name") == "Verify YouTube credentials before any production work")["if"] is False
+    safe_step = next(step for step in steps if step.get("name") == "Safe preview only — public publishing paused")
+    assert "scripts/daily_run.py --dry-run" in safe_step["run"]
+    assert workflow["permissions"]["contents"] == "read"
+
+
 def test_daily_channel_defaults_to_retention_gated_shorts():
     config = yaml.safe_load(Path("config/channel.yaml").read_text(encoding="utf-8"))
     content = config["content"]
     assert content["production_format"] == "shorts"
     assert content["target_duration_seconds"] == "18-30"
     assert content["target_word_count"] == "28-44"
+    assert config["publishing"]["mode"] == "private"
+    assert config["publishing"]["public_publish_enabled"] is False
+    assert _public_mode_enabled(config) is False
+
+
+def test_public_mode_requires_explicit_true_and_public_configuration():
+    assert _public_mode_enabled({"publishing": {"mode": "public", "public_publish_enabled": True}})
+    assert not _public_mode_enabled({"publishing": {"mode": "public", "public_publish_enabled": "true"}})
+    assert not _public_mode_enabled({"publishing": {"mode": "private", "public_publish_enabled": True}})
 
 
 def test_daily_cli_imports_from_outside_repository(tmp_path):
