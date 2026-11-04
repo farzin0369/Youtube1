@@ -217,10 +217,6 @@ def normalize_scene_graph(raw: Any) -> Any:
                         obj[label] = list(default)
                 else:
                     obj[label] = list(default)
-                else:
-                    obj[label] = list(default)
-                else:
-                    obj[label] = list(default)
             if "action_amount" in obj:
                 try:
                     obj["action_amount"] = _clamp_number(obj.get("action_amount"), -4.0, 4.0)
