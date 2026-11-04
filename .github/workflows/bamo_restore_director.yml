@@ -1,0 +1,39 @@
+name: BAMO restore director only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Separate concurrency group so a stuck continuous run cannot block restore.
+concurrency:
+  group: bamo-restore-director
+  cancel-in-progress: true
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Restore full bamo_ai_director.py
+        run: |
+          set -euo pipefail
+          python3 scripts/restore_bamo_ai_director.py
+          python3 -c "from pathlib import Path; t=Path('app/bamo_ai_director.py').read_text(); assert len(t)>20000 and 'def direct_scene' in t and t.strip()!='PLACEHOLDER'; compile(t,'x','exec'); print('OK', len(t))"
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py
+          if ! git diff --cached --quiet; then
+            git commit -m "restore full hardened bamo_ai_director.py (replace PLACEHOLDER)"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity
+          else
+            echo "director already restored"
+          fi
