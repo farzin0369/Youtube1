@@ -12,6 +12,7 @@ on:
       - "app/spiritual_video.py"
       - "scripts/smoke_bamo_3d_renderer.py"
       - "scripts/harden_director_vectors.py"
+      - "scripts/fix_director_syntax.py"
       - "scripts/patch_ass_playres.py"
       - "scripts/bamo_blender_scene.py"
       - "scripts/bamo_blender_motifs_b.py"
@@ -34,16 +35,19 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: feat/bamo-visual-review-and-scene-fidelity
-      - name: Harden director vectors and ASS PlayRes for 1080x1920
+      - name: Repair director syntax, harden vectors, ASS PlayRes
         run: |
           set -euo pipefail
+          python3 scripts/fix_director_syntax.py
           python3 scripts/harden_director_vectors.py || true
+          python3 scripts/fix_director_syntax.py
           python3 scripts/patch_ass_playres.py || true
+          python3 -c "import pathlib; compile(pathlib.Path('app/bamo_ai_director.py').read_text(), 'app/bamo_ai_director.py', 'exec'); print('director compiles')"
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
           git add app/bamo_ai_director.py app/spiritual_video.py || true
           if ! git diff --cached --quiet; then
-            git commit -m "Apply director vector harden and ASS 1080x1920 PlayRes"
+            git commit -m "Repair director syntax and keep vector/ASS harden"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
