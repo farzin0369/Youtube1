@@ -11,6 +11,8 @@ on:
       - "app/media_qa.py"
       - "app/spiritual_video.py"
       - "scripts/smoke_bamo_3d_renderer.py"
+      - "scripts/bamo_blender_scene.py"
+      - "scripts/bamo_blender_motifs_b.py"
       - ".github/workflows/bamo_3d_motion_cpu_smoke.yml"
   pull_request:
     branches: ["main"]
@@ -29,35 +31,72 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: feat/bamo-visual-review-and-scene-fidelity
-      - name: Restore AI director if corrupted
+      - name: Harden AI director vectors for truncated Qwen JSON
         run: |
           set -euo pipefail
-          if ! grep -q 'def direct_scene' app/bamo_ai_director.py 2>/dev/null; then
-            echo "Director file is broken; restoring from baf59fa"
-            curl -fsSL "https://raw.githubusercontent.com/farzin0369/Youtube1/baf59fa9cfa6/app/bamo_ai_director.py" -o app/bamo_ai_director.py
-            python3 << 'PY'
+          python3 << 'PY'
           from pathlib import Path
-          text = Path("app/bamo_ai_director.py").read_text()
-          old = '''    clean_relationships = []\n    for relation in relationships:\n        if not isinstance(relation, dict):\n            raise ValueError("relationship must be an object")\n        source, target, kind = str(relation.get("from", "")), str(relation.get("to", "")), str(relation.get("kind", ""))\n        if source not in seen or target not in seen or source == target or kind not in {"connect", "orbit", "point_to"}:\n            raise ValueError("relationship references invalid objects")\n        clean_relationships.append({"from": source, "to": target, "kind": kind})\n'''
-          new = '''    clean_relationships = []\n    for relation in relationships:\n        if not isinstance(relation, dict):\n            continue\n        source, target, kind = str(relation.get("from", "")), str(relation.get("to", "")), str(relation.get("kind", ""))\n        if source not in seen or target not in seen or source == target or kind not in {"connect", "orbit", "point_to"}:\n            continue\n        clean_relationships.append({"from": source, "to": target, "kind": kind})\n'''
-          if old in text:
-              text = text.replace(old, new, 1)
-              Path("app/bamo_ai_director.py").write_text(text)
-              print("soft-drop applied")
+          path = Path("app/bamo_ai_director.py")
+          text = path.read_text()
+          old_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    if not isinstance(value, list) or len(value) != 3:
+        raise ValueError(f"{label} must be a three-number vector")
+    result = [float(v) for v in value]
+    if not all(math.isfinite(v) and low <= v <= high for v in result):
+        raise ValueError(f"{label} contains an out-of-range value")
+    return result
+'''
+          new_v = '''def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    defaults = {
+        "position": [0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0],
+        "rotation": [0.0, 0.0, 0.0],
+    }
+    if not isinstance(value, list) or len(value) != 3:
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    try:
+        result = [float(v) for v in value]
+    except (TypeError, ValueError):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    if not all(math.isfinite(v) for v in result):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    return [max(low, min(high, v)) for v in result]
+'''
+          old_n = '''                value = obj.get(label)
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+'''
+          new_n = '''                value = obj.get(label)
+                if isinstance(value, list) and len(value) == 3:
+                    try:
+                        obj[label] = [_clamp_number(component, low, high) for component in value]
+                    except (TypeError, ValueError):
+                        obj[label] = list(default)
+                else:
+                    obj[label] = list(default)
+'''
+          changed = False
+          if old_v in text:
+              text = text.replace(old_v, new_v, 1)
+              changed = True
+              print("bounded_vector soft defaults")
+          if old_n in text:
+              text = text.replace(old_n, new_n, 1)
+              changed = True
+              print("normalize vector else-default")
+          path.write_text(text)
           compile(text, "app/bamo_ai_director.py", "exec")
-          print("director restored", len(text))
+          print("director size", len(text), "changed", changed)
           PY
-            rm -f app/bamo_ai_director_head.py app/bamo_ai_director_tail1.py app/bamo_ai_director_tail2.py app/bamo_ai_director_impl.py || true
-            git config user.name "bamo-bot"
-            git config user.email "bamo-bot@users.noreply.github.com"
-            git add app/bamo_ai_director.py
-            git add -u app/ || true
-            if ! git diff --cached --quiet; then
-              git commit -m "Restore bamo_ai_director.py from baf59fa with soft-drop relationships"
-              git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
-            fi
-          else
-            echo "Director file looks healthy"
+          git config user.name "bamo-bot"
+          git config user.email "bamo-bot@users.noreply.github.com"
+          git add app/bamo_ai_director.py
+          if ! git diff --cached --quiet; then
+            git commit -m "Harden AI director vector parsing for truncated Qwen JSON"
+            git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - uses: actions/setup-python@v5
         with:
@@ -104,10 +143,14 @@ jobs:
           OLLAMA_NUM_PREDICT: "4096"
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
-          BAMO_BLENDER_SAMPLES: "2"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
+          BAMO_BLENDER_SAMPLES: "4"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "35"
           BAMO_BLENDER_THREADS: "2"
           BAMO_BLENDER_DENOISE: "false"
+          BAMO_BLENDER_MOTION_BLUR: "false"
+          BAMO_BLENDER_CA: "0"
+          BAMO_BLENDER_FILM_GRAIN: "0"
+          BAMO_CINEMATIC_EFFECTS: "true"
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()
