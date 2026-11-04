@@ -170,7 +170,7 @@ def main():
     scene.frame_end = frames
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGB"
-    scene.render.filepath = os.path.join(output_dir, "frame_")
+    scene.render.filepath = os.path.join(output_dir, "frame_####")
     scene.render.film_transparent = False
     try:
         scene.view_settings.view_transform = "AgX"
@@ -237,7 +237,7 @@ def main():
         if os.path.isfile(frame_path) and os.path.getsize(frame_path) > 1000:
             continue
         scene.frame_set(frame)
-        bpy.context.scene.render.filepath = os.path.join(output_dir, "frame_")
+        bpy.context.scene.render.filepath = os.path.join(output_dir, "frame_####")
         bpy.ops.render.render(write_still=True)
 
 
