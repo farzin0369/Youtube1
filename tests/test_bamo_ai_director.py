@@ -56,7 +56,14 @@ def test_normalize_drops_only_stale_relationship_edges():
     graph["relationships"].append({"from": "source_a", "to": "stale_shell_id", "kind": "orbit"})
     normalized = normalize_scene_graph(graph)
     plan = validate_scene_graph(normalized)
-    assert plan["relationships"] == [{"from": "source_a", "to": "field", "kind": "connect"}]
+    assert normalized["relationships"] == [{"from": "source_a", "to": "field", "kind": "connect"}]
+
+
+def test_normalize_maps_construction_material_to_supported_neutral_role():
+    graph = valid_graph()
+    graph["objects"][0]["material"] = "construction"
+    plan = validate_scene_graph(normalize_scene_graph(graph))
+    assert plan["objects"][0]["material"] == "neutral"
 
 
 def test_json_parser_accepts_fenced_json():

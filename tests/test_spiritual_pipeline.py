@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from app.spiritual_content import validate_content, word_count
-from app.spiritual_pipeline import next_publish_at
+from app.spiritual_pipeline import QUALITY_WEIGHTS, _publication_quality_gate, next_publish_at
 from app.spiritual_tts import phrase_cues, TICKS_PER_SECOND
 from app.spiritual_comments import _spam, SENSITIVE_TERMS
 from app.spiritual_video import _get_with_backoff
@@ -84,6 +84,99 @@ def test_publication_slot_uses_next_configured_tehran_time():
     after_morning = datetime(2026, 10, 11, 4, 0, tzinfo=timezone.utc)
     assert next_publish_at(before) == "2026-10-11T03:30:00Z"
     assert next_publish_at(after_morning) == "2026-10-11T06:30:00Z"
+
+
+def _perfect_release_inputs(tmp_path):
+    video = tmp_path / "render.mp4"
+    video.write_bytes(b"validated test render")
+    video_sha256 = __import__("hashlib").sha256(video.read_bytes()).hexdigest()
+    reviews = [
+        {
+            "agent_id": f"agent_{index}", "score": 100, "verdict": "approve",
+            "critical_issues": [], "major_issues": [], "confidence": 0.95,
+        }
+        for index in range(11)
+    ]
+    rubric_components = {}
+    for category in QUALITY_WEIGHTS:
+        evidence = tmp_path / f"{category}.json"
+        evidence.write_text(json.dumps({"category": category, "reviewed": True}), encoding="utf-8")
+        rubric_components[category] = {
+            "score": 100, "review_method": "independent-review-of-output-evidence",
+            "evidence_path": str(evidence),
+        }
+    return {
+        "render": {
+            "video_path": str(video),
+            "visual_source": "bamo-cpu-3d-motion",
+            "production_visuals_approved": True,
+            "scene_visual_alignment_verified": True,
+            "visual_review_evidence": {"ok": True},
+        },
+        "media_quality": {"ok": True, "errors": [], "checks": {"audio": {"ok": True}}},
+        "editorial_review": {"ok": True, "roles": [{"ok": True} for _ in range(11)]},
+        "agent_council": {
+            "ok": True, "gate": "PASS", "agents_expected": 11,
+            "agents_completed": 11, "approvals": 11,
+            "distinct_model_ids_observed": 11,
+            "distinct_provider_models_observed": 11,
+            "average_score": 100, "independent_reviews": reviews,
+            "agent_errors": {}, "critical_issues": [],
+        },
+        "weighted_quality_assessment": {
+            "run_id": "test-run", "video_sha256": video_sha256,
+            "weighted_score": 100, "components": rubric_components,
+        },
+        "run_id": "test-run",
+        "evidence_root": tmp_path,
+    }
+
+
+def test_public_release_requires_weighted_evidence_and_all_eleven_models(tmp_path):
+    inputs = _perfect_release_inputs(tmp_path)
+    report = _publication_quality_gate(**inputs)
+    assert report["weighted_quality_score"] == 100
+    assert report["model_consensus_and_gate_score"] == 100
+    assert report["publish_allowed"] is True
+    assert report["independent_reviewers"] == 11
+
+
+def test_public_release_blocks_if_weighted_component_or_agent_is_below_100(tmp_path):
+    inputs = _perfect_release_inputs(tmp_path)
+    inputs["agent_council"]["independent_reviews"][0]["score"] = 99
+    inputs["agent_council"]["average_score"] = 99.9
+    report = _publication_quality_gate(**inputs)
+    assert report["weighted_quality_score"] == 100
+    assert report["model_consensus_and_gate_score"] == 99
+    assert report["publish_allowed"] is False
+    assert "all_eleven_reviewers_must_score_exactly_100" in report["blockers"]
+
+
+def test_public_release_blocks_missing_3d_frame_approval_even_with_perfect_council(tmp_path):
+    inputs = _perfect_release_inputs(tmp_path)
+    inputs["render"]["visual_review_evidence"]["ok"] = False
+    report = _publication_quality_gate(**inputs)
+    assert report["publish_allowed"] is False
+    assert "production_visual_review_not_approved" in report["blockers"]
+
+
+def test_public_release_blocks_until_evidence_backed_weighted_rubric_is_available(tmp_path):
+    inputs = _perfect_release_inputs(tmp_path)
+    inputs.pop("weighted_quality_assessment")
+    report = _publication_quality_gate(**inputs)
+    assert report["weighted_quality_score"] is None
+    assert report["publish_allowed"] is False
+    assert "weighted_quality_assessment_missing" in report["blockers"]
+
+
+def test_public_release_blocks_a_nonperfect_weighted_category(tmp_path):
+    inputs = _perfect_release_inputs(tmp_path)
+    inputs["weighted_quality_assessment"]["components"]["3d_motion_graphics"]["score"] = 99
+    inputs["weighted_quality_assessment"]["weighted_score"] = 99.8
+    report = _publication_quality_gate(**inputs)
+    assert report["weighted_quality_score"] == 99.8
+    assert report["publish_allowed"] is False
+    assert "weighted_quality_score_not_100" in report["blockers"]
 
 
 def test_github_schedule_has_six_tehran_publication_runs():

@@ -199,7 +199,7 @@ def normalize_scene_graph(raw: Any) -> Any:
                 material = "key"
             elif material in {"secondary", "highlight"}:
                 material = "accent"
-            elif material in {"metal", "glass", "stone", "white", "gray", "grey"}:
+            elif material in {"metal", "glass", "stone", "white", "gray", "grey", "construction"}:
                 material = "neutral"
             elif material in {"shadow", "black"}:
                 material = "dark"
