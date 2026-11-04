@@ -149,11 +149,8 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
             # saving the final frame) only when the entire expected sequence is
             # present and non-empty. Partial renders still fail closed.
             break
-        if attempt == attempts:
-            raise RuntimeError(
-                f"Blender {config['render_engine']} render failed after {attempts} attempts; "
-                f"stderr={result.stderr[-3500:]} stdout={result.stdout[-1500:]}"
-            )
+        # After the final attempt, report missing frames below with the exact
+        # frame names. Do not mask that actionable failure with a generic exit.
     if result is None:
         raise RuntimeError("Blender renderer exited without producing a result")
     missing = [str(path.name) for path in expected if not path.is_file() or path.stat().st_size < 1000]
