@@ -98,12 +98,20 @@ _DOMAIN_HINTS = (
 
 
 def _bounded_vector(value: Any, *, low: float, high: float, label: str) -> list[float]:
+    defaults = {
+        "position": [0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0],
+        "rotation": [0.0, 0.0, 0.0],
+    }
     if not isinstance(value, list) or len(value) != 3:
-        raise ValueError(f"{label} must be a three-number vector")
-    result = [float(v) for v in value]
-    if not all(math.isfinite(v) and low <= v <= high for v in result):
-        raise ValueError(f"{label} contains an out-of-range value")
-    return result
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    try:
+        result = [float(v) for v in value]
+    except (TypeError, ValueError):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    if not all(math.isfinite(v) for v in result):
+        return list(defaults.get(label, [0.0, 0.0, 0.0]))
+    return [max(low, min(high, v)) for v in result]
 
 
 def _clamp_number(value: Any, low: float, high: float) -> float:
@@ -207,6 +215,8 @@ def normalize_scene_graph(raw: Any) -> Any:
                         obj[label] = [_clamp_number(component, low, high) for component in value]
                     except (TypeError, ValueError):
                         obj[label] = list(default)
+                else:
+                    obj[label] = list(default)
             if "action_amount" in obj:
                 try:
                     obj["action_amount"] = _clamp_number(obj.get("action_amount"), -4.0, 4.0)
