@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entry for one BAMO Autopilot cycle."""
+"""CLI entry for one BAMO Autopilot cycle (with council gates)."""
 from __future__ import annotations
 
 import json
@@ -14,19 +14,22 @@ from app.bamo_autopilot import run_cycle
 
 def main() -> int:
     report = run_cycle()
+    actions = []
+    for row in report.get("results") or []:
+        result = row.get("result") or {}
+        actions.append({
+            "action": row["decision"]["action"],
+            "ok": result.get("ok"),
+            "gate": result.get("gate"),
+            "blocked": result.get("blocked"),
+            "reason": row["decision"].get("reason"),
+            "error": result.get("error"),
+        })
     print(json.dumps({
         "autonomy_level": report.get("autonomy_level"),
         "claims": report.get("claims"),
-        "actions": [
-            {
-                "action": row["decision"]["action"],
-                "ok": row["result"].get("ok"),
-                "reason": row["decision"].get("reason"),
-            }
-            for row in report.get("results") or []
-        ],
+        "actions": actions,
     }, ensure_ascii=False, indent=2))
-    # Cycle succeeds if self_heal did not hard-fail; produce may still fail on CI resources.
     heal_ok = all(
         row["result"].get("ok")
         for row in report.get("results") or []
