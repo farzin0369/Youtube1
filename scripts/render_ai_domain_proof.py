@@ -2,13 +2,13 @@
 """Render three domain scenes (ellipse, water, interference) with Blender.
 
 Scene graphs come from app.bamo_ai_director.direct_scene. When local LLM times
-out on CPU Actions, direct_scene may return matched_by=procedural_domain_author
-for these exact scientific topics — honest geometric constructions, not a
-shared decorative motif template.
+out or returns illegal grammar, direct_scene falls back to
+matched_by=procedural_domain_author for these scientific topics.
 """
 from __future__ import annotations
 
 import json
+import runpy
 import traceback
 from pathlib import Path
 
@@ -57,11 +57,12 @@ def _durations(timings: list[dict], audio_duration: float) -> list[float]:
 
 
 def main() -> None:
-    # Apply director patch if the repo still has the LLM-only block.
-    patch = Path(__file__).resolve().parents[1] / "scripts" / "patch_director_procedural_fallback.py"
-    if patch.is_file():
-        import runpy
-        runpy.run_path(str(patch))
+    for patch in (
+        Path(__file__).resolve().parents[1] / "scripts" / "patch_director_procedural_fallback.py",
+        Path(__file__).resolve().parents[1] / "scripts" / "patch_director_aliases_and_fallback.py",
+    ):
+        if patch.is_file():
+            runpy.run_path(str(patch))
 
     script = " ".join(scene["spoken_text"] for scene in SCENES)
     tts = synthesize_with_captions(script, AUDIO, CAPTIONS, scenes=SCENES)
