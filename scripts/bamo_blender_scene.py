@@ -22,7 +22,8 @@ from bamo_blender_motifs_a import (
     scene_molecule, scene_geometry, scene_launch, scene_notebook, scene_sunrise,
     scene_starfield, scene_cosmic_shells,
 )
-from bamo_blender_motifs_b import scene_from_ai_graph
+# Prefab-aware interpreter: wraps the original scene_from_ai_graph and adds compound models.
+from bamo_blender_motifs_c import scene_from_ai_graph_v2 as scene_from_ai_graph
 
 def _setup_cinematic_compositor(scene, cfg):
     """Bloom + mild chromatic aberration. Avoid Texture nodes (fragile on headless)."""
