@@ -8,6 +8,14 @@ with sharding / a separate timeout (set BAMO_BLENDER_SAMPLES explicitly).
 Every replacement is verified: it must either apply, or already be applied.
 A replacement that matches neither is reported loudly (stderr + report file)
 instead of silently doing nothing. Set BAMO_PATCH_STRICT=1 to make that fatal.
+
+Audio chain note (bug fixed): the previous chain ended with
+``afade=t=out:d=0.2`` WITHOUT ``st=``. FFmpeg's afade fade-out starts at st
+(default 0) and leaves the audio silent afterwards, so the narration was
+muted after the first 0.2 s. It also used ``silenceremove`` on the start,
+which shifts the narration earlier than the scene timings measured on the
+original TTS file. Both are removed: loudness normalisation + a short
+fade-in only, so audio stays sample-aligned with the scene timeline.
 """
 from __future__ import annotations
 
@@ -71,11 +79,12 @@ def patch_motion_engine() -> None:
             '    command += ["-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]\n'
         )
         new = (
+            '        # No silenceremove (would desync narration) and no un-anchored afade=t=out\n'
+            '        # (it would mute everything after 0.2 s).\n'
             '        af = (\n'
-            '            "silenceremove=start_periods=1:start_silence=0.05:start_threshold=-40dB,"\n'
             '            "aformat=channel_layouts=stereo,"\n'
             '            "loudnorm=I=-14:TP=-1.5:LRA=11,"\n'
-            '            "afade=t=in:st=0:d=0.15,afade=t=out:d=0.2"\n'
+            '            "afade=t=in:st=0:d=0.12"\n'
             '        )\n'
             '        command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-af",af,"-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-ac","2","-shortest"]\n'
             '    else: command += ["-vf",f"ass={ass.as_posix()}","-an"]\n'
