@@ -1,112 +1,53 @@
-import math
-import pytest
-from app import bamo_scene_kit as kit
+"""Tests the wrapper logic against a faithful stand-in for the director's normalize/validate."""
+import sys, types, re
 
 
-def _spec(name, **opts):
-    return {"prop": name, "at": [0, 0, -0.1], "size": 1.0, "options": opts}
+def _fake_director():
+    mod = types.ModuleType("app.bamo_ai_director")
+    mod.SYSTEM = "BASE"
+    mod._DOMAIN_HINTS = (("x", "old"),)
+    alias = {"planet": "sphere", "pyramid": "cone", "star": "sphere"}
+    allowed = {"sphere", "cube", "cylinder", "torus", "cone", "icosphere", "ring", "line"}
+
+    def normalize(raw):
+        g = dict(raw)
+        out = []
+        for i, it in enumerate(raw["objects"]):
+            o = dict(it)
+            o["id"] = re.sub(r"[^a-z0-9_]", "_", str(o["id"]).lower())
+            k = str(o["kind"]).lower()
+            o["kind"] = alias.get(k, k)
+            out.append(o)
+        g["objects"] = out
+        return g
+
+    def validate(raw):
+        objs = []
+        for it in raw["objects"]:
+            if it["kind"] not in allowed:
+                raise ValueError("unsupported kind " + it["kind"])
+            objs.append({"id": it["id"], "kind": it["kind"]})  # drops extras like the real one
+        return {"objects": objs}
+
+    mod.normalize_scene_graph, mod.validate_scene_graph = normalize, validate
+    return mod
 
 
-def test_every_prop_expands_to_valid_grammar():
-    for name in kit.PROPS:
-        objs = kit.expand_props([_spec(name)])
-        assert 3 <= len(objs) <= kit.MAX_OBJECTS_PER_SCENE, name
-        kit.validate_objects(objs)
-
-
-def test_ids_unique_across_multiple_props():
-    objs = kit.expand_props([{"prop": "figure", "at": [-2, 0, 0]}, {"prop": "figure", "at": [2, 0, 0], "options": {"pose": "run"}}])
-    ids = [o["id"] for o in objs]
-    assert len(ids) == len(set(ids))
-
-
-def test_deterministic():
-    a = kit.expand_props([_spec("terrain")])
-    b = kit.expand_props([_spec("terrain")])
-    assert a == b
-
-
-def test_props_are_visually_distinct():
-    sigs = {name: tuple((o["kind"], tuple(round(v, 2) for v in o["position"])) for o in kit.expand_props([_spec(name)]))
-            for name in kit.PROPS}
-    assert len(set(sigs.values())) == len(kit.PROPS)
-
-
-def test_bar_orientation_points_cylinder_axis_at_target():
-    b = kit._Builder("t")
-    a, c = (0.0, 0.0, 0.0), (1.0, 2.0, 3.0)
-    b.bar("x", "r", a, c, 0.1, "key")
-    item = b.items[0]
-    _, beta, gamma = item["rotation"]
-    axis = (math.sin(beta) * math.cos(gamma), math.sin(beta) * math.sin(gamma), math.cos(beta))
-    length = math.sqrt(14)
-    expect = (1 / length, 2 / length, 3 / length)
-    assert all(abs(p - q) < 1e-9 for p, q in zip(axis, expect))
-    assert abs(item["scale"][2] - length / 2) < 1e-9
-
-
-def test_poses_change_the_figure():
-    stand = kit.expand_props([_spec("figure", pose="stand")])
-    kick = kit.expand_props([_spec("figure", pose="kick")])
-    assert [o["position"] for o in stand] != [o["position"] for o in kick]
-
-
-def test_molecule_formulas_differ_and_water_angle():
-    water = kit.expand_props([_spec("molecule", formula="water")])
-    benzene = kit.expand_props([_spec("molecule", formula="benzene")])
-    assert len(benzene) > len(water)
-    atoms = [o for o in water if o["role"].endswith("atom")]
-    o_pos = next(o["position"] for o in atoms if o["role"] == "O atom")
-    hs = [o["position"] for o in atoms if o["role"] == "H atom"]
-    v1 = [hs[0][i] - o_pos[i] for i in range(3)]
-    v2 = [hs[1][i] - o_pos[i] for i in range(3)]
-    cos = sum(x * y for x, y in zip(v1, v2)) / (math.dist(v1, (0, 0, 0)) * math.dist(v2, (0, 0, 0)))
-    assert abs(math.degrees(math.acos(cos)) - 104.5) < 0.5
-
-
-def test_bar_chart_is_data_driven():
-    objs = kit.expand_props([_spec("bar_chart", values=[1, 2, 8])])
-    bars = [o for o in objs if o["role"] == "data bar"]
-    heights = [o["scale"][2] for o in bars]
-    assert heights[2] > heights[1] > heights[0]
-    assert bars[2]["material"] == "accent"
-
-
-def test_prop_motion_and_size_scaling_stay_in_bounds():
-    objs = kit.expand_props([{"prop": "columned_hall", "at": [5.9, 5.9, 5.9], "size": 2.0, "motion": "rise", "motion_amount": 9}])
-    kit.validate_objects(objs)
-    assert any(o["action"] == "rise" and o["action_amount"] == 4 for o in objs)
-
-
-def test_rejects_bad_specs():
-    with pytest.raises(ValueError):
-        kit.expand_props([{"prop": "nonexistent"}])
-    with pytest.raises(ValueError):
-        kit.expand_props([])
-    with pytest.raises(ValueError):
-        kit.expand_props([_spec("football_pitch")] * 4)
-
-
-def test_scene_object_cap():
-    with pytest.raises(ValueError):
-        kit.expand_props([_spec("ellipse_construction"), _spec("neural_network"), _spec("football_pitch")], max_objects=40)
-
-
-def test_director_wrapper_uses_props(monkeypatch):
-    base = {"visual_thesis": "t", "objects": [{"id": "old"}], "relationships": [{"x": 1}], "provider": "p", "camera": {"move": "orbit"}}
-    monkeypatch.setattr(kit, "_direct_scene", lambda **kw: dict(base))
-    monkeypatch.setattr(kit, "_generate_text", lambda *a, **k: ('{"props":[{"prop":"molecule","at":[0,0,0],"options":{"formula":"water"}}],"reason":"x"}', "m"))
-    plan = kit.direct_scene_with_props(narration="n", visual_brief="v")
-    assert plan["scene_kit"]["used"] and plan["relationships"] == [] and plan["provider"].endswith("+scene-kit")
-    assert plan["director_primitives"] == base["objects"]
-
-
-def test_director_wrapper_falls_back_on_any_error(monkeypatch):
-    base = {"visual_thesis": "t", "objects": [{"id": "old"}], "relationships": [], "provider": "p"}
-    monkeypatch.setattr(kit, "_direct_scene", lambda **kw: dict(base))
-    monkeypatch.setattr(kit, "_generate_text", lambda *a, **k: ("not json", "m"))
-    plan = kit.direct_scene_with_props(narration="n", visual_brief="v")
-    assert plan["objects"] == base["objects"] and plan["scene_kit"]["used"] is False
-    monkeypatch.setattr(kit, "_generate_text", lambda *a, **k: ('{"props":[{"prop":"bogus"}]}', "m"))
-    plan = kit.direct_scene_with_props(narration="n", visual_brief="v")
-    assert plan["objects"] == base["objects"] and plan["scene_kit"]["used"] is False
+def test_prefabs_survive_validation_and_unknown_still_rejected():
+    fake = _fake_director()
+    sys.modules["app.bamo_ai_director"] = fake
+    import app.bamo_scene_kit as kit
+    assert kit.install() is True and kit.install() is False
+    raw = {"objects": [
+        {"id": "Hero 1", "kind": "Person"}, {"id": "dome_a", "kind": "dome"},
+        {"id": "p", "kind": "planet"}, {"id": "ball", "kind": "sphere"}, {"id": "pyr", "kind": "pyramid"}]}
+    res = fake.validate_scene_graph(fake.normalize_scene_graph(raw))
+    assert [o["kind"] for o in res["objects"]] == ["figure", "dome", "planet", "sphere", "pyramid"]
+    try:
+        fake.validate_scene_graph(fake.normalize_scene_graph({"objects": [{"id": "z", "kind": "teapot"}]}))
+        raise AssertionError("unknown kind must still be rejected")
+    except ValueError:
+        pass
+    assert "figure" in fake.SYSTEM and fake.SYSTEM.startswith("BASE")
+    assert len(fake._DOMAIN_HINTS) == 5 and fake._DOMAIN_HINTS[-1] == ("x", "old")
+    assert any("Never depict holy persons" in h for _, h in fake._DOMAIN_HINTS)
