@@ -117,7 +117,7 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
 
     command = [blender, "-b", "-t", str(config["threads"]), "--python", str(script),
                "--", str(config_path), str(frames_dir)]
-    timeout = max(900, int(frame_count * 25))
+    timeout = max(3600, int(frame_count * max(25, int(config["samples"]) * 3)))
     result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     if result.returncode:
         raise RuntimeError(
