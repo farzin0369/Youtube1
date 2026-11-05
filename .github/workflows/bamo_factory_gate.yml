@@ -1,0 +1,52 @@
+name: BAMO factory gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-visual-review-and-scene-fidelity
+    paths:
+      - "scripts/bamo_factory_run.py"
+      - "app/bamo_factory_bus.py"
+      - "app/bamo_procedural_domains.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bamo-factory-gate
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bamo-visual-review-and-scene-fidelity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Restore director + run factory (no render)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python3 scripts/restore_bamo_ai_director.py
+          python3 scripts/bamo_factory_run.py --topic "کارخانه BAMO — گیت سریع"
+          test -d state/factory/jobs
+          ls state/factory/jobs | head
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bamo-factory-gate-${{ github.run_id }}
+          path: |
+            state/factory/
+            output/bamo-factory/
+          if-no-files-found: warn
