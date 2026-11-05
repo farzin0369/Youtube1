@@ -51,8 +51,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Main,Noto Naskh Arabic,{hero_size},&H00FFFFFF,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,4,2,5,{margin},{margin},{int(height*.10)},1
-Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,2,1,8,{margin},{margin},{int(height*.06)},1
+Style: Main,Noto Naskh Arabic,{hero_size},&H00FFFFFF,&H000000FF,&HAA0A0F1A,&H99000000,1,0,0,0,100,100,0,0,1,2,3,2,{margin},{margin},{int(height*.12)},1
+Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HAA0A0F1A,&H99000000,1,0,0,0,100,100,0,0,1,1,2,8,{margin},{margin},{int(height*.05)},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -102,9 +102,12 @@ def _render_blender_scene(clip: Path, duration: float, width: int, height: int, 
         "resolution_percentage": int(os.getenv("BAMO_BLENDER_RESOLUTION_PERCENTAGE", "100")),
         "denoise": os.getenv("BAMO_BLENDER_DENOISE", "true").lower() == "true",
         "motion_blur": os.getenv("BAMO_BLENDER_MOTION_BLUR", "false").lower() == "true",
-        "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035")),
+        "film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.0")),
         "chromatic_aberration": float(os.getenv("BAMO_BLENDER_CA", "0.0012")),
         "cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",
+        "seed": int(os.getenv("BAMO_BLENDER_SEED", "17")),
+        "exposure": float(os.getenv("BAMO_BLENDER_EXPOSURE", "-0.35")),
+        "clamp_indirect": float(os.getenv("BAMO_BLENDER_CLAMP_INDIRECT", "3.0")),
     }
     if not 1 <= config["resolution_percentage"] <= 100:
         raise ValueError("BAMO_BLENDER_RESOLUTION_PERCENTAGE must be between 1 and 100")
@@ -178,9 +181,15 @@ def render_project(project: dict[str,Any], output: str|Path, audio: str|Path|Non
     audio_path=Path(audio).expanduser().resolve() if audio else None
     if audio_path:
         if not audio_path.is_file(): raise FileNotFoundError(f"Audio file not found: {audio_path}")
-        command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-shortest"]
+        af = (
+            "silenceremove=start_periods=1:start_silence=0.05:start_threshold=-40dB,"
+            "aformat=channel_layouts=stereo,"
+            "loudnorm=I=-14:TP=-1.5:LRA=11,"
+            "afade=t=in:st=0:d=0.15,afade=t=out:d=0.2"
+        )
+        command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-af",af,"-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-ac","2","-shortest"]
     else: command += ["-vf",f"ass={ass.as_posix()}","-an"]
-    command += ["-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-movflags","+faststart",str(out)]
+    command += ["-c:v","libx264","-preset","medium","-crf","17","-pix_fmt","yuv420p","-colorspace","bt709","-color_primaries","bt709","-color_trc","bt709","-movflags","+faststart",str(out)]
     _run(command)
     if not out.is_file() or out.stat().st_size<10000: raise RuntimeError("Rendered MP4 is missing or unexpectedly small")
     return out

@@ -19,7 +19,7 @@ def material(name, color, metallic=0.35, roughness=0.28, emission=0.0):
             bsdf.inputs[key].default_value = (*color, 1.0)
             break
     if "Emission Strength" in bsdf.inputs:
-        bsdf.inputs["Emission Strength"].default_value = emission
+        bsdf.inputs["Emission Strength"].default_value = min(float(emission), 1.2)
     return mat
 
 
@@ -229,7 +229,7 @@ def add_camera(frames, camera_style, camera_angle="eye"):
 
     camera.data.dof.use_dof = True
     camera.data.dof.focus_object = target
-    camera.data.dof.aperture_fstop = 3.6
+    camera.data.dof.aperture_fstop = 5.6
     try:
         camera.data.dof.aperture_blades = 6
     except Exception:
@@ -246,7 +246,7 @@ def lighting(gold, blue):
     bpy.ops.object.light_add(type="AREA", location=(4.5, -5.0, 8.5))
     key = bpy.context.object
     key.name = "Warm cinematic key"
-    key.data.energy = 1250
+    key.data.energy = 900
     key.data.shape = "DISK"
     key.data.size = 7
     key.data.color = gold
@@ -255,7 +255,7 @@ def lighting(gold, blue):
     bpy.ops.object.light_add(type="AREA", location=(-5, 1.5, 5.5))
     fill = bpy.context.object
     fill.name = "Cool rim"
-    fill.data.energy = 900
+    fill.data.energy = 550
     fill.data.size = 6
     fill.data.color = blue
     fill.rotation_euler = (math.radians(20), 0, math.radians(-35))

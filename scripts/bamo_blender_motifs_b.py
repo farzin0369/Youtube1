@@ -50,7 +50,7 @@ def _cinematic_lights(key_rgb, accent_rgb):
     bpy.ops.object.light_add(type="AREA", location=(5.2, -6.2, 9.0))
     key = bpy.context.object
     key.name = "AI_Key"
-    key.data.energy = 1600
+    key.data.energy = 950
     key.data.shape = "DISK"
     key.data.size = 8.5
     key.data.color = key_rgb
@@ -105,10 +105,10 @@ def scene_from_ai_graph(graph, frames):
         "dark": (0.02, 0.03, 0.06),
     }
     mats = {
-        "key": material("AI Director key", colors["key"], 0.55, 0.18, 1.8),
-        "accent": _emission_mat("AI Director accent", colors["accent"], strength=5.5),
-        "neutral": material("AI Director neutral", colors["neutral"], 0.2, 0.32, 0.15),
-        "dark": material("AI Director dark", colors["dark"], 0.08, 0.55, 0.0),
+        "key": material("AI Director key", colors["key"], 0.35, 0.22, 0.35),
+        "accent": material("AI Director accent", colors["accent"], 0.15, 0.28, 0.55),
+        "neutral": material("AI Director neutral", colors["neutral"], 0.15, 0.38, 0.05),
+        "dark": material("AI Director dark", colors["dark"], 0.05, 0.62, 0.0),
     }
 
     # Override default stage lights with cinematic set matched to palette.
@@ -143,7 +143,18 @@ def scene_from_ai_graph(graph, frames):
         obj.name = name
         obj.scale = scale
         obj.rotation_euler = tuple(item.get("rotation") or (0, 0, 0))
-        assign(obj, mats[item["material"]])
+        oid = str(item.get("id") or "").lower()
+        role = str(item.get("role") or "").lower()
+        mat = mats[item["material"]]
+        if "oxygen" in oid or "oxygen" in role:
+            mat = material(f"glass_{oid}", (0.55, 0.12, 0.12), 0.0, 0.08, 0.15)
+        elif "hydrogen" in oid or "hydrogen" in role:
+            mat = material(f"h_{oid}", (0.92, 0.94, 0.98), 0.0, 0.45, 0.08)
+        elif "bond" in oid or "bond" in role:
+            mat = material(f"metal_{oid}", (0.75, 0.78, 0.82), 0.85, 0.22, 0.0)
+        elif "focus" in oid or "source" in oid:
+            mat = material(f"focus_{oid}", (0.95, 0.72, 0.22), 0.4, 0.25, 0.45)
+        assign(obj, mat)
         smooth(obj)
         if kind in {"sphere", "icosphere", "torus", "ring"}:
             _subdivide(obj, 1)
@@ -154,7 +165,7 @@ def scene_from_ai_graph(graph, frames):
         objects[item["id"]] = obj
 
     # Dense keyframes for smoother motion (was max 8 — looked stepped).
-    samples = max(12, min(frames, 48))
+    samples = max(24, min(frames, 96))
     for item in graph["objects"]:
         obj = objects.get(item["id"])
         if obj is None:
@@ -234,7 +245,7 @@ def scene_from_ai_graph(graph, frames):
     if scene.use_nodes and scene.node_tree:
         for node in scene.node_tree.nodes:
             if node.type == "GLARE":
-                node.threshold = 0.55
+                node.threshold = 0.92
                 try:
                     node.size = 8
                 except Exception:
