@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/bamo_studio_proof.yml"
       - "scripts/render_studio_proof.py"
+      - "app/bamo_ai_director.py"
   workflow_dispatch:
 permissions:
   contents: read
