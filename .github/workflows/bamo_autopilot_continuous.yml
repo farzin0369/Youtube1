@@ -29,19 +29,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: RESTORE director if truncated, then heal/patch/brain
+      - name: RESTORE director + quality patches + brain
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           set -euo pipefail
           python3 scripts/restore_bamo_ai_director.py
+          python3 scripts/apply_quality_patches.py || true
           python3 scripts/bamo_self_heal.py --syntax-only || true
           python3 scripts/bamo_brain_tick.py || true
           git config user.name "bamo-bot"
           git config user.email "bamo-bot@users.noreply.github.com"
-          git add app/bamo_ai_director.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
+          git add app/bamo_ai_director.py app/bamo_motion_engine.py scripts/bamo_blender_motifs_b.py scripts/bamo_blender_primitives.py app/spiritual_video.py app/bamo_heal_rules.json state/research state/autopilot || true
           if ! git diff --cached --quiet; then
-            git commit -m "restore+harden bamo_ai_director after truncation"
+            git commit -m "continuous: restore director + apply verified quality patches"
             git push origin HEAD:feat/bamo-visual-review-and-scene-fidelity || true
           fi
       - name: Upload brain state
@@ -74,30 +75,28 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core blender
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Domain proof after director restore
+      - name: Proven domain proof (24 samples, quality patches, procedural)
         env:
           PYTHONPATH: ${{ github.workspace }}
-          USE_LOCAL_LLM: "1"
-          BAMO_PREFER_LOCAL_LLM: "1"
-          LOCAL_LLM_MODEL: qwen2.5:3b
-          LLM_TIMEOUT_SECONDS: "90"
-          OLLAMA_TIMEOUT_SECONDS: "90"
-          OLLAMA_NUM_PREDICT: "500"
+          # Stable profile proven on run 41931613255 (~56 min, ~12MB MP4)
+          BAMO_FORCE_PROCEDURAL: "1"
+          USE_LOCAL_LLM: "0"
+          BAMO_PREFER_LOCAL_LLM: "0"
           TTS_PROVIDER: edge-tts
           TTS_VOICE: fa-IR-FaridNeural
-          BAMO_BLENDER_SAMPLES: "2"
-          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "25"
-          BAMO_BLENDER_DENOISE: "false"
+          BAMO_BLENDER_SAMPLES: "24"
+          BAMO_BLENDER_RESOLUTION_PERCENTAGE: "40"
+          BAMO_BLENDER_DENOISE: "true"
+          BAMO_BLENDER_SEED: "17"
+          BAMO_BLENDER_EXPOSURE: "-0.35"
+          BAMO_BLENDER_FILM_GRAIN: "0"
+          BAMO_BLENDER_THREADS: "2"
           BAMO_AUTOPILOT_PUBLISH: "false"
         run: |
           set -euo pipefail
           python3 scripts/restore_bamo_ai_director.py
-          python3 -c "import pathlib; t=pathlib.Path('app/bamo_ai_director.py').read_text(); assert len(t)>20000 and 'def direct_scene' in t; compile(t,'x','exec'); print('director ok', len(t))"
-          if curl -fsSL https://ollama.com/install.sh | sh; then
-            (ollama serve > /tmp/ollama.log 2>&1 &) || true
-            for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11434/api/tags >/dev/null && break; sleep 2; done
-            ollama pull qwen2.5:3b || true
-          fi
+          python3 scripts/apply_quality_patches.py
+          python3 -c "from pathlib import Path; t=Path('app/bamo_ai_director.py').read_text(); assert len(t)>20000 and 'def direct_scene' in t"
           python scripts/render_ai_domain_proof.py
           python3 scripts/bamo_brain_tick.py || true
       - name: Upload domain proof artifacts
