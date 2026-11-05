@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "note": "Weights are target shares of output (sum 100). Order of priority follows the channel owner: religious, history, sports, science, math, physics, comedy, chemistry.",
+  "balance": {
+    "window": 40,
+    "max_share_percent": 30,
+    "no_repeat_last_n_domains": 2,
+    "min_distinct_domains_per_day": 4
+  },
+  "similarity": {"sequence_ratio": 0.84, "token_overlap": 0.68},
+  "domains": {
+    "religious": {
+      "label_fa": "دینی و معنوی", "weight": 22, "priority": 1,
+      "keywords": ["قرآن","آیه","تفسیر","حدیث","امام","پیامبر","اهل بیت","نماز","دعا","اسلام","معنوی","حضرت","quran","hadith","prophet"],
+      "narrative": "calm, respectful, source-first storytelling; no fatwa, no invented quotes",
+      "visual_grammar": "symbolic and architectural light, calligraphic geometry without depicting prophets or Imams as figures, restrained camera",
+      "verification": {"requires_sources": true, "forbid": ["fatwa", "invented_hadith", "figural_depiction_of_holy_persons"]}
+    },
+    "history": {
+      "label_fa": "تاریخی", "weight": 18, "priority": 2,
+      "keywords": ["تاریخ","تمدن","امپراتوری","باستان","جنگ","پادشاه","سلسله","کشف","history","empire","ancient"],
+      "narrative": "chronological reconstruction with place, date and cause-effect",
+      "visual_grammar": "reconstructed environments, maps with animated borders and routes, architecture, period-appropriate objects",
+      "verification": {"requires_sources": true, "forbid": ["unsourced_dates"]}
+    },
+    "sports": {
+      "label_fa": "ورزشی", "weight": 12, "priority": 3,
+      "keywords": ["فوتبال","ورزش","رکورد","مسابقه","بازیکن","جام","المپیک","football","record","olympic"],
+      "narrative": "fast, stat-driven, moment-by-moment",
+      "visual_grammar": "pitch or track geometry, motion trails, animated statistics, kinetic camera",
+      "verification": {"requires_sources": true, "forbid": ["unverified_stats"]}
+    },
+    "science": {
+      "label_fa": "علمی", "weight": 12, "priority": 4,
+      "keywords": ["علم","کشف","فناوری","زیست","نجوم","سیاره","ژن","طبیعت","science","biology","astronomy"],
+      "narrative": "question, mechanism, evidence, consequence",
+      "visual_grammar": "literal mechanism models, scale changes, cutaways, cell and planet scale transitions",
+      "verification": {"requires_sources": true, "forbid": ["pseudoscience"]}
+    },
+    "math": {
+      "label_fa": "ریاضی", "weight": 10, "priority": 5,
+      "keywords": ["ریاضی","عدد","هندسه","معما","الگو","قضیه","اثبات","math","geometry","theorem","prime"],
+      "narrative": "puzzle, construction, proof, surprise",
+      "visual_grammar": "3D curves, surfaces, animated constructions and proofs, neon construction lines",
+      "verification": {"requires_sources": false, "forbid": ["unproven_claims_as_proven"]}
+    },
+    "physics": {
+      "label_fa": "فیزیک", "weight": 10, "priority": 6,
+      "keywords": ["فیزیک","کوانتوم","نسبیت","انرژی","موج","نور","گرانش","quantum","relativity","gravity","wave"],
+      "narrative": "thought experiment, then law, then consequence",
+      "visual_grammar": "fields, waves, particles, spacetime grids, simulated phenomena",
+      "verification": {"requires_sources": true, "forbid": ["pseudoscience"]}
+    },
+    "comedy": {
+      "label_fa": "طنز و سرگرمی", "weight": 9, "priority": 7,
+      "keywords": ["طنز","خنده","بامزه","کمدی","سرگرمی","funny","comedy"],
+      "narrative": "original character, setup, escalation, punchline; unique story each time",
+      "visual_grammar": "stylized characters with exaggerated motion, comic timing cuts, situational props",
+      "verification": {"requires_sources": false, "forbid": ["stereotype_humor", "real_person_mockery"]}
+    },
+    "chemistry": {
+      "label_fa": "شیمی", "weight": 7, "priority": 8,
+      "keywords": ["شیمی","عنصر","مولکول","اتم","واکنش","پیوند","آزمایش","chemistry","element","molecule","reaction"],
+      "narrative": "substance, structure, reaction, everyday consequence",
+      "visual_grammar": "3D molecules with bonds, reaction animations, periodic-table spatial layouts",
+      "verification": {"requires_sources": true, "forbid": ["dangerous_home_experiments"]}
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "timezone": "Asia/Tehran",
+  "utc_offset_note": "Iran has used a fixed UTC+03:30 since 2022; no DST. Verify before relying on cron.",
+  "default_publish_mode": "dry_run",
+  "slots": [
+    {"id": 1, "tehran": "07:00", "utc": "03:30", "format": "short", "aspect": "9:16"},
+    {"id": 2, "tehran": "10:00", "utc": "06:30", "format": "short", "aspect": "9:16"},
+    {"id": 3, "tehran": "12:00", "utc": "08:30", "format": "long",  "aspect": "16:9"},
+    {"id": 4, "tehran": "15:00", "utc": "11:30", "format": "short", "aspect": "9:16"},
+    {"id": 5, "tehran": "18:00", "utc": "14:30", "format": "short", "aspect": "9:16"},
+    {"id": 6, "tehran": "21:00", "utc": "17:30", "format": "long",  "aspect": "16:9"}
+  ],
+  "format_note": "Which slots are long vs short was not specified by the owner; this split is a default to be confirmed."
+}
