@@ -1,0 +1,57 @@
+name: BAMO growth loop (stats -> diagnose -> tune recipe)
+on:
+  schedule:
+    - cron: "30 2 * * *"   # 06:00 Tehran (UTC+3:30); schedules only fire from the default branch
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: bamo-growth-loop
+  cancel-in-progress: false
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install requests pillow
+      - name: Load state from the bamo-state branch
+        run: |
+          set -euo pipefail
+          mkdir -p state
+          if git ls-remote --exit-code --heads origin bamo-state >/dev/null 2>&1; then
+            git fetch origin bamo-state
+            git show origin/bamo-state:state/bamo_growth_state.json > state/bamo_growth_state.json 2>/dev/null || true
+          fi
+      - name: Growth tick
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python scripts/bamo_growth_tick.py
+      - name: Save state (state branch only; code is never touched)
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp state/bamo_growth_state.json state/bamo_growth_report.json state/bamo_domain_multipliers.json "$tmp/"
+          git config user.name "bamo-growth-bot"
+          git config user.email "bamo-growth-bot@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin bamo-state >/dev/null 2>&1; then
+            git checkout -B bamo-state origin/bamo-state
+          else
+            git checkout --orphan bamo-state && git rm -rf . >/dev/null 2>&1 || true
+          fi
+          mkdir -p state && cp "$tmp"/* state/
+          git add state
+          git diff --cached --quiet || git commit -m "growth tick $(date -u +%F)"
+          git push origin bamo-state
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bamo-growth-report
+          path: state/bamo_growth_report.json
+          retention-days: 30

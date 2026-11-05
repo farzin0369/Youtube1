@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "note": "Bounded self-improvement: the loop tunes production RECIPE parameters and domain weights from real YouTube stats. It never rewrites code.",
+  "maturity_hours": 48,
+  "min_scored_for_baseline": 5,
+  "explore_rate": 0.4,
+  "promote_margin": 1.1,
+  "promote_min_samples": 3,
+  "promote_min_scored": 15,
+  "rollback_window": 5,
+  "rollback_drop": 0.25,
+  "weight_multiplier_bounds": [0.6, 1.4],
+  "domain_min_samples": 3,
+  "reward_weights": {"ctr": 0.35, "retention": 0.4, "engagement": 0.15, "velocity": 0.1},
+  "dimensions": {
+    "hook_style": ["question", "bold_claim", "story_open", "counterintuitive", "stat"],
+    "title_style": ["question", "number", "curiosity_gap", "direct"],
+    "voice_rate": ["-5%", "+0%", "+5%", "+10%"],
+    "target_seconds": [25, 35, 45, 55],
+    "thumbnail_style": ["big_text", "single_object", "contrast_split"]
+  },
+  "defaults": {
+    "short": {"hook_style": "question", "title_style": "curiosity_gap", "voice_rate": "+0%", "target_seconds": 35, "thumbnail_style": "big_text"},
+    "long": {"hook_style": "story_open", "title_style": "direct", "voice_rate": "+0%", "target_seconds": 55, "thumbnail_style": "single_object"}
+  },
+  "diagnosis": {
+    "ctr_ratio": 0.7,
+    "retention_ratio": 0.7,
+    "engagement_ratio": 0.6,
+    "velocity_ratio": 0.5,
+    "hook_fail_seconds": 3.0
+  },
+  "issue_dimension": {
+    "ctr_low": ["title_style", "thumbnail_style"],
+    "hook_failure": ["hook_style"],
+    "retention_low": ["target_seconds", "voice_rate", "hook_style"],
+    "engagement_low": ["hook_style"],
+    "discovery_low": []
+  }
+}
