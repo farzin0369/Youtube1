@@ -72,6 +72,13 @@ def patch_motion_engine() -> None:
         )
     else:
         REPORT.append({"patch": "seed_exposure_clamp", "status": "already"})
+    # Blender subprocess timeout must scale with samples (24 samples needs ~1h headroom).
+    t = _sub(
+        t,
+        "    timeout = max(900, int(frame_count * 25))\n",
+        "    timeout = max(3600, int(frame_count * max(25, int(config[\"samples\"]) * 3)))\n",
+        "blender_timeout_scale",
+    )
     if "loudnorm=I=-14" not in t:
         old = (
             '        command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-shortest"]\n'
@@ -128,8 +135,6 @@ def patch_motifs() -> None:
             '            mat = material(f"h_{oid}", (0.92, 0.94, 0.98), 0.0, 0.45, 0.08)\n'
             '        elif "bond" in oid or "bond" in role:\n'
             '            mat = material(f"metal_{oid}", (0.75, 0.78, 0.82), 0.85, 0.22, 0.0)\n'
-            '        elif "focus" in oid or "source" in oid:\n'
-            '            mat = material(f"focus_{oid}", (0.95, 0.72, 0.22), 0.4, 0.25, 0.45)\n'
             '        assign(obj, mat)\n'
             '        smooth(obj)\n'
         )
