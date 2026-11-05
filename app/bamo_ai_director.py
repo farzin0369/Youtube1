@@ -51,7 +51,7 @@ the six legal moves is still unused.
 CAMERA_MOVES = ("push_in", "orbit", "tracking", "sweep", "crane", "static")
 _KIND_ALIASES = {
     "ball": "sphere", "orb": "sphere", "uv_sphere": "sphere", "planet": "sphere", "star": "sphere",
-    "box": "cube", "cuboid": "cube", "block": "cube",
+    "box": "cube", "cuboid": "cube", "block": "cube", "table": "cube",
     "cyl": "cylinder", "tube": "cylinder", "rod": "cylinder", "bond": "cylinder",
     "donut": "torus", "doughnut": "torus", "ellipse": "torus",
     "pyramid": "cone",
