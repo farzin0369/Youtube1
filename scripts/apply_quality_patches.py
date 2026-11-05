@@ -1,30 +1,69 @@
 #!/usr/bin/env python3
-"""Apply quality patches to Blender/render stack (idempotent)."""
+"""Apply quality patches to Blender/render stack (idempotent).
+
+Stable CPU profile on GitHub Actions: 24 samples + OIDN denoise.
+48 samples timed out (~3675 s on the first scene), so it must only be used
+with sharding / a separate timeout (set BAMO_BLENDER_SAMPLES explicitly).
+
+Every replacement is verified: it must either apply, or already be applied.
+A replacement that matches neither is reported loudly (stderr + report file)
+instead of silently doing nothing. Set BAMO_PATCH_STRICT=1 to make that fatal.
+"""
 from __future__ import annotations
+
+import json
+import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+STRICT = os.getenv("BAMO_PATCH_STRICT", "0") == "1"
+REPORT: list[dict[str, str]] = []
+
+
+def _sub(text: str, old: str, new: str, label: str, count: int = 0) -> str:
+    """Replace old->new; record 'applied', 'already' or 'MISSING' for the label."""
+    if old in text:
+        REPORT.append({"patch": label, "status": "applied"})
+        return text.replace(old, new, count) if count else text.replace(old, new)
+    if new in text:
+        REPORT.append({"patch": label, "status": "already"})
+        return text
+    REPORT.append({"patch": label, "status": "MISSING"})
+    print(f"WARNING: patch '{label}' matched nothing (code drifted?)", file=sys.stderr)
+    return text
 
 
 def patch_motion_engine() -> None:
     path = ROOT / "app" / "bamo_motion_engine.py"
     t = path.read_text(encoding="utf-8")
-    t = t.replace(
+    t = _sub(
+        t,
         "Style: Main,Noto Naskh Arabic,{hero_size},&H00FFFFFF,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,4,2,5,{margin},{margin},{int(height*.10)},1\n"
         "Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HCC080C16,&H88000000,1,0,0,0,100,100,0,0,1,2,1,8,{margin},{margin},{int(height*.06)},1",
         "Style: Main,Noto Naskh Arabic,{hero_size},&H00FFFFFF,&H000000FF,&HAA0A0F1A,&H99000000,1,0,0,0,100,100,0,0,1,2,3,2,{margin},{margin},{int(height*.12)},1\n"
         "Style: Brand,Noto Naskh Arabic,{brand_size},&H00D5A64B,&H000000FF,&HAA0A0F1A,&H99000000,1,0,0,0,100,100,0,0,1,1,2,8,{margin},{margin},{int(height*.05)},1",
+        "ass_safe_area_styles",
     )
-    t = t.replace('"samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "24"))', '"samples": int(os.getenv("BAMO_BLENDER_SAMPLES", "48"))')
-    t = t.replace('"film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035"))', '"film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.0"))')
+    # Stable profile: keep 24 samples (do NOT raise to 48 here).
+    t = _sub(
+        t,
+        '"film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.035"))',
+        '"film_grain": float(os.getenv("BAMO_BLENDER_FILM_GRAIN", "0.0"))',
+        "film_grain_off",
+    )
     if '"seed"' not in t:
-        t = t.replace(
+        t = _sub(
+            t,
             '"cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",',
             '"cinematic_effects": os.getenv("BAMO_CINEMATIC_EFFECTS", "true").lower() == "true",\n'
             '        "seed": int(os.getenv("BAMO_BLENDER_SEED", "17")),\n'
             '        "exposure": float(os.getenv("BAMO_BLENDER_EXPOSURE", "-0.35")),\n'
             '        "clamp_indirect": float(os.getenv("BAMO_BLENDER_CLAMP_INDIRECT", "3.0")),',
+            "seed_exposure_clamp",
         )
+    else:
+        REPORT.append({"patch": "seed_exposure_clamp", "status": "already"})
     if "loudnorm=I=-14" not in t:
         old = (
             '        command += ["-i",str(audio_path),"-vf",f"ass={ass.as_posix()}","-map","0:v:0","-map","1:a:0","-c:a","aac","-b:a","192k","-shortest"]\n'
@@ -42,8 +81,9 @@ def patch_motion_engine() -> None:
             '    else: command += ["-vf",f"ass={ass.as_posix()}","-an"]\n'
             '    command += ["-c:v","libx264","-preset","medium","-crf","17","-pix_fmt","yuv420p","-colorspace","bt709","-color_primaries","bt709","-color_trc","bt709","-movflags","+faststart",str(out)]\n'
         )
-        if old in t:
-            t = t.replace(old, new, 1)
+        t = _sub(t, old, new, "audio_loudnorm_and_encode")
+    else:
+        REPORT.append({"patch": "audio_loudnorm_and_encode", "status": "already"})
     path.write_text(t, encoding="utf-8")
     compile(t, str(path), "exec")
     print("motion_engine patched")
@@ -52,8 +92,9 @@ def patch_motion_engine() -> None:
 def patch_motifs() -> None:
     path = ROOT / "scripts" / "bamo_blender_motifs_b.py"
     t = path.read_text(encoding="utf-8")
-    t = t.replace("key.data.energy = 1600", "key.data.energy = 950")
-    t = t.replace(
+    t = _sub(t, "key.data.energy = 1600", "key.data.energy = 950", "motifs_key_energy")
+    t = _sub(
+        t,
         '"key": material("AI Director key", colors["key"], 0.55, 0.18, 1.8),\n'
         '        "accent": _emission_mat("AI Director accent", colors["accent"], strength=5.5),\n'
         '        "neutral": material("AI Director neutral", colors["neutral"], 0.2, 0.32, 0.15),\n'
@@ -62,9 +103,10 @@ def patch_motifs() -> None:
         '        "accent": material("AI Director accent", colors["accent"], 0.15, 0.28, 0.55),\n'
         '        "neutral": material("AI Director neutral", colors["neutral"], 0.15, 0.38, 0.05),\n'
         '        "dark": material("AI Director dark", colors["dark"], 0.05, 0.62, 0.0),',
+        "motifs_materials",
     )
-    t = t.replace("samples = max(12, min(frames, 48))", "samples = max(24, min(frames, 96))")
-    t = t.replace("node.threshold = 0.55", "node.threshold = 0.92")
+    t = _sub(t, "samples = max(12, min(frames, 48))", "samples = max(24, min(frames, 96))", "motifs_sample_clamp")
+    t = _sub(t, "node.threshold = 0.55", "node.threshold = 0.92", "motifs_glare_threshold")
     if "glass_" not in t:
         needle = '        assign(obj, mats[item["material"]])\n        smooth(obj)\n'
         insert = (
@@ -82,8 +124,9 @@ def patch_motifs() -> None:
             '        assign(obj, mat)\n'
             '        smooth(obj)\n'
         )
-        if needle in t:
-            t = t.replace(needle, insert, 1)
+        t = _sub(t, needle, insert, "motifs_distinct_materials", count=1)
+    else:
+        REPORT.append({"patch": "motifs_distinct_materials", "status": "already"})
     path.write_text(t, encoding="utf-8")
     compile(t, str(path), "exec")
     print("motifs patched")
@@ -92,14 +135,18 @@ def patch_motifs() -> None:
 def patch_primitives() -> None:
     path = ROOT / "scripts" / "bamo_blender_primitives.py"
     t = path.read_text(encoding="utf-8")
-    t = t.replace("camera.data.dof.aperture_fstop = 3.6", "camera.data.dof.aperture_fstop = 5.6")
-    t = t.replace("key.data.energy = 1250", "key.data.energy = 900")
-    t = t.replace("fill.data.energy = 900", "fill.data.energy = 550")
+    t = _sub(t, "camera.data.dof.aperture_fstop = 3.6", "camera.data.dof.aperture_fstop = 5.6", "prim_fstop")
+    t = _sub(t, "key.data.energy = 1250", "key.data.energy = 900", "prim_key_energy")
+    t = _sub(t, "fill.data.energy = 900", "fill.data.energy = 550", "prim_fill_energy")
     if "min(float(emission)" not in t:
-        t = t.replace(
+        t = _sub(
+            t,
             '    if "Emission Strength" in bsdf.inputs:\n        bsdf.inputs["Emission Strength"].default_value = emission\n',
             '    if "Emission Strength" in bsdf.inputs:\n        bsdf.inputs["Emission Strength"].default_value = min(float(emission), 1.2)\n',
+            "prim_emission_clamp",
         )
+    else:
+        REPORT.append({"patch": "prim_emission_clamp", "status": "already"})
     path.write_text(t, encoding="utf-8")
     compile(t, str(path), "exec")
     print("primitives patched")
@@ -109,6 +156,14 @@ def main() -> int:
     patch_motion_engine()
     patch_motifs()
     patch_primitives()
+    out = ROOT / "quality_patch_report.json"
+    out.write_text(json.dumps(REPORT, indent=2), encoding="utf-8")
+    missing = [r["patch"] for r in REPORT if r["status"] == "MISSING"]
+    print(f"patch report: {len(REPORT)} checked, {len(missing)} missing -> {out.name}")
+    if missing:
+        print("MISSING patches: " + ", ".join(missing), file=sys.stderr)
+        if STRICT:
+            return 1
     return 0
 
 
