@@ -3,20 +3,82 @@
 
 BAMO_FORCE_PROCEDURAL=1 uses procedural domain graphs only (CI-safe).
 Otherwise uses direct_scene (LLM + procedural fallback after restore).
+
+Stable CPU profile (measured on GitHub Actions): 24 samples + ~40% resolution
++ OIDN denoise. 48 samples timed out (~3675 s on the first scene). The profile
+is enforced here so a workflow env value cannot silently break the run; set
+BAMO_ALLOW_HIGH_SAMPLES=1 / BAMO_ALLOW_FULL_RES=1 / BAMO_ALLOW_NO_DENOISE=1 to
+opt out explicitly (e.g. for a sharded high-quality run).
 """
 from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
+import sys
 import traceback
 from pathlib import Path
 
-from app.bamo_ai_director import ensure_distinct_camera_moves, normalize_scene_graph, validate_scene_graph
-from app.bamo_motion_engine import render_project
-from app.spiritual_tts import synthesize_with_captions
-
+ROOT = Path(__file__).resolve().parents[1]
 OUT = Path("output/bamo-ai-three-domain")
 OUT.mkdir(parents=True, exist_ok=True)
+
+STABLE_SAMPLES = 24
+STABLE_RESOLUTION_PERCENT = 40
+
+
+def _enforce_stable_profile() -> dict:
+    """Clamp the render profile to the measured-stable one; report every change."""
+    notes: dict = {}
+    samples = int(os.environ.get("BAMO_BLENDER_SAMPLES", str(STABLE_SAMPLES)))
+    if samples > STABLE_SAMPLES and os.environ.get("BAMO_ALLOW_HIGH_SAMPLES") != "1":
+        notes["samples_clamped_from"] = samples
+        samples = STABLE_SAMPLES
+    os.environ["BAMO_BLENDER_SAMPLES"] = str(samples)
+
+    percent = int(os.environ.get("BAMO_BLENDER_RESOLUTION_PERCENTAGE", str(STABLE_RESOLUTION_PERCENT)))
+    if percent > STABLE_RESOLUTION_PERCENT and os.environ.get("BAMO_ALLOW_FULL_RES") != "1":
+        notes["resolution_percentage_clamped_from"] = percent
+        percent = STABLE_RESOLUTION_PERCENT
+    os.environ["BAMO_BLENDER_RESOLUTION_PERCENTAGE"] = str(percent)
+
+    denoise = os.environ.get("BAMO_BLENDER_DENOISE", "true").strip().lower()
+    if denoise != "true" and os.environ.get("BAMO_ALLOW_NO_DENOISE") != "1":
+        notes["denoise_forced_on_from"] = denoise
+        denoise = "true"
+    os.environ["BAMO_BLENDER_DENOISE"] = denoise
+
+    notes["effective"] = {"samples": samples, "resolution_percentage": percent, "denoise": denoise}
+    print("render profile:", json.dumps(notes), flush=True)
+    return notes
+
+
+def _apply_quality_patches() -> list:
+    """Run the verified patch script BEFORE the render modules are imported."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "apply_quality_patches.py")],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    print(result.stdout, flush=True)
+    if result.stderr:
+        print(result.stderr, file=sys.stderr, flush=True)
+    if result.returncode:
+        raise SystemExit(f"apply_quality_patches.py failed with exit code {result.returncode}")
+    report_path = ROOT / "quality_patch_report.json"
+    if not report_path.is_file():
+        raise SystemExit("apply_quality_patches.py produced no quality_patch_report.json")
+    shutil.copy(report_path, OUT / "quality_patch_report.json")
+    return json.loads(report_path.read_text(encoding="utf-8"))
+
+
+PROFILE_NOTES = _enforce_stable_profile()
+PATCH_REPORT = _apply_quality_patches()
+
+from app.bamo_ai_director import ensure_distinct_camera_moves, normalize_scene_graph, validate_scene_graph  # noqa: E402
+from app.bamo_motion_engine import render_project  # noqa: E402
+from app.spiritual_tts import synthesize_with_captions  # noqa: E402
+
 AUDIO = OUT / "voice-fa.mp3"
 CAPTIONS = OUT / "captions.srt"
 
@@ -151,6 +213,9 @@ def main() -> None:
         "tts_provider": tts.get("provider"),
         "video_path": str(video),
         "video_bytes": video.stat().st_size,
+        "audio_duration_seconds": audio_duration,
+        "render_profile": PROFILE_NOTES,
+        "quality_patches": PATCH_REPORT,
         "domains": [
             {
                 "domain": plan["domain"],
