@@ -1,4 +1,4 @@
-name: BAMO HTML Engine Sample
+name: BAMO Full-Quality WebGL Render
 on:
   workflow_dispatch:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 jobs:
   render-html-sample:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,14 +24,11 @@ jobs:
           python -m pip install playwright edge-tts
           python -m playwright install --with-deps chromium
       - name: Render sample using HTML engine only
-        env:
-          BAMO_RENDER_SCALE: "0.25"
-          BAMO_RENDER_FPS: "8"
         run: PYTHONPATH=. python scripts/render_html_engine_sample.py
       - name: Upload MP4 sample
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-html-engine-sample
+          name: bamo-wave-interference-full-quality
           path: artifacts/bamo-html-engine-sample.mp4
           if-no-files-found: error
           retention-days: 14
