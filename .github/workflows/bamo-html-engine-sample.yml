@@ -28,7 +28,7 @@ jobs:
       - name: Upload MP4 sample
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-wave-interference-full-quality
+          name: bamo-atom-structure-full-quality
           path: artifacts/bamo-html-engine-sample.mp4
           if-no-files-found: error
           retention-days: 14
