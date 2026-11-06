@@ -1,0 +1,19 @@
+{
+  "id": "cyberpunk-neon",
+  "name": "Cyberpunk Neon",
+  "name_fa": "سایبرپانک نئون",
+  "mood": "futuristic",
+  "palette": {
+    "bg": "#020617",
+    "primary": "#22d3ee",
+    "secondary": "#a78bfa",
+    "accent": "#e879f9",
+    "particle": "rgba(34,211,238,0.5)",
+    "glow": "rgba(167,139,250,0.25)"
+  },
+  "camera": { "type": "dolly", "intensity": 0.6 },
+  "particles": { "density": 0.7, "type": "grid" },
+  "light": { "rays": 0.6, "bloom": 0.8 },
+  "transition": "morph",
+  "audio": { "pad": "synth", "tempo": 1.0 }
+}
