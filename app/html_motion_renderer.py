@@ -96,9 +96,24 @@ def render_html_project(
             )
 
             url = engine.as_uri() + f"?project={project_b64}"
+            page_errors: list[str] = []
+            page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             page.goto(url, wait_until="networkidle", timeout=30000)
 
-            page.wait_for_function("() => window.BAMO && window.BAMO.ready === true && window.BAMO.getState().renderer === 'WebGL'", timeout=15000)
+            # Wait for either a healthy WebGL engine or its explicit boot error.
+            # This surfaces shader/compiler failures instead of hiding them as a timeout.
+            page.wait_for_function(
+                "() => window.BAMO && (window.BAMO.ready === true || !!window.BAMO.error)",
+                timeout=30000,
+            )
+            boot = page.evaluate("""() => ({
+                ready: !!(window.BAMO && window.BAMO.ready),
+                error: window.BAMO && window.BAMO.error,
+                renderer: window.BAMO && window.BAMO.getState && window.BAMO.getState().renderer,
+            })""")
+            if not boot["ready"] or boot["renderer"] != "WebGL":
+                details = boot.get("error") or "; ".join(page_errors) or str(boot)
+                raise RuntimeError(f"BAMO WebGL engine boot failed: {details}")
 
             page.evaluate(
                 """(proj) => { window.BAMO.loadProject(proj); window.BAMO.play(); }""",
