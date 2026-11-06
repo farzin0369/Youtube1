@@ -1,4 +1,4 @@
-"""HTML Canvas motion renderer for BAMO (Path B).
+"""WebGL 3D motion renderer for BAMO (HTML/WebGL engine).
 
 Uses Playwright to drive the intelligent HTML engine and capture frames,
 then assembles a silent MP4 that the production renderer can mix with TTS + music.
@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 
@@ -47,7 +49,7 @@ def render_html_project(
 ) -> Path:
     """
     Render a BAMO project (scenes with duration + text + narration) to a silent MP4
-    using the HTML canvas engine via Playwright screenshots.
+    using the HTML/WebGL 3D engine via Playwright screenshots.
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -56,6 +58,15 @@ def render_html_project(
             "Playwright is required for the HTML motion renderer. "
             "Install with: pip install playwright && playwright install chromium"
         ) from exc
+
+    # CI smoke runs may render at reduced device scale and frame rate while
+    # preserving the requested MP4 dimensions. Production defaults stay full quality.
+    render_scale = float(os.getenv("BAMO_RENDER_SCALE", "1.0"))
+    if not 0.1 <= render_scale <= 1.0:
+        raise ValueError("BAMO_RENDER_SCALE must be between 0.1 and 1.0")
+    fps = int(os.getenv("BAMO_RENDER_FPS", str(fps)))
+    if fps < 1 or fps > 60:
+        raise ValueError("BAMO_RENDER_FPS must be between 1 and 60")
 
     out = Path(output).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -79,16 +90,31 @@ def render_html_project(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
             page = browser.new_page(
                 viewport={"width": width, "height": height},
-                device_scale_factor=1,
+                device_scale_factor=render_scale,
             )
 
-            url = engine.as_uri() + f"?project={project_b64}"
+            url = engine.as_uri() + "?project=" + quote(project_b64, safe="")
+            page_errors: list[str] = []
+            page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             page.goto(url, wait_until="networkidle", timeout=30000)
 
-            page.wait_for_function("() => window.BAMO && window.BAMO.ready === true", timeout=10000)
+            # Wait for either a healthy WebGL engine or its explicit boot error.
+            # This surfaces shader/compiler failures instead of hiding them as a timeout.
+            page.wait_for_function(
+                "() => window.BAMO && (window.BAMO.ready === true || !!window.BAMO.error)",
+                timeout=30000,
+            )
+            boot = page.evaluate("""() => ({
+                ready: !!(window.BAMO && window.BAMO.ready),
+                error: window.BAMO && window.BAMO.error,
+                renderer: window.BAMO && window.BAMO.getState && window.BAMO.getState().renderer,
+            })""")
+            if not boot["ready"] or boot["renderer"] != "WebGL":
+                details = boot.get("error") or "; ".join(page_errors) or str(boot)
+                raise RuntimeError(f"BAMO WebGL engine boot failed: {details}")
 
             page.evaluate(
                 """(proj) => { window.BAMO.loadProject(proj); window.BAMO.play(); }""",

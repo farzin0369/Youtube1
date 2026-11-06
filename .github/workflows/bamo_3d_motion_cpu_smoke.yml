@@ -33,9 +33,12 @@ jobs:
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
+          python -m playwright install --with-deps chromium
       - name: Run renderer and media QA smoke test
         env:
           PYTHONPATH: ${{ github.workspace }}
+          BAMO_RENDER_SCALE: "0.25"
+          BAMO_RENDER_FPS: "8"
         run: python scripts/smoke_bamo_3d_renderer.py
       - name: Upload rendered MP4 and QA evidence
         if: always()

@@ -1,4 +1,4 @@
-"""Production adapter for BAMO motion engines (HTML Path B + CPU 3D fallback)."""
+"""Production adapter for BAMO HTML Canvas motion engine (HTML-only)."""
 from __future__ import annotations
 
 import os
@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from app.bamo_director import enrich_project
-from app.bamo_motion_engine import render_project
 from app.bamo_scene_director import plan_scene
 from app.bamo_text_lock import lock_project_scenes, lock_scene_text
 from app.spiritual_video import (
@@ -31,7 +30,7 @@ def render_bamo_shorts(
     """Render four scene-locked motion scenes, Persian voice, captions and ducked ambience.
 
     Text lock: on-screen caption == narrator speech; visuals derived from that text.
-    Prefers HTML canvas engine; falls back to CPU 3D.
+    Uses the HTML Canvas engine exclusively; never silently falls back to CPU 3D.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -78,24 +77,18 @@ def render_bamo_shorts(
 
     silent_path = out_dir / "bamo-silent.mp4"
 
-    used_html = False
-    renderer_name = "BAMO CPU 3D motion engine"
-    visual_source = "bamo-cpu-3d-motion"
+    from app.html_motion_renderer import is_html_renderer_available, render_html_project
 
-    prefer_html = os.getenv("BAMO_PREFER_HTML_RENDERER", "1").strip().lower() in {"1", "true", "yes"}
-    if prefer_html:
-        try:
-            from app.html_motion_renderer import is_html_renderer_available, render_html_project
-            if is_html_renderer_available():
-                render_html_project(project, silent_path, fps=24, width=720, height=1280)
-                used_html = True
-                renderer_name = "BAMO HTML Canvas intelligent engine"
-                visual_source = "bamo-html-canvas"
-        except Exception:
-            used_html = False
+    if not is_html_renderer_available():
+        raise RuntimeError(
+            "BAMO HTML-only renderer is unavailable. Install Playwright and Chromium; "
+            "CPU/legacy renderer fallback is intentionally disabled."
+        )
 
-    if not used_html:
-        render_project(project, silent_path, audio=None)
+    render_html_project(project, silent_path, fps=24, width=720, height=1280)
+    used_html = True
+    renderer_name = "BAMO HTML Canvas engine (HTML-only)"
+    visual_source = "bamo-html-canvas"
 
     ass_path = _write_shorts_ass(
         Path(captions_path), out_dir / "captions-burned.ass",
