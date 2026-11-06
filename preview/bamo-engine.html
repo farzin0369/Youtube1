@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>BAMO Motion Engine — Ultra Preview</title>
+  <title>BAMO Motion Engine — Ultra</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -32,6 +32,7 @@
       overflow: hidden;
     }
 
+    /* ========== APP SHELL ========== */
     #app {
       height: 100%;
       display: flex;
@@ -39,6 +40,7 @@
       position: relative;
     }
 
+    /* Ambient background */
     .ambient {
       position: fixed;
       inset: 0;
@@ -59,6 +61,7 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
 
+    /* ========== INPUT SCREEN ========== */
     #input-screen {
       position: relative;
       z-index: 10;
@@ -217,6 +220,19 @@
 
     .generate-btn:active { transform: translateY(0); }
 
+    .generate-btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.6s;
+    }
+
+    .generate-btn:hover::after {
+      transform: translateX(100%);
+    }
+
     .examples {
       margin-top: 20px;
       text-align: center;
@@ -252,6 +268,7 @@
       color: var(--text);
     }
 
+    /* ========== PLAYER SCREEN ========== */
     #player-screen {
       position: absolute;
       inset: 0;
@@ -320,6 +337,7 @@
       display: block;
     }
 
+    /* Caption overlay */
     .caption-overlay {
       position: absolute;
       bottom: 0;
@@ -402,6 +420,7 @@
       box-shadow: 0 0 12px var(--accent);
     }
 
+    /* Loading state */
     .loading-overlay {
       position: absolute;
       inset: 0;
@@ -444,6 +463,7 @@
   <div class="noise"></div>
 
   <div id="app">
+    <!-- INPUT SCREEN -->
     <div id="input-screen">
       <div class="logo">BAMO ENGINE</div>
       <h1 class="hero-title">موتور موشن‌گرافی<br>فوق‌حرفه‌ای</h1>
@@ -474,6 +494,7 @@
       </div>
     </div>
 
+    <!-- PLAYER SCREEN -->
     <div id="player-screen">
       <div class="player-top">
         <button class="back-btn" id="back">← بازگشت</button>
@@ -507,24 +528,641 @@
   </div>
 
   <script>
-    // Core engine logic is embedded for standalone use.
-    // Full interactive version available in the local pro_html folder.
-    // This is a production-ready preview that analyzes text and renders matching visuals.
-    console.log("BAMO Ultra Preview Engine loaded");
-    document.getElementById("generate").addEventListener("click", () => {
-      const text = document.getElementById("script").value.trim();
-      if (!text) { document.getElementById("script").focus(); return; }
-      document.getElementById("input-screen").classList.add("hidden");
-      document.getElementById("player-screen").classList.add("active");
-      document.getElementById("caption").textContent = text.slice(0, 120) + (text.length > 120 ? "..." : "");
-      document.getElementById("loading").classList.add("show");
+    // ===================== ENGINE CORE =====================
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => document.querySelectorAll(sel);
+
+    const inputScreen = $('#input-screen');
+    const playerScreen = $('#player-screen');
+    const canvas = $('#c');
+    const ctx = canvas.getContext('2d');
+    const captionEl = $('#caption');
+    const progressEl = $('#progress');
+    const modeLabel = $('#modeLabel');
+    const loading = $('#loading');
+    const scriptInput = $('#script');
+
+    let W, H, dpr;
+    let animId = null;
+    let playing = true;
+    let startTime = 0;
+    let elapsed = 0;
+    let duration = 16000;
+    let currentTheme = 'auto';
+    let engine = null; // active visual engine
+
+    // Theme detection from text
+    function detectTheme(text) {
+      const t = text.toLowerCase();
+      if (/بیضی|کانون|دایره|هندسه|ریاضی|فاصله|موج|تداخل|فیزیک|نور|صوت|فرکانس|فاز/.test(t)) return 'science';
+      if (/ربات|داستان|صبر|آشپز|املت|تصمیم|یاد|احساس|عاشق|غم|شادی/.test(t)) return 'story';
+      if (/طبیعت|درخت|آسمان|دریا|فصل|باران|گل|خورشید/.test(t)) return 'nature';
+      if (/انتزاع|رنگ|شکل|هندسی|الگو|ریتم/.test(t)) return 'abstract';
+      return 'science';
+    }
+
+    // Color palettes
+    const palettes = {
+      science: {
+        bg: '#05070d',
+        primary: '#22d3ee',
+        secondary: '#818cf8',
+        accent: '#34d399',
+        danger: '#f87171',
+        text: '#f1f5f9',
+        muted: '#64748b',
+        particle: 'rgba(34,211,238,0.6)'
+      },
+      story: {
+        bg: '#0c0a09',
+        primary: '#fbbf24',
+        secondary: '#f472b6',
+        accent: '#38bdf8',
+        danger: '#fb7185',
+        text: '#fafaf9',
+        muted: '#a8a29e',
+        particle: 'rgba(251,191,36,0.5)'
+      },
+      abstract: {
+        bg: '#09090b',
+        primary: '#e879f9',
+        secondary: '#22d3ee',
+        accent: '#a3e635',
+        danger: '#f43f5e',
+        text: '#fafafa',
+        muted: '#71717a',
+        particle: 'rgba(232,121,249,0.55)'
+      },
+      nature: {
+        bg: '#052e16',
+        primary: '#4ade80',
+        secondary: '#2dd4bf',
+        accent: '#facc15',
+        danger: '#f87171',
+        text: '#f0fdf4',
+        muted: '#86efac',
+        particle: 'rgba(74,222,128,0.5)'
+      }
+    };
+
+    // ===================== VISUAL ENGINES =====================
+
+    // --- SCIENCE: Ellipse / Wave / Generic geometric ---
+    function createScienceEngine(text, palette) {
+      const isEllipse = /بیضی|کانون|فاصله/.test(text);
+      const isWave = /موج|تداخل|فاز|فرکانس/.test(text);
+
+      let t = 0;
+      const particles = Array.from({length: 60}, () => ({
+        x: Math.random(),
+        y: Math.random(),
+        r: Math.random() * 1.5 + 0.5,
+        speed: Math.random() * 0.0003 + 0.0001,
+        phase: Math.random() * Math.PI * 2
+      }));
+
+      const captions = isEllipse ? [
+        { at: 0, text: 'بیضی فقط یک دایرهٔ کشیده نیست.' },
+        { at: 0.18, text: 'دو نقطهٔ ثابت به نام کانون دارد.' },
+        { at: 0.38, text: 'هر نقطه روی بیضی را انتخاب کن...' },
+        { at: 0.55, text: 'فاصله‌اش تا هر دو کانون را اندازه بگیر.' },
+        { at: 0.72, text: 'جمع این دو فاصله همیشه ثابت می‌ماند.' },
+        { at: 0.88, text: 'همین قانون، شکل بیضی را تعریف می‌کند.' }
+      ] : isWave ? [
+        { at: 0, text: 'وقتی دو موج هم‌فرکانس به هم می‌رسند...' },
+        { at: 0.2, text: 'اگر هم‌فاز باشند، دامنه‌ها جمع می‌شوند.' },
+        { at: 0.42, text: 'این تداخل سازنده است — موجی قوی‌تر.' },
+        { at: 0.62, text: 'اگر اختلاف فاز نیم‌طول‌موج باشد...' },
+        { at: 0.78, text: 'تداخل ویرانگر رخ می‌دهد و موج تضعیف می‌شود.' },
+        { at: 0.92, text: 'فاز، سرنوشت تداخل را تعیین می‌کند.' }
+      ] : [
+        { at: 0, text: text.slice(0, 60) + (text.length > 60 ? '...' : '') },
+        { at: 0.3, text: 'حرکت، ریتم و هماهنگی...' },
+        { at: 0.6, text: 'هر جزء در خدمت مفهوم کلی است.' },
+        { at: 0.85, text: 'زیبایی در دقت نهفته است.' }
+      ];
+
+      return {
+        duration: 15000,
+        captions,
+        update(dt, progress) {
+          t += dt;
+        },
+        draw(ctx, W, H, progress) {
+          // Background glow
+          const g = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, H*0.6);
+          g.addColorStop(0, palette.primary + '15');
+          g.addColorStop(1, 'transparent');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+
+          // Particles
+          particles.forEach(p => {
+            p.phase += p.speed * 16;
+            const px = p.x * W + Math.sin(p.phase) * 20;
+            const py = p.y * H + Math.cos(p.phase * 0.7) * 15;
+            ctx.beginPath();
+            ctx.arc(px, py, p.r, 0, Math.PI*2);
+            ctx.fillStyle = palette.particle;
+            ctx.globalAlpha = 0.4 + Math.sin(p.phase) * 0.3;
+            ctx.fill();
+          });
+          ctx.globalAlpha = 1;
+
+          if (isEllipse) {
+            drawEllipseScene(ctx, W, H, t, palette);
+          } else if (isWave) {
+            drawWaveScene(ctx, W, H, t, progress, palette);
+          } else {
+            drawGenericGeo(ctx, W, H, t, palette);
+          }
+        }
+      };
+    }
+
+    function drawEllipseScene(ctx, W, H, t, pal) {
+      const cx = W/2, cy = H*0.42;
+      const a = Math.min(W, H) * 0.32;
+      const b = a * 0.58;
+      const c = Math.sqrt(a*a - b*b);
+
+      // Soft ellipse glow
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, a+20, b+20, 0, 0, Math.PI*2);
+      const eg = ctx.createRadialGradient(cx, cy, 0, cx, cy, a+20);
+      eg.addColorStop(0, pal.primary + '18');
+      eg.addColorStop(1, 'transparent');
+      ctx.fillStyle = eg;
+      ctx.fill();
+
+      // Ellipse stroke
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, a, b, 0, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Foci
+      const f1 = cx - c, f2 = cx + c;
+      [f1, f2].forEach(fx => {
+        const gg = ctx.createRadialGradient(fx, cy, 0, fx, cy, 26);
+        gg.addColorStop(0, pal.primary + '55');
+        gg.addColorStop(1, 'transparent');
+        ctx.fillStyle = gg;
+        ctx.beginPath(); ctx.arc(fx, cy, 26, 0, Math.PI*2); ctx.fill();
+
+        ctx.fillStyle = pal.primary;
+        ctx.beginPath(); ctx.arc(fx, cy, 6, 0, Math.PI*2); ctx.fill();
+      });
+
+      // Moving point
+      const ang = t * 0.0007;
+      const px = cx + a * Math.cos(ang);
+      const py = cy + b * Math.sin(ang);
+
+      // Distance lines
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = pal.secondary + '99';
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(f1, cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(f2, cy); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Point
+      const pg = ctx.createRadialGradient(px, py, 0, px, py, 20);
+      pg.addColorStop(0, pal.secondary + '66');
+      pg.addColorStop(1, 'transparent');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(px, py, 20, 0, Math.PI*2); ctx.fill();
+
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(px, py, 5.5, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = pal.secondary;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    function drawWaveScene(ctx, W, H, t, progress, pal) {
+      const mid = H * 0.4;
+      const A = 38;
+      const k = 0.016;
+      const omega = 0.004;
+
+      // Phase morphs over time
+      const phaseDiff = progress < 0.5 
+        ? 0 
+        : Math.min(Math.PI, (progress - 0.5) * 2 * Math.PI);
+
+      function waveY(x, phase, amp = A) {
+        return mid + amp * Math.sin(k * x - omega * t + phase);
+      }
+
+      // Wave 1
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 3) {
+        const y = waveY(x, 0);
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = pal.primary + 'aa';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Wave 2
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 3) {
+        const y = waveY(x, phaseDiff);
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = pal.secondary + 'aa';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Resultant
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 3) {
+        const y = mid + A * Math.sin(k*x - omega*t) + A * Math.sin(k*x - omega*t + phaseDiff);
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 3.2;
+      ctx.shadowColor = pal.primary;
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Labels
+      ctx.font = '600 12px Vazirmatn';
+      ctx.fillStyle = pal.muted;
+      ctx.textAlign = 'right';
+      ctx.fillText(phaseDiff < 0.3 ? 'تداخل سازنده' : phaseDiff > 2.5 ? 'تداخل ویرانگر' : 'در حال تغییر فاز', W - 16, mid - A - 24);
+    }
+
+    function drawGenericGeo(ctx, W, H, t, pal) {
+      const cx = W/2, cy = H*0.4;
+      for (let i = 0; i < 5; i++) {
+        const r = 40 + i * 35 + Math.sin(t * 0.001 + i) * 8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI*2);
+        ctx.strokeStyle = pal.primary + (30 - i*5).toString(16);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // --- STORY ENGINE ---
+    function createStoryEngine(text, palette) {
+      let t = 0;
+      const captions = [
+        { at: 0, text: 'ربات کوچکی تصمیم گرفت آشپز شود.' },
+        { at: 0.16, text: 'اولین کارش پختن یک املت بود.' },
+        { at: 0.32, text: 'تخم‌مرغ را با دقت اندازه گرفت و شکست.' },
+        { at: 0.5, text: 'ده دقیقه منتظر ماند تا خودش بپزد...' },
+        { at: 0.68, text: 'املت پخته نشد.' },
+        { at: 0.8, text: 'ولی ربات فهمید: آشپزی یعنی صبر.' },
+        { at: 0.92, text: 'صبر، اصلی‌ترین مادهٔ هر دستور پخت است.' }
+      ];
+
+      return {
+        duration: 17000,
+        captions,
+        update(dt) { t += dt; },
+        draw(ctx, W, H, progress) {
+          const cx = W/2;
+          const baseY = H * 0.58;
+
+          // Warm ambient
+          const g = ctx.createRadialGradient(cx, baseY - 40, 0, cx, baseY - 40, H*0.5);
+          g.addColorStop(0, palette.primary + '12');
+          g.addColorStop(1, 'transparent');
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, H);
+
+          // Floor line
+          ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(40, baseY + 50);
+          ctx.lineTo(W-40, baseY + 50);
+          ctx.stroke();
+
+          // Pan
+          drawStoryPan(ctx, cx + 80, baseY + 20, progress, palette);
+
+          // Robot
+          const robotX = cx - 90;
+          const bounce = progress > 0.5 && progress < 0.7 ? Math.sin(t * 0.008) * 3 : 0;
+          drawStoryRobot(ctx, robotX, baseY - 20 + bounce, t, progress, palette);
+        }
+      };
+    }
+
+    function drawStoryRobot(ctx, x, y, t, progress, pal) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Body
+      ctx.fillStyle = '#1e293b';
+      roundRect(ctx, -26, -8, 52, 64, 12);
+      ctx.fill();
+
+      // Chest glow
+      ctx.fillStyle = pal.accent;
+      ctx.globalAlpha = 0.7 + Math.sin(t * 0.005) * 0.25;
+      roundRect(ctx, -10, 10, 20, 9, 4);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Head
+      ctx.fillStyle = '#334155';
+      roundRect(ctx, -20, -44, 40, 36, 10);
+      ctx.fill();
+
+      // Eyes
+      const look = progress > 0.65 ? 3 : (progress > 0.4 ? 1 : -2);
+      ctx.fillStyle = pal.accent;
+      ctx.beginPath();
+      ctx.arc(-8, -28 + look, 4.5, 0, Math.PI*2);
+      ctx.arc(8, -28 + look, 4.5, 0, Math.PI*2);
+      ctx.fill();
+
+      // Antenna
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -44);
+      ctx.lineTo(0, -58);
+      ctx.stroke();
+      ctx.fillStyle = pal.primary;
+      ctx.beginPath();
+      ctx.arc(0, -60, 3.5, 0, Math.PI*2);
+      ctx.fill();
+
+      // Arms
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      const armSwing = Math.sin(t * 0.004) * 10;
+      ctx.beginPath();
+      ctx.moveTo(-26, 8);
+      ctx.lineTo(-40, 28 + armSwing);
+      ctx.moveTo(26, 8);
+      ctx.lineTo(40, 28 - armSwing * 0.7);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawStoryPan(ctx, x, y, progress, pal) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Stove
+      ctx.fillStyle = '#1e293b';
+      roundRect(ctx, -48, 18, 96, 16, 6);
+      ctx.fill();
+
+      // Heat glow
+      if (progress > 0.3) {
+        const hg = ctx.createRadialGradient(0, 10, 0, 0, 10, 45);
+        hg.addColorStop(0, 'rgba(251,146,60,0.3)');
+        hg.addColorStop(1, 'transparent');
+        ctx.fillStyle = hg;
+        ctx.beginPath();
+        ctx.arc(0, 10, 45, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Pan
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.ellipse(0, 6, 46, 13, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Handle
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(46, 6);
+      ctx.lineTo(74, 2);
+      ctx.stroke();
+
+      // Egg
+      if (progress > 0.28) {
+        const cooked = Math.min(1, (progress - 0.28) / 0.4);
+        ctx.fillStyle = cooked > 0.5 ? '#fde68a' : '#fef3c7';
+        ctx.beginPath();
+        ctx.ellipse(0, 3, 26, 8, 0, 0, Math.PI*2);
+        ctx.fill();
+        if (cooked < 0.4) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(0, 2, 7, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    // --- ABSTRACT / NATURE fallback ---
+    function createAbstractEngine(text, palette) {
+      let t = 0;
+      const blobs = Array.from({length: 7}, (_, i) => ({
+        x: 0.2 + Math.random() * 0.6,
+        y: 0.2 + Math.random() * 0.5,
+        r: 40 + Math.random() * 60,
+        speed: 0.0002 + Math.random() * 0.0003,
+        phase: Math.random() * Math.PI * 2
+      }));
+
+      return {
+        duration: 14000,
+        captions: [
+          { at: 0, text: text.slice(0, 70) + (text.length > 70 ? '...' : '') },
+          { at: 0.35, text: 'فرم‌ها در حرکت‌اند...' },
+          { at: 0.65, text: 'هر تغییر، بخشی از روایت بصری است.' },
+          { at: 0.88, text: 'زیبایی در جریان مداوم نهفته است.' }
+        ],
+        update(dt) { t += dt; },
+        draw(ctx, W, H) {
+          blobs.forEach((b, i) => {
+            b.phase += b.speed * 16;
+            const px = b.x * W + Math.sin(b.phase) * 30;
+            const py = b.y * H + Math.cos(b.phase * 0.8) * 20;
+            const gr = ctx.createRadialGradient(px, py, 0, px, py, b.r);
+            const col = i % 2 === 0 ? palette.primary : palette.secondary;
+            gr.addColorStop(0, col + '40');
+            gr.addColorStop(1, 'transparent');
+            ctx.fillStyle = gr;
+            ctx.beginPath();
+            ctx.arc(px, py, b.r, 0, Math.PI*2);
+            ctx.fill();
+          });
+        }
+      };
+    }
+
+    // ===================== MAIN LOOP & UI =====================
+    function resize() {
+      const stage = $('#stage');
+      const rect = stage.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = rect.width;
+      H = rect.height;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function setCaption(text) {
+      if (captionEl.textContent === text) return;
+      captionEl.classList.add('exit');
       setTimeout(() => {
-        document.getElementById("loading").classList.remove("show");
-      }, 1200);
+        captionEl.textContent = text;
+        captionEl.classList.remove('exit');
+      }, 220);
+    }
+
+    function getCaptionAt(progress, captions) {
+      let txt = captions[0].text;
+      for (const c of captions) {
+        if (progress >= c.at) txt = c.text;
+      }
+      return txt;
+    }
+
+    function loop(now) {
+      if (!startTime) startTime = now;
+      if (playing) {
+        elapsed = now - startTime;
+      }
+
+      const progress = Math.min(1, elapsed / duration);
+      progressEl.style.width = (progress * 100) + '%';
+
+      if (engine) {
+        engine.update(16, progress); // approx dt
+        ctx.clearRect(0, 0, W, H);
+        // subtle bg
+        ctx.fillStyle = engine.palette ? engine.palette.bg : '#05070d';
+        ctx.fillRect(0, 0, W, H);
+        engine.draw(ctx, W, H, progress);
+        setCaption(getCaptionAt(progress, engine.captions));
+      }
+
+      if (progress >= 1) {
+        playing = false;
+        $('#iconPlay').style.display = 'block';
+        $('#iconPause').style.display = 'none';
+      }
+
+      animId = requestAnimationFrame(loop);
+    }
+
+    function startEngine(text, theme) {
+      loading.classList.add('show');
+      
+      setTimeout(() => {
+        const detected = theme === 'auto' ? detectTheme(text) : theme;
+        const palette = palettes[detected] || palettes.science;
+        modeLabel.textContent = { science: 'علمی', story: 'داستانی', abstract: 'انتزاعی', nature: 'طبیعت' }[detected] || detected;
+
+        if (detected === 'story' || /ربات|آشپز|صبر|املت|داستان/.test(text)) {
+          engine = createStoryEngine(text, palette);
+        } else if (detected === 'science' || /بیضی|موج|تداخل|کانون|فیزیک|هندسه/.test(text)) {
+          engine = createScienceEngine(text, palette);
+        } else {
+          engine = createAbstractEngine(text, palette);
+        }
+        engine.palette = palette;
+        duration = engine.duration;
+
+        elapsed = 0;
+        startTime = 0;
+        playing = true;
+        $('#iconPlay').style.display = 'none';
+        $('#iconPause').style.display = 'block';
+
+        resize();
+        loading.classList.remove('show');
+        if (animId) cancelAnimationFrame(animId);
+        animId = requestAnimationFrame(loop);
+      }, 900);
+    }
+
+    // UI Events
+    $('#generate').addEventListener('click', () => {
+      const text = scriptInput.value.trim();
+      if (!text) {
+        scriptInput.focus();
+        return;
+      }
+      inputScreen.classList.add('hidden');
+      playerScreen.classList.add('active');
+      startEngine(text, currentTheme);
     });
-    document.getElementById("back").addEventListener("click", () => {
-      document.getElementById("player-screen").classList.remove("active");
-      document.getElementById("input-screen").classList.remove("hidden");
+
+    $('#back').addEventListener('click', () => {
+      playerScreen.classList.remove('active');
+      inputScreen.classList.remove('hidden');
+      if (animId) cancelAnimationFrame(animId);
+      playing = false;
+    });
+
+    $('#playPause').addEventListener('click', () => {
+      playing = !playing;
+      if (playing) {
+        startTime = performance.now() - elapsed;
+        $('#iconPlay').style.display = 'none';
+        $('#iconPause').style.display = 'block';
+      } else {
+        $('#iconPlay').style.display = 'block';
+        $('#iconPause').style.display = 'none';
+      }
+    });
+
+    $('#restart').addEventListener('click', () => {
+      elapsed = 0;
+      startTime = 0;
+      playing = true;
+      $('#iconPlay').style.display = 'none';
+      $('#iconPause').style.display = 'block';
+    });
+
+    // Theme buttons
+    $$('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$('.theme-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentTheme = btn.dataset.theme;
+      });
+    });
+
+    // Example chips
+    $$('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        scriptInput.value = chip.dataset.text;
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      if (playerScreen.classList.contains('active')) resize();
     });
   </script>
 </body>
