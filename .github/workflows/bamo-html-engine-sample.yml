@@ -24,6 +24,9 @@ jobs:
           python -m pip install playwright edge-tts
           python -m playwright install --with-deps chromium
       - name: Render sample using HTML engine only
+        env:
+          BAMO_RENDER_SCALE: "0.25"
+          BAMO_RENDER_FPS: "8"
         run: PYTHONPATH=. python scripts/render_html_engine_sample.py
       - name: Upload MP4 sample
         uses: actions/upload-artifact@v4
