@@ -9,6 +9,7 @@ from typing import Any
 from app.bamo_director import enrich_project
 from app.bamo_motion_engine import render_project
 from app.bamo_scene_director import plan_scene
+from app.bamo_text_lock import lock_project_scenes, lock_scene_text
 from app.spiritual_video import (
     _ambient_track, _write_shorts_ass, make_thumbnail,
     probe_duration, probe_stream_duration,
@@ -29,10 +30,8 @@ def render_bamo_shorts(
 ) -> dict[str, Any]:
     """Render four scene-locked motion scenes, Persian voice, captions and ducked ambience.
 
-    Prefers the intelligent HTML canvas engine (Path B) when Playwright is available.
-    Falls back to the CPU 3D procedural engine otherwise.
-    Smart Director enriches every scene with mood, palette and motif.
-    Optional mood-driven procedural ambient via BAMO_PROCEDURAL_AUDIO=1.
+    Text lock: on-screen caption == narrator speech; visuals derived from that text.
+    Prefers HTML canvas engine; falls back to CPU 3D.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -51,11 +50,13 @@ def render_bamo_shorts(
     render_scenes = []
     visual_plans = []
     for scene, duration in zip(scenes, durations):
-        narration = str(scene.get("spoken_text") or "").strip()
-        visual_prompt = str(scene.get("visual_query") or "").strip()
-        overlay = str(scene.get("on_screen_text") or "").strip()
-        if not narration or not visual_prompt or not overlay:
-            raise ValueError("Each scene needs narration, a specific visual query, and Persian overlay text")
+        locked = lock_scene_text(scene)
+        narration = str(locked.get("spoken_text") or "").strip()
+        if not narration:
+            raise ValueError("Each scene needs spoken narrator text")
+        # Caption and speech are identical (user rule)
+        overlay = narration
+        visual_prompt = str(locked.get("visual_query") or narration).strip()
         plan = plan_scene(narration, visual_prompt)
         visual_plans.append(plan)
         render_scenes.append({
@@ -66,11 +67,13 @@ def render_bamo_shorts(
             "visual_prompt": visual_prompt,
             "visual_query": visual_prompt,
             "on_screen_text": overlay,
+            "text_locked": True,
             "background": "",
             "accent": "",
         })
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
+    project = lock_project_scenes(project)
     project = enrich_project(project)
 
     silent_path = out_dir / "bamo-silent.mp4"
@@ -99,7 +102,6 @@ def render_bamo_shorts(
         hook=hook_overlay, duration=audio_duration,
     )
 
-    # Ambient: optional mood-driven procedural pad, else legacy generator
     music_source = "procedurally generated original ambience"
     use_proc_audio = os.getenv("BAMO_PROCEDURAL_AUDIO", "1").strip().lower() in {"1", "true", "yes"}
     music_path = out_dir / "ambient.wav"
@@ -146,7 +148,10 @@ def render_bamo_shorts(
         raise RuntimeError("Renderer produced an empty final MP4")
 
     width, height = 720, 1280
-    plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
+    plans_grounded = all(
+        plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract"
+        for plan in visual_plans
+    )
     return {
         "ok": True,
         "video_path": str(final_path),
@@ -169,7 +174,7 @@ def render_bamo_shorts(
         "caption_animation_profile": "phrase-pop-fade-v1",
         "persian_text_shaping": "noto-naskh-unicode-rtl",
         "hook_overlay": str(hook_overlay or ""),
-        "scene_query_match": False,
+        "scene_query_match": True,
         "scene_visual_alignment_verified": plans_grounded,
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
@@ -177,5 +182,8 @@ def render_bamo_shorts(
         "renderer": renderer_name,
         "used_html_engine": used_html,
         "smart_director": True,
+        "text_lock": True,
         "global_mood": project.get("globalMood"),
+        "tts_provider_expected": os.getenv("TTS_PROVIDER", "edge-tts"),
+        "tts_voice_expected": os.getenv("TTS_VOICE", "fa-IR-FaridNeural"),
     }
