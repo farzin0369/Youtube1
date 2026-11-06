@@ -17,7 +17,7 @@
 (() => {
 "use strict";
 const canvas=document.getElementById("c"),caption=document.getElementById("caption"),errorBox=document.getElementById("error");
-const gl=canvas.getContext("webgl2",{alpha:false,antialias:true,preserveDrawingBuffer:true})||canvas.getContext("webgl",{alpha:false,antialias:true,preserveDrawingBuffer:true});
+const gl=canvas.getContext("webgl",{alpha:false,antialias:true,preserveDrawingBuffer:true});
 let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer;
 let currentPalette={bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};
 const vertex=`
