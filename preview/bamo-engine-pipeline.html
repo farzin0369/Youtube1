@@ -76,8 +76,24 @@ float sceneSDF(vec3 p){
 }
 vec3 getNormal(vec3 p){vec2 e=vec2(.001,0);return normalize(vec3(sceneSDF(p+e.xyy)-sceneSDF(p-e.xyy),sceneSDF(p+e.yxy)-sceneSDF(p-e.yxy),sceneSDF(p+e.yyx)-sceneSDF(p-e.yyx)));}
 float march(vec3 ro,vec3 rd,out vec3 hit){
- float d=0.0;
- for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*d;float h=sceneSDF(p);if(h<SURF_DIST){hit=p;return d;}d+=h*.82;if(d>MAX_DIST)break;}
+ // Conservative scene-bound intersection skips background pixels before
+ // expensive SDF ray marching, especially important on CPU SwiftShader.
+ float b=dot(ro,rd);
+ float c=dot(ro,ro)-1.8*1.8;
+ float h=b*b-c;
+ if(h<0.0)return MAX_DIST;
+ float root=sqrt(h);
+ float nearT=max(0.0,-b-root);
+ float farT=-b+root;
+ if(farT<=nearT)return MAX_DIST;
+ float d=nearT;
+ for(int i=0;i<MAX_STEPS;i++){
+   if(d>farT)break;
+   vec3 p=ro+rd*d;
+   float dist=sceneSDF(p);
+   if(dist<SURF_DIST){hit=p;return d;}
+   d+=max(dist*.9,.002);
+ }
  return MAX_DIST;
 }
 void main(){
