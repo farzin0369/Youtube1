@@ -28,12 +28,12 @@ def _engine_path() -> Path:
     """Locate the pipeline HTML engine inside the repo."""
     candidates = [
         Path(__file__).resolve().parent.parent / "preview" / "bamo-engine-pipeline.html",
-        "app/html_motion_renderer.py",
+        Path.cwd() / "preview" / "bamo-engine-pipeline.html",
         Path("preview/bamo-engine-pipeline.html"),
     ]
     for p in candidates:
         if p.is_file():
-            return p
+            return p.resolve()
     raise FileNotFoundError("bamo-engine-pipeline.html not found")
 
 
