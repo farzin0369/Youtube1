@@ -121,14 +121,14 @@ def validate_render_package(
                 errors.append("shorts_ass_read_failed: " + type(exc).__name__)
         visual_source = str(render_meta.get("visual_source") or "")
         scene_match_ok = render_meta.get("scene_query_match") is True or (
-            visual_source == "bamo-cpu-3d-motion"
+            (visual_source in {"bamo-cpu-3d-motion", "bamo-html-canvas"})
             and render_meta.get("scene_visual_alignment_verified") is True
         )
         if not scene_match_ok:
             errors.append("shorts_scene_visual_queries_not_verified")
         publishable_stock = visual_source in {"pexels", "scene-matched-stills"}
         publishable_3d = (
-            visual_source == "bamo-cpu-3d-motion"
+            (visual_source in {"bamo-cpu-3d-motion", "bamo-html-canvas"})
             and render_meta.get("scene_visual_alignment_verified") is True
         )
         test_stills_are_allowed = (
