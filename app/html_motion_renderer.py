@@ -1,4 +1,4 @@
-"""HTML Canvas motion renderer for BAMO (Path B).
+"""WebGL 3D motion renderer for BAMO (HTML/WebGL engine).
 
 Uses Playwright to drive the intelligent HTML engine and capture frames,
 then assembles a silent MP4 that the production renderer can mix with TTS + music.
@@ -47,7 +47,7 @@ def render_html_project(
 ) -> Path:
     """
     Render a BAMO project (scenes with duration + text + narration) to a silent MP4
-    using the HTML canvas engine via Playwright screenshots.
+    using the HTML/WebGL 3D engine via Playwright screenshots.
     """
     try:
         from playwright.sync_api import sync_playwright
@@ -88,7 +88,7 @@ def render_html_project(
             url = engine.as_uri() + f"?project={project_b64}"
             page.goto(url, wait_until="networkidle", timeout=30000)
 
-            page.wait_for_function("() => window.BAMO && window.BAMO.ready === true", timeout=10000)
+            page.wait_for_function("() => window.BAMO && window.BAMO.ready === true && window.BAMO.getState().renderer === 'WebGL'", timeout=15000)
 
             page.evaluate(
                 """(proj) => { window.BAMO.loadProject(proj); window.BAMO.play(); }""",
