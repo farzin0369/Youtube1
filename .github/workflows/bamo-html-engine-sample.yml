@@ -8,6 +8,9 @@ on:
       - "preview/bamo-engine-pipeline.html"
       - "scripts/render_html_engine_sample.py"
       - ".github/workflows/bamo-html-engine-sample.yml"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 permissions:
   contents: read
