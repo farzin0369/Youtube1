@@ -79,7 +79,7 @@ def render_html_project(
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, args=["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
             page = browser.new_page(
                 viewport={"width": width, "height": height},
                 device_scale_factor=1,
