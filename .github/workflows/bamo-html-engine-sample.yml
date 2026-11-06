@@ -1,0 +1,39 @@
+name: BAMO HTML Engine Sample
+on:
+  push:
+    branches:
+      - feat/bamo-html-only-engine-sample
+    paths:
+      - "app/html_motion_renderer.py"
+      - "preview/bamo-engine-pipeline.html"
+      - "scripts/render_html_engine_sample.py"
+      - ".github/workflows/bamo-html-engine-sample.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  render-html-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Render sample using HTML engine only
+        run: python scripts/render_html_engine_sample.py
+      - name: Upload MP4 sample
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-html-engine-sample
+          path: artifacts/bamo-html-engine-sample.mp4
+          if-no-files-found: error
+          retention-days: 14
