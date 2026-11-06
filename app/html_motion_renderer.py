@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 
@@ -95,7 +96,7 @@ def render_html_project(
                 device_scale_factor=render_scale,
             )
 
-            url = engine.as_uri() + f"?project={project_b64}"
+            url = engine.as_uri() + "?project=" + quote(project_b64, safe="")
             page_errors: list[str] = []
             page.on("pageerror", lambda exc: page_errors.append(str(exc)))
             page.goto(url, wait_until="networkidle", timeout=30000)
