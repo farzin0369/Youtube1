@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from app.bamo_director import enrich_project
 from app.bamo_motion_engine import render_project
 from app.bamo_scene_director import plan_scene
 from app.spiritual_video import (
@@ -30,6 +31,7 @@ def render_bamo_shorts(
 
     Prefers the intelligent HTML canvas engine (Path B) when Playwright is available.
     Falls back to the CPU 3D procedural engine otherwise.
+    Smart Director enriches every scene with mood, palette and motif.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -59,12 +61,18 @@ def render_bamo_shorts(
             "duration": duration,
             "text": overlay,
             "narration": narration,
+            "spoken_text": narration,
             "visual_prompt": visual_prompt,
+            "visual_query": visual_prompt,
+            "on_screen_text": overlay,
             "background": "",
             "accent": "",
         })
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
+    # Smart Director: mood + palette + motif for every scene
+    project = enrich_project(project)
+
     silent_path = out_dir / "bamo-silent.mp4"
 
     # ---- Path B: try intelligent HTML engine first ----
@@ -82,7 +90,6 @@ def render_bamo_shorts(
                 renderer_name = "BAMO HTML Canvas intelligent engine"
                 visual_source = "bamo-html-canvas"
         except Exception:
-            # Fall through to CPU 3D
             used_html = False
 
     if not used_html:
@@ -153,4 +160,6 @@ def render_bamo_shorts(
         "music_ducking": True,
         "renderer": renderer_name,
         "used_html_engine": used_html,
+        "smart_director": True,
+        "global_mood": project.get("globalMood"),
     }
