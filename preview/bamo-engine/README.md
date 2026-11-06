@@ -1,35 +1,54 @@
 # BAMO Motion Engine (Path B)
 
-موتور هوشمند تبدیل متن به موشن‌گرافی سینمایی — نسخه HTML + Playwright
+موتور هوشمند تبدیل متن به موشن‌گرافی سینمایی برای کارخانه محتوای BAMO
 
 ## ساختار
 
 ```
 preview/bamo-engine/
-├── director/          # مغز هوشمند
-│   ├── mood.js        # تشخیص حس و پالت
-│   ├── parser.js      # تجزیه متن فارسی/انگلیسی
-│   ├── timeline.js    # ساخت timeline
-│   └── index.js       # API: createProject(text)
-├── presets/           # سبک‌های آماده
+├── director/                 # مغز هوشمند (JS)
+│   ├── mood.js
+│   ├── parser.js
+│   ├── timeline.js
+│   └── index.js
+├── presets/
 │   ├── epic-golden.json
-│   └── spiritual-warm.json
+│   ├── spiritual-warm.json
+│   ├── dark-mystery.json
+│   ├── hopeful-growth.json
+│   └── cyberpunk-neon.json
 └── README.md
 
-preview/bamo-engine-pipeline.html   # موتور بصری اصلی (Canvas)
-app/html_motion_renderer.py         # پل Python → Playwright → MP4
+preview/bamo-engine-pipeline.html   # موتور بصری Canvas
+app/bamo_director.py                # Director پایتون (pipeline)
+app/bamo_procedural_audio.py        # موسیقی ambient بر اساس حس
+app/html_motion_renderer.py         # Playwright → MP4
+app/bamo_production_renderer.py     # اتصال به کارخانه روزانه
+scripts/bamo_engine_selftest.py     # تست سریع
 ```
 
-## نحوه کار در کارخانه
+## قابلیت‌های فعلی
 
-1. `spiritual_pipeline` سناریو و TTS را می‌سازد
-2. `bamo_production_renderer` پروژه صحنه را آماده می‌کند
-3. اگر `BAMO_PREFER_HTML_RENDERER=1` و Playwright موجود باشد:
-   - موتور HTML با افکت نور/ذرات/جرقه رندر می‌شود
-4. در غیر این صورت به موتور CPU 3D قبلی برمی‌گردد
-5. صدا + زیرنویس + موسیقی میکس و خروجی نهایی ساخته می‌شود
+- Smart Director: تشخیص حس (۸ حالت) + پالت + موتیف + دوربین
+- موتور Canvas: نور، ذرات، جرقه، bloom، film grain، transition، تایپوگرافی kinetic
+- موسیقی procedural متناسب با mood
+- اتصال کامل به pipeline روزانه Shorts
+- Fallback به موتور CPU 3D در صورت نبود Playwright
 
-## پیش‌نمایش محلی
+## تست سریع (بدون مرورگر)
+
+```bash
+python scripts/bamo_engine_selftest.py
+```
+
+## متغیرهای محیطی
+
+| متغیر | پیش‌فرض | معنی |
+|--------|---------|------|
+| `BAMO_PREFER_HTML_RENDERER` | `1` | استفاده از موتور HTML |
+| `BAMO_PROCEDURAL_AUDIO` | `1` | موسیقی ambient بر اساس حس |
+
+## پیش‌نمایش بصری
 
 فایل زیر را در مرورگر باز کنید:
 
@@ -37,30 +56,6 @@ app/html_motion_renderer.py         # پل Python → Playwright → MP4
 preview/bamo-engine-pipeline.html
 ```
 
-یا نسخه تعاملی کامل:
+## English
 
-```
-preview/bamo-engine.html
-```
-
-## Director API (آینده / Node)
-
-```js
-const { createProject } = require('./director');
-const project = createProject("گاهی فقط باید صبر کنی...");
-// project.scenes → آماده برای رندرر
-```
-
-## وضعیت فعلی
-
-- ✅ Smart Director (mood + parser + timeline)
-- ✅ موتور Canvas با نور، ذرات، جرقه، bloom
-- ✅ اتصال به pipeline تولید روزانه
-- ✅ Presetهای اولیه
-- ⏳ صدای procedural
-- ⏳ لایه Three.js اختیاری
-- ⏳ CLI یک‌فرمانه کامل
-
-## English summary
-
-Intelligent HTML/Canvas text-to-motion engine for BAMO automated Shorts factory. Smart Director analyzes Persian/English text, chooses mood, palette, camera and motif. Pipeline renderer uses Playwright to capture frames and FFmpeg to produce final MP4 with existing TTS + captions.
+Intelligent HTML/Canvas text-to-motion engine for the BAMO automated Shorts factory. Smart Director analyzes Persian/English text for mood, palette and motif. Pipeline uses Playwright frame capture + FFmpeg, with mood-driven procedural ambient audio and safe fallback to the CPU 3D engine.
