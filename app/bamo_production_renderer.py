@@ -1,6 +1,7 @@
-"""Production adapter for the approved CPU 3D motion-graphics engine."""
+"""Production adapter for BAMO motion engines (HTML Path B + CPU 3D fallback)."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -25,11 +26,15 @@ def render_bamo_shorts(
     scene_timings: list[dict[str, float]],
     hook_overlay: str,
 ) -> dict[str, Any]:
-    """Render four scene-locked procedural 3D scenes, Persian voice, captions and ducked ambience."""
+    """Render four scene-locked motion scenes, Persian voice, captions and ducked ambience.
+
+    Prefers the intelligent HTML canvas engine (Path B) when Playwright is available.
+    Falls back to the CPU 3D procedural engine otherwise.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if len(scenes) != 4 or len(scene_timings) != 4:
-        raise ValueError("BAMO 3D Shorts renderer requires exactly four narrated scenes and timings")
+        raise ValueError("BAMO Shorts renderer requires exactly four narrated scenes and timings")
 
     audio_duration = probe_duration(Path(audio_path))
     starts = [float(row["start_seconds"]) for row in scene_timings]
@@ -38,7 +43,7 @@ def render_bamo_shorts(
     boundaries = starts[1:] + [audio_duration]
     durations = [end - start for start, end in zip(starts, boundaries)]
     if any(duration < 0.5 for duration in durations):
-        raise ValueError("Each authored 3D scene must last at least 0.5 seconds")
+        raise ValueError("Each authored scene must last at least 0.5 seconds")
 
     render_scenes = []
     visual_plans = []
@@ -47,7 +52,7 @@ def render_bamo_shorts(
         visual_prompt = str(scene.get("visual_query") or "").strip()
         overlay = str(scene.get("on_screen_text") or "").strip()
         if not narration or not visual_prompt or not overlay:
-            raise ValueError("Each 3D scene needs narration, a specific visual query, and Persian overlay text")
+            raise ValueError("Each scene needs narration, a specific visual query, and Persian overlay text")
         plan = plan_scene(narration, visual_prompt)
         visual_plans.append(plan)
         render_scenes.append({
@@ -60,9 +65,30 @@ def render_bamo_shorts(
         })
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
-    silent_path = out_dir / "bamo-3d-silent.mp4"
-    render_project(project, silent_path, audio=None)
+    silent_path = out_dir / "bamo-silent.mp4"
 
+    # ---- Path B: try intelligent HTML engine first ----
+    used_html = False
+    renderer_name = "BAMO CPU 3D motion engine"
+    visual_source = "bamo-cpu-3d-motion"
+
+    prefer_html = os.getenv("BAMO_PREFER_HTML_RENDERER", "1").strip().lower() in {"1", "true", "yes"}
+    if prefer_html:
+        try:
+            from app.html_motion_renderer import is_html_renderer_available, render_html_project
+            if is_html_renderer_available():
+                render_html_project(project, silent_path, fps=24, width=720, height=1280)
+                used_html = True
+                renderer_name = "BAMO HTML Canvas intelligent engine"
+                visual_source = "bamo-html-canvas"
+        except Exception:
+            # Fall through to CPU 3D
+            used_html = False
+
+    if not used_html:
+        render_project(project, silent_path, audio=None)
+
+    # ---- Common post: captions, music, mix ----
     ass_path = _write_shorts_ass(
         Path(captions_path), out_dir / "captions-burned.ass",
         hook=hook_overlay, duration=audio_duration,
@@ -94,7 +120,7 @@ def render_bamo_shorts(
     ]
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=max(900, int(audio_duration * 18)))
     if not final_path.is_file() or final_path.stat().st_size < 100_000:
-        raise RuntimeError("Approved 3D renderer produced an empty final MP4")
+        raise RuntimeError("Renderer produced an empty final MP4")
 
     width, height = 720, 1280
     plans_grounded = all(plan.get("description") and plan.get("motif") and plan.get("motif") != "abstract" for plan in visual_plans)
@@ -106,7 +132,7 @@ def render_bamo_shorts(
         "burned_captions_path": str(ass_path),
         "duration_seconds": probe_duration(final_path),
         "audio_duration_seconds": probe_stream_duration(final_path, "a:0"),
-        "visual_source": "bamo-cpu-3d-motion",
+        "visual_source": visual_source,
         "contains_synthetic_visuals": True,
         "stock_clip_count": 0,
         "visual_scene_count": len(render_scenes),
@@ -125,5 +151,6 @@ def render_bamo_shorts(
         "scene_visual_plans": visual_plans,
         "test_visuals_only": False,
         "music_ducking": True,
-        "renderer": "BAMO CPU 3D motion engine",
+        "renderer": renderer_name,
+        "used_html_engine": used_html,
     }
