@@ -46,12 +46,12 @@ PROJECT = {
 }
 
 if __name__ == "__main__":
-    out = Path("artifacts/bamo-atom-structure-full-quality.mp4")
+    out = Path("artifacts/bamo-html-engine-sample.mp4")
     out.parent.mkdir(parents=True, exist_ok=True)
-    silent = out.with_name("bamo-atom-structure-silent.mp4")
+    silent = out.with_name("bamo-html-engine-silent.mp4")
     render_html_project(PROJECT, silent, fps=24, width=720, height=1280)
     narration = "در مرکز هر اتم، هسته‌ای بسیار کوچک و فشرده قرار دارد. این هسته از پروتون‌ها و نوترون‌ها ساخته شده؛ ذراتی که کنار هم نگه داشته می‌شوند. الکترون‌ها در ناحیه‌ای پیرامون هسته حضور دارند؛ اما مثل سیاره‌ها روی مدار ثابت نمی‌چرخند. در مدل کوانتومی، ابر احتمال نشان می‌دهد الکترون را در کدام ناحیه‌ها محتمل‌تر است پیدا کنیم."
-    voice = out.with_name("bamo-atom-structure-narration.mp3")
+    voice = out.with_name("bamo-html-engine-narration.mp3")
 
     async def make_voice():
         communicate = edge_tts.Communicate(narration, "fa-IR-FaridNeural", rate="+0%", volume="+0%")
