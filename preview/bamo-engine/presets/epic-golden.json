@@ -1,0 +1,19 @@
+{
+  "id": "epic-golden",
+  "name": "Epic Golden",
+  "name_fa": "حماسی طلایی",
+  "mood": "epic",
+  "palette": {
+    "bg": "#0a0a12",
+    "primary": "#fbbf24",
+    "secondary": "#f472b6",
+    "accent": "#38bdf8",
+    "particle": "rgba(251,191,36,0.6)",
+    "glow": "rgba(251,191,36,0.28)"
+  },
+  "camera": { "type": "orbit", "intensity": 0.7 },
+  "particles": { "density": 0.8, "type": "golden" },
+  "light": { "rays": 0.9, "bloom": 0.85 },
+  "transition": "light-leak",
+  "audio": { "pad": "cinematic", "tempo": 0.9 }
+}
