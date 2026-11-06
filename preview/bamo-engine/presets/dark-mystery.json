@@ -1,0 +1,19 @@
+{
+  "id": "dark-mystery",
+  "name": "Dark Mystery",
+  "name_fa": "راز تاریک",
+  "mood": "mysterious",
+  "palette": {
+    "bg": "#0b0c15",
+    "primary": "#818cf8",
+    "secondary": "#c084fc",
+    "accent": "#22d3ee",
+    "particle": "rgba(129,140,248,0.45)",
+    "glow": "rgba(129,140,248,0.22)"
+  },
+  "camera": { "type": "parallax", "intensity": 0.5 },
+  "particles": { "density": 0.55, "type": "stars" },
+  "light": { "rays": 0.4, "bloom": 0.6 },
+  "transition": "particle-dissolve",
+  "audio": { "pad": "dark", "tempo": 0.55 }
+}
