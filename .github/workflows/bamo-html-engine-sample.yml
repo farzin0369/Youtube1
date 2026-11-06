@@ -1,17 +1,9 @@
 name: BAMO HTML Engine Sample
 on:
-  push:
-    branches:
-      - feat/bamo-html-only-engine-sample
-    paths:
-      - "app/html_motion_renderer.py"
-      - "preview/bamo-engine-pipeline.html"
-      - "scripts/render_html_engine_sample.py"
-      - ".github/workflows/bamo-html-engine-sample.yml"
+  workflow_dispatch:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
 permissions:
   contents: read
   actions: read
@@ -32,7 +24,7 @@ jobs:
           python -m pip install playwright edge-tts
           python -m playwright install --with-deps chromium
       - name: Render sample using HTML engine only
-        run: python scripts/render_html_engine_sample.py
+        run: PYTHONPATH=. python scripts/render_html_engine_sample.py
       - name: Upload MP4 sample
         uses: actions/upload-artifact@v4
         with:
