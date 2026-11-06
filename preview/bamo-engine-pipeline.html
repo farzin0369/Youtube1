@@ -1,346 +1,163 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BAMO Pipeline Engine</title>
-  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #05070d; }
-    canvas { display: block; width: 100%; height: 100%; }
-    #caption {
-      position: fixed; bottom: 8%; left: 6%; right: 6%;
-      text-align: center; color: white; font-family: 'Vazirmatn', sans-serif;
-      font-size: clamp(24px, 4.5vw, 40px); font-weight: 700;
-      letter-spacing: -0.01em;
-      text-shadow: 0 2px 20px rgba(0,0,0,0.9), 0 0 48px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08);
-      line-height: 1.4; pointer-events: none; z-index: 10;
-      transition: opacity 0.35s ease, transform 0.4s ease;
-      transform-origin: center bottom;
-    }
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BAMO WebGL Motion Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#030611}
+#c{display:block;width:100%;height:100%}
+#caption{position:fixed;bottom:8%;left:6%;right:6%;text-align:center;color:#fff;font-family:'Vazirmatn',sans-serif;font-size:clamp(24px,4.5vw,40px);font-weight:700;line-height:1.45;text-shadow:0 2px 20px #000,0 0 48px #0008;pointer-events:none;z-index:5;transition:opacity .2s ease,transform .25s ease}
+#error{position:fixed;inset:0;display:none;place-items:center;padding:32px;color:#fff;background:#160b12;font:20px sans-serif;text-align:center;z-index:20}
+</style>
 </head>
 <body>
-  <canvas id="c"></canvas>
-  <div id="caption"></div>
-  <script>
-    const canvas = document.getElementById('c');
-    const ctx = canvas.getContext('2d');
-    const captionEl = document.getElementById('caption');
-    let W, H, dpr, project = null, sceneIndex = 0, sceneTime = 0, globalTime = 0, playing = false, lastNow = 0, currentPalette = null;
-    let particles = [], lightRays = [], sparks = [];
-
-    window.BAMO = {
-      loadProject(p) { project = p; sceneIndex = 0; sceneTime = 0; globalTime = 0; initParticles(); initLightRays(); initSparks(); currentPalette = choosePalette(project.scenes[0] || {}); resize(); draw(); return true; },
-      play() { playing = true; lastNow = performance.now(); },
-      pause() { playing = false; },
-      seek(seconds) { let acc = 0; for (let i = 0; i < project.scenes.length; i++) { const d = project.scenes[i].duration; if (acc + d > seconds) { sceneIndex = i; sceneTime = seconds - acc; break; } acc += d; } draw(); },
-      getState() { return { sceneIndex, sceneTime, globalTime, totalDuration: totalDuration(), playing }; },
-      ready: false
-    };
-
-    function totalDuration() { return project ? project.scenes.reduce((s, sc) => s + sc.duration, 0) : 0; }
-    function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = 720; H = 1280; canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.width = '100%'; canvas.style.height = '100%'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
-
-    function choosePalette(scene) {
-      if (scene.palette && scene.palette.bg) return scene.palette;
-      const text = ((scene.narration || '') + ' ' + (scene.visual_prompt || '') + ' ' + (scene.text || '')).toLowerCase();
-      if (/صبر|آرامش|سکوت|آرام|صلح|calm|peaceful|gentle/.test(text))
-        return { bg: '#0c0a09', primary: '#f5d0a9', secondary: '#a78bfa', accent: '#67e8f9', particle: 'rgba(245,208,169,0.5)', glow: 'rgba(245,208,169,0.2)' };
-      if (/حماسی|قهرمان|پیروزی|قدرت|epic|hero|victory|glory/.test(text))
-        return { bg: '#0a0a12', primary: '#fbbf24', secondary: '#f472b6', accent: '#38bdf8', particle: 'rgba(251,191,36,0.6)', glow: 'rgba(251,191,36,0.28)' };
-      if (/رمز|مرموز|تاریک|راز|mystery|dark|secret|shadow/.test(text))
-        return { bg: '#0b0c15', primary: '#818cf8', secondary: '#c084fc', accent: '#22d3ee', particle: 'rgba(129,140,248,0.45)', glow: 'rgba(129,140,248,0.22)' };
-      if (/انرژی|سریع|هیجان|energy|fast|excited|dynamic/.test(text))
-        return { bg: '#0f172a', primary: '#22d3ee', secondary: '#f472b6', accent: '#a3e635', particle: 'rgba(34,211,238,0.55)', glow: 'rgba(34,211,238,0.25)' };
-      if (/غم|اندوه|تنهایی|sad|grief|lonely|tear/.test(text))
-        return { bg: '#0c1220', primary: '#94a3b8', secondary: '#64748b', accent: '#7dd3fc', particle: 'rgba(148,163,184,0.35)', glow: 'rgba(125,211,252,0.15)' };
-      if (/آینده|فناوری|سایبر|neon|future|cyber|space|tech/.test(text))
-        return { bg: '#020617', primary: '#22d3ee', secondary: '#a78bfa', accent: '#e879f9', particle: 'rgba(34,211,238,0.5)', glow: 'rgba(167,139,250,0.25)' };
-      if (/امید|رشد|پیشرفت|نور|طلوع|hope|growth|light|dawn/.test(text))
-        return { bg: '#052e16', primary: '#4ade80', secondary: '#2dd4bf', accent: '#facc15', particle: 'rgba(74,222,128,0.5)', glow: 'rgba(74,222,128,0.22)' };
-      return { bg: '#0c0a09', primary: '#fbbf24', secondary: '#f472b6', accent: '#38bdf8', particle: 'rgba(251,191,36,0.55)', glow: 'rgba(251,191,36,0.25)' };
-    }
-
-    function initParticles() { particles = Array.from({length: 90}, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 2.2 + 0.4, speed: Math.random() * 0.0005 + 0.00012, phase: Math.random() * Math.PI * 2, drift: (Math.random() - 0.5) * 0.3 })); }
-    function initLightRays() { lightRays = Array.from({length: 7}, (_, i) => ({ angle: (i / 7) * Math.PI * 2, width: 0.04 + Math.random() * 0.06, length: 0.55 + Math.random() * 0.35, speed: 0.08 + Math.random() * 0.12, alpha: 0.04 + Math.random() * 0.06 })); }
-    function initSparks() { sparks = Array.from({length: 18}, () => ({ x: 0.3 + Math.random() * 0.4, y: 0.25 + Math.random() * 0.4, vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15, life: Math.random(), maxLife: 0.8 + Math.random() * 1.4, r: 1 + Math.random() * 2.5 })); }
-
-    function analyzeScene(scene) {
-      if (scene.motif) return scene.motif;
-      const t = ((scene.narration || '') + ' ' + (scene.visual_prompt || '')).toLowerCase();
-      if (/بیضی|کانون|ellipse|focus/.test(t)) return 'ellipse';
-      if (/موج|تداخل|wave|phase/.test(t)) return 'wave';
-      if (/مسیر|قدم|راه|path|step|journey/.test(t)) return 'path';
-      if (/نور|طلوع|light|dawn|hope|glow/.test(t)) return 'light';
-      if (/انتخاب|دو راه|choice|decision/.test(t)) return 'choice';
-      if (/ستاره|فضا|کیهان|cosmic|star|galaxy/.test(t)) return 'cosmic';
-      if (/رشد|درخت|growth|tree/.test(t)) return 'growth';
-      return 'abstract';
-    }
-
-    function shade(hex, factor) {
-      const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
-      return 'rgb(' + Math.round(r*factor) + ',' + Math.round(g*factor) + ',' + Math.round(b*factor) + ')';
-    }
-
-    function drawBackground(pal, t) {
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, pal.bg); g.addColorStop(0.55, shade(pal.bg, 0.85)); g.addColorStop(1, shade(pal.bg, 0.55));
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      const topGlow = ctx.createRadialGradient(W/2, 0, 0, W/2, 0, H*0.55);
-      topGlow.addColorStop(0, pal.glow || 'rgba(255,255,255,0.1)'); topGlow.addColorStop(1, 'transparent');
-      ctx.fillStyle = topGlow; ctx.fillRect(0, 0, W, H);
-      const bloom = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, H*0.45);
-      bloom.addColorStop(0, (pal.glow || 'rgba(255,255,255,0.1)').replace(/[\d.]+\)$/, '0.12)')); bloom.addColorStop(1, 'transparent');
-      ctx.fillStyle = bloom; ctx.fillRect(0, 0, W, H);
-      const vg = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.72);
-      vg.addColorStop(0, 'transparent'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
-    }
-
-    function drawLightRays(pal, t) {
-      const cx = W/2, cy = H*0.38;
-      lightRays.forEach((ray, i) => {
-        const ang = ray.angle + t * ray.speed * 0.15;
-        const len = ray.length * Math.min(W, H);
-        const alpha = ray.alpha * (0.7 + 0.3 * Math.sin(t * 0.8 + i));
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
-        const grd = ctx.createLinearGradient(0, 0, len, 0);
-        grd.addColorStop(0, pal.primary + Math.round(alpha * 255).toString(16).padStart(2, '0'));
-        grd.addColorStop(0.4, pal.primary + '15'); grd.addColorStop(1, 'transparent');
-        ctx.fillStyle = grd;
-        ctx.beginPath(); ctx.moveTo(0, -ray.width * 40); ctx.lineTo(len, -ray.width * 120); ctx.lineTo(len, ray.width * 120); ctx.lineTo(0, ray.width * 40); ctx.closePath(); ctx.fill();
-        ctx.restore();
-      });
-    }
-
-    function drawParticles(pal, t) {
-      particles.forEach(p => {
-        p.phase += p.speed * 16;
-        const px = p.x * W + Math.sin(p.phase) * 22 + p.drift * 30;
-        const py = p.y * H + Math.cos(p.phase * 0.7) * 16;
-        const pulse = 0.45 + 0.55 * Math.sin(p.phase * 1.3);
-        ctx.beginPath(); ctx.arc(px, py, Math.max(0.1, p.r * pulse), 0, Math.PI*2);
-        ctx.fillStyle = pal.particle; ctx.globalAlpha = 0.25 + pulse * 0.4; ctx.fill();
-        if (p.r > 1.4) {
-          const gg = ctx.createRadialGradient(px, py, 0, px, py, p.r * 4);
-          gg.addColorStop(0, (pal.particle || 'rgba(255,255,255,0.3)').replace(/[\d.]+\)$/, '0.18)')); gg.addColorStop(1, 'transparent');
-          ctx.fillStyle = gg; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.arc(px, py, p.r * 4, 0, Math.PI*2); ctx.fill();
-        }
-      });
-      ctx.globalAlpha = 1;
-    }
-
-    function drawSparks(pal, t) {
-      sparks.forEach(s => {
-        s.life += 0.016;
-        if (s.life > s.maxLife) { s.life = 0; s.x = 0.25 + Math.random() * 0.5; s.y = 0.2 + Math.random() * 0.45; s.vx = (Math.random() - 0.5) * 0.18; s.vy = (Math.random() - 0.5) * 0.18; }
-        const progress = s.life / s.maxLife;
-        const alpha = progress < 0.2 ? progress * 5 : (1 - progress);
-        const px = (s.x + s.vx * s.life) * W;
-        const py = (s.y + s.vy * s.life) * H;
-        ctx.beginPath(); ctx.arc(px, py, Math.max(0.1, s.r * (1 - progress * 0.5)), 0, Math.PI*2);
-        ctx.fillStyle = pal.accent || '#fff'; ctx.globalAlpha = alpha * 0.7; ctx.fill();
-        ctx.beginPath(); ctx.arc(px - s.vx * 20, py - s.vy * 20, Math.max(0.1, s.r * 0.4), 0, Math.PI*2);
-        ctx.globalAlpha = alpha * 0.3; ctx.fill();
-      });
-      ctx.globalAlpha = 1;
-    }
-
-    function drawEllipse(pal, t) {
-      const cx = W/2, cy = H*0.42; const a = Math.min(W, H) * 0.28; const b = a * 0.58; const c = Math.sqrt(Math.max(0, a*a - b*b));
-      const eg = ctx.createRadialGradient(cx, cy, 0, cx, cy, a * 1.4);
-      eg.addColorStop(0, pal.glow || 'rgba(255,255,255,0.15)'); eg.addColorStop(1, 'transparent');
-      ctx.fillStyle = eg; ctx.beginPath(); ctx.ellipse(cx, cy, a*1.3, b*1.3, 0, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(cx, cy, a, b, 0, 0, Math.PI*2);
-      ctx.strokeStyle = 'rgba(200,210,230,0.55)'; ctx.lineWidth = 3; ctx.stroke();
-      [cx - c, cx + c].forEach(fx => {
-        const gg = ctx.createRadialGradient(fx, cy, 0, fx, cy, 28);
-        gg.addColorStop(0, pal.primary + '70'); gg.addColorStop(1, 'transparent');
-        ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(fx, cy, 28, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = pal.primary; ctx.beginPath(); ctx.arc(fx, cy, 7, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.arc(fx - 2, cy - 2, 2.5, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-      });
-      const ang = t * 0.9; const px = cx + a * Math.cos(ang); const py = cy + b * Math.sin(ang);
-      ctx.setLineDash([6, 5]); ctx.strokeStyle = (pal.secondary || '#aaa') + 'bb'; ctx.lineWidth = 2.2;
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx - c, cy); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(cx + c, cy); ctx.stroke(); ctx.setLineDash([]);
-      const pg = ctx.createRadialGradient(px, py, 0, px, py, 18);
-      pg.addColorStop(0, (pal.secondary || '#fff') + '88'); pg.addColorStop(1, 'transparent');
-      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI*2); ctx.fill();
-    }
-
-    function drawWave(pal, t, progress) {
-      const mid = H * 0.4; const A = 44; const k = 0.015;
-      const phaseDiff = progress < 0.45 ? 0 : Math.min(Math.PI, (progress - 0.45) * 2.2 * Math.PI);
-      function yOf(x, phase) { return mid + A * Math.sin(k * x - t * 2.8 + phase); }
-      ctx.beginPath();
-      for (let x = 0; x <= W; x += 6) { const y = mid + A * Math.sin(k*x - t*2.8) + A * Math.sin(k*x - t*2.8 + phaseDiff); x === 0 ? ctx.moveTo(x, y + 20) : ctx.lineTo(x, y + 20); }
-      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
-      const ug = ctx.createLinearGradient(0, mid, 0, mid + 120); ug.addColorStop(0, pal.glow || 'rgba(255,255,255,0.1)'); ug.addColorStop(1, 'transparent');
-      ctx.fillStyle = ug; ctx.fill();
-      ctx.beginPath(); for (let x = 0; x <= W; x += 3) { const y = yOf(x, 0); x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
-      ctx.strokeStyle = pal.primary + 'cc'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.beginPath(); for (let x = 0; x <= W; x += 3) { const y = yOf(x, phaseDiff); x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
-      ctx.strokeStyle = (pal.secondary || '#aaa') + 'cc'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.beginPath();
-      for (let x = 0; x <= W; x += 3) { const y = mid + A * Math.sin(k*x - t*2.8) + A * Math.sin(k*x - t*2.8 + phaseDiff); x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
-      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 4.5; ctx.shadowColor = pal.primary; ctx.shadowBlur = 18; ctx.stroke(); ctx.shadowBlur = 0;
-    }
-
-    function drawPath(pal, t) {
-      const cx = W/2, cy = H*0.48;
-      ctx.strokeStyle = pal.primary + '40'; ctx.lineWidth = 14; ctx.lineCap = 'round';
-      ctx.beginPath(); for (let i = 0; i <= 40; i++) { const u = i / 40; const x = cx + Math.sin(u * Math.PI * 1.5 + t * 0.6) * 90 * u; const y = cy - 180 + u * 320; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
-      ctx.strokeStyle = pal.primary + 'ee'; ctx.lineWidth = 5;
-      ctx.beginPath(); for (let i = 0; i <= 40; i++) { const u = i / 40; const x = cx + Math.sin(u * Math.PI * 1.5 + t * 0.6) * 90 * u; const y = cy - 180 + u * 320; i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke();
-      for (let i = 0; i < 5; i++) {
-        const u = (i + 0.5) / 5; const x = cx + Math.sin(u * Math.PI * 1.5 + t * 0.6) * 90 * u; const y = cy - 180 + u * 320;
-        const pulse = 0.75 + 0.25 * Math.sin(t * 2.2 + i);
-        const gg = ctx.createRadialGradient(x, y, 0, x, y, 16); gg.addColorStop(0, pal.primary + '99'); gg.addColorStop(1, 'transparent');
-        ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, 16 * pulse), 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-      }
-    }
-
-    function drawLight(pal, t) {
-      const cx = W/2, cy = H*0.38;
-      for (let i = 6; i >= 0; i--) {
-        const r = 35 + i * 42 + Math.sin(t * 1.4 + i) * 10;
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        g.addColorStop(0, pal.primary + (50 - i * 6).toString(16).padStart(2, '0'));
-        g.addColorStop(0.6, pal.primary + '10'); g.addColorStop(1, 'transparent');
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-      }
-      ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-    }
-
-    function drawChoice(pal, t) {
-      const cx = W/2, cy = H*0.5;
-      for (const side of [-1, 1]) {
-        ctx.strokeStyle = (side === 1 ? pal.primary : (pal.secondary || '#888')) + '35'; ctx.lineWidth = 16;
-        ctx.beginPath(); ctx.moveTo(cx, cy + 120); ctx.quadraticCurveTo(cx + side * 140, cy, cx + side * 160, cy - 160); ctx.stroke();
-        ctx.strokeStyle = side === 1 ? pal.primary : (pal.secondary || '#888') + 'bb'; ctx.lineWidth = side === 1 ? 5 : 3.5;
-        ctx.beginPath(); ctx.moveTo(cx, cy + 120); ctx.quadraticCurveTo(cx + side * 140, cy, cx + side * 160, cy - 160); ctx.stroke();
-      }
-    }
-
-    function drawAbstract(pal, t) {
-      for (let i = 0; i < 7; i++) {
-        const x = W * (0.18 + 0.11 * i) + Math.sin(t * 0.75 + i) * 24;
-        const y = H * 0.38 + Math.cos(t * 0.55 + i * 0.8) * 50;
-        const r = 28 + i * 11;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, (i % 2 ? pal.primary : (pal.secondary || '#888')) + '55'); g.addColorStop(1, 'transparent');
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-      }
-    }
-
-    function drawFilmGrain(t) {
-      ctx.save();
-      ctx.globalAlpha = 0.045;
-      for (let i = 0; i < 120; i++) {
-        const x = (Math.sin(t * 12.3 + i * 7.1) * 0.5 + 0.5) * W;
-        const y = (Math.cos(t * 9.7 + i * 5.3) * 0.5 + 0.5) * H;
-        const s = 1 + (i % 3);
-        ctx.fillStyle = (i % 2) ? '#fff' : '#000';
-        ctx.fillRect(x, y, s, s);
-      }
-      ctx.restore();
-    }
-
-    function drawTransitionOverlay(progress, pal) {
-      const edge = 0.12;
-      let a = 0;
-      if (progress < edge) a = 1 - progress / edge;
-      else if (progress > 1 - edge) a = (progress - (1 - edge)) / edge;
-      if (a <= 0.001) return;
-      const g = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, H*0.7);
-      g.addColorStop(0, (pal.primary || '#fff') + Math.round(a * 40).toString(16).padStart(2, '0'));
-      g.addColorStop(0.5, 'rgba(0,0,0,' + (a * 0.35).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(0,0,0,' + (a * 0.7).toFixed(3) + ')');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-    }
-
-    function draw() {
-      if (!project || !project.scenes.length) return;
-      const scene = project.scenes[sceneIndex];
-      const progress = Math.min(1, sceneTime / Math.max(0.01, scene.duration));
-      currentPalette = choosePalette(scene);
-
-      const driftX = Math.sin(globalTime * 0.15) * 6;
-      const driftY = Math.cos(globalTime * 0.11) * 4;
-      ctx.save();
-      ctx.translate(driftX, driftY);
-
-      drawBackground(currentPalette, globalTime);
-      drawLightRays(currentPalette, globalTime);
-      drawParticles(currentPalette, globalTime);
-      drawSparks(currentPalette, globalTime);
-
-      const kind = analyzeScene(scene);
-      if (kind === 'ellipse') drawEllipse(currentPalette, sceneTime);
-      else if (kind === 'wave') drawWave(currentPalette, sceneTime, progress);
-      else if (kind === 'path') drawPath(currentPalette, sceneTime);
-      else if (kind === 'light') drawLight(currentPalette, sceneTime);
-      else if (kind === 'choice') drawChoice(currentPalette, sceneTime);
-      else drawAbstract(currentPalette, sceneTime);
-
-      ctx.restore();
-
-      drawTransitionOverlay(progress, currentPalette);
-      drawFilmGrain(globalTime);
-
-      captionEl.textContent = scene.text || '';
-      let capOp = 1;
-      let capScale = 1;
-      if (progress < 0.1) {
-        capOp = progress / 0.1;
-        capScale = 0.92 + progress * 0.8;
-      } else if (progress > 0.88) {
-        capOp = Math.max(0, (1 - progress) / 0.12);
-        capScale = 1 - (progress - 0.88) * 0.3;
-      }
-      captionEl.style.opacity = String(Math.max(0, Math.min(1, capOp)));
-      captionEl.style.transform = 'scale(' + capScale.toFixed(3) + ')';
-    }
-
-    function loop(now) {
-      if (!lastNow) lastNow = now;
-      const dt = (now - lastNow) / 1000;
-      lastNow = now;
-      if (playing && project) {
-        sceneTime += dt;
-        globalTime += dt;
-        const scene = project.scenes[sceneIndex];
-        if (sceneTime >= scene.duration) {
-          sceneTime = 0;
-          sceneIndex++;
-          if (sceneIndex >= project.scenes.length) {
-            playing = false;
-            sceneIndex = project.scenes.length - 1;
-            sceneTime = project.scenes[sceneIndex].duration;
-          }
-        }
-        draw();
-      }
-      requestAnimationFrame(loop);
-    }
-
-    resize();
-    window.addEventListener('resize', resize);
-    try {
-      const params = new URLSearchParams(location.search);
-      if (params.get('project')) window.BAMO.loadProject(JSON.parse(atob(params.get('project'))));
-    } catch (e) {}
-    if (window.BAMO_PROJECT) window.BAMO.loadProject(window.BAMO_PROJECT);
-    window.BAMO.ready = true;
-    requestAnimationFrame(loop);
-    setTimeout(function() { if (project) window.BAMO.play(); }, 300);
-  </script>
-</body>
-</html>
+<canvas id="c"></canvas><div id="caption"></div><div id="error"></div>
+<script>
+(() => {
+"use strict";
+const canvas=document.getElementById("c"),caption=document.getElementById("caption"),errorBox=document.getElementById("error");
+const gl=canvas.getContext("webgl2",{alpha:false,antialias:true,preserveDrawingBuffer:true})||canvas.getContext("webgl",{alpha:false,antialias:true,preserveDrawingBuffer:true});
+let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer;
+let currentPalette={bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};
+const vertex=`
+attribute vec2 a_position;
+void main(){gl_Position=vec4(a_position,0.0,1.0);}
+`;
+const fragment=`
+precision highp float;
+uniform vec2 u_resolution;
+uniform float u_time,u_progress,u_kind;
+uniform vec3 u_primary,u_secondary,u_accent,u_bg;
+#define MAX_STEPS 92
+#define MAX_DIST 36.0
+#define SURF_DIST 0.0015
+mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
+float sdSphere(vec3 p,float r){return length(p)-r;}
+float sdTorus(vec3 p,vec2 t){vec2 q=vec2(length(p.xz)-t.x,p.y);return length(q)-t.y;}
+float sdBox(vec3 p,vec3 b){vec3 q=abs(p)-b;return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0);}
+float sdCapsule(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0);return length(pa-ba*h)-r;}
+float sceneSDF(vec3 p){
+ float t=u_time;
+ p.xz=rot(0.12*sin(t*.22))*p.xz;
+ p.xy=rot(.10*cos(t*.19))*p.xy;
+ if(u_kind<.5){
+   float ring=sdTorus(p,vec2(1.08,.055));
+   float core=sdSphere(p, .37+.06*sin(t*1.8));
+   float orbit=sdSphere(p-vec3(1.08*cos(t*1.1),.0,1.08*sin(t*1.1)),.105);
+   return min(min(ring,core),orbit);
+ }else if(u_kind<1.5){
+   float wave=abs(p.y-(.30*sin(p.x*3.2-t*2.2)+.18*sin(p.x*5.1+t*1.4)))-.035;
+   float slab=max(wave,abs(p.z)-.11);
+   float wave2=abs(p.y-(.30*sin(p.x*3.2-t*2.2+u_progress*3.14159)+.18*sin(p.x*5.1+t*1.4))+.43)-.035;
+   float slab2=max(wave2,abs(p.z)-.11);
+   float sum=min(slab,slab2);
+   return min(sum,sdSphere(p-vec3(0,-.1,0),.13));
+ }else if(u_kind<2.5){
+   float road=sdCapsule(p,vec3(-.75,-.8,0),vec3(-.25,.0,0),.075);
+   road=min(road,sdCapsule(p,vec3(-.25,0,0),vec3(.5,.65,0),.075));
+   road=min(road,sdCapsule(p,vec3(.5,.65,0),vec3(.85,.95,0),.075));
+   float bead=sdSphere(p-vec3(.5+.30*sin(t*.9),.65+.30*sin(t*.9),0),.14);
+   return min(road,bead);
+ }else if(u_kind<3.5){
+   float orb=sdSphere(p, .68+.08*sin(t*1.5));
+   float halo=sdTorus(p,vec2(1.02,.035));
+   return min(orb,halo);
+ }else if(u_kind<4.5){
+   float left=sdCapsule(p,vec3(0,-.8,0),vec3(-.72,.62,0),.055);
+   float right=sdCapsule(p,vec3(0,-.8,0),vec3(.72,.62,0),.055);
+   return min(left,right);
+ }else{
+   float a=sdTorus(p,vec2(.75,.06));
+   float b=sdTorus(p,vec2(.48,.045));
+   p.xy=rot(1.05)*p.xy;
+   return min(min(a,b),sdSphere(p,.22));
+ }
+}
+vec3 getNormal(vec3 p){vec2 e=vec2(.001,0);return normalize(vec3(sceneSDF(p+e.xyy)-sceneSDF(p-e.xyy),sceneSDF(p+e.yxy)-sceneSDF(p-e.yxy),sceneSDF(p+e.yyx)-sceneSDF(p-e.yyx)));}
+float march(vec3 ro,vec3 rd,out vec3 hit){
+ float d=0.0;
+ for(int i=0;i<MAX_STEPS;i++){vec3 p=ro+rd*d;float h=sceneSDF(p);if(h<SURF_DIST){hit=p;return d;}d+=h*.82;if(d>MAX_DIST)break;}
+ return MAX_DIST;
+}
+void main(){
+ vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/u_resolution.y;
+ float t=u_time;
+ vec3 ro=vec3(3.1*sin(t*.18),1.25+.16*sin(t*.27),4.2*cos(t*.18));
+ vec3 target=vec3(0,0,0);
+ vec3 ww=normalize(target-ro),uu=normalize(cross(ww,vec3(0,1,0))),vv=cross(uu,ww);
+ vec3 rd=normalize(uv.x*uu+uv.y*vv+1.75*ww);
+ vec3 hit;float d=march(ro,rd,hit);
+ vec3 col=u_bg;
+ float stars=0.0;
+ vec2 gv=fract(uv*vec2(95.,150.))-0.5;
+ vec2 id=floor(uv*vec2(95.,150.));
+ float rnd=fract(sin(dot(id,vec2(127.1,311.7)))*43758.5453);
+ stars=step(.994,rnd)*pow(max(0.,1.-length(gv)*2.),4.)*(.45+.55*sin(t*1.7+rnd*20.));
+ col+=vec3(.35,.55,.9)*stars;
+ float haze=exp(-length(uv-vec2(.0,.08)) * 3.0);
+ col+=u_primary*haze*.075;
+ if(d<MAX_DIST){
+   vec3 n=getNormal(hit);
+   vec3 lightDir=normalize(vec3(-.6,1.1,1.4));
+   float diff=max(dot(n,lightDir),0.0);
+   float fres=pow(1.0-max(dot(n,-rd),0.0),3.0);
+   float spec=pow(max(dot(reflect(-lightDir,n),-rd),0.0),48.0);
+   float bands=.5+.5*sin(hit.y*19.0+hit.x*8.0-t*2.0);
+   vec3 base=mix(u_primary,u_secondary,bands*.45+.25);
+   col=base*(.16+.92*diff)+u_accent*(.18*fres+spec*.8);
+   col+=u_primary*(.12/(.08+abs(sceneSDF(hit+ n*.035))));
+   float fog=1.0-exp(-d*.055);col=mix(col,u_bg,fog*.38);
+ }
+ float vignette=1.0-smoothstep(.35,1.25,length(uv));
+ col*=vignette;
+ col=col/(1.0+col);
+ col=pow(col,vec3(.88));
+ gl_FragColor=vec4(col,1.0);
+}
+`;
+function hex3(h){const x=(h||"#ffffff").replace("#","");return [parseInt(x.slice(0,2),16)/255,parseInt(x.slice(2,4),16)/255,parseInt(x.slice(4,6),16)/255];}
+function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+function initGL(){
+ if(!gl)throw new Error("WebGL در مرورگر فعال نیست؛ این موتور به WebGL نیاز دارد.");
+ program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);
+ if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
+ gl.useProgram(program);
+ buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+ const loc=gl.getAttribLocation(program,"a_position");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+ ["u_resolution","u_time","u_progress","u_kind","u_primary","u_secondary","u_accent","u_bg"].forEach(k=>uniforms[k]=gl.getUniformLocation(program,k));
+ gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+}
+function resize(){const dpr=Math.min(window.devicePixelRatio||1,1.5);W=720;H=1280;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);gl.viewport(0,0,canvas.width,canvas.height);}
+function choosePalette(s){if(s.palette&&s.palette.bg)return s.palette;const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/آرام|صلح|calm/.test(t))return{bg:"#0c0a09",primary:"#f5d0a9",secondary:"#a78bfa",accent:"#67e8f9"};if(/حماسی|قهرمان|epic/.test(t))return{bg:"#0a0a12",primary:"#fbbf24",secondary:"#f472b6",accent:"#38bdf8"};if(/راز|مرموز|mystery/.test(t))return{bg:"#0b0c15",primary:"#818cf8",secondary:"#c084fc",accent:"#22d3ee"};if(/موج|تداخل|wave/.test(t))return{bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};return{bg:"#07101d",primary:"#22d3ee",secondary:"#a78bfa",accent:"#fbbf24"};}
+function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
+function draw(){
+ if(!project||!project.scenes.length)return;
+ const s=project.scenes[sceneIndex];if(!s)return;
+ currentPalette=choosePalette(s);const p=currentPalette;
+ gl.useProgram(program);
+ gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
+ gl.uniform1f(uniforms.u_time,globalTime+sceneTime);
+ gl.uniform1f(uniforms.u_progress,Math.min(1,sceneTime/Math.max(.01,s.duration)));
+ gl.uniform1f(uniforms.u_kind,kindOf(s));
+ gl.uniform3fv(uniforms.u_primary,hex3(p.primary));gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));gl.uniform3fv(uniforms.u_accent,hex3(p.accent));gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
+ gl.drawArrays(gl.TRIANGLES,0,3);
+ caption.textContent=s.text||"";
+ const progress=Math.min(1,sceneTime/Math.max(.01,s.duration));
+ let opacity=1,scale=1;if(progress<.1){opacity=progress/.1;scale=.92+progress*.8;}else if(progress>.88){opacity=(1-progress)/.12;scale=1-(progress-.88)*.3;}
+ caption.style.opacity=String(Math.max(0,Math.min(1,opacity)));caption.style.transform="scale("+scale.toFixed(3)+")";
+}
+function totalDuration(){return project?project.scenes.reduce((a,s)=>a+Number(s.duration||4),0):0;}
+window.BAMO={
+ loadProject(p){if(!p||!Array.isArray(p.scenes)||!p.scenes.length)throw new Error("Project must contain scenes");project=p;sceneIndex=0;sceneTime=0;globalTime=0;draw();return true;},
+ play(){playing=true;lastNow=performance.now();},pause(){playing=false;},
+ seek(seconds){if(!project)return;let left=Math.max(0,seconds),acc=0;sceneIndex=project.scenes.length-1;sceneTime=Number(project.scenes[sceneIndex].duration||4);for(let i=0;i<project.scenes.length;i++){const d=Number(project.scenes[i].duration||4);if(left<acc+d||i===project.scenes.length-1){sceneIndex=i;sceneTime=Math.max(0,Math.min(d,left-acc));break;}acc+=d;}globalTime=seconds;draw();},
+ getState(){return{sceneIndex,sceneTime,globalTime,totalDuration:totalDuration(),playing,renderer:"WebGL"};},
+ ready:false
+};
+function loop(now){if(!lastNow)lastNow=now;const dt=Math.min(.05,(now-lastNow)/1000);lastNow=now;if(playing&&project){sceneTime+=dt;globalTime+=dt;const s=project.scenes[sceneIndex],d=Number(s.duration||4);if(sceneTime>=d){sceneTime-=d;sceneIndex++;if(sceneIndex>=project.scenes.length){sceneIndex=project.scenes.length-1;sceneTime=Number(project.scenes[sceneIndex].duration||4);playing=false;}}draw();}requestAnimationFrame(loop);}
+try{initGL();resize();window.addEventListener("resize",resize);const q=new URLSearchParams(location.search);if(q.get("project"))window.BAMO.loadProject(JSON.parse(atob(q.get("project"))));if(window.BAMO_PROJECT)window.BAMO.loadProject(window.BAMO_PROJECT);window.BAMO.ready=true;requestAnimationFrame(loop);setTimeout(()=>{if(project)window.BAMO.play();},300);}catch(e){errorBox.style.display="grid";errorBox.textContent="BAMO WebGL Engine Error: "+e.message;window.BAMO.ready=false;window.BAMO.error=String(e);}
+})();
+</script>
+</body></html>
