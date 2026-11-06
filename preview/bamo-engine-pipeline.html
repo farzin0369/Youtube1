@@ -10,12 +10,14 @@
     html, body { width: 100%; height: 100%; overflow: hidden; background: #05070d; }
     canvas { display: block; width: 100%; height: 100%; }
     #caption {
-      position: fixed; bottom: 8%; left: 5%; right: 5%;
+      position: fixed; bottom: 8%; left: 6%; right: 6%;
       text-align: center; color: white; font-family: 'Vazirmatn', sans-serif;
-      font-size: clamp(22px, 4.2vw, 38px); font-weight: 600;
-      text-shadow: 0 2px 16px rgba(0,0,0,0.85), 0 0 40px rgba(0,0,0,0.4);
-      line-height: 1.45; pointer-events: none; z-index: 10;
-      transition: opacity 0.3s;
+      font-size: clamp(24px, 4.5vw, 40px); font-weight: 700;
+      letter-spacing: -0.01em;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.9), 0 0 48px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08);
+      line-height: 1.4; pointer-events: none; z-index: 10;
+      transition: opacity 0.35s ease, transform 0.4s ease;
+      transform-origin: center bottom;
     }
   </style>
 </head>
@@ -78,7 +80,10 @@
       return 'abstract';
     }
 
-    function shade(hex, factor) { const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16); return `rgb(${Math.round(r*factor)},${Math.round(g*factor)},${Math.round(b*factor)})`; }
+    function shade(hex, factor) {
+      const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+      return 'rgb(' + Math.round(r*factor) + ',' + Math.round(g*factor) + ',' + Math.round(b*factor) + ')';
+    }
 
     function drawBackground(pal, t) {
       const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -234,15 +239,49 @@
       }
     }
 
+    function drawFilmGrain(t) {
+      ctx.save();
+      ctx.globalAlpha = 0.045;
+      for (let i = 0; i < 120; i++) {
+        const x = (Math.sin(t * 12.3 + i * 7.1) * 0.5 + 0.5) * W;
+        const y = (Math.cos(t * 9.7 + i * 5.3) * 0.5 + 0.5) * H;
+        const s = 1 + (i % 3);
+        ctx.fillStyle = (i % 2) ? '#fff' : '#000';
+        ctx.fillRect(x, y, s, s);
+      }
+      ctx.restore();
+    }
+
+    function drawTransitionOverlay(progress, pal) {
+      const edge = 0.12;
+      let a = 0;
+      if (progress < edge) a = 1 - progress / edge;
+      else if (progress > 1 - edge) a = (progress - (1 - edge)) / edge;
+      if (a <= 0.001) return;
+      const g = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, H*0.7);
+      g.addColorStop(0, (pal.primary || '#fff') + Math.round(a * 40).toString(16).padStart(2, '0'));
+      g.addColorStop(0.5, 'rgba(0,0,0,' + (a * 0.35).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,' + (a * 0.7).toFixed(3) + ')');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+
     function draw() {
       if (!project || !project.scenes.length) return;
       const scene = project.scenes[sceneIndex];
       const progress = Math.min(1, sceneTime / Math.max(0.01, scene.duration));
       currentPalette = choosePalette(scene);
+
+      const driftX = Math.sin(globalTime * 0.15) * 6;
+      const driftY = Math.cos(globalTime * 0.11) * 4;
+      ctx.save();
+      ctx.translate(driftX, driftY);
+
       drawBackground(currentPalette, globalTime);
       drawLightRays(currentPalette, globalTime);
       drawParticles(currentPalette, globalTime);
       drawSparks(currentPalette, globalTime);
+
       const kind = analyzeScene(scene);
       if (kind === 'ellipse') drawEllipse(currentPalette, sceneTime);
       else if (kind === 'wave') drawWave(currentPalette, sceneTime, progress);
@@ -250,31 +289,58 @@
       else if (kind === 'light') drawLight(currentPalette, sceneTime);
       else if (kind === 'choice') drawChoice(currentPalette, sceneTime);
       else drawAbstract(currentPalette, sceneTime);
+
+      ctx.restore();
+
+      drawTransitionOverlay(progress, currentPalette);
+      drawFilmGrain(globalTime);
+
       captionEl.textContent = scene.text || '';
-      captionEl.style.opacity = progress < 0.07 || progress > 0.93 ? Math.max(0.2, progress * 3) : 1;
+      let capOp = 1;
+      let capScale = 1;
+      if (progress < 0.1) {
+        capOp = progress / 0.1;
+        capScale = 0.92 + progress * 0.8;
+      } else if (progress > 0.88) {
+        capOp = Math.max(0, (1 - progress) / 0.12);
+        capScale = 1 - (progress - 0.88) * 0.3;
+      }
+      captionEl.style.opacity = String(Math.max(0, Math.min(1, capOp)));
+      captionEl.style.transform = 'scale(' + capScale.toFixed(3) + ')';
     }
 
     function loop(now) {
       if (!lastNow) lastNow = now;
-      const dt = (now - lastNow) / 1000; lastNow = now;
+      const dt = (now - lastNow) / 1000;
+      lastNow = now;
       if (playing && project) {
-        sceneTime += dt; globalTime += dt;
+        sceneTime += dt;
+        globalTime += dt;
         const scene = project.scenes[sceneIndex];
         if (sceneTime >= scene.duration) {
-          sceneTime = 0; sceneIndex++;
-          if (sceneIndex >= project.scenes.length) { playing = false; sceneIndex = project.scenes.length - 1; sceneTime = project.scenes[sceneIndex].duration; }
+          sceneTime = 0;
+          sceneIndex++;
+          if (sceneIndex >= project.scenes.length) {
+            playing = false;
+            sceneIndex = project.scenes.length - 1;
+            sceneTime = project.scenes[sceneIndex].duration;
+          }
         }
         draw();
       }
       requestAnimationFrame(loop);
     }
 
-    resize(); window.addEventListener('resize', resize);
-    try { const params = new URLSearchParams(location.search); if (params.get('project')) window.BAMO.loadProject(JSON.parse(atob(params.get('project')))); } catch (e) {}
+    resize();
+    window.addEventListener('resize', resize);
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get('project')) window.BAMO.loadProject(JSON.parse(atob(params.get('project'))));
+    } catch (e) {}
     if (window.BAMO_PROJECT) window.BAMO.loadProject(window.BAMO_PROJECT);
     window.BAMO.ready = true;
     requestAnimationFrame(loop);
-    setTimeout(() => { if (project) window.BAMO.play(); }, 300);
+    setTimeout(function() { if (project) window.BAMO.play(); }, 300);
   </script>
 </body>
 </html>
