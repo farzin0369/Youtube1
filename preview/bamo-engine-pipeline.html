@@ -138,7 +138,7 @@ function draw(){
  currentPalette=choosePalette(s);const p=currentPalette;
  gl.useProgram(program);
  gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
- gl.uniform1f(uniforms.u_time,globalTime+sceneTime);
+ gl.uniform1f(uniforms.u_time,globalTime);
  gl.uniform1f(uniforms.u_progress,Math.min(1,sceneTime/Math.max(.01,s.duration)));
  gl.uniform1f(uniforms.u_kind,kindOf(s));
  gl.uniform3fv(uniforms.u_primary,hex3(p.primary));gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));gl.uniform3fv(uniforms.u_accent,hex3(p.accent));gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
