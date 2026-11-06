@@ -1,5 +1,8 @@
 """Render a standalone four-scene Persian HTML-engine proof video."""
 from pathlib import Path
+import asyncio
+import subprocess
+import edge_tts
 from app.html_motion_renderer import render_html_project
 
 PROJECT = {
@@ -43,6 +46,20 @@ PROJECT = {
 
 if __name__ == "__main__":
     out = Path("artifacts/bamo-html-engine-sample.mp4")
-    render_html_project(PROJECT, out, fps=24, width=720, height=1280)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    silent = out.with_name("bamo-html-engine-silent.mp4")
+    render_html_project(PROJECT, silent, fps=24, width=720, height=1280)
+    narration = "وقتی دو موج به هم می‌رسند، چه اتفاقی می‌افتد؟ گاهی موج‌ها همدیگر را تقویت می‌کنند. و گاهی یکدیگر را خنثی می‌کنند. این همان تداخل سازنده و ویرانگر است."
+    voice = out.with_name("bamo-html-engine-narration.mp3")
+    async def make_voice():
+        communicate = edge_tts.Communicate(narration, "fa-IR-FaridNeural", rate="+0%", volume="+0%")
+        await communicate.save(str(voice))
+    asyncio.run(make_voice())
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(silent), "-i", str(voice),
+        "-filter_complex", "[1:a]apad,atrim=duration=16,asetpts=PTS-STARTPTS[a]",
+        "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac",
+        "-b:a", "160k", "-movflags", "+faststart", str(out)
+    ], check=True, capture_output=True, text=True)
     print(f"HTML_ENGINE_SAMPLE={out.resolve()}")
     print(f"SIZE_BYTES={out.stat().st_size}")
