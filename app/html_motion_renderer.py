@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -57,6 +58,15 @@ def render_html_project(
             "Install with: pip install playwright && playwright install chromium"
         ) from exc
 
+    # CI smoke runs may render at reduced device scale and frame rate while
+    # preserving the requested MP4 dimensions. Production defaults stay full quality.
+    render_scale = float(os.getenv("BAMO_RENDER_SCALE", "1.0"))
+    if not 0.1 <= render_scale <= 1.0:
+        raise ValueError("BAMO_RENDER_SCALE must be between 0.1 and 1.0")
+    fps = int(os.getenv("BAMO_RENDER_FPS", str(fps)))
+    if fps < 1 or fps > 60:
+        raise ValueError("BAMO_RENDER_FPS must be between 1 and 60")
+
     out = Path(output).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -82,7 +92,7 @@ def render_html_project(
             browser = p.chromium.launch(headless=True, args=["--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
             page = browser.new_page(
                 viewport={"width": width, "height": height},
-                device_scale_factor=1,
+                device_scale_factor=render_scale,
             )
 
             url = engine.as_uri() + f"?project={project_b64}"
