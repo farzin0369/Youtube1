@@ -32,6 +32,7 @@ def render_bamo_shorts(
     Prefers the intelligent HTML canvas engine (Path B) when Playwright is available.
     Falls back to the CPU 3D procedural engine otherwise.
     Smart Director enriches every scene with mood, palette and motif.
+    Optional mood-driven procedural ambient via BAMO_PROCEDURAL_AUDIO=1.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -70,12 +71,10 @@ def render_bamo_shorts(
         })
 
     project = {"format": "short", "fps": 24, "scenes": render_scenes}
-    # Smart Director: mood + palette + motif for every scene
     project = enrich_project(project)
 
     silent_path = out_dir / "bamo-silent.mp4"
 
-    # ---- Path B: try intelligent HTML engine first ----
     used_html = False
     renderer_name = "BAMO CPU 3D motion engine"
     visual_source = "bamo-cpu-3d-motion"
@@ -95,15 +94,32 @@ def render_bamo_shorts(
     if not used_html:
         render_project(project, silent_path, audio=None)
 
-    # ---- Common post: captions, music, mix ----
     ass_path = _write_shorts_ass(
         Path(captions_path), out_dir / "captions-burned.ass",
         hook=hook_overlay, duration=audio_duration,
     )
-    music_path = _ambient_track(
-        out_dir / "ambient.wav", audio_duration, sum(map(ord, run_id)),
-        profile="shorts", scene_durations=durations,
-    )
+
+    # Ambient: optional mood-driven procedural pad, else legacy generator
+    music_source = "procedurally generated original ambience"
+    use_proc_audio = os.getenv("BAMO_PROCEDURAL_AUDIO", "1").strip().lower() in {"1", "true", "yes"}
+    music_path = out_dir / "ambient.wav"
+    if use_proc_audio:
+        try:
+            from app.bamo_procedural_audio import generate_ambient, mood_from_project
+            mood = mood_from_project(project)
+            generate_ambient(music_path, audio_duration, mood=mood)
+            music_source = f"mood-driven procedural ambient ({mood})"
+        except Exception:
+            music_path = _ambient_track(
+                out_dir / "ambient.wav", audio_duration, sum(map(ord, run_id)),
+                profile="shorts", scene_durations=durations,
+            )
+    else:
+        music_path = _ambient_track(
+            out_dir / "ambient.wav", audio_duration, sum(map(ord, run_id)),
+            profile="shorts", scene_durations=durations,
+        )
+
     thumbnail_path = make_thumbnail(title, thumbnail_text, out_dir / "thumbnail.jpg")
     final_path = out_dir / "video.mp4"
     escaped_subs = str(ass_path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
@@ -144,7 +160,7 @@ def render_bamo_shorts(
         "stock_clip_count": 0,
         "visual_scene_count": len(render_scenes),
         "pexels_credits": [],
-        "music_source": "procedurally generated original ambience",
+        "music_source": music_source,
         "on_screen_captions": True,
         "video_width": width,
         "video_height": height,
