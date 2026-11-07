@@ -1,0 +1,60 @@
+name: HyperFrames Render BAMO Short
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+
+      - name: Generate English narration (Edge-TTS)
+        run: |
+          pip install -q edge-tts
+          mkdir -p productions/bamo-time-dilation/assets
+          python3 - <<'PY'
+          import asyncio, edge_tts
+          text = (
+            "Time is not the same for everyone. "
+            "Near a black hole, one second can equal years on Earth. "
+            "GPS satellites already correct for this every day. "
+            "Relativity is not theory on a chalkboard. It runs the modern world. "
+            "BAMO. Follow at twelve bamo."
+          )
+          asyncio.run(edge_tts.Communicate(text, "en-US-GuyNeural").save(
+              "productions/bamo-time-dilation/assets/narration.mp3"
+          ))
+          print("tts ok")
+          PY
+          ls -lh productions/bamo-time-dilation/assets/narration.mp3
+
+      - name: Render with HyperFrames
+        working-directory: productions/bamo-time-dilation
+        run: |
+          mkdir -p ../../outputs
+          npx --yes hyperframes@0.9.19 render -o ../../outputs/BAMO_TimeDilation_HyperFrames_@12bamo.mp4
+          ls -lh ../../outputs/BAMO_TimeDilation_HyperFrames_@12bamo.mp4
+
+      - name: Upload MP4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-hyperframes-short
+          path: outputs/BAMO_TimeDilation_HyperFrames_@12bamo.mp4
+          if-no-files-found: error
+          retention-days: 14
