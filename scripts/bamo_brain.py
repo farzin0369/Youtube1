@@ -44,27 +44,40 @@ def _save_ideas(ideas: list[dict[str, Any]]) -> None:
             f.write(json.dumps(idea, ensure_ascii=False) + "\n")
 
 
-def select_idea(*, prefer_category: str | None = None) -> dict[str, Any]:
+def select_idea(
+    *,
+    prefer_category: str | None = None,
+    prefer_curated: bool = True,
+) -> dict[str, Any]:
     ideas = _load_ideas()
     available = [i for i in ideas if (i.get("status") or "available") == "available"]
+
+    if prefer_curated:
+        curated = [i for i in available if i.get("curated") is True]
+        if curated:
+            available = curated
+
     if prefer_category:
         cat = [i for i in available if prefer_category.lower() in (i.get("category") or "").lower()]
         if cat:
             available = cat
+
     if not available:
-        # recycle lowest virality used ideas if bank exhausted
         used = [i for i in ideas if i.get("status") == "used"]
         if not used:
             raise RuntimeError("Idea bank empty. Run scripts/expand_idea_bank.py first.")
-        available = sorted(used, key=lambda x: float(x.get("virality_score") or 0), reverse=True)[:50]
+        pool = [i for i in used if i.get("curated") is True] or used
+        available = sorted(pool, key=lambda x: float(x.get("virality_score") or 0), reverse=True)[:40]
         for i in available:
             i["status"] = "available"
             i["used_at"] = None
 
-    available.sort(key=lambda x: float(x.get("virality_score") or 0), reverse=True)
-    top = available[: max(10, len(available) // 5)] or available
-    idea = random.choice(top)
-    return idea
+    available.sort(
+        key=lambda x: (1 if x.get("curated") else 0, float(x.get("virality_score") or 0)),
+        reverse=True,
+    )
+    top = available[: max(8, min(25, len(available)))]
+    return random.choice(top)
 
 
 def mark_used(idea_id: str) -> None:
@@ -82,9 +95,6 @@ def build_youtube_package(idea: dict[str, Any]) -> dict[str, Any]:
     title = (idea.get("youtube_title") or idea.get("title") or "Amazing Fact").strip()
     if len(title) > 95:
         title = title[:92] + "..."
-    if not title.lower().endswith("#shorts") and "#shorts" not in title.lower():
-        # keep title clean; shorts flag goes in description/tags
-        pass
 
     description = (idea.get("youtube_description") or idea.get("summary") or "").strip()
     hook = (idea.get("hook") or "").strip()
@@ -98,9 +108,8 @@ def build_youtube_package(idea: dict[str, Any]) -> dict[str, Any]:
 
     tags = list(idea.get("seo_keywords") or [])
     tags.extend(["shorts", "science facts", "BAMO", "12bamo", "educational shorts"])
-    # dedupe preserve order
-    seen = set()
-    clean_tags = []
+    seen: set[str] = set()
+    clean_tags: list[str] = []
     for t in tags:
         k = t.lower().strip()
         if k and k not in seen:
@@ -112,9 +121,6 @@ def build_youtube_package(idea: dict[str, Any]) -> dict[str, Any]:
         description,
         "",
         hook,
-        "",
-        "Narration (AI voice):",
-        narration[:500],
         "",
         "Sources:",
     ]
