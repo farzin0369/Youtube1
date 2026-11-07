@@ -1,0 +1,107 @@
+name: BAMO Daily English HyperFrames
+
+on:
+  schedule:
+    # 12:00 America/New_York ≈ 17:00 UTC (DST-aware approx)
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload to YouTube (public/unlisted)"
+        type: boolean
+        default: true
+      privacy:
+        description: "Privacy if publishing"
+        type: choice
+        options: [public, unlisted, private]
+        default: public
+
+concurrency:
+  group: bamo-daily-english
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: System deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-liberation
+
+      - name: Python deps
+        run: |
+          pip install -q edge-tts google-api-python-client google-auth google-auth-oauthlib pyyaml
+
+      - name: Ensure idea bank (up to 10k structure)
+        run: |
+          python scripts/expand_idea_bank.py --target 10000
+          wc -l data/ideas/ideas.jsonl
+
+      - name: Probe YouTube OAuth
+        if: ${{ github.event_name == 'schedule' || inputs.publish == true }}
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          python - <<'PY'
+          from app.youtube_client import probe_youtube_auth
+          r = probe_youtube_auth()
+          print(r)
+          if not r.get("ok"):
+            raise SystemExit("YouTube OAuth failed — check Secrets")
+          PY
+
+      - name: Daily factory (HyperFrames official template)
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "false"
+        run: |
+          set -euo pipefail
+          PUBLISH_FLAG=""
+          PRIVACY="public"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            PUBLISH_FLAG="--publish"
+            PRIVACY="public"
+          elif [ "${{ inputs.publish }}" = "true" ]; then
+            PUBLISH_FLAG="--publish"
+            PRIVACY="${{ inputs.privacy }}"
+          fi
+          python scripts/bamo_daily_run.py $PUBLISH_FLAG --privacy "$PRIVACY"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-daily-output
+          path: |
+            outputs/daily/
+            data/publish_history.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit idea bank usage + history
+        if: always()
+        run: |
+          git config user.name "bamo-bot"
+          git config user.email "bot@bamo.local"
+          git add data/ideas/ideas.jsonl data/publish_history.jsonl || true
+          git diff --staged --quiet || git commit -m "chore(daily): idea usage + publish history"
+          git push || true
