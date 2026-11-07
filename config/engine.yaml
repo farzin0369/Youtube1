@@ -1,0 +1,18 @@
+primary: hyperframes
+brand: BAMO
+handle: "@12bamo"
+language: en-US
+format:
+  width: 1080
+  height: 1920
+  fps: 30
+  duration_target_sec: [20, 30]
+paths:
+  compositions: productions
+  outputs: outputs
+voice:
+  provider: edge-tts
+  voice: en-US-GuyNeural
+notes: |
+  OpenMontage remains optional research only.
+  MoneyPrinterTurbo not used for primary path.
