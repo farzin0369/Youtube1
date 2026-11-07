@@ -4,73 +4,50 @@
 **Brand:** BAMO · **Handle:** @12bamo  
 **Format:** English vertical 9:16 Shorts (20–30s)
 
-## Why this document exists
-
-Previous Colab GPU workflow used Wan 2.1 (`colab_wan_real_short.py`).  
-That path is **deprecated as primary** on this experimental branch.  
-OpenMontage is the single central production system going forward.
-
-## Architecture (target)
-
-```
-Idea Bank (data/ideas/ideas.jsonl)
-        ↓
-Content Intelligence (app/content_intelligence.py)
-        ↓
-BAMO OpenMontage Adapter (scripts/bamo_openmontage_adapter.py)
-        ↓
-OpenMontage project + pipeline artifacts
-        ↓
-Colab GPU session (submodule init + tools + free/local providers)
-        ↓
-Vertical 1080×1920 MP4 + English narration + captions
-        ↓
-Quality gates → private/unlisted upload (when approved)
-```
-
-## What is ready now
+## Status (updated)
 
 | Component | Status |
 |-----------|--------|
-| OpenMontage submodule (`vendor/openmontage`) | Pinned |
+| OpenMontage submodule | Pinned |
 | English channel config | Done |
-| Idea bank + Content Intelligence skeleton | Started |
-| Adapter script | This commit |
-| Colab notebook for OpenMontage | This commit |
-| Full autonomous OpenMontage runner (zero human gates) | In progress |
-| Real professional OpenMontage render on Colab | Not yet proven |
+| Idea bank + Content Intelligence | Started |
+| Adapter (`scripts/bamo_openmontage_adapter.py`) | Ready |
+| Autonomous runner v0 (`scripts/bamo_openmontage_runner.py`) | Ready |
+| Colab notebook | Ready |
+| Full OpenMontage stage-director execution | Pending |
+| Professional cinematic OpenMontage render | Not yet |
 
-## Colab usage (manual first)
+## How to run on Colab GPU
 
-1. Open the notebook: `colab/BAMO_OpenMontage_English_Short.ipynb`
-2. Select GPU runtime (T4 or better)
-3. Run cells in order:
-   - Clone this branch
-   - Init OpenMontage submodule
-   - Install dependencies (CPU + GPU extras)
-   - Load selected idea from idea bank
-   - Run adapter → prepare project
-   - Execute available free/local OpenMontage tools + FFmpeg compose
-4. Download the resulting MP4
+1. Open `colab/BAMO_OpenMontage_English_Short.ipynb`
+2. Runtime → GPU (T4+)
+3. Run all cells
+4. Download `output/bamo_om_runs/<id>/final_short.mp4`
 
-## Autonomous path (next)
+## Local / CI path
 
-A headless runner that:
-- Selects idea
-- Writes OpenMontage-compatible artifacts
-- Forces autonomous checkpoint policy (no human approval for experimental runs)
-- Prefers free tools (Piper, open stock, HyperFrames/Remotion local, FFmpeg)
-- Fails closed if quality gates fail
+```bash
+python scripts/bamo_openmontage_runner.py
+```
 
-## Important constraints
+## Architecture
 
-- OpenMontage is **agent-instruction driven**. Full cinematic quality in the official demos often uses paid generation providers.
-- On free Colab we prioritize: local/open tools, Piper or edge-tts, FFmpeg, stock/open footage, HyperFrames/Remotion where installable.
-- Do not claim a video is “OpenMontage full production” until the pipeline artifacts and stage skills have actually been executed and a real MP4 inspected.
+```
+Idea Bank
+  → Content Intelligence
+  → Adapter (OpenMontage project brief)
+  → Runner stages: TTS → compose → QC
+  → final_short.mp4 (9:16 English)
+```
 
-## Deprecated for primary production on this branch
+## Deprecated as primary
 
-- `scripts/colab_wan_real_short.py` (Wan 2.1 Persian path)
-- Any ImamAli110 / Persian spiritual content path
+- `scripts/colab_wan_real_short.py` (Wan path)
+- Persian / ImamAli110 content pipelines on this branch
 
-These files may remain for reference until migration is complete; they are not the production path.
+## Next hardening
+
+1. Drive real OpenMontage stage skills (research, proposal, scene, asset, compose)
+2. Prefer HyperFrames / Remotion / open stock over pure kinetic text
+3. Piper English voice evaluation
+4. Checkpoint resume + daily schedule after quality is proven
