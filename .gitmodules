@@ -2,6 +2,6 @@
 	path = vendor/openmontage
 	url = https://github.com/calesthio/OpenMontage.git
 
-[submodule "vendor/moneyprinterturbo"]
-	path = vendor/moneyprinterturbo
-	url = https://github.com/harry0703/MoneyPrinterTurbo.git
+[submodule "vendor/hyperframes"]
+	path = vendor/hyperframes
+	url = https://github.com/heygen-com/hyperframes.git

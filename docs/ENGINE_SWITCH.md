@@ -1,49 +1,42 @@
-# Engine Switch — MoneyPrinterTurbo as Primary Free Shorts Engine
+# Engine Switch Log — BAMO English Shorts
 
-**Date:** 2026-11-07  
 **Branch:** `feat/bamo-openmontage-autonomous-studio`  
 **Brand:** BAMO · **Handle:** @12bamo
 
-## Decision
+## Rejected / demoted engines
 
-OpenMontage remains in the repo as a research / agent-orchestration reference, but it is **no longer the primary production engine** for daily English Shorts.
+| Engine | Reason |
+|--------|--------|
+| OpenMontage | Agent-heavy; free path did not deliver real motion footage on this branch |
+| MoneyPrinterTurbo | Stock-footage factory; user rejected as not good enough |
+| FFmpeg text-on-color | Not professional motion graphics |
 
-### Why the switch
+## Current primary engine: **HyperFrames**
 
-| Requirement | OpenMontage | MoneyPrinterTurbo |
-|-------------|-------------|-------------------|
-| Real motion footage (not text-on-color) | Needs paid gen or complex agent loop | Built-in stock footage matching |
-| English Shorts pipeline | Agent-driven, heavy setup | Purpose-built short video factory |
-| Free / low-key path | Possible but hard | Edge-TTS free + free Pexels tier |
-| Practical daily output | Not proven on this branch | Designed for one-click HD shorts |
-| License | AGPL-3.0 | MIT |
+| Field | Value |
+|-------|--------|
+| Repo | https://github.com/heygen-com/hyperframes |
+| Stars | ~80k |
+| License | **Apache 2.0** |
+| Cost | Free (no per-render fee, no API required for core render) |
+| What it is | HTML + CSS + GSAP / Lottie / Three.js → deterministic MP4 |
+| Why better for you | Real **motion graphics**, not stock montage and not plain text cards |
+| Needs GPU API? | No for rendering |
+| Needs paid video model? | No |
 
-**Chosen primary engine:** [harry0703/MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) (MIT, ~140k stars)
-
-## What MoneyPrinterTurbo provides
-
-- Topic → script → stock footage → voice → subtitles → HD short
-- Vertical 9:16 support
-- Edge-TTS (no paid voice key required)
-- WebUI + API + CLI
-- Colab notebook available upstream
+HyperFrames is what OpenMontage itself uses as one of its composition engines. Using it directly gives professional motion without the AGPL agent stack or paid Kling/Veo paths.
 
 ## Honest limits
 
-- Free Pexels API key is usually needed for stock video (free tier).
-- LLM for script generation can use free tiers (Groq, etc.) or local Ollama.
-- Quality depends on stock match quality — not Kling/Veo-level generative motion.
-- This is still **not** fully zero-key in all paths, but far more practical than OpenMontage for faceless English Shorts.
+- You still need to **author or generate** the HTML composition (scenes, timing, assets).
+- It does not invent cinematic AI video by itself; it **renders** motion graphics you define.
+- For voice: pair with free Edge-TTS / Piper (no paid key).
+- For images inside scenes: free local or free image sources, not required for pure motion/text/diagram styles.
 
-## Integration plan on this branch
+## Integration on this branch
 
-1. Add MoneyPrinterTurbo as `vendor/moneyprinterturbo` (submodule or vendored clone).
-2. Wire BAMO idea bank + English channel config into it.
-3. Produce a real sample with footage + English narration + captions.
-4. Keep OpenMontage submodule only as optional advanced path.
+- Setup script: `scripts/setup_hyperframes.sh`
+- Docs: `docs/HYPERFRAMES_SETUP.md`
+- Vendor path: `vendor/hyperframes`
 
-## Status
-
-- Decision documented: YES
-- Submodule/clone: in progress
-- First real footage sample: pending after vendor land
+Next concrete step after clone: one vertical 9:16 English science Short composition with BAMO branding and Edge-TTS audio.
