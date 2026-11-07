@@ -7,10 +7,10 @@ permissions:
   contents: read
 
 jobs:
-  render-cpu:
-    name: HyperFrames HQ (Actions CPU)
+  render-pro:
+    name: Official template level render
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,10 +25,65 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-liberation
 
+      - name: Scaffold from official kinetic-type + add cosmic-orb
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/bamo-pro
+          # Official HyperFrames project template (type-led motion)
+          npx --yes hyperframes@0.9.19 init /tmp/bamo-pro --example kinetic-type --non-interactive
+          cd /tmp/bamo-pro
+          # Registry block: WebGL nebula orb (pro visual language)
+          npx --yes hyperframes@0.9.19 add cosmic-orb --no-clipboard || true
+          npx --yes hyperframes@0.9.19 add gravitational-lens --no-clipboard || true
+          ls -la
+          ls compositions 2>/dev/null || true
+
+      - name: Inject BAMO English Short content + portrait framing
+        run: |
+          set -euo pipefail
+          cd /tmp/bamo-pro
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Portrait Shorts frame + BAMO brand overlays injected into main-graphics if present
+          graphics = Path("compositions/main-graphics.html")
+          index = Path("index.html")
+
+          # Ensure narration asset dir
+          Path("assets").mkdir(exist_ok=True)
+
+          # Patch index to 9:16 and 21s when possible
+          if index.exists():
+              t = index.read_text(encoding="utf-8")
+              t = t.replace('width=1920, height=1080', 'width=1080, height=1920')
+              t = t.replace('width: 1920px', 'width: 1080px')
+              t = t.replace('height: 1080px', 'height: 1920px')
+              t = re.sub(r'data-width="1920"', 'data-width="1080"', t)
+              t = re.sub(r'data-height="1080"', 'data-height="1920"', t)
+              t = re.sub(r'data-duration="[0-9.]+"', 'data-duration="21"', t, count=3)
+              # Prefer local narration if we add audio element later
+              index.write_text(t, encoding="utf-8")
+              print("patched index.html to portrait 21s")
+
+          if graphics.exists():
+              g = graphics.read_text(encoding="utf-8")
+              # Soft replace common demo strings if present
+              replacements = [
+                  ("HyperFrames", "BAMO"),
+                  ("hyperframes", "BAMO"),
+              ]
+              for a, b in replacements:
+                  g = g.replace(a, b)
+              graphics.write_text(g, encoding="utf-8")
+              print("patched main-graphics.html brand strings")
+          else:
+              print("no main-graphics.html — template structure differs")
+          PY
+
       - name: Generate English narration
         run: |
           pip install -q edge-tts
-          mkdir -p productions/bamo-time-dilation/assets
           python3 - <<'PY'
           import asyncio, edge_tts
           text = (
@@ -38,84 +93,23 @@ jobs:
             "Relativity is not theory on a chalkboard. It runs the modern world. "
             "BAMO. Follow at twelve bamo."
           )
-          asyncio.run(edge_tts.Communicate(text, "en-US-GuyNeural").save(
-              "productions/bamo-time-dilation/assets/narration.mp3"
-          ))
+          asyncio.run(edge_tts.Communicate(text, "en-US-GuyNeural").save("/tmp/bamo-pro/assets/narration.mp3"))
           print("tts ok")
           PY
 
-      - name: Render HyperFrames 0.9.19 HQ
-        working-directory: productions/bamo-time-dilation
-        run: |
-          mkdir -p ../../outputs
-          npx --yes hyperframes@0.9.19 render --gpu -o ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4 \
-            || npx --yes hyperframes@0.9.19 render -o ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4
-          ls -lh ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: bamo-hyperframes-hq
-          path: outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4
-          if-no-files-found: error
-          retention-days: 14
-
-  render-colab-gpu:
-    name: HyperFrames on Colab GPU
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feat/bamo-openmontage-autonomous-studio
-
-      - name: Check Colab token
-        id: check
-        run: |
-          if [ -n "${{ secrets.COLAB_CLI_TOKEN_JSON }}" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: actions/setup-python@v5
-        if: steps.check.outputs.ok == 'true'
-        with:
-          python-version: "3.12"
-
-      - name: Install Colab CLI
-        if: steps.check.outputs.ok == 'true'
-        run: pip install -q google-colab-cli
-
-      - name: Restore token
-        if: steps.check.outputs.ok == 'true'
-        env:
-          COLAB_CLI_TOKEN_JSON: ${{ secrets.COLAB_CLI_TOKEN_JSON }}
-        run: |
-          mkdir -p ~/.config/colab-cli
-          printf '%s' "$COLAB_CLI_TOKEN_JSON" > ~/.config/colab-cli/token.json
-          chmod 600 ~/.config/colab-cli/token.json
-
-      - name: Colab T4 HyperFrames render
-        if: steps.check.outputs.ok == 'true'
+      - name: Render with HyperFrames 0.9.19
         run: |
           set -euo pipefail
-          mkdir -p output/colab_hf
-          SESSION="bamo-hf-$(date +%s)"
-          colab new -s "$SESSION" --gpu T4 2>&1 | tee output/colab_hf/run.log
-
-          # run shell script on Colab (same pattern as existing GPU workflow)
-          set +e
-          colab exec -s "$SESSION" -f scripts/colab_hyperframes_render.sh 2>&1 | tee -a output/colab_hf/run.log
-          set -e
-
-          colab download -s "$SESSION" /content/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4 output/colab_hf/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4 2>&1 | tee -a output/colab_hf/run.log || true
-          colab stop -s "$SESSION" 2>&1 | tee -a output/colab_hf/run.log || true
-          ls -la output/colab_hf/
+          cd /tmp/bamo-pro
+          mkdir -p /tmp/bamo-out
+          npx --yes hyperframes@0.9.19 render --gpu -o /tmp/bamo-out/BAMO_Pro_HyperFrames_@12bamo.mp4 \
+            || npx --yes hyperframes@0.9.19 render -o /tmp/bamo-out/BAMO_Pro_HyperFrames_@12bamo.mp4
+          ls -lh /tmp/bamo-out/
+          ffprobe -v error -show_entries stream=width,height,codec_name -show_entries format=duration,size -of default=nw=1 /tmp/bamo-out/*.mp4 || true
 
       - uses: actions/upload-artifact@v4
-        if: always() && steps.check.outputs.ok == 'true'
         with:
-          name: bamo-hyperframes-colab-gpu
-          path: output/colab_hf/
-          if-no-files-found: warn
+          name: bamo-hyperframes-pro-official
+          path: /tmp/bamo-out/
+          if-no-files-found: error
           retention-days: 14
