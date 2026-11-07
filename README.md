@@ -1,58 +1,74 @@
-# ImamAli110 — اتوماسیون روزانهٔ YouTube Shorts فارسی
+# BAMO — Autonomous English YouTube Shorts Factory
 
-این مخزن کانالی فارسی دربارهٔ **معنویت روزمره، امید، توکل و رشد فردی** را اداره می‌کند. خط فعال انتشار روزانه در `app/spiritual_pipeline.py` است و طبق `config/channel.yaml` اکنون برای Shorts پیکربندی شده است؛ فایل‌های قدیمی خبر برای سازگاری تاریخی در شاخه باقی مانده‌اند.
+**Brand:** BAMO · **Handle:** [@12bamo](https://www.youtube.com/@12bamo) · **Language:** English
 
-برند اصلی کانال **ImamAli110** است و برچسب ثانویهٔ آن **#The110Path**؛ هندل فعلی: [@imamali.110](https://www.youtube.com/@imamali.110).
+This repository runs a **daily, fully automated** pipeline that:
 
-## چرخهٔ روزانهٔ Shorts
+1. Picks **one idea** from a multi-domain idea bank (science, physics, math, history, psychology, space, philosophy, art, success, humor, …)
+2. Renders a vertical Short with **HyperFrames 0.9.19** using the **official `kinetic-type` template** (+ registry blocks such as `cosmic-orb`)
+3. Publishes **publicly** to YouTube with title, description, tags, and hashtags
+4. Replies to a small number of safe recent comments in English
 
-1. `app/spiritual_shorts.py` یک ایدهٔ کوتاه با هوک فوری، یک پیام اصلی، یک اقدام مشخص و پایان امیدوارکننده می‌سازد. متن باید چهار ضرب روایی و ۲۸ تا ۴۴ واژه داشته باشد؛ سؤال هوک، نشانه‌گذاری، تکرار موضوع و چهار پرسش تصویریِ متمایز کنترل می‌شوند.
-2. همان زنجیرهٔ LLM اجرا می‌شود: Groq در صورت تنظیم، سپس gateway سازگار با OpenAI، و در پایان Ollama. پیش از تولید یا انتشار، سیاست محتوایی، تکراری‌نبودن و تطابق دقیق متن هر صحنه با script سنجیده می‌شود.
-3. `app/emotion_tagger.py` متن فارسی را در مرز جمله/بندها بخش‌بندی و با واژگان قابل‌تنظیم، برچسب emotion، شدت ۰ تا ۱، pace، confidence و مکث پیشنهادی می‌سازد. Edge TTS همان گوینده را با تغییر محافظه‌کارانهٔ rate/pitch و مکث متناسب اجرا می‌کند. Edge TTS سبک احساسی native ندارد؛ بنابراین این تنظیم‌ها فقط hint آهنگ گفتارند، نه تضمین بازیِ احساسی طبیعی. زیرنویس‌ها از metadata واقعی گفتار زمان‌بندی می‌شوند.
-4. برای هر یک از چهار بخش، یک جست‌وجوی جداگانهٔ Pexels با عبارت تصویری مرتبط انجام می‌شود؛ فقط footage **عمودی** پذیرفته می‌شود. اگر `PEXELS_API_KEY` تنظیم نباشد یا برای حتی یک صحنه کلیپ عمودی پیدا نشود، برای هر چهار صحنه به‌ترتیب عکس آزاد ویکی‌مدیا کامنز (با ذکر منبع)، سپس تصویر Pollinations، و در نهایت یک تصویر عمودیِ محلیِ هماهنگ با همان `visual_query` ساخته می‌شود. تصویر انتزاعیِ بی‌ربط همچنان رد می‌شود؛ اگر هیچ‌کدام از این سه مسیر برای هر چهار صحنه تصویر نسازد، تولید/انتشار fail-closed می‌شود.
-5. FFmpeg خروجی 720×1280، هوک درشت در ناحیهٔ امن، زیرنویس phrase-level با ورود fade/scale نرم، ویدیوی کاور فارسی، موسیقی پس‌زمینهٔ آرام با ducking زیر صدا و fade را می‌سازد. متن فارسی در ASS دست‌نخورده و راست‌به‌چپ نگه داشته می‌شود تا libass آن را با فونت Noto Naskh Arabic شکل بدهد؛ نویسه‌ها جداگانه معکوس یا متحرک نمی‌شوند. کنترل کیفیت نسبت 9:16، وضوح، مدت، اندازهٔ کپشن، وجود profile انیمیشن و تنظیم shaping فارسی، پوشش زیرنویس، ۴ صحنه و منبع تصویری را **پیش از هر آپلود** بررسی می‌کند.
-6. فقط بسته‌ای که تمام quality gateها را بگذراند می‌تواند طبق زمان‌بندی روزانه برای ساعت ۱۸:۰۰ تهران بارگذاری عمومی شود. موضوع و شناسهٔ ویدئو در تاریخچه ثبت می‌شود.
-7. پس از بارگذاری، حداکثر سه نظر تازه و روشن پاسخ کوتاه فارسی می‌گیرند. نظرهای مربوط به بحران، خودآسیبی، نفرت/تهدید، درخواست فتوا، موضوع مالی/پزشکی شخصی یا موارد نامطمئن خودکار پاسخ نمی‌گیرند.
+## Sole production engine
 
-## زمان‌بندی و اجرا
+```yaml
+# config/engine.yaml
+primary: hyperframes
+version: "0.9.19"
+template: kinetic-type
+```
 
-`daily_run.yml` روزانه برای ساعت ۱۴:۳۰ UTC (۱۸:۰۰ تهران) تنظیم شده است. هر اجرای خودکار در ساعت انتشار، ویدئوی نوبت بعد را تولید و برای ۱۸:۰۰ روز بعد زمان‌بندی می‌کند؛ بنابراین پس از دورهٔ آغاز یک‌روزه، هر روز یک ویدئو دقیقاً در slot ساعت ۱۸:۰۰ منتشر می‌شود. در نخستین راه‌اندازی، اولین اجرای زمان‌بندی‌شده ویدئوی اول را برای روز بعد آماده می‌کند. اگر اجرای دستی را بیش از ۳۰ دقیقه پیش از ۱۸:۰۰ با `publish=true` شروع کنید، کد می‌تواند همان روز را انتخاب کند. GitHub Actions اجرای cron را best-effort انجام می‌دهد و ممکن است شروع کار چند دقیقه جابه‌جا شود؛ محاسبهٔ slot از این جابه‌جایی محافظت می‌کند. فایل لاگ مرحله‌ای و شواهد تولید در artifacts سه روز نگه‌داری می‌شوند.
+Deprecated (do not use for daily production):
+OpenMontage, MoneyPrinterTurbo, Persian spiritual pipeline, Manim/Blender CPU demos, Wan/CogVideo experiments.
 
-اجرای دستی از Actions به‌صورت **پیش‌نمایش بدون آپلود** آغاز می‌شود. فقط اگر ورودی `publish` را صریحاً فعال کنید، آن اجرا ویدئو را عمومی زمان‌بندی می‌کند. در اجرای محلی نیز `python scripts/daily_run.py` پیش‌فرض dry-run است؛ برای آپلود باید `--publish` بدهید.
+## Daily loop
 
-اجرای محلیِ پیش‌نمایش را با `python scripts/daily_run.py --dry-run` می‌توان آغاز کرد. اجرای کامل ممکن است به‌دلیل تولید گفتار، دریافت چهار کلیپ و رندر چند دقیقه زمان ببرد؛ workflow سقف دو ساعت دارد و دو job هم‌زمان روی هم اجرا نمی‌شوند.
+| Step | Component |
+|------|-----------|
+| Idea selection | `scripts/bamo_brain.py` |
+| Idea bank (up to 10k) | `data/ideas/ideas.jsonl` + `scripts/expand_idea_bank.py` |
+| Render | `scripts/bamo_hyperframes_factory.py` |
+| Orchestration | `scripts/bamo_daily_run.py` |
+| Schedule | `.github/workflows/bamo_daily_english.yml` (17:00 UTC ≈ 12:00 ET) |
+| Upload | `app/youtube_client.py` |
+| Comments | `app/channel_ops.py` |
 
-برای پیش‌نمایش محلی، Python dependencies و FFmpeg را نصب کنید، Ollama را اجرا کرده و `ollama pull qwen2.5:3b` را انجام دهید؛ سپس `pip install -r requirements.txt` و `python scripts/daily_run.py --dry-run` را اجرا کنید. برای رندر عادی Shorts به `PEXELS_API_KEY` و اینترنت Edge TTS نیاز است؛ YouTube OAuth برای dry-run الزامی نیست. فقط برای پیش‌نمایش dry-run غیرقابل‌انتشار، می‌توان چهار تصویر عمودی و صحنه‌متناسب را در `SHORTS_PREVIEW_STILLS_DIR` گذاشت؛ همین تصاویر در اجراهای publish پذیرفته نمی‌شوند.
+### Manual run
 
-## Secrets و راه‌اندازی
+```bash
+# expand / refresh idea bank
+python scripts/expand_idea_bank.py --target 10000
 
-در GitHub → **Settings → Secrets and variables → Actions** این سه مقدار YouTube لازم‌اند:
+# dry-run (select idea + metadata only)
+python scripts/bamo_daily_run.py --dry-run
+
+# full render + public upload (requires YouTube secrets)
+python scripts/bamo_daily_run.py --publish --privacy public
+```
+
+### GitHub Actions
+
+Workflow: **BAMO Daily English HyperFrames**
+
+- Cron: every day 17:00 UTC
+- `workflow_dispatch` with `publish` + `privacy` inputs
+
+Required Secrets:
 
 - `YOUTUBE_CLIENT_ID`
 - `YOUTUBE_CLIENT_SECRET`
 - `YOUTUBE_REFRESH_TOKEN`
 
-از همان OAuth client و حساب مالک کانال برای هر سه مقدار استفاده کنید. راهنمای موجود: [scripts/README_TOKEN.md](scripts/README_TOKEN.md). workflow پیش از رندرِ هر اجرای انتشار OAuth را بررسی می‌کند. **فایل `client_secrets.json`، کلیدهای API و توکن‌ها را commit نکنید.** این پروژه برای اجرا از سه GitHub Secret جداگانه استفاده می‌کند؛ فایل OAuth را فقط به‌صورت محلی برای تولید refresh token نگه دارید و آن را در مخزن بارگذاری نکنید.
+See `scripts/README_TOKEN.md` for OAuth setup.
 
-اختیاری:
+## Content rules
 
-- `GROQ_API_KEY`: کلید طرح رایگان Groq؛ `GROQ_MODEL` را می‌توان به‌صورت Repository Variable تنظیم کرد. بدون آن، workflow مدل محلی `qwen2.5:3b` را روی runner آماده می‌کند و از آن استفاده می‌کند.
-- `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL`: هر درگاه سازگار با OpenAI (OpenRouter، Together، DeepInfra، vLLM محلی). اگر Groq تنظیم نشده باشد یا شکست بخورد، این درگاه پیش از مدل محلی امتحان می‌شود.
-- `PEXELS_API_KEY`: ترجیح داده می‌شود. اگر نباشد، به‌جای کلیپ استوک برای هر چهار صحنه ابتدا عکس آزاد ویکی‌مدیا و در صورت نیاز تصویر ساخته‌شده استفاده می‌شود. بدون تصویر معتبر برای هر چهار صحنه، pipeline متوقف می‌شود و ویدئوی انتزاعی/نامرتبط آپلود نمی‌کند.
-- برای انتخاب آزمایشی ElevenLabs: Repository Secret `ELEVENLABS_API_KEY` و Variables `TTS_PROVIDER=elevenlabs` و `ELEVENLABS_VOICE_ID` را تنظیم کنید؛ `ELEVENLABS_MODEL_ID` به‌طور پیش‌فرض `eleven_v4` است. تا وقتی `TTS_PROVIDER` تغییر نکرده، Edge TTS پیش‌فرض باقی می‌ماند. کلید API را هرگز در Variables، فایل YAML یا commit قرار ندهید.
+- English only
+- Factual claims need reputable sources
+- No medical / financial / legal advice
+- No Persian spiritual / ImamAli branding
+- Fail closed: no upload if render fails
 
-> کیفیت متن با Groq رایگان به‌طور محسوسی از مدل محلی ۳ میلیاردی بهتر است. برای انتشار روزانه، ساخت یک کلید رایگان در [console.groq.com](https://console.groq.com/keys) و افزودن آن به‌عنوان `GROQ_API_KEY` توصیه می‌شود؛ بدون آن هم خط تولید کار می‌کند، اما کندتر و با متن ساده‌تر.
+## Channel config
 
-نمونهٔ نام متغیرها در [.env.example](.env.example) است. برای تست OAuth فقط workflow **YouTube OAuth preflight (no publishing)** را دستی اجرا کنید.
-
-## سیاست محتوا و هزینه
-
-### بخش‌بندی متن و برچسب لحن
-
-`segment_and_tag(text)` در `app/emotion_tagger.py` متن را بدون تغییر واژه‌ها قطعه‌بندی می‌کند و برای هر قطعه `start_char`/`end_char`، `emotion`، `intensity`، `confidence`، `pace`، `pause_after_ms` و cueهای منطبق را برمی‌گرداند. برچسب‌زن فعلی deterministic و واژگانی است (انگیزشی، آرام، اطمینان‌بخش، خشمگین، غمگین، شاد و خنثی) و dependency تازه‌ای نمی‌خواهد؛ واژه‌نامه در همان ماژول قابل‌گسترش است. متن نامطمئن به حالت خنثی می‌رود. خروجی به صحنه‌های Shorts و TTS متصل است؛ کنترل‌های Edge TTS صرفاً سرعت/زیر‌وبمی محدودند و emotion style واقعی ارائه نمی‌کنند.
-
-کد به اشتراک پولی LLM/TTS، Colab GPU یا Kaggle نیاز ندارد. با این حال، «کاملاً تضمینی و بی‌هزینه» قابل وعده نیست: محدودیت طرح‌های رایگان Groq/Pexels، دسترسی اینترنتی Edge TTS، سهمیه/وضعیت GitHub Actions و مجوزهای Google/YouTube می‌توانند تغییر کنند یا موقتاً در دسترس نباشند. خط تولید در چنین شرایطی باید fail-closed باشد و ویدئوی ناقص/بی‌کیفیت آپلود نکند.
-
-محتوا نقل‌قول دینی، آیه، حدیث یا وعدهٔ مالی/درمانی نمی‌سازد. توصیهٔ سرمایه‌گذاری یا پزشکی شخصی ارائه نمی‌شود. گویندگی مصنوعی در توضیحات اعلام می‌شود. مجوز و نرخ‌های فعلی APIها را پیش از بهره‌برداری گسترده بازبینی کنید: [Groq](https://console.groq.com/docs/rate-limits)، [Pexels](https://www.pexels.com/license/) و [YouTube Data API](https://developers.google.com/youtube/v3/docs/videos/insert).
-
-نام نمایشی جدید در تنظیمات پروژه **ImamAli110** است؛ این مخزن نام یا handle واقعی کانال YouTube را تغییر نمی‌دهد. اگر نام کانال در YouTube عوض شد، `channel.url` را در `config/channel.yaml` اصلاح کنید.
+`config/channel.yaml` — brand BAMO, education category, public daily cadence.
