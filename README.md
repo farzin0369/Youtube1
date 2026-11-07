@@ -1,58 +1,67 @@
-# ImamAli110 — اتوماسیون روزانهٔ YouTube Shorts فارسی
+# BAMO Autonomous Shorts Studio
 
-این مخزن کانالی فارسی دربارهٔ **معنویت روزمره، امید، توکل و رشد فردی** را اداره می‌کند. خط فعال انتشار روزانه در `app/spiritual_pipeline.py` است و طبق `config/channel.yaml` اکنون برای Shorts پیکربندی شده است؛ فایل‌های قدیمی خبر برای سازگاری تاریخی در شاخه باقی مانده‌اند.
+**English YouTube Shorts production factory** powered by OpenMontage.
 
-برند اصلی کانال **ImamAli110** است و برچسب ثانویهٔ آن **#The110Path**؛ هندل فعلی: [@imamali.110](https://www.youtube.com/@imamali.110).
+This branch (`feat/bamo-openmontage-autonomous-studio`) is the experimental workspace for a fully automated daily English Shorts pipeline.  
+The `main` branch remains untouched and still contains the previous Persian spiritual pipeline. That brand and content direction have been **completely retired** on this experimental branch.
 
-## چرخهٔ روزانهٔ Shorts
+## Mission
 
-1. `app/spiritual_shorts.py` یک ایدهٔ کوتاه با هوک فوری، یک پیام اصلی، یک اقدام مشخص و پایان امیدوارکننده می‌سازد. متن باید چهار ضرب روایی و ۲۸ تا ۴۴ واژه داشته باشد؛ سؤال هوک، نشانه‌گذاری، تکرار موضوع و چهار پرسش تصویریِ متمایز کنترل می‌شوند.
-2. همان زنجیرهٔ LLM اجرا می‌شود: Groq در صورت تنظیم، سپس gateway سازگار با OpenAI، و در پایان Ollama. پیش از تولید یا انتشار، سیاست محتوایی، تکراری‌نبودن و تطابق دقیق متن هر صحنه با script سنجیده می‌شود.
-3. `app/emotion_tagger.py` متن فارسی را در مرز جمله/بندها بخش‌بندی و با واژگان قابل‌تنظیم، برچسب emotion، شدت ۰ تا ۱، pace، confidence و مکث پیشنهادی می‌سازد. Edge TTS همان گوینده را با تغییر محافظه‌کارانهٔ rate/pitch و مکث متناسب اجرا می‌کند. Edge TTS سبک احساسی native ندارد؛ بنابراین این تنظیم‌ها فقط hint آهنگ گفتارند، نه تضمین بازیِ احساسی طبیعی. زیرنویس‌ها از metadata واقعی گفتار زمان‌بندی می‌شوند.
-4. برای هر یک از چهار بخش، یک جست‌وجوی جداگانهٔ Pexels با عبارت تصویری مرتبط انجام می‌شود؛ فقط footage **عمودی** پذیرفته می‌شود. اگر `PEXELS_API_KEY` تنظیم نباشد یا برای حتی یک صحنه کلیپ عمودی پیدا نشود، برای هر چهار صحنه به‌ترتیب عکس آزاد ویکی‌مدیا کامنز (با ذکر منبع)، سپس تصویر Pollinations، و در نهایت یک تصویر عمودیِ محلیِ هماهنگ با همان `visual_query` ساخته می‌شود. تصویر انتزاعیِ بی‌ربط همچنان رد می‌شود؛ اگر هیچ‌کدام از این سه مسیر برای هر چهار صحنه تصویر نسازد، تولید/انتشار fail-closed می‌شود.
-5. FFmpeg خروجی 720×1280، هوک درشت در ناحیهٔ امن، زیرنویس phrase-level با ورود fade/scale نرم، ویدیوی کاور فارسی، موسیقی پس‌زمینهٔ آرام با ducking زیر صدا و fade را می‌سازد. متن فارسی در ASS دست‌نخورده و راست‌به‌چپ نگه داشته می‌شود تا libass آن را با فونت Noto Naskh Arabic شکل بدهد؛ نویسه‌ها جداگانه معکوس یا متحرک نمی‌شوند. کنترل کیفیت نسبت 9:16، وضوح، مدت، اندازهٔ کپشن، وجود profile انیمیشن و تنظیم shaping فارسی، پوشش زیرنویس، ۴ صحنه و منبع تصویری را **پیش از هر آپلود** بررسی می‌کند.
-6. فقط بسته‌ای که تمام quality gateها را بگذراند می‌تواند طبق زمان‌بندی روزانه برای ساعت ۱۸:۰۰ تهران بارگذاری عمومی شود. موضوع و شناسهٔ ویدئو در تاریخچه ثبت می‌شود.
-7. پس از بارگذاری، حداکثر سه نظر تازه و روشن پاسخ کوتاه فارسی می‌گیرند. نظرهای مربوط به بحران، خودآسیبی، نفرت/تهدید، درخواست فتوا، موضوع مالی/پزشکی شخصی یا موارد نامطمئن خودکار پاسخ نمی‌گیرند.
+Build a reliable, high-quality system that every day:
 
-## زمان‌بندی و اجرا
+1. Selects the best English idea from a large validated idea bank
+2. Writes a tight 20–30 second script with a strong hook
+3. Generates or retrieves motion visuals matched to the topic
+4. Produces natural English narration
+5. Composes a vertical 9:16 video with accurate subtitles
+6. Runs technical + content quality gates
+7. Publishes to YouTube Shorts (only after full approval)
+8. Learns from performance data
 
-`daily_run.yml` روزانه برای ساعت ۱۴:۳۰ UTC (۱۸:۰۰ تهران) تنظیم شده است. هر اجرای خودکار در ساعت انتشار، ویدئوی نوبت بعد را تولید و برای ۱۸:۰۰ روز بعد زمان‌بندی می‌کند؛ بنابراین پس از دورهٔ آغاز یک‌روزه، هر روز یک ویدئو دقیقاً در slot ساعت ۱۸:۰۰ منتشر می‌شود. در نخستین راه‌اندازی، اولین اجرای زمان‌بندی‌شده ویدئوی اول را برای روز بعد آماده می‌کند. اگر اجرای دستی را بیش از ۳۰ دقیقه پیش از ۱۸:۰۰ با `publish=true` شروع کنید، کد می‌تواند همان روز را انتخاب کند. GitHub Actions اجرای cron را best-effort انجام می‌دهد و ممکن است شروع کار چند دقیقه جابه‌جا شود؛ محاسبهٔ slot از این جابه‌جایی محافظت می‌کند. فایل لاگ مرحله‌ای و شواهد تولید در artifacts سه روز نگه‌داری می‌شوند.
+OpenMontage (`vendor/openmontage`) is the primary production engine.  
+Legacy BAMO renderers are kept only until the OpenMontage path is proven and validated.
 
-اجرای دستی از Actions به‌صورت **پیش‌نمایش بدون آپلود** آغاز می‌شود. فقط اگر ورودی `publish` را صریحاً فعال کنید، آن اجرا ویدئو را عمومی زمان‌بندی می‌کند. در اجرای محلی نیز `python scripts/daily_run.py` پیش‌فرض dry-run است؛ برای آپلود باید `--publish` بدهید.
+## Current Status (honest)
 
-اجرای محلیِ پیش‌نمایش را با `python scripts/daily_run.py --dry-run` می‌توان آغاز کرد. اجرای کامل ممکن است به‌دلیل تولید گفتار، دریافت چهار کلیپ و رندر چند دقیقه زمان ببرد؛ workflow سقف دو ساعت دارد و دو job هم‌زمان روی هم اجرا نمی‌شوند.
+| Component                        | Status                          |
+|----------------------------------|---------------------------------|
+| OpenMontage submodule            | Pinned                          |
+| English channel config           | Updating                        |
+| 10,000 validated ideas           | 0 (scaffolding started)         |
+| Content Intelligence             | Skeleton                        |
+| Real English 9:16 sample render  | Not yet produced                |
+| Natural English TTS verified     | Not yet tested                  |
+| YouTube publish (public)         | Disabled / gated                |
+| Daily autonomous schedule        | Not active                      |
+| Legacy engines removed           | No (kept for safety)            |
 
-برای پیش‌نمایش محلی، Python dependencies و FFmpeg را نصب کنید، Ollama را اجرا کرده و `ollama pull qwen2.5:3b` را انجام دهید؛ سپس `pip install -r requirements.txt` و `python scripts/daily_run.py --dry-run` را اجرا کنید. برای رندر عادی Shorts به `PEXELS_API_KEY` و اینترنت Edge TTS نیاز است؛ YouTube OAuth برای dry-run الزامی نیست. فقط برای پیش‌نمایش dry-run غیرقابل‌انتشار، می‌توان چهار تصویر عمودی و صحنه‌متناسب را در `SHORTS_PREVIEW_STILLS_DIR` گذاشت؛ همین تصاویر در اجراهای publish پذیرفته نمی‌شوند.
+## Key Directories
 
-## Secrets و راه‌اندازی
+- `vendor/openmontage` — upstream OpenMontage (git submodule)
+- `app/` — BAMO orchestration, content intelligence, adapters
+- `config/` — channel, content policy, models
+- `data/ideas/` — idea bank (JSONL / SQLite) — to be created
+- `docs/` — architecture and migration reports
+- `colab/` — Google Colab notebooks for heavy rendering
 
-در GitHub → **Settings → Secrets and variables → Actions** این سه مقدار YouTube لازم‌اند:
+## Safety Rules
 
-- `YOUTUBE_CLIENT_ID`
-- `YOUTUBE_CLIENT_SECRET`
-- `YOUTUBE_REFRESH_TOKEN`
+- Never publish without passing quality gates
+- Never claim a video is ready without actual rendered MP4 + audio check
+- Never touch `main` from this branch without explicit approval
+- Prefer free / local / CPU tools first (Piper, FFmpeg, open stock)
+- No paid APIs without explicit budget approval
 
-از همان OAuth client و حساب مالک کانال برای هر سه مقدار استفاده کنید. راهنمای موجود: [scripts/README_TOKEN.md](scripts/README_TOKEN.md). workflow پیش از رندرِ هر اجرای انتشار OAuth را بررسی می‌کند. **فایل `client_secrets.json`، کلیدهای API و توکن‌ها را commit نکنید.** این پروژه برای اجرا از سه GitHub Secret جداگانه استفاده می‌کند؛ فایل OAuth را فقط به‌صورت محلی برای تولید refresh token نگه دارید و آن را در مخزن بارگذاری نکنید.
+## Next Concrete Steps
 
-اختیاری:
+1. Finalize English `channel.yaml` and content pillars
+2. Scaffold idea bank schema + first batch of high-quality ideas
+3. Implement Content Intelligence selector
+4. Produce and inspect one real English 20–30s Short
+5. Wire OpenMontage pipeline for vertical Shorts
+6. Add resumable daily runner + checkpointing
 
-- `GROQ_API_KEY`: کلید طرح رایگان Groq؛ `GROQ_MODEL` را می‌توان به‌صورت Repository Variable تنظیم کرد. بدون آن، workflow مدل محلی `qwen2.5:3b` را روی runner آماده می‌کند و از آن استفاده می‌کند.
-- `LLM_BASE_URL` + `LLM_API_KEY` + `LLM_MODEL`: هر درگاه سازگار با OpenAI (OpenRouter، Together، DeepInfra، vLLM محلی). اگر Groq تنظیم نشده باشد یا شکست بخورد، این درگاه پیش از مدل محلی امتحان می‌شود.
-- `PEXELS_API_KEY`: ترجیح داده می‌شود. اگر نباشد، به‌جای کلیپ استوک برای هر چهار صحنه ابتدا عکس آزاد ویکی‌مدیا و در صورت نیاز تصویر ساخته‌شده استفاده می‌شود. بدون تصویر معتبر برای هر چهار صحنه، pipeline متوقف می‌شود و ویدئوی انتزاعی/نامرتبط آپلود نمی‌کند.
-- برای انتخاب آزمایشی ElevenLabs: Repository Secret `ELEVENLABS_API_KEY` و Variables `TTS_PROVIDER=elevenlabs` و `ELEVENLABS_VOICE_ID` را تنظیم کنید؛ `ELEVENLABS_MODEL_ID` به‌طور پیش‌فرض `eleven_v4` است. تا وقتی `TTS_PROVIDER` تغییر نکرده، Edge TTS پیش‌فرض باقی می‌ماند. کلید API را هرگز در Variables، فایل YAML یا commit قرار ندهید.
+---
 
-> کیفیت متن با Groq رایگان به‌طور محسوسی از مدل محلی ۳ میلیاردی بهتر است. برای انتشار روزانه، ساخت یک کلید رایگان در [console.groq.com](https://console.groq.com/keys) و افزودن آن به‌عنوان `GROQ_API_KEY` توصیه می‌شود؛ بدون آن هم خط تولید کار می‌کند، اما کندتر و با متن ساده‌تر.
-
-نمونهٔ نام متغیرها در [.env.example](.env.example) است. برای تست OAuth فقط workflow **YouTube OAuth preflight (no publishing)** را دستی اجرا کنید.
-
-## سیاست محتوا و هزینه
-
-### بخش‌بندی متن و برچسب لحن
-
-`segment_and_tag(text)` در `app/emotion_tagger.py` متن را بدون تغییر واژه‌ها قطعه‌بندی می‌کند و برای هر قطعه `start_char`/`end_char`، `emotion`، `intensity`، `confidence`، `pace`، `pause_after_ms` و cueهای منطبق را برمی‌گرداند. برچسب‌زن فعلی deterministic و واژگانی است (انگیزشی، آرام، اطمینان‌بخش، خشمگین، غمگین، شاد و خنثی) و dependency تازه‌ای نمی‌خواهد؛ واژه‌نامه در همان ماژول قابل‌گسترش است. متن نامطمئن به حالت خنثی می‌رود. خروجی به صحنه‌های Shorts و TTS متصل است؛ کنترل‌های Edge TTS صرفاً سرعت/زیر‌وبمی محدودند و emotion style واقعی ارائه نمی‌کنند.
-
-کد به اشتراک پولی LLM/TTS، Colab GPU یا Kaggle نیاز ندارد. با این حال، «کاملاً تضمینی و بی‌هزینه» قابل وعده نیست: محدودیت طرح‌های رایگان Groq/Pexels، دسترسی اینترنتی Edge TTS، سهمیه/وضعیت GitHub Actions و مجوزهای Google/YouTube می‌توانند تغییر کنند یا موقتاً در دسترس نباشند. خط تولید در چنین شرایطی باید fail-closed باشد و ویدئوی ناقص/بی‌کیفیت آپلود نکند.
-
-محتوا نقل‌قول دینی، آیه، حدیث یا وعدهٔ مالی/درمانی نمی‌سازد. توصیهٔ سرمایه‌گذاری یا پزشکی شخصی ارائه نمی‌شود. گویندگی مصنوعی در توضیحات اعلام می‌شود. مجوز و نرخ‌های فعلی APIها را پیش از بهره‌برداری گسترده بازبینی کنید: [Groq](https://console.groq.com/docs/rate-limits)، [Pexels](https://www.pexels.com/license/) و [YouTube Data API](https://developers.google.com/youtube/v3/docs/videos/insert).
-
-نام نمایشی جدید در تنظیمات پروژه **ImamAli110** است؛ این مخزن نام یا handle واقعی کانال YouTube را تغییر نمی‌دهد. اگر نام کانال در YouTube عوض شد، `channel.url` را در `config/channel.yaml` اصلاح کنید.
+**Brand note:** Previous ImamAli110 / Persian spiritual identity is fully retired on this branch.  
+Working internal name: **BAMO Autonomous Shorts Studio**. Final public channel brand will be decided later.
