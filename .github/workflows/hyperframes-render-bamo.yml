@@ -48,11 +48,9 @@ jobs:
         working-directory: productions/bamo-time-dilation
         run: |
           mkdir -p ../../outputs
-          # Latest HyperFrames; try --gpu if available on runner, fall back
           npx --yes hyperframes@0.9.19 render --gpu -o ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4 \
             || npx --yes hyperframes@0.9.19 render -o ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4
           ls -lh ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4
-          ffprobe -v error -show_entries stream=width,height,codec_name,bit_rate -show_entries format=duration,size -of default=nw=1 ../../outputs/BAMO_TimeDilation_HyperFrames_HQ_@12bamo.mp4 || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -77,7 +75,6 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "COLAB_CLI_TOKEN_JSON missing — skip Colab GPU job"
           fi
 
       - uses: actions/setup-python@v5
@@ -87,7 +84,7 @@ jobs:
 
       - name: Install Colab CLI
         if: steps.check.outputs.ok == 'true'
-        run: pip install -q google-colab-cli edge-tts
+        run: pip install -q google-colab-cli
 
       - name: Restore token
         if: steps.check.outputs.ok == 'true'
@@ -106,33 +103,10 @@ jobs:
           SESSION="bamo-hf-$(date +%s)"
           colab new -s "$SESSION" --gpu T4 2>&1 | tee output/colab_hf/run.log
 
-          # Install Node 22 + ffmpeg + hyperframes on Colab
-          colab exec -s "$SESSION" -b '
+          # run shell script on Colab (same pattern as existing GPU workflow)
+          set +e
+          colab exec -s "$SESSION" -f scripts/colab_hyperframes_render.sh 2>&1 | tee -a output/colab_hf/run.log
           set -e
-          curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-          apt-get install -y -qq nodejs ffmpeg > /dev/null
-          node -v
-          pip install -q edge-tts
-          ' 2>&1 | tee -a output/colab_hf/run.log
-
-          # Upload project files
-          colab upload -s "$SESSION" productions/bamo-time-dilation /content/bamo-time-dilation 2>&1 | tee -a output/colab_hf/run.log || true
-
-          # Generate TTS + render with --gpu
-          colab exec -s "$SESSION" -b '
-          set -e
-          cd /content/bamo-time-dilation
-          mkdir -p assets
-          python3 - <<PY
-          import asyncio, edge_tts
-          text = "Time is not the same for everyone. Near a black hole, one second can equal years on Earth. GPS satellites already correct for this every day. Relativity is not theory on a chalkboard. It runs the modern world. BAMO. Follow at twelve bamo."
-          asyncio.run(edge_tts.Communicate(text, "en-US-GuyNeural").save("assets/narration.mp3"))
-          print("tts ok")
-          PY
-          npx --yes hyperframes@0.9.19 render --gpu -o /content/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4 \
-            || npx --yes hyperframes@0.9.19 render -o /content/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4
-          ls -lh /content/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4
-          ' 2>&1 | tee -a output/colab_hf/run.log
 
           colab download -s "$SESSION" /content/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4 output/colab_hf/BAMO_TimeDilation_HyperFrames_GPU_@12bamo.mp4 2>&1 | tee -a output/colab_hf/run.log || true
           colab stop -s "$SESSION" 2>&1 | tee -a output/colab_hf/run.log || true
