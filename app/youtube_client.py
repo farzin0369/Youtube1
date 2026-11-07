@@ -23,11 +23,6 @@ def _contains_synthetic_media() -> bool:
 
 
 def _validate_publish_at(publish_at: str, *, now: datetime | None = None) -> str:
-    """Validate a requested publish slot and reject slots that are too close/past.
-
-    Do not silently drop scheduling for a late slot: with public privacy that
-    could publish immediately instead of at the requested time.
-    """
     parsed = datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
@@ -50,8 +45,6 @@ def _build_credentials():
     if not client_id or not client_secret or not refresh_token:
         raise RuntimeError("Missing YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN")
 
-    # Do not force a narrower scope set on refresh — that triggers invalid_scope
-    # when the token was issued with the full set from get_youtube_token.py.
     creds = Credentials(
         token=None,
         refresh_token=refresh_token,
@@ -69,17 +62,10 @@ def _build_credentials():
         if "invalid_grant" in low:
             hint = (
                 " | HINT: Google rejected the refresh token. Revoke the old app grant, "
-                "run scripts/get_youtube_token.py again, and update all three GitHub "
-                "Secrets from that same run. Verify the Desktop OAuth client matches "
-                "the token and YouTube Data API is enabled. If the OAuth consent screen "
-                "is External and still in Testing, refresh tokens for YouTube scopes "
-                "can expire after 7 days; review the app publishing status in Google Cloud."
+                "run scripts/get_youtube_token.py again, and update all three GitHub Secrets."
             )
         elif "invalid_scope" in low:
-            hint = (
-                " | HINT: token scopes mismatch. Revoke app access at "
-                "https://myaccount.google.com/permissions and re-issue the token."
-            )
+            hint = " | HINT: token scopes mismatch. Re-issue the token."
         raise RuntimeError(f"YouTube OAuth refresh failed: {msg}{hint}") from exc
     if not creds.valid or not creds.token:
         raise RuntimeError("YouTube OAuth refresh produced no access token")
@@ -87,7 +73,6 @@ def _build_credentials():
 
 
 def probe_youtube_auth() -> dict[str, Any]:
-    """Cheap auth check: refresh + channels.list(mine=True). Call before GPU work."""
     try:
         from googleapiclient.discovery import build
 
@@ -110,7 +95,6 @@ def probe_youtube_auth() -> dict[str, Any]:
 
 
 def _build_upload_status(privacy: str, scheduled_at: str | None, contains_synthetic_media: bool) -> dict[str, Any]:
-    """Build the final insert status; scheduled videos remain private until publishAt."""
     status: dict[str, Any] = {
         "privacyStatus": "private" if scheduled_at else privacy,
         "selfDeclaredMadeForKids": False,
@@ -122,7 +106,6 @@ def _build_upload_status(privacy: str, scheduled_at: str | None, contains_synthe
 
 
 def _set_custom_thumbnail(youtube, video_id: str, thumbnail_path: Path) -> bool:
-    """Set the generated JPEG thumbnail after the video insert."""
     from googleapiclient.http import MediaFileUpload
 
     response = youtube.thumbnails().set(
@@ -139,7 +122,7 @@ def upload_video(
     tags: list[str],
     privacy: str = "private",
     thumbnail_path: Path | None = None,
-    category_id: str = "25",
+    category_id: str = "27",
     publish_at: str | None = None,
 ) -> dict[str, Any]:
     if privacy not in ("private", "unlisted", "public"):
@@ -152,6 +135,7 @@ def upload_video(
         return {"ok": False, "error": "A valid custom thumbnail is required before a public or unlisted upload."}
 
     contains_synthetic_media = _contains_synthetic_media()
+    lang = (env("YOUTUBE_DEFAULT_LANGUAGE") or "en").strip() or "en"
 
     try:
         from googleapiclient.discovery import build
@@ -161,10 +145,6 @@ def upload_video(
         scheduled_at = (publish_at or env("YOUTUBE_PUBLISH_AT") or "").strip() or None
         if scheduled_at:
             scheduled_at = _validate_publish_at(scheduled_at)
-        # Set the schedule in videos.insert itself. This avoids a second
-        # videos.update call and keeps the video private until publishAt.
-        # Captions are already burned into the rendered MP4; a separate
-        # captions.insert call is optional and disabled to conserve API quota.
         upload_status = _build_upload_status(privacy, scheduled_at, contains_synthetic_media)
         body = {
             "snippet": {
@@ -172,8 +152,8 @@ def upload_video(
                 "description": description[:5000],
                 "tags": tags[:20],
                 "categoryId": category_id,
-                "defaultLanguage": "fa",
-                "defaultAudioLanguage": "fa",
+                "defaultLanguage": lang,
+                "defaultAudioLanguage": lang,
             },
             "status": upload_status,
         }
