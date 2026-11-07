@@ -3,13 +3,14 @@
 
 1) Brain selects one idea from the bank
 2) HyperFrames official kinetic-type renders the video
-3) YouTube public upload with title/description/tags/hashtags
-4) Reply to a few recent comments (English, safe)
+3) YouTube public upload with title/description/tags/hashtags + thumbnail
+4) Reply to a few recent comments in English (best-effort)
 """
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,19 +22,41 @@ from scripts.bamo_brain import append_history, build_youtube_package, mark_used,
 from scripts.bamo_hyperframes_factory import render_short
 
 
-def _upload(video: Path, pkg: dict, *, privacy: str, dry_run: bool) -> dict:
+def _make_thumbnail(video: Path) -> Path:
+    thumb = video.with_suffix(".jpg")
+    # Grab a mid-frame; HyperFrames kinetic opens strong around 1–3s
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-ss",
+        "2.5",
+        "-i",
+        str(video),
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        str(thumb),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    if not thumb.exists() or thumb.stat().st_size < 1000:
+        raise RuntimeError(f"thumbnail generation failed: {thumb}")
+    print(f"thumbnail -> {thumb}", flush=True)
+    return thumb
+
+
+def _upload(video: Path, pkg: dict, thumb: Path | None, *, privacy: str, dry_run: bool) -> dict:
     if dry_run:
         return {"ok": True, "dry_run": True, "privacy": privacy, "title": pkg["title"]}
     from app.youtube_client import upload_video
 
-    # Prefer English language fields via env for containsSyntheticMedia=false
     return upload_video(
         video_path=video,
         title=pkg["title"],
         description=pkg["description"],
         tags=pkg["tags"],
         privacy=privacy,
-        thumbnail_path=None,  # HyperFrames frame can be used later; allow public without custom thumb if client enforces
+        thumbnail_path=thumb,
         category_id=pkg.get("category_id") or "27",
     )
 
@@ -46,7 +69,8 @@ def _reply_comments(max_replies: int, dry_run: bool) -> dict:
 
         return reply_to_recent_comments(max_videos=3, max_comments_per_video=max_replies)
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        # Never fail the daily publish because comment AI is down
+        return {"ok": False, "soft_fail": True, "error": str(exc)}
 
 
 def main() -> int:
@@ -55,11 +79,12 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="Select + metadata only, no render")
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
     ap.add_argument("--skip-comments", action="store_true")
+    ap.add_argument("--prefer-curated", action="store_true", default=True)
     args = ap.parse_args()
 
-    idea = select_idea()
+    idea = select_idea(prefer_curated=True)
     pkg = build_youtube_package(idea)
-    print(json.dumps({"selected": idea.get("id"), "title": pkg["title"]}, ensure_ascii=False), flush=True)
+    print(json.dumps({"selected": idea.get("id"), "title": pkg["title"], "curated": idea.get("curated")}, ensure_ascii=False), flush=True)
 
     if args.dry_run:
         print(json.dumps({"ok": True, "dry_run": True, "package": pkg}, ensure_ascii=False))
@@ -67,14 +92,14 @@ def main() -> int:
 
     out = ROOT / "outputs" / "daily" / f"BAMO_{idea.get('id')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.mp4"
     video = render_short(pkg["narration"], out)
+    thumb = _make_thumbnail(video)
 
     upload_result: dict = {"ok": False, "skipped": True}
     if args.publish:
-        # youtube_client currently requires thumbnail for public; fall back to unlisted if blocked
-        upload_result = _upload(video, pkg, privacy=args.privacy, dry_run=False)
-        if not upload_result.get("ok") and "thumbnail" in str(upload_result.get("error") or "").lower():
-            print("[warn] public needs thumbnail; retrying as unlisted", flush=True)
-            upload_result = _upload(video, pkg, privacy="unlisted", dry_run=False)
+        upload_result = _upload(video, pkg, thumb, privacy=args.privacy, dry_run=False)
+        if not upload_result.get("ok") and args.privacy == "public":
+            print("[warn] public upload failed; retrying as unlisted", flush=True)
+            upload_result = _upload(video, pkg, thumb, privacy="unlisted", dry_run=False)
 
     if upload_result.get("ok") and not upload_result.get("dry_run"):
         mark_used(str(idea.get("id")))
@@ -88,11 +113,13 @@ def main() -> int:
         "idea_id": idea.get("id"),
         "title": pkg["title"],
         "video": str(video),
+        "thumbnail": str(thumb),
         "upload": upload_result,
         "comments": comments,
     }
     append_history(record)
     print(json.dumps(record, ensure_ascii=False, default=str))
+    # comments soft-fail must not fail the job
     return 0 if (not args.publish or upload_result.get("ok")) else 1
 
 
