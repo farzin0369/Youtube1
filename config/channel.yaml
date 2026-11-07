@@ -1,55 +1,63 @@
 channel:
   brand: "BAMO"
   display_name: "BAMO"
-  secondary_brand: "#12bamo"
+  secondary_brand: "#BAMOShorts"
   url: "https://www.youtube.com/@12bamo"
-  language: fa-IR
-  timezone: Asia/Tehran
-  audience: مخاطب فارسی‌زبان علاقه‌مند به معنویت، علم، فلسفه، تاریخ، هنر، ورزش، سرگرمی و رشد فردی
-  objective: تولید محتوای اصیل و متنوع فارسی با روایت سینمایی، موشن‌گرافیک حرفه‌ای و پیام روشن؛ از دین و اخلاق تا علم، تاریخ، هنر و سرگرمی
-  narrator: مرد
-  tts_voice: fa-IR-FaridNeural
+  language: en-US
+  timezone: America/New_York
+  audience: English-speaking audience interested in science, physics, mathematics, AI, history, psychology, surprising facts and high-quality educational Shorts
+  objective: Produce original, accurate, visually strong English YouTube Shorts (20-30s) with strong hooks, clear value, and professional motion graphics
+  narrator: male
+  tts_voice: en-US-GuyNeural          # temporary; will be evaluated against Piper and others
   tts_model: edge-tts
-  visual_style: ویدئوی عمودی ۹:۱۶ با هوک فوری، چهار صحنهٔ مرتبط با روایت، زیرنویس فارسی راست‌به‌چپ و حرکت سینمایی
-  ai_engine: BAMO-11-role-editorial-pipeline-CPU
+  visual_style: vertical 9:16, strong opening hook, topic-matched motion, clean English captions, high visual density every 5 seconds
+  ai_engine: BAMO-Content-Intelligence + OpenMontage
   llm_model: openai/gpt-oss-20b
   local_llm_model: qwen2.5:7b
 
 schedule:
-  timezone: Asia/Tehran
-  publication_times_local: ["07:00", "10:00", "12:00", "15:00", "18:00", "21:00"]
-  publication_timezone: Asia/Tehran
-  publication_crons_utc: ["30 3 * * *", "30 6 * * *", "30 8 * * *", "30 11 * * *", "30 14 * * *", "30 17 * * *"]
-  cadence: six-times-daily
+  timezone: America/New_York
+  publication_times_local: ["12:00"]   # single daily slot for now; will be optimized with real Analytics later
+  publication_timezone: America/New_York
+  publication_crons_utc: ["0 17 * * *"]  # 12:00 ET ≈ 17:00 UTC (adjust for DST later)
+  cadence: daily
 
 publishing:
-  mode: public
-  public_publish_enabled: true
-  require_human_approval: false
-  category_id: "22"
-  default_language: fa
+  mode: private                        # start private / unlisted until quality is proven
+  public_publish_enabled: false
+  require_human_approval: true
+  category_id: "27"                    # Education
+  default_language: en
   minimum_schedule_lead_minutes: 30
   require_successful_render: true
-  comments_max_replies_per_run: 3
+  comments_max_replies_per_run: 0
 
 content:
   production_format: shorts
-  target_duration_seconds: "18-30"
-  target_word_count: "28-44"
+  target_duration_seconds: "20-30"
+  target_word_count: "45-75"
   pillars:
-    - معنویت، اخلاق، قرآن و حدیث با منبع معتبر
-    - علم، فیزیک، ریاضیات و کشف‌های شگفت‌انگیز
-    - فلسفه، روان‌شناسی و پرسش‌های ذهن
-    - تاریخ، تمدن‌ها و زندگی شخصیت‌های اثرگذار
-    - هنر، موسیقی، معماری و نمادشناسی
-    - ورزش، سرگرمی و رویدادهای روز با راستی‌آزمایی
-    - رشد فردی، سواد مالی عمومی و مهارت‌های زندگی
+    - Science & discoveries
+    - Physics & astrophysics
+    - Mathematics & geometry
+    - Chemistry & biology
+    - Medicine & public health (no medical advice)
+    - Artificial intelligence & future tech
+    - Psychology & cognitive science
+    - Philosophy & critical thinking
+    - History & ancient civilizations
+    - Art, music & architecture
+    - Sports & world records
+    - Nature & animals
+    - Space & cosmic mysteries
+    - Inventions & discoveries
+    - Paradoxes & mind-bending facts
+    - Surprising true stories
   forbidden:
-    - وعدهٔ قطعی پولدارشدن، موفقیت یا درمان
-    - توصیهٔ مالی، سرمایه‌گذاری یا پزشکی شخصی
-    - نقل‌قول، آیه یا حدیث ساختگی یا بدون منبع معتبر
-    - کلیک‌بیت، ترساندن، شرمنده‌کردن یا لحن سرزنش‌گر
-    - تقلید از سبک اختصاصی کانال‌ها یا نویسندگان دیگر
-    - پاسخ خودکار به بحران، خودآسیبی، تهدید، نفرت یا درخواست فتوا
-  source_policy: محتوای تأملی و آموزشی عمومی؛ ادعای دینیِ قابل‌راستی‌آزمایی فقط با منبع معتبر؛ عدم اختلاق نقل‌قول
-  comment_policy: پاسخ کوتاه فقط به نظرهای روشن و بی‌خطر؛ مورد حساس یا نامطمئن بدون پاسخ خودکار
+    - Fake statistics or unverified claims
+    - Medical, financial or legal advice
+    - Religious proselytizing or fabricated quotes
+    - Clickbait that does not deliver value
+    - Any content that was part of the previous Persian spiritual brand
+  source_policy: Every factual claim must be backed by a reputable source. No invented numbers or stories.
+  comment_policy: No automatic replies in the experimental phase
