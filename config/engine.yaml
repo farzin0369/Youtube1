@@ -1,0 +1,34 @@
+primary: hyperframes
+version: "0.9.19"
+template: kinetic-type
+registry_blocks:
+  - cosmic-orb
+  - gravitational-lens
+brand: BAMO
+handle: "@12bamo"
+language: en-US
+format:
+  width: 1080
+  height: 1920
+  fps: 30
+  duration_target_sec: [20, 30]
+paths:
+  workdir: /tmp/bamo-pro
+  outputs: outputs/daily
+  idea_bank: data/ideas/ideas.jsonl
+  history: data/publish_history.jsonl
+voice:
+  provider: edge-tts
+  voice: en-US-GuyNeural
+deprecated_engines:
+  - openmontage
+  - moneyprinterturbo
+  - spiritual_pipeline
+  - manim_cpu
+  - blender_cpu
+  - wan21
+  - cogvideox
+notes: |
+  Sole production engine: HyperFrames 0.9.19 with official kinetic-type template
+  and registry blocks (cosmic-orb, gravitational-lens). All prior engines are
+  deprecated and must not be used by the daily factory.
