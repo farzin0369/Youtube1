@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Persian-only BAMO Short: topic A-roll + synced FA captions + FA TTS. No English UI."""
+"""Persian-only BAMO Short: REAL still photos (NASA/Wikimedia), not video A-roll.
+
+Each caption beat can show a different real photograph with mild Ken-Burns motion.
+"""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.bamo_brain import append_history, mark_used, select_idea
-from scripts.bamo_visuals import build_animated_aroll, collect_visuals
+from scripts.bamo_visuals import collect_visuals
 
 FA_BY_TITLE: dict[str, dict[str, str]] = {
     "Time Is Not the Same for Everyone": {
@@ -28,7 +31,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "ماهواره‌های جی‌پی‌اس هر روز اثر نسبیت را اصلاح می‌کنند؛ وگرنه نقشه‌ها منحرف می‌شدند. "
             "این فقط نظریه روی تخته نیست؛ مهندسی واقعی است. بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "Physics & astrophysics",
+        "category": "black hole space physics",
+        "search": "black hole nebula galaxy earth from space",
     },
     "Auroras Are Solar Wind Meeting Magnetospheres": {
         "title": "شفق قطبی چیست؟",
@@ -38,7 +42,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "و گازهای جو را برانگیخته می‌کند. رنگ به ارتفاع و شیمی بستگی دارد. آب‌وهوای فضایی که دیده می‌شود. "
             "بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "astronomy",
+        "category": "aurora",
+        "search": "aurora borealis northern lights earth from space",
     },
     "Most of the Universe Is Invisible": {
         "title": "بیشتر جهان نامرئی است",
@@ -48,7 +53,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "فیزیکدانان آن را ماده تاریک می‌نامند. گرانشش را می‌بینیم، نورش را نه. "
             "بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "astrophysics",
+        "category": "galaxy",
+        "search": "galaxy milky way dark matter cosmos",
     },
     "Why the Sky Is Blue": {
         "title": "چرا آسمان آبی است؟",
@@ -58,7 +64,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "قوی‌تر پخش می‌کنند. در غروب مسیر نور در جو طولانی‌تر است و قرمز و نارنجی غالب می‌شوند. "
             "فیزیک ساده‌ای که هر روز می‌بینید. بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "physics",
+        "category": "sky atmosphere",
+        "search": "blue sky atmosphere earth sunset",
     },
     "Why Large Models Hallucinate": {
         "title": "چرا مدل‌های بزرگ توهم می‌سازند؟",
@@ -69,6 +76,7 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "نه وحی. بامو. دنبال کنید at twelve bamo."
         ),
         "category": "ai",
+        "search": "computer circuit data center neural network",
     },
     "Why 23 People Make a Shared Birthday Likely": {
         "title": "چرا در بیست‌وسه نفر احتمال تولد مشترک بالاست؟",
@@ -79,6 +87,7 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "احتمال، شمارش دقیق را پاداش می‌دهد نه حس درونی را. بامو. دنبال کنید at twelve bamo."
         ),
         "category": "math",
+        "search": "people crowd celebration birthday mathematics",
     },
 }
 
@@ -132,20 +141,34 @@ def _caption_timeline(title: str, hook: str, narration: str, duration: float) ->
     lines.append("بامو · @12bamo")
 
     usable = max(6.0, duration - 0.8)
-    # weight by character length (better for Persian than word count)
     weights = [max(4, len(x)) for x in lines]
     total_w = sum(weights) or 1
     timeline: list[tuple[float, float, str]] = []
-    t = 0.15
+    t = 0.12
     for line, w in zip(lines, weights):
         slot = usable * (w / total_w)
         slot = max(1.9, min(6.5, slot))
-        end = min(duration - 0.15, t + slot)
+        end = min(duration - 0.12, t + slot)
         timeline.append((t, end, line))
-        t = end + 0.08
-        if t >= duration - 0.5:
+        t = end + 0.06
+        if t >= duration - 0.4:
             break
     return timeline
+
+
+def _copy_photos(photos: list[Path], assets: Path, n: int) -> list[str]:
+    """Copy real photos into assets/ as photo_00.jpg … return relative src list."""
+    out: list[str] = []
+    if not photos:
+        return out
+    for i in range(n):
+        src = photos[i % len(photos)]
+        ext = src.suffix.lower() if src.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} else ".jpg"
+        name = f"photo_{i:02d}{ext}"
+        dest = assets / name
+        shutil.copy2(src, dest)
+        out.append(f"assets/{name}")
+    return out
 
 
 def _render_fa(
@@ -154,6 +177,7 @@ def _render_fa(
     hook: str,
     narration: str,
     category: str,
+    search: str,
     out_mp4: Path,
 ) -> Path:
     work = Path("/tmp/bamo-fa")
@@ -165,69 +189,78 @@ def _render_fa(
 
     duration = _tts_fa(narration, assets / "narration.mp3")
     duration = min(28.0, duration + 0.8)
-
-    has_aroll = False
-    try:
-        images, videos = collect_visuals(
-            title,
-            category,
-            assets / "media",
-            hook=hook,
-            max_images=5,
-            max_videos=2,
-        )
-        # English search terms help NASA; also pass category
-        if not images and not videos:
-            images, videos = collect_visuals(
-                category or "space cosmos",
-                category or "astronomy",
-                assets / "media2",
-                hook="nebula galaxy",
-                max_images=5,
-                max_videos=2,
-            )
-        if images or videos:
-            build_animated_aroll(
-                images,
-                videos,
-                assets / "aroll.mp4",
-                duration=duration,
-                width=1080,
-                height=1920,
-            )
-            has_aroll = (assets / "aroll.mp4").exists()
-    except Exception as exc:
-        print(f"aroll fail: {exc}", flush=True)
-
     timeline = _caption_timeline(title, hook, narration, duration)
-    beat_divs, gsap_lines = [], []
+
+    # REAL images only — ignore videos from collector
+    images, _videos = collect_visuals(
+        search or title,
+        category or "space",
+        assets / "raw",
+        hook=hook,
+        max_images=6,
+        max_videos=0,
+    )
+    if not images:
+        images, _ = collect_visuals(
+            "nebula galaxy earth from space",
+            "astronomy",
+            assets / "raw2",
+            hook="cosmos",
+            max_images=6,
+            max_videos=0,
+        )
+    print(f"real photos: {len(images)}", flush=True)
+
+    photo_srcs = _copy_photos(images, assets, max(1, len(timeline)))
+
+    # Build photo layers + caption beats
+    photo_divs: list[str] = []
+    beat_divs: list[str] = []
+    gsap_lines: list[str] = []
+
+    if photo_srcs:
+        for i, (start, end, _text) in enumerate(timeline):
+            src = photo_srcs[i % len(photo_srcs)]
+            pid = f"photo-{i}"
+            slot = max(0.8, end - start)
+            # mild continuous scale motion via CSS animation driven by GSAP
+            photo_divs.append(
+                f'      <img id="{pid}" class="photo clip" src="{src}" '
+                f'data-start="{start:.2f}" data-duration="{slot:.2f}" data-track-index="{i}" '
+                f'alt="" />'
+            )
+            # fade in/out; slow zoom while visible
+            gsap_lines.append(
+                f'      tl.fromTo("#{pid}", '
+                f'{{opacity: 0, scale: 1.0}}, '
+                f'{{opacity: 1, scale: 1.08, duration: 0.45, ease: "power1.out"}}, {start:.2f});'
+            )
+            out_at = max(start + 0.6, end - 0.35)
+            gsap_lines.append(
+                f'      tl.to("#{pid}", {{opacity: 0, scale: 1.12, duration: 0.35, ease: "power1.in"}}, {out_at:.2f});'
+            )
+    else:
+        photo_divs.append(
+            f'      <div class="fallback clip" data-start="0" data-duration="{duration:.2f}" data-track-index="0"></div>'
+        )
+
     for i, (start, end, text) in enumerate(timeline):
         bid = f"beat-{i}"
         slot = max(0.8, end - start)
         beat_divs.append(
             f'      <div id="{bid}" class="beat" data-start="{start:.2f}" '
-            f'data-duration="{slot:.2f}" data-track-index="{10 + i}">{html.escape(text)}</div>'
+            f'data-duration="{slot:.2f}" data-track-index="{20 + i}">{html.escape(text)}</div>'
         )
         gsap_lines.append(
-            f'      tl.fromTo("#{bid}", {{opacity: 0, y: 24}}, '
-            f'{{opacity: 1, y: 0, duration: 0.32, ease: "power2.out"}}, {start:.2f});'
+            f'      tl.fromTo("#{bid}", {{opacity: 0, y: 22}}, '
+            f'{{opacity: 1, y: 0, duration: 0.3, ease: "power2.out"}}, {start:.2f});'
         )
         out_at = max(start + 0.5, end - 0.28)
         gsap_lines.append(
-            f'      tl.to("#{bid}", {{opacity: 0, y: -10, duration: 0.22, ease: "power2.in"}}, {out_at:.2f});'
+            f'      tl.to("#{bid}", {{opacity: 0, y: -8, duration: 0.22, ease: "power2.in"}}, {out_at:.2f});'
         )
 
     duration_s = f"{duration:.2f}"
-    if has_aroll:
-        aroll = f"""
-      <video id="a-roll" class="clip" src="assets/aroll.mp4" data-start="0" data-duration="{duration_s}"
-        data-track-index="0" muted playsinline
-        style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;"></video>
-      <div class="scrim clip" data-start="0" data-duration="{duration_s}" data-track-index="1"></div>
-"""
-    else:
-        aroll = f'<div class="fallback clip" data-start="0" data-duration="{duration_s}" data-track-index="0"></div>\n'
-
     index = f"""<!doctype html>
 <html lang="fa" dir="rtl">
   <head>
@@ -243,7 +276,12 @@ def _render_fa(
         background: #050508; font-family: "Vazirmatn", Tahoma, sans-serif;
         color: #fff; direction: rtl;
       }}
-      #root {{ position: relative; width: 1080px; height: 1920px; overflow: hidden; }}
+      #root {{ position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #000; }}
+      .photo {{
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover; opacity: 0; z-index: 1;
+        transform-origin: center center;
+      }}
       .fallback {{
         position: absolute; inset: 0;
         background: radial-gradient(ellipse at 50% 30%, #1b2240 0%, #07070c 60%, #000 100%);
@@ -251,8 +289,8 @@ def _render_fa(
       .scrim {{
         position: absolute; inset: 0; z-index: 2; pointer-events: none;
         background: linear-gradient(180deg,
-          rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.12) 40%,
-          rgba(0,0,0,0.55) 72%, rgba(0,0,0,0.8) 100%);
+          rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.12) 40%,
+          rgba(0,0,0,0.55) 72%, rgba(0,0,0,0.82) 100%);
       }}
       .beat {{
         position: absolute; left: 40px; right: 40px; bottom: 260px;
@@ -269,10 +307,11 @@ def _render_fa(
   </head>
   <body>
     <div id="root" data-composition-id="main" data-start="0" data-duration="{duration_s}" data-width="1080" data-height="1920">
-{aroll}
+{chr(10).join(photo_divs)}
+      <div class="scrim clip" data-start="0" data-duration="{duration_s}" data-track-index="15"></div>
 {chr(10).join(beat_divs)}
-      <div id="brand" class="clip" data-start="0" data-duration="{duration_s}" data-track-index="30">بامو · @12bamo</div>
-      <audio id="vo" class="clip" src="assets/narration.mp3" data-start="0" data-duration="{duration_s}" data-track-index="40" data-volume="1"></audio>
+      <div id="brand" class="clip" data-start="0" data-duration="{duration_s}" data-track-index="40">بامو · @12bamo</div>
+      <audio id="vo" class="clip" src="assets/narration.mp3" data-start="0" data-duration="{duration_s}" data-track-index="50" data-volume="1"></audio>
     </div>
     <script>
       window.__timelines = window.__timelines || {{}};
@@ -304,7 +343,7 @@ def _render_fa(
         )
     if not out_mp4.exists() or out_mp4.stat().st_size < 50_000:
         raise RuntimeError(f"FA render failed: {out_mp4}")
-    print(f"render-fa ok -> {out_mp4} aroll={has_aroll}", flush=True)
+    print(f"render-fa ok -> {out_mp4} photos={len(photo_srcs)}", flush=True)
     return out_mp4
 
 
@@ -323,11 +362,7 @@ def main() -> int:
         idea = cand
     assert idea is not None
     title_en = (idea.get("title") or "").strip()
-    fa = FA_BY_TITLE.get(title_en)
-    if not fa:
-        # force a strong space topic in Persian
-        fa = FA_BY_TITLE["Time Is Not the Same for Everyone"]
-        title_en = "Time Is Not the Same for Everyone"
+    fa = FA_BY_TITLE.get(title_en) or FA_BY_TITLE["Time Is Not the Same for Everyone"]
 
     print(json.dumps({"selected": idea.get("id"), "title_fa": fa["title"]}, ensure_ascii=False), flush=True)
 
@@ -336,7 +371,8 @@ def main() -> int:
         title=fa["title"],
         hook=fa["hook"],
         narration=fa["narration"],
-        category=fa.get("category") or idea.get("category") or "astronomy",
+        category=fa.get("category") or "astronomy",
+        search=fa.get("search") or fa.get("category") or "space",
         out_mp4=out,
     )
 
@@ -370,6 +406,7 @@ def main() -> int:
         "title": fa["title"],
         "video": str(video),
         "upload": upload_result,
+        "mode": "real_photos",
     }
     append_history(record)
     print(json.dumps(record, ensure_ascii=False, default=str))
