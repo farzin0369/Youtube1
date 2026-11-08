@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Persian Shorts from REAL stock video (Mixkit + NASA) — not photo Ken-Burns."""
+"""Persian Shorts: real stock VIDEO + captions hard-synced to what is spoken."""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +21,6 @@ from scripts.bamo_visuals import nasa_media
 
 UA = "Mozilla/5.0 (compatible; BAMOShorts/1.0)"
 
-# Curated Mixkit free video IDs (direct CDN mp4 works: /videos/{id}/{id}-720.mp4)
 MIXKIT_BY_TOPIC: dict[str, list[int]] = {
     "space": [14185, 18791, 31559, 19649, 30265],
     "astronomy": [14185, 18791, 31559, 34788],
@@ -36,56 +35,65 @@ MIXKIT_BY_TOPIC: dict[str, list[int]] = {
 FA_BY_TITLE: dict[str, dict[str, str]] = {
     "Time Is Not the Same for Everyone": {
         "title": "زمان برای همه یکسان نیست",
-        "hook": "نزدیک سیاه‌چاله یک ثانیه می‌تواند برابر سال‌ها روی زمین باشد",
-        "narration": (
-            "زمان برای همه یکسان نیست. نزدیک سیاه‌چاله، ساعت‌ها نسبت به زمین کندتر می‌چرخند. "
-            "ماهواره‌های جی‌پی‌اس هر روز اثر نسبیت را اصلاح می‌کنند؛ وگرنه نقشه‌ها منحرف می‌شدند. "
-            "این فقط نظریه روی تخته نیست؛ مهندسی واقعی است. بامو. دنبال کنید at twelve bamo."
-        ),
+        "narration_sentences": [
+            "زمان برای همه یکسان نیست.",
+            "نزدیک سیاه‌چاله، ساعت‌ها نسبت به زمین کندتر می‌چرخند.",
+            "ماهواره‌های جی‌پی‌اس هر روز اثر نسبیت را اصلاح می‌کنند.",
+            "وگرنه نقشه‌ها منحرف می‌شدند.",
+            "این فقط نظریه روی تخته نیست؛ مهندسی واقعی است.",
+            "بامو. دنبال کنید at twelve bamo.",
+        ],
         "topic": "physics",
         "nasa_q": "black hole",
     },
     "Auroras Are Solar Wind Meeting Magnetospheres": {
         "title": "شفق قطبی چیست؟",
-        "hook": "ذرات باردار جو بالایی را روشن می‌کنند",
-        "narration": (
-            "خورشید پلاسما به بیرون می‌فرستد. میدان مغناطیسی زمین ذرات را به سمت قطب‌ها هدایت می‌کند "
-            "و گازهای جو را برانگیخته می‌کند. رنگ به ارتفاع و شیمی بستگی دارد. آب‌وهوای فضایی که دیده می‌شود. "
-            "بامو. دنبال کنید at twelve bamo."
-        ),
+        "narration_sentences": [
+            "شفق قطبی چیست؟",
+            "خورشید پلاسما به بیرون می‌فرستد.",
+            "میدان مغناطیسی زمین ذرات را به سمت قطب‌ها هدایت می‌کند.",
+            "گازهای جو برانگیخته می‌شوند و آسمان روشن می‌شود.",
+            "رنگ به ارتفاع و شیمی بستگی دارد.",
+            "بامو. دنبال کنید at twelve bamo.",
+        ],
         "topic": "aurora",
         "nasa_q": "aurora",
     },
     "Most of the Universe Is Invisible": {
         "title": "بیشتر جهان نامرئی است",
-        "hook": "کهکشان‌ها برای جرم دیده‌شده خیلی تند می‌چرخند",
-        "narration": (
-            "ستاره‌های لبهٔ کهکشان‌ها طوری حرکت می‌کنند که انگار جرم نادیده‌ای هست. "
-            "فیزیکدانان آن را ماده تاریک می‌نامند. گرانشش را می‌بینیم، نورش را نه. "
-            "بامو. دنبال کنید at twelve bamo."
-        ),
+        "narration_sentences": [
+            "بیشتر جهان نامرئی است.",
+            "ستاره‌های لبهٔ کهکشان‌ها خیلی تند می‌چرخند.",
+            "انگار جرم نادیده‌ای آن‌ها را نگه می‌دارد.",
+            "فیزیکدانان آن را ماده تاریک می‌نامند.",
+            "گرانشش را می‌بینیم، نورش را نه.",
+            "بامو. دنبال کنید at twelve bamo.",
+        ],
         "topic": "galaxy",
         "nasa_q": "galaxy",
     },
     "Why the Sky Is Blue": {
         "title": "چرا آسمان آبی است؟",
-        "hook": "نور خورشید به مولکول‌های هوا می‌خورد و آبی بیشتر پخش می‌شود",
-        "narration": (
-            "نور خورشید سفید است، اما آسمان آبی دیده می‌شود. مولکول‌های هوا طول‌موج‌های کوتاه آبی را "
-            "قوی‌تر پخش می‌کنند. در غروب مسیر نور در جو طولانی‌تر است و قرمز و نارنجی غالب می‌شوند. "
-            "فیزیک ساده‌ای که هر روز می‌بینید. بامو. دنبال کنید at twelve bamo."
-        ),
+        "narration_sentences": [
+            "چرا آسمان آبی است؟",
+            "نور خورشید سفید است، اما آسمان آبی دیده می‌شود.",
+            "مولکول‌های هوا طول‌موج آبی را قوی‌تر پخش می‌کنند.",
+            "در غروب مسیر نور در جو طولانی‌تر است.",
+            "برای همین قرمز و نارنجی غالب می‌شوند.",
+            "بامو. دنبال کنید at twelve bamo.",
+        ],
         "topic": "space",
         "nasa_q": "earth atmosphere",
     },
     "Why Large Models Hallucinate": {
         "title": "چرا مدل‌های بزرگ توهم می‌سازند؟",
-        "hook": "متن محتمل پیش‌بینی می‌کنند نه حقیقت تأییدشده",
-        "narration": (
-            "مدل‌های زبانی برای محتمل‌ترین توکن بعدی بهینه می‌شوند. وقتی شواهد کم است، "
-            "حدس‌های روان هنوز می‌توانند مطمئن به نظر برسند. خروجی را پیش‌نویس قابل راستی‌آزمایی ببینید، "
-            "نه وحی. بامو. دنبال کنید at twelve bamo."
-        ),
+        "narration_sentences": [
+            "چرا مدل‌های بزرگ توهم می‌سازند؟",
+            "مدل‌های زبانی محتمل‌ترین توکن بعدی را پیش‌بینی می‌کنند.",
+            "وقتی شواهد کم است، حدس‌های روان هنوز مطمئن به نظر می‌رسند.",
+            "خروجی را پیش‌نویس قابل راستی‌آزمایی ببینید، نه وحی.",
+            "بامو. دنبال کنید at twelve bamo.",
+        ],
         "topic": "ai",
         "nasa_q": "technology",
     },
@@ -107,7 +115,7 @@ def _download(url: str, dest: Path, timeout: int = 180) -> bool:
             dest.unlink(missing_ok=True)
         return ok
     except Exception as exc:
-        print(f"dl fail {url}: {exc}", flush=True)
+        print(f"dl fail: {exc}", flush=True)
         dest.unlink(missing_ok=True)
         return False
 
@@ -115,28 +123,25 @@ def _download(url: str, dest: Path, timeout: int = 180) -> bool:
 def _fetch_videos(topic: str, nasa_q: str, dest: Path, need: int = 3) -> list[Path]:
     dest.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
-    # 1) Mixkit curated real stock video
-    ids = MIXKIT_BY_TOPIC.get(topic) or MIXKIT_BY_TOPIC["default"]
-    for i, mid in enumerate(ids):
+    for mid in MIXKIT_BY_TOPIC.get(topic) or MIXKIT_BY_TOPIC["default"]:
         if len(paths) >= need:
             break
         url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
         p = dest / f"mix_{mid}.mp4"
         if _download(url, p):
             paths.append(p)
-            print(f"mixkit video ok {p.name}", flush=True)
-    # 2) NASA real video if available
+            print(f"mixkit ok {p.name}", flush=True)
     try:
-        _imgs, vids = nasa_media(nasa_q or topic, images=0, videos=3)
+        _imgs, vids = nasa_media(nasa_q or topic, images=0, videos=2)
         for j, url in enumerate(vids):
             if len(paths) >= need + 1:
                 break
             p = dest / f"nasa_{j}.mp4"
             if _download(url, p):
                 paths.append(p)
-                print(f"nasa video ok {p.name}", flush=True)
+                print(f"nasa ok {p.name}", flush=True)
     except Exception as exc:
-        print(f"nasa video skip: {exc}", flush=True)
+        print(f"nasa skip: {exc}", flush=True)
     return paths
 
 
@@ -158,11 +163,84 @@ def _probe(path: Path) -> float:
             ).strip()
         )
     except Exception:
-        return 5.0
+        return 2.0
+
+
+async def _tts_one(text: str, dest: Path, voice: str = "fa-IR-FaridNeural") -> float:
+    import edge_tts
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    await edge_tts.Communicate(text, voice).save(str(dest))
+    return _probe(dest)
+
+
+def _tts_sentences(sentences: list[str], work: Path) -> tuple[Path, list[tuple[float, float, str]]]:
+    """TTS each sentence separately → exact caption windows matching speech."""
+    audio_dir = work / "vo_parts"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    parts: list[Path] = []
+    timeline: list[tuple[float, float, str]] = []
+    t = 0.0
+
+    async def run_all() -> None:
+        nonlocal t
+        for i, sent in enumerate(sentences):
+            sent = sent.strip()
+            if not sent:
+                continue
+            part = audio_dir / f"p{i:02d}.mp3"
+            dur = await _tts_one(sent, part)
+            dur = max(0.8, dur)
+            parts.append(part)
+            # tiny pad so captions don't cut the last syllable
+            timeline.append((t, t + dur, sent))
+            t += dur + 0.08  # 80ms gap between sentences
+
+    asyncio.run(run_all())
+    if not parts:
+        raise RuntimeError("no TTS parts")
+
+    # concat audio with silence gaps matching timeline
+    lst = audio_dir / "list.txt"
+    lines = []
+    silence = audio_dir / "silence.mp3"
+    # 80ms silence
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=24000:cl=mono",
+            "-t",
+            "0.08",
+            "-q:a",
+            "9",
+            "-acodec",
+            "libmp3lame",
+            str(silence),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    for i, p in enumerate(parts):
+        lines.append(f"file '{p.resolve()}'")
+        if i < len(parts) - 1:
+            lines.append(f"file '{silence.resolve()}'")
+    lst.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    full = work / "vo_full.mp3"
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(full)],
+        check=True,
+        capture_output=True,
+    )
+    total = _probe(full)
+    print(f"synced VO {total:.2f}s · {len(timeline)} sentences", flush=True)
+    return full, timeline
 
 
 def _build_film_bg(videos: list[Path], out: Path, duration: float, w: int = 1080, h: int = 1920) -> Path:
-    """Cut real video clips into a continuous vertical film bed."""
     if not videos:
         raise RuntimeError("no real video clips")
     tmp = out.parent / "_film"
@@ -173,39 +251,40 @@ def _build_film_bg(videos: list[Path], out: Path, duration: float, w: int = 1080
     per = max(4.0, duration / max(1, min(3, len(videos))))
     for i, vid in enumerate(videos[:3]):
         seg = tmp / f"s{i}.mp4"
-        # loop each source to cover its slot, crop to vertical 9:16
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(vid),
-            "-t",
-            f"{per:.2f}",
-            "-vf",
-            f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=30,eq=brightness=-0.03:saturation=1.05",
-            "-an",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            str(seg),
-        ]
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-stream_loop",
+                "-1",
+                "-i",
+                str(vid),
+                "-t",
+                f"{per:.2f}",
+                "-vf",
+                f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=30,eq=brightness=-0.03:saturation=1.05",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                str(seg),
+            ],
+            check=True,
+            capture_output=True,
+        )
         segs.append(seg)
 
     if len(segs) == 1:
         raw = segs[0]
     else:
-        # xfade between real video segments
         inputs = []
         for s in segs:
             inputs.extend(["-i", str(s)])
         durs = [_probe(s) for s in segs]
-        fade = 0.5
+        fade = 0.45
         parts = []
         prev = "[0:v]"
         acc = durs[0]
@@ -239,7 +318,6 @@ def _build_film_bg(videos: list[Path], out: Path, duration: float, w: int = 1080
             capture_output=True,
         )
 
-    # fit exact duration
     subprocess.run(
         [
             "ffmpeg",
@@ -262,49 +340,6 @@ def _build_film_bg(videos: list[Path], out: Path, duration: float, w: int = 1080
         check=True,
         capture_output=True,
     )
-    print(f"film bg -> {out} ({out.stat().st_size} bytes)", flush=True)
-    return out
-
-
-def _tts_fa(text: str, dest: Path) -> float:
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    async def gen() -> None:
-        import edge_tts
-
-        await edge_tts.Communicate(text, "fa-IR-FaridNeural").save(str(dest))
-
-    asyncio.run(gen())
-    return max(10.0, min(28.0, _probe(dest)))
-
-
-def _timeline(title: str, hook: str, narration: str, duration: float) -> list[tuple[float, float, str]]:
-    lines: list[str] = []
-    if title.strip():
-        lines.append(title.strip())
-    if hook.strip() and hook.strip() not in lines:
-        lines.append(hook.strip())
-    body = re.sub(r"\s*بامو\..*$", "", narration, flags=re.I).strip()
-    for p in re.split(r"(?<=[.!?؟])\s+", body):
-        p = p.strip()
-        if len(p) < 8 or p in lines:
-            continue
-        lines.append(p)
-        if len(lines) >= 5:
-            break
-    lines.append("بامو · @12bamo")
-    usable = max(6.0, duration - 0.6)
-    weights = [max(4, len(x)) for x in lines]
-    tw = sum(weights) or 1
-    t = 0.1
-    out: list[tuple[float, float, str]] = []
-    for line, w in zip(lines, weights):
-        slot = max(1.8, min(6.0, usable * (w / tw)))
-        end = min(duration - 0.1, t + slot)
-        out.append((t, end, line))
-        t = end + 0.05
-        if t >= duration - 0.4:
-            break
     return out
 
 
@@ -313,7 +348,10 @@ def _ass(timeline: list[tuple[float, float, str]], path: Path) -> None:
         h = int(sec // 3600)
         m = int((sec % 3600) // 60)
         s = int(sec % 60)
-        cs = int((sec - int(sec)) * 100)
+        cs = int(round((sec - int(sec)) * 100))
+        if cs >= 100:
+            s += 1
+            cs = 0
         return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
     header = """[Script Info]
@@ -323,77 +361,86 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,52,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,40,40,220,1
+Style: Default,DejaVu Sans,50,&H00FFFFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,3,1,2,48,48,240,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
     for start, end, text in timeline:
-        # ASS uses \N for newline; escape braces
+        # end slightly before next to avoid overlap
         safe = text.replace("{", "\\{").replace("}", "\\}")
-        events.append(f"Dialogue: 0,{ts(start)},{ts(end)},Default,,0,0,0,,{safe}")
+        events.append(f"Dialogue: 0,{ts(start)},{ts(max(start + 0.4, end - 0.05))},Default,,0,0,0,,{safe}")
     path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
 
 
 def _mux(bg: Path, audio: Path, ass: Path, out: Path) -> Path:
-    # burn Persian subtitles onto real video film + attach audio
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        str(bg),
-        "-i",
-        str(audio),
-        "-vf",
-        f"ass={ass}",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "medium",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-shortest",
-        "-movflags",
-        "+faststart",
-        str(out),
-    ]
-    subprocess.run(cmd, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(bg),
+            "-i",
+            str(audio),
+            "-vf",
+            f"ass={ass}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+    )
     if not out.exists() or out.stat().st_size < 100_000:
         raise RuntimeError("mux failed")
     return out
 
 
-def _render_fa(*, title: str, hook: str, narration: str, topic: str, nasa_q: str, out_mp4: Path) -> Path:
+def _render_fa(*, title: str, sentences: list[str], topic: str, nasa_q: str, out_mp4: Path) -> Path:
     work = Path("/tmp/bamo-film")
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
 
-    audio = work / "vo.mp3"
-    duration = _tts_fa(narration, audio)
-    duration = min(28.0, duration + 0.6)
+    # 1) Per-sentence TTS → timeline is ground truth
+    audio, timeline = _tts_sentences(sentences, work)
+    duration = max(t[1] for t in timeline) + 0.3
+    duration = min(28.0, duration)
 
+    # 2) Real video film bed
     clips = _fetch_videos(topic, nasa_q, work / "clips", need=3)
     if not clips:
-        raise RuntimeError("could not download any real video footage")
-
+        raise RuntimeError("no real video footage")
     bg = work / "film_bg.mp4"
     _build_film_bg(clips, bg, duration=duration)
 
-    timeline = _timeline(title, hook, narration, duration)
+    # 3) Captions = exact spoken sentences + times
     ass = work / "captions.ass"
     _ass(timeline, ass)
 
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
     _mux(bg, audio, ass, out_mp4)
-    print(f"FILM ok -> {out_mp4} ({out_mp4.stat().st_size} bytes) clips={len(clips)}", flush=True)
+    print(
+        json.dumps(
+            {"film": str(out_mp4), "duration": duration, "captions": [t[2] for t in timeline]},
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
     return out_mp4
 
 
@@ -414,13 +461,18 @@ def main() -> int:
     title_en = (idea.get("title") or "").strip()
     fa = FA_BY_TITLE.get(title_en) or FA_BY_TITLE["Time Is Not the Same for Everyone"]
 
-    print(json.dumps({"selected": idea.get("id"), "title_fa": fa["title"], "mode": "real_video_film"}, ensure_ascii=False), flush=True)
+    print(
+        json.dumps(
+            {"selected": idea.get("id"), "title_fa": fa["title"], "mode": "hard_sync_film"},
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
 
-    out = ROOT / "outputs" / "daily" / f"BAMO_FA_FILM_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
+    out = ROOT / "outputs" / "daily" / f"BAMO_FA_SYNC_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
     video = _render_fa(
         title=fa["title"],
-        hook=fa["hook"],
-        narration=fa["narration"],
+        sentences=fa["narration_sentences"],
         topic=fa.get("topic") or "space",
         nasa_q=fa.get("nasa_q") or "space",
         out_mp4=out,
@@ -439,7 +491,7 @@ def main() -> int:
         upload_result = upload_video(
             video_path=video,
             title=fa["title"][:100],
-            description=f"{fa['hook']}\n\n#shorts #بامو #علم",
+            description=f"{fa['title']}\n\n#shorts #بامو #علم",
             tags=["shorts", "بامو", "علم"],
             privacy=args.privacy,
             thumbnail_path=thumb,
@@ -451,7 +503,7 @@ def main() -> int:
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "lang": "fa",
-        "mode": "real_video_film",
+        "mode": "hard_sync_film",
         "idea_id": idea.get("id"),
         "title": fa["title"],
         "video": str(video),
