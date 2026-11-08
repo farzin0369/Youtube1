@@ -169,7 +169,7 @@ function draw(){
  gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
  gl.uniform1f(uniforms.u_time,globalTime);
  gl.uniform1f(uniforms.u_progress,Math.min(1,sceneTime/Math.max(.01,s.duration)));
- gl.uniform1f(uniforms.u_kind,kindOf(s));gl.uniform1f(uniforms.u_phase,Number(s.phase||0)+progress*Number(s.phase_sweep||0));
+ gl.uniform1f(uniforms.u_kind,kindOf(s));gl.uniform1f(uniforms.u_phase,Number(s.phase||0)+Math.min(1,sceneTime/Math.max(.01,s.duration))*Number(s.phase_sweep||0));
  gl.uniform3fv(uniforms.u_primary,hex3(p.primary));gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));gl.uniform3fv(uniforms.u_accent,hex3(p.accent));gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
  gl.drawArrays(gl.TRIANGLES,0,3);
  caption.textContent=s.text||"";
