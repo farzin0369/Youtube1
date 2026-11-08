@@ -1,19 +1,21 @@
 name: BAMO Daily English HyperFrames
 
+# PUBLISHING DISABLED — do not upload to YouTube until quality is explicitly approved.
 on:
-  schedule:
-    - cron: "0 17 * * *"
+  # schedule disabled to prevent accidental daily public uploads
+  # schedule:
+  #   - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload to YouTube (public/unlisted)"
+        description: "Upload to YouTube (KEEP FALSE unless quality approved)"
         type: boolean
-        default: true
+        default: false
       privacy:
         description: "Privacy if publishing"
         type: choice
-        options: [public, unlisted, private]
-        default: public
+        options: [private, unlisted, public]
+        default: private
       language:
         description: "Narration language"
         type: choice
@@ -51,13 +53,13 @@ jobs:
         run: |
           pip install -q edge-tts google-api-python-client google-auth google-auth-oauthlib pyyaml
 
-      - name: Ensure idea bank (up to 10k structure)
+      - name: Ensure idea bank
         run: |
           python scripts/expand_idea_bank.py --target 10000
           wc -l data/ideas/ideas.jsonl
 
       - name: Probe YouTube OAuth
-        if: ${{ github.event_name == 'schedule' || inputs.publish == true }}
+        if: ${{ inputs.publish == true }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -71,28 +73,25 @@ jobs:
             raise SystemExit("YouTube OAuth failed — check Secrets")
           PY
 
-      - name: Daily factory
+      - name: Factory (render only by default — no publish)
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "false"
-          YOUTUBE_DEFAULT_LANGUAGE: ${{ inputs.language == 'fa' && 'fa' || 'en' }}
+          YOUTUBE_DEFAULT_LANGUAGE: ${{ inputs.language }}
         run: |
           set -euo pipefail
+          # Hard stop: never publish unless input is explicitly true
           PUBLISH_FLAG=""
-          PRIVACY="public"
-          LANG_CODE="en"
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          PRIVACY="private"
+          LANG_CODE="${{ inputs.language }}"
+          if [ "${{ inputs.publish }}" = "true" ]; then
+            echo "WARNING: publish explicitly requested"
             PUBLISH_FLAG="--publish"
-            PRIVACY="public"
-            LANG_CODE="en"
-          else
-            if [ "${{ inputs.publish }}" = "true" ]; then
-              PUBLISH_FLAG="--publish"
-            fi
             PRIVACY="${{ inputs.privacy }}"
-            LANG_CODE="${{ inputs.language }}"
+          else
+            echo "Publish disabled — render only"
           fi
           if [ "$LANG_CODE" = "fa" ]; then
             python scripts/bamo_persian_once.py $PUBLISH_FLAG --privacy "$PRIVACY"
