@@ -32,67 +32,107 @@ MIXKIT_BY_TOPIC: dict[str, list[int]] = {
     "default": [14185, 18791, 31559, 19649],
 }
 
-FA_BY_TITLE: dict[str, dict[str, str]] = {
+# spoken = with harakat for TTS; caption = clean screen text
+FA_BY_TITLE: dict[str, dict] = {
     "Time Is Not the Same for Everyone": {
         "title": "زمان برای همه یکسان نیست",
-        "narration_sentences": [
+        "spoken": [
+            "زَمان بَرای هَمه یکسان نیست.",
+            "نَزدیکِ سیاه‌چاله، ساعت‌ها نِسبَت به زَمین کُندتَر می‌چَرخَند.",
+            "ماهواره‌هایِ جی‌پی‌اِس هَر روز اَثَرِ نِسبیَّت را اِصلاح می‌کُنَند.",
+            "وِگَرنه نَقشه‌ها مُنحَرِف می‌شُدَند.",
+            "این فَقَط نَظَریه روی تَخته نیست؛ مُهَندِسیِ واقعی است.",
+            "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+        ],
+        "captions": [
             "زمان برای همه یکسان نیست.",
             "نزدیک سیاه‌چاله، ساعت‌ها نسبت به زمین کندتر می‌چرخند.",
             "ماهواره‌های جی‌پی‌اس هر روز اثر نسبیت را اصلاح می‌کنند.",
             "وگرنه نقشه‌ها منحرف می‌شدند.",
             "این فقط نظریه روی تخته نیست؛ مهندسی واقعی است.",
-            "بامو. دنبال کنید at twelve bamo.",
+            "بامو · @12bamo",
         ],
         "topic": "physics",
         "nasa_q": "black hole",
     },
     "Auroras Are Solar Wind Meeting Magnetospheres": {
         "title": "شفق قطبی چیست؟",
-        "narration_sentences": [
+        "spoken": [
+            "شَفَقِ قُطبی چیست؟",
+            "خورشید پلاسما را به بیرون می‌فِرِستَد.",
+            "میدانِ مَغناطیسیِ زمین، ذرّات را به سَمتِ قُطب‌ها هِدایَت می‌کُنَد.",
+            "گازهایِ جَو بَرانگیخته می‌شَوَند و آسمان روشن می‌شَوَد.",
+            "رَنگ به اِرتِفاع و شیمی بَستگی دارد.",
+            "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+        ],
+        "captions": [
             "شفق قطبی چیست؟",
-            "خورشید پلاسما به بیرون می‌فرستد.",
-            "میدان مغناطیسی زمین ذرات را به سمت قطب‌ها هدایت می‌کند.",
+            "خورشید پلاسما را به بیرون می‌فرستد.",
+            "میدان مغناطیسی زمین، ذرات را به سمت قطب‌ها هدایت می‌کند.",
             "گازهای جو برانگیخته می‌شوند و آسمان روشن می‌شود.",
             "رنگ به ارتفاع و شیمی بستگی دارد.",
-            "بامو. دنبال کنید at twelve bamo.",
+            "بامو · @12bamo",
         ],
         "topic": "aurora",
         "nasa_q": "aurora",
     },
     "Most of the Universe Is Invisible": {
         "title": "بیشتر جهان نامرئی است",
-        "narration_sentences": [
+        "spoken": [
+            "بیشتَرِ جَهان نامرئی است.",
+            "ستاره‌هایِ لَبهٔ کَهکَشان‌ها خیلی تُند می‌چَرخَند.",
+            "اِنگار جُرمِ نادیده‌ای آن‌ها را نَگه می‌دارد.",
+            "فیزیکدانان آن را مادّهٔ تاریک می‌نامَند.",
+            "گِرانِشَش را می‌بینیم، نورَش را نَه.",
+            "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+        ],
+        "captions": [
             "بیشتر جهان نامرئی است.",
             "ستاره‌های لبهٔ کهکشان‌ها خیلی تند می‌چرخند.",
             "انگار جرم نادیده‌ای آن‌ها را نگه می‌دارد.",
             "فیزیکدانان آن را ماده تاریک می‌نامند.",
             "گرانشش را می‌بینیم، نورش را نه.",
-            "بامو. دنبال کنید at twelve bamo.",
+            "بامو · @12bamo",
         ],
         "topic": "galaxy",
         "nasa_q": "galaxy",
     },
     "Why the Sky Is Blue": {
         "title": "چرا آسمان آبی است؟",
-        "narration_sentences": [
+        "spoken": [
+            "چِرا آسمان آبی است؟",
+            "نورِ خورشید سَفید است، اَما آسمان آبی دیده می‌شَوَد.",
+            "مُلِکول‌هایِ هَوا طول‌مَوجِ آبی را قَوی‌تَر پَخش می‌کُنَند.",
+            "دَر غُروب مَسیرِ نور دَر جَو طولانی‌تَر است.",
+            "بَرای هَمین قِرمز و نارِنجی غالِب می‌شَوَند.",
+            "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+        ],
+        "captions": [
             "چرا آسمان آبی است؟",
             "نور خورشید سفید است، اما آسمان آبی دیده می‌شود.",
             "مولکول‌های هوا طول‌موج آبی را قوی‌تر پخش می‌کنند.",
             "در غروب مسیر نور در جو طولانی‌تر است.",
             "برای همین قرمز و نارنجی غالب می‌شوند.",
-            "بامو. دنبال کنید at twelve bamo.",
+            "بامو · @12bamo",
         ],
         "topic": "space",
         "nasa_q": "earth atmosphere",
     },
     "Why Large Models Hallucinate": {
         "title": "چرا مدل‌های بزرگ توهم می‌سازند؟",
-        "narration_sentences": [
+        "spoken": [
+            "چِرا مُدِل‌هایِ بُزُرگ تَوَهُّم می‌سازند؟",
+            "مُدِل‌هایِ زَبانی مُحتَمَل‌تَرین تُکِنِ بَعدی را پیش‌بینی می‌کُنَند.",
+            "وَقتی شَواهِد کَم است، حَدس‌هایِ رَوان هَنوز مُطمَئِن به نَظَر می‌رَسَند.",
+            "خُروجی را پیش‌نَویسِ قابِلِ راستی‌آزمایی ببینید، نَه وَحی.",
+            "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+        ],
+        "captions": [
             "چرا مدل‌های بزرگ توهم می‌سازند؟",
             "مدل‌های زبانی محتمل‌ترین توکن بعدی را پیش‌بینی می‌کنند.",
             "وقتی شواهد کم است، حدس‌های روان هنوز مطمئن به نظر می‌رسند.",
             "خروجی را پیش‌نویس قابل راستی‌آزمایی ببینید، نه وحی.",
-            "بامو. دنبال کنید at twelve bamo.",
+            "بامو · @12bamo",
         ],
         "topic": "ai",
         "nasa_q": "technology",
@@ -174,8 +214,9 @@ async def _tts_one(text: str, dest: Path, voice: str = "fa-IR-FaridNeural") -> f
     return _probe(dest)
 
 
-def _tts_sentences(sentences: list[str], work: Path) -> tuple[Path, list[tuple[float, float, str]]]:
-    """TTS each sentence separately → exact caption windows matching speech."""
+def _tts_sentences(
+    spoken: list[str], captions: list[str], work: Path
+) -> tuple[Path, list[tuple[float, float, str]]]:
     audio_dir = work / "vo_parts"
     audio_dir.mkdir(parents=True, exist_ok=True)
     parts: list[Path] = []
@@ -184,7 +225,7 @@ def _tts_sentences(sentences: list[str], work: Path) -> tuple[Path, list[tuple[f
 
     async def run_all() -> None:
         nonlocal t
-        for i, sent in enumerate(sentences):
+        for i, sent in enumerate(spoken):
             sent = sent.strip()
             if not sent:
                 continue
@@ -192,19 +233,17 @@ def _tts_sentences(sentences: list[str], work: Path) -> tuple[Path, list[tuple[f
             dur = await _tts_one(sent, part)
             dur = max(0.8, dur)
             parts.append(part)
-            # tiny pad so captions don't cut the last syllable
-            timeline.append((t, t + dur, sent))
-            t += dur + 0.08  # 80ms gap between sentences
+            cap = captions[i] if i < len(captions) else sent
+            timeline.append((t, t + dur, cap))
+            t += dur + 0.08
 
     asyncio.run(run_all())
     if not parts:
         raise RuntimeError("no TTS parts")
 
-    # concat audio with silence gaps matching timeline
     lst = audio_dir / "list.txt"
     lines = []
     silence = audio_dir / "silence.mp3"
-    # 80ms silence
     subprocess.run(
         [
             "ffmpeg",
@@ -235,8 +274,7 @@ def _tts_sentences(sentences: list[str], work: Path) -> tuple[Path, list[tuple[f
         check=True,
         capture_output=True,
     )
-    total = _probe(full)
-    print(f"synced VO {total:.2f}s · {len(timeline)} sentences", flush=True)
+    print(f"synced VO {_probe(full):.2f}s · {len(timeline)} sentences", flush=True)
     return full, timeline
 
 
@@ -368,7 +406,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
     for start, end, text in timeline:
-        # end slightly before next to avoid overlap
         safe = text.replace("{", "\\{").replace("}", "\\}")
         events.append(f"Dialogue: 0,{ts(start)},{ts(max(start + 0.4, end - 0.05))},Default,,0,0,0,,{safe}")
     path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
@@ -410,25 +447,22 @@ def _mux(bg: Path, audio: Path, ass: Path, out: Path) -> Path:
     return out
 
 
-def _render_fa(*, title: str, sentences: list[str], topic: str, nasa_q: str, out_mp4: Path) -> Path:
+def _render_fa(*, title: str, spoken: list[str], captions: list[str], topic: str, nasa_q: str, out_mp4: Path) -> Path:
     work = Path("/tmp/bamo-film")
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
 
-    # 1) Per-sentence TTS → timeline is ground truth
-    audio, timeline = _tts_sentences(sentences, work)
+    audio, timeline = _tts_sentences(spoken, captions, work)
     duration = max(t[1] for t in timeline) + 0.3
     duration = min(28.0, duration)
 
-    # 2) Real video film bed
     clips = _fetch_videos(topic, nasa_q, work / "clips", need=3)
     if not clips:
         raise RuntimeError("no real video footage")
     bg = work / "film_bg.mp4"
     _build_film_bg(clips, bg, duration=duration)
 
-    # 3) Captions = exact spoken sentences + times
     ass = work / "captions.ass"
     _ass(timeline, ass)
 
@@ -472,7 +506,8 @@ def main() -> int:
     out = ROOT / "outputs" / "daily" / f"BAMO_FA_SYNC_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
     video = _render_fa(
         title=fa["title"],
-        sentences=fa["narration_sentences"],
+        spoken=fa["spoken"],
+        captions=fa["captions"],
         topic=fa.get("topic") or "space",
         nasa_q=fa.get("nasa_q") or "space",
         out_mp4=out,
