@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Persian-only BAMO Short: REAL still photos (NASA/Wikimedia), not video A-roll.
-
-Each caption beat can show a different real photograph with mild Ken-Burns motion.
-"""
+"""Persian Shorts from REAL stock video (Mixkit + NASA) — not photo Ken-Burns."""
 from __future__ import annotations
 
 import argparse
 import asyncio
-import html
 import json
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,7 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.bamo_brain import append_history, mark_used, select_idea
-from scripts.bamo_visuals import collect_visuals
+from scripts.bamo_visuals import nasa_media
+
+UA = "Mozilla/5.0 (compatible; BAMOShorts/1.0)"
+
+# Curated Mixkit free video IDs (direct CDN mp4 works: /videos/{id}/{id}-720.mp4)
+MIXKIT_BY_TOPIC: dict[str, list[int]] = {
+    "space": [14185, 18791, 31559, 19649, 30265],
+    "astronomy": [14185, 18791, 31559, 34788],
+    "aurora": [34788, 14185, 31559],
+    "physics": [18791, 14185, 31559, 19649],
+    "galaxy": [14185, 31559, 30265],
+    "ai": [30265, 19649, 26877],
+    "math": [26877, 19649],
+    "default": [14185, 18791, 31559, 19649],
+}
 
 FA_BY_TITLE: dict[str, dict[str, str]] = {
     "Time Is Not the Same for Everyone": {
@@ -31,8 +42,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "ماهواره‌های جی‌پی‌اس هر روز اثر نسبیت را اصلاح می‌کنند؛ وگرنه نقشه‌ها منحرف می‌شدند. "
             "این فقط نظریه روی تخته نیست؛ مهندسی واقعی است. بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "black hole space physics",
-        "search": "black hole nebula galaxy earth from space",
+        "topic": "physics",
+        "nasa_q": "black hole",
     },
     "Auroras Are Solar Wind Meeting Magnetospheres": {
         "title": "شفق قطبی چیست؟",
@@ -42,8 +53,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "و گازهای جو را برانگیخته می‌کند. رنگ به ارتفاع و شیمی بستگی دارد. آب‌وهوای فضایی که دیده می‌شود. "
             "بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "aurora",
-        "search": "aurora borealis northern lights earth from space",
+        "topic": "aurora",
+        "nasa_q": "aurora",
     },
     "Most of the Universe Is Invisible": {
         "title": "بیشتر جهان نامرئی است",
@@ -53,8 +64,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "فیزیکدانان آن را ماده تاریک می‌نامند. گرانشش را می‌بینیم، نورش را نه. "
             "بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "galaxy",
-        "search": "galaxy milky way dark matter cosmos",
+        "topic": "galaxy",
+        "nasa_q": "galaxy",
     },
     "Why the Sky Is Blue": {
         "title": "چرا آسمان آبی است؟",
@@ -64,8 +75,8 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "قوی‌تر پخش می‌کنند. در غروب مسیر نور در جو طولانی‌تر است و قرمز و نارنجی غالب می‌شوند. "
             "فیزیک ساده‌ای که هر روز می‌بینید. بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "sky atmosphere",
-        "search": "blue sky atmosphere earth sunset",
+        "topic": "space",
+        "nasa_q": "earth atmosphere",
     },
     "Why Large Models Hallucinate": {
         "title": "چرا مدل‌های بزرگ توهم می‌سازند؟",
@@ -75,21 +86,184 @@ FA_BY_TITLE: dict[str, dict[str, str]] = {
             "حدس‌های روان هنوز می‌توانند مطمئن به نظر برسند. خروجی را پیش‌نویس قابل راستی‌آزمایی ببینید، "
             "نه وحی. بامو. دنبال کنید at twelve bamo."
         ),
-        "category": "ai",
-        "search": "computer circuit data center neural network",
-    },
-    "Why 23 People Make a Shared Birthday Likely": {
-        "title": "چرا در بیست‌وسه نفر احتمال تولد مشترک بالاست؟",
-        "hook": "ترکیب‌ها سریع‌تر از شهود ما رشد می‌کنند",
-        "narration": (
-            "در اتاقی با بیست‌وسه نفر، احتمال اینکه دو نفر یک روز تولد مشترک داشته باشند "
-            "بیش از پنجاه درصد است. شما با یک تاریخ ثابت مقایسه نمی‌کنید؛ همهٔ جفت‌ها را با هم می‌سنجید. "
-            "احتمال، شمارش دقیق را پاداش می‌دهد نه حس درونی را. بامو. دنبال کنید at twelve bamo."
-        ),
-        "category": "math",
-        "search": "people crowd celebration birthday mathematics",
+        "topic": "ai",
+        "nasa_q": "technology",
     },
 }
+
+
+def _download(url: str, dest: Path, timeout: int = 180) -> bool:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp, dest.open("wb") as f:
+            while True:
+                chunk = resp.read(1024 * 256)
+                if not chunk:
+                    break
+                f.write(chunk)
+        ok = dest.exists() and dest.stat().st_size > 100_000
+        if not ok:
+            dest.unlink(missing_ok=True)
+        return ok
+    except Exception as exc:
+        print(f"dl fail {url}: {exc}", flush=True)
+        dest.unlink(missing_ok=True)
+        return False
+
+
+def _fetch_videos(topic: str, nasa_q: str, dest: Path, need: int = 3) -> list[Path]:
+    dest.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    # 1) Mixkit curated real stock video
+    ids = MIXKIT_BY_TOPIC.get(topic) or MIXKIT_BY_TOPIC["default"]
+    for i, mid in enumerate(ids):
+        if len(paths) >= need:
+            break
+        url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
+        p = dest / f"mix_{mid}.mp4"
+        if _download(url, p):
+            paths.append(p)
+            print(f"mixkit video ok {p.name}", flush=True)
+    # 2) NASA real video if available
+    try:
+        _imgs, vids = nasa_media(nasa_q or topic, images=0, videos=3)
+        for j, url in enumerate(vids):
+            if len(paths) >= need + 1:
+                break
+            p = dest / f"nasa_{j}.mp4"
+            if _download(url, p):
+                paths.append(p)
+                print(f"nasa video ok {p.name}", flush=True)
+    except Exception as exc:
+        print(f"nasa video skip: {exc}", flush=True)
+    return paths
+
+
+def _probe(path: Path) -> float:
+    try:
+        return float(
+            subprocess.check_output(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=nw=1:nk=1",
+                    str(path),
+                ],
+                text=True,
+            ).strip()
+        )
+    except Exception:
+        return 5.0
+
+
+def _build_film_bg(videos: list[Path], out: Path, duration: float, w: int = 1080, h: int = 1920) -> Path:
+    """Cut real video clips into a continuous vertical film bed."""
+    if not videos:
+        raise RuntimeError("no real video clips")
+    tmp = out.parent / "_film"
+    if tmp.exists():
+        shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    segs: list[Path] = []
+    per = max(4.0, duration / max(1, min(3, len(videos))))
+    for i, vid in enumerate(videos[:3]):
+        seg = tmp / f"s{i}.mp4"
+        # loop each source to cover its slot, crop to vertical 9:16
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(vid),
+            "-t",
+            f"{per:.2f}",
+            "-vf",
+            f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=30,eq=brightness=-0.03:saturation=1.05",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            str(seg),
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+        segs.append(seg)
+
+    if len(segs) == 1:
+        raw = segs[0]
+    else:
+        # xfade between real video segments
+        inputs = []
+        for s in segs:
+            inputs.extend(["-i", str(s)])
+        durs = [_probe(s) for s in segs]
+        fade = 0.5
+        parts = []
+        prev = "[0:v]"
+        acc = durs[0]
+        out_l = "[0:v]"
+        for i in range(1, len(segs)):
+            out_l = f"[x{i}]"
+            off = max(0.1, acc - fade)
+            parts.append(f"{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={off:.2f}{out_l}")
+            prev = out_l
+            acc = acc + durs[i] - fade
+        raw = tmp / "xf.mp4"
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                *inputs,
+                "-filter_complex",
+                ";".join(parts),
+                "-map",
+                out_l,
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                str(raw),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+    # fit exact duration
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(raw),
+            "-t",
+            f"{duration:.2f}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(out),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    print(f"film bg -> {out} ({out.stat().st_size} bytes)", flush=True)
+    return out
 
 
 def _tts_fa(text: str, dest: Path) -> float:
@@ -101,28 +275,10 @@ def _tts_fa(text: str, dest: Path) -> float:
         await edge_tts.Communicate(text, "fa-IR-FaridNeural").save(str(dest))
 
     asyncio.run(gen())
-    try:
-        out = subprocess.check_output(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=nw=1:nk=1",
-                str(dest),
-            ],
-            text=True,
-        ).strip()
-        dur = float(out)
-    except Exception:
-        dur = max(10.0, len(text) / 11.0)
-    print(f"tts-fa -> {dest} ({dur:.2f}s)", flush=True)
-    return max(10.0, min(28.0, dur))
+    return max(10.0, min(28.0, _probe(dest)))
 
 
-def _caption_timeline(title: str, hook: str, narration: str, duration: float) -> list[tuple[float, float, str]]:
+def _timeline(title: str, hook: str, narration: str, duration: float) -> list[tuple[float, float, str]]:
     lines: list[str] = []
     if title.strip():
         lines.append(title.strip())
@@ -131,219 +287,113 @@ def _caption_timeline(title: str, hook: str, narration: str, duration: float) ->
     body = re.sub(r"\s*بامو\..*$", "", narration, flags=re.I).strip()
     for p in re.split(r"(?<=[.!?؟])\s+", body):
         p = p.strip()
-        if len(p) < 8:
-            continue
-        if p in lines:
+        if len(p) < 8 or p in lines:
             continue
         lines.append(p)
         if len(lines) >= 5:
             break
     lines.append("بامو · @12bamo")
-
-    usable = max(6.0, duration - 0.8)
+    usable = max(6.0, duration - 0.6)
     weights = [max(4, len(x)) for x in lines]
-    total_w = sum(weights) or 1
-    timeline: list[tuple[float, float, str]] = []
-    t = 0.12
+    tw = sum(weights) or 1
+    t = 0.1
+    out: list[tuple[float, float, str]] = []
     for line, w in zip(lines, weights):
-        slot = usable * (w / total_w)
-        slot = max(1.9, min(6.5, slot))
-        end = min(duration - 0.12, t + slot)
-        timeline.append((t, end, line))
-        t = end + 0.06
+        slot = max(1.8, min(6.0, usable * (w / tw)))
+        end = min(duration - 0.1, t + slot)
+        out.append((t, end, line))
+        t = end + 0.05
         if t >= duration - 0.4:
             break
-    return timeline
-
-
-def _copy_photos(photos: list[Path], assets: Path, n: int) -> list[str]:
-    """Copy real photos into assets/ as photo_00.jpg … return relative src list."""
-    out: list[str] = []
-    if not photos:
-        return out
-    for i in range(n):
-        src = photos[i % len(photos)]
-        ext = src.suffix.lower() if src.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"} else ".jpg"
-        name = f"photo_{i:02d}{ext}"
-        dest = assets / name
-        shutil.copy2(src, dest)
-        out.append(f"assets/{name}")
     return out
 
 
-def _render_fa(
-    *,
-    title: str,
-    hook: str,
-    narration: str,
-    category: str,
-    search: str,
-    out_mp4: Path,
-) -> Path:
-    work = Path("/tmp/bamo-fa")
+def _ass(timeline: list[tuple[float, float, str]], path: Path) -> None:
+    def ts(sec: float) -> str:
+        h = int(sec // 3600)
+        m = int((sec % 3600) // 60)
+        s = int(sec % 60)
+        cs = int((sec - int(sec)) * 100)
+        return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+    header = """[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,DejaVu Sans,52,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,40,40,220,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = []
+    for start, end, text in timeline:
+        # ASS uses \N for newline; escape braces
+        safe = text.replace("{", "\\{").replace("}", "\\}")
+        events.append(f"Dialogue: 0,{ts(start)},{ts(end)},Default,,0,0,0,,{safe}")
+    path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
+
+
+def _mux(bg: Path, audio: Path, ass: Path, out: Path) -> Path:
+    # burn Persian subtitles onto real video film + attach audio
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(bg),
+        "-i",
+        str(audio),
+        "-vf",
+        f"ass={ass}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    if not out.exists() or out.stat().st_size < 100_000:
+        raise RuntimeError("mux failed")
+    return out
+
+
+def _render_fa(*, title: str, hook: str, narration: str, topic: str, nasa_q: str, out_mp4: Path) -> Path:
+    work = Path("/tmp/bamo-film")
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
-    assets = work / "assets"
-    assets.mkdir(parents=True)
 
-    duration = _tts_fa(narration, assets / "narration.mp3")
-    duration = min(28.0, duration + 0.8)
-    timeline = _caption_timeline(title, hook, narration, duration)
+    audio = work / "vo.mp3"
+    duration = _tts_fa(narration, audio)
+    duration = min(28.0, duration + 0.6)
 
-    # REAL images only — ignore videos from collector
-    images, _videos = collect_visuals(
-        search or title,
-        category or "space",
-        assets / "raw",
-        hook=hook,
-        max_images=6,
-        max_videos=0,
-    )
-    if not images:
-        images, _ = collect_visuals(
-            "nebula galaxy earth from space",
-            "astronomy",
-            assets / "raw2",
-            hook="cosmos",
-            max_images=6,
-            max_videos=0,
-        )
-    print(f"real photos: {len(images)}", flush=True)
+    clips = _fetch_videos(topic, nasa_q, work / "clips", need=3)
+    if not clips:
+        raise RuntimeError("could not download any real video footage")
 
-    photo_srcs = _copy_photos(images, assets, max(1, len(timeline)))
+    bg = work / "film_bg.mp4"
+    _build_film_bg(clips, bg, duration=duration)
 
-    # Build photo layers + caption beats
-    photo_divs: list[str] = []
-    beat_divs: list[str] = []
-    gsap_lines: list[str] = []
-
-    if photo_srcs:
-        for i, (start, end, _text) in enumerate(timeline):
-            src = photo_srcs[i % len(photo_srcs)]
-            pid = f"photo-{i}"
-            slot = max(0.8, end - start)
-            # mild continuous scale motion via CSS animation driven by GSAP
-            photo_divs.append(
-                f'      <img id="{pid}" class="photo clip" src="{src}" '
-                f'data-start="{start:.2f}" data-duration="{slot:.2f}" data-track-index="{i}" '
-                f'alt="" />'
-            )
-            # fade in/out; slow zoom while visible
-            gsap_lines.append(
-                f'      tl.fromTo("#{pid}", '
-                f'{{opacity: 0, scale: 1.0}}, '
-                f'{{opacity: 1, scale: 1.08, duration: 0.45, ease: "power1.out"}}, {start:.2f});'
-            )
-            out_at = max(start + 0.6, end - 0.35)
-            gsap_lines.append(
-                f'      tl.to("#{pid}", {{opacity: 0, scale: 1.12, duration: 0.35, ease: "power1.in"}}, {out_at:.2f});'
-            )
-    else:
-        photo_divs.append(
-            f'      <div class="fallback clip" data-start="0" data-duration="{duration:.2f}" data-track-index="0"></div>'
-        )
-
-    for i, (start, end, text) in enumerate(timeline):
-        bid = f"beat-{i}"
-        slot = max(0.8, end - start)
-        beat_divs.append(
-            f'      <div id="{bid}" class="beat" data-start="{start:.2f}" '
-            f'data-duration="{slot:.2f}" data-track-index="{20 + i}">{html.escape(text)}</div>'
-        )
-        gsap_lines.append(
-            f'      tl.fromTo("#{bid}", {{opacity: 0, y: 22}}, '
-            f'{{opacity: 1, y: 0, duration: 0.3, ease: "power2.out"}}, {start:.2f});'
-        )
-        out_at = max(start + 0.5, end - 0.28)
-        gsap_lines.append(
-            f'      tl.to("#{bid}", {{opacity: 0, y: -8, duration: 0.22, ease: "power2.in"}}, {out_at:.2f});'
-        )
-
-    duration_s = f"{duration:.2f}"
-    index = f"""<!doctype html>
-<html lang="fa" dir="rtl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=1080, height=1920" />
-    <title>بامو</title>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@700;900&display=block" rel="stylesheet" />
-    <style>
-      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-      html, body {{
-        margin: 0; width: 1080px; height: 1920px; overflow: hidden;
-        background: #050508; font-family: "Vazirmatn", Tahoma, sans-serif;
-        color: #fff; direction: rtl;
-      }}
-      #root {{ position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #000; }}
-      .photo {{
-        position: absolute; inset: 0; width: 100%; height: 100%;
-        object-fit: cover; opacity: 0; z-index: 1;
-        transform-origin: center center;
-      }}
-      .fallback {{
-        position: absolute; inset: 0;
-        background: radial-gradient(ellipse at 50% 30%, #1b2240 0%, #07070c 60%, #000 100%);
-      }}
-      .scrim {{
-        position: absolute; inset: 0; z-index: 2; pointer-events: none;
-        background: linear-gradient(180deg,
-          rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.12) 40%,
-          rgba(0,0,0,0.55) 72%, rgba(0,0,0,0.82) 100%);
-      }}
-      .beat {{
-        position: absolute; left: 40px; right: 40px; bottom: 260px;
-        text-align: center; font-weight: 900; font-size: 42px; line-height: 1.4;
-        opacity: 0; z-index: 5;
-        text-shadow: 0 3px 18px rgba(0,0,0,0.95), 0 0 3px #000;
-      }}
-      #brand {{
-        position: absolute; left: 0; right: 0; bottom: 88px; text-align: center;
-        font-weight: 700; font-size: 26px; color: rgba(255,255,255,0.9);
-        opacity: 0; z-index: 6; text-shadow: 0 2px 10px rgba(0,0,0,0.9);
-      }}
-    </style>
-  </head>
-  <body>
-    <div id="root" data-composition-id="main" data-start="0" data-duration="{duration_s}" data-width="1080" data-height="1920">
-{chr(10).join(photo_divs)}
-      <div class="scrim clip" data-start="0" data-duration="{duration_s}" data-track-index="15"></div>
-{chr(10).join(beat_divs)}
-      <div id="brand" class="clip" data-start="0" data-duration="{duration_s}" data-track-index="40">بامو · @12bamo</div>
-      <audio id="vo" class="clip" src="assets/narration.mp3" data-start="0" data-duration="{duration_s}" data-track-index="50" data-volume="1"></audio>
-    </div>
-    <script>
-      window.__timelines = window.__timelines || {{}};
-      const tl = gsap.timeline({{ paused: true }});
-{chr(10).join(gsap_lines)}
-      tl.fromTo("#brand", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.3 }}, {max(0.2, duration - 1.8):.2f});
-      tl.to({{}}, {{ duration: {duration_s} }}, 0);
-      window.__timelines["main"] = tl;
-    </script>
-  </body>
-</html>
-"""
-    (work / "index.html").write_text(index, encoding="utf-8")
+    timeline = _timeline(title, hook, narration, duration)
+    ass = work / "captions.ass"
+    _ass(timeline, ass)
 
     out_mp4.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        subprocess.run(
-            ["npx", "--yes", "hyperframes@0.9.19", "render", "--gpu", "-o", str(out_mp4)],
-            cwd=str(work),
-            check=True,
-            timeout=900,
-        )
-    except Exception:
-        subprocess.run(
-            ["npx", "--yes", "hyperframes@0.9.19", "render", "-o", str(out_mp4)],
-            cwd=str(work),
-            check=True,
-            timeout=900,
-        )
-    if not out_mp4.exists() or out_mp4.stat().st_size < 50_000:
-        raise RuntimeError(f"FA render failed: {out_mp4}")
-    print(f"render-fa ok -> {out_mp4} photos={len(photo_srcs)}", flush=True)
+    _mux(bg, audio, ass, out_mp4)
+    print(f"FILM ok -> {out_mp4} ({out_mp4.stat().st_size} bytes) clips={len(clips)}", flush=True)
     return out_mp4
 
 
@@ -354,7 +404,7 @@ def main() -> int:
     args = ap.parse_args()
 
     idea = None
-    for _ in range(15):
+    for _ in range(12):
         cand = select_idea(prefer_curated=True)
         if (cand.get("title") or "") in FA_BY_TITLE:
             idea = cand
@@ -364,15 +414,15 @@ def main() -> int:
     title_en = (idea.get("title") or "").strip()
     fa = FA_BY_TITLE.get(title_en) or FA_BY_TITLE["Time Is Not the Same for Everyone"]
 
-    print(json.dumps({"selected": idea.get("id"), "title_fa": fa["title"]}, ensure_ascii=False), flush=True)
+    print(json.dumps({"selected": idea.get("id"), "title_fa": fa["title"], "mode": "real_video_film"}, ensure_ascii=False), flush=True)
 
-    out = ROOT / "outputs" / "daily" / f"BAMO_FA_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
+    out = ROOT / "outputs" / "daily" / f"BAMO_FA_FILM_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
     video = _render_fa(
         title=fa["title"],
         hook=fa["hook"],
         narration=fa["narration"],
-        category=fa.get("category") or "astronomy",
-        search=fa.get("search") or fa.get("category") or "space",
+        topic=fa.get("topic") or "space",
+        nasa_q=fa.get("nasa_q") or "space",
         out_mp4=out,
     )
 
@@ -382,16 +432,15 @@ def main() -> int:
 
         thumb = video.with_suffix(".jpg")
         subprocess.run(
-            ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(thumb)],
+            ["ffmpeg", "-y", "-ss", "3", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(thumb)],
             check=True,
             capture_output=True,
         )
-        desc = f"{fa['hook']}\n\n{fa['title']}\n\n#shorts #بامو #علم"
         upload_result = upload_video(
             video_path=video,
             title=fa["title"][:100],
-            description=desc[:5000],
-            tags=["shorts", "بامو", "علم", "BAMO"],
+            description=f"{fa['hook']}\n\n#shorts #بامو #علم",
+            tags=["shorts", "بامو", "علم"],
             privacy=args.privacy,
             thumbnail_path=thumb,
             category_id="27",
@@ -402,11 +451,11 @@ def main() -> int:
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "lang": "fa",
+        "mode": "real_video_film",
         "idea_id": idea.get("id"),
         "title": fa["title"],
         "video": str(video),
         "upload": upload_result,
-        "mode": "real_photos",
     }
     append_history(record)
     print(json.dumps(record, ensure_ascii=False, default=str))
