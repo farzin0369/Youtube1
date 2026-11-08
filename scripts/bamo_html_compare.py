@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HTML/HyperFrames compare — Persian aurora with carefully written TTS text."""
+"""HTML/HyperFrames — natural Persian (no bad harakat)."""
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +7,6 @@ import html as html_lib
 import json
 import shutil
 import subprocess
-import sys
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,17 +14,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "outputs" / "daily"
 
-TITLE = "شَفَقِ قُطبی چیست؟"
+TITLE = "شفق قطبی چیست؟"
 
-# نگارش دقیق + اعراب برای تلفظ درست Edge-TTS
-# برند به صورت قابل‌تلفظ فارسی نوشته شده (نه at twelve bamo)
+# فارسی طبیعی و کوتاه — بدون اعراب غلط
+# برند: فارسی نوشته شود تا موتور انگلیسی قاطی نکند
 SENTENCES = [
-    "شَفَقِ قُطبی چیست؟",
-    "خورشید پلاسما را به بیرون می‌فِرِستَد.",
-    "میدانِ مَغناطیسیِ زمین، ذرّات را به سَمتِ قُطب‌ها هِدایَت می‌کُنَد.",
-    "گازهایِ جَو بَرانگیخته می‌شَوَند و آسمان روشن می‌شَوَد.",
-    "رَنگ به اِرتِفاع و شیمی بَستگی دارد.",
-    "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
+    "شفق قطبی چیست؟",
+    "خورشید ذره‌های باردار را به فضا می‌فرستد.",
+    "میدان مغناطیسی زمین آن‌ها را به سوی قطب‌ها می‌کشاند.",
+    "با برخورد به جو، گازها نورانی می‌شوند و آسمان رنگ می‌گیرد.",
+    "رنگ‌ها به ارتفاع و نوع گاز بستگی دارد.",
+    "بامو. یوزرنیم ما: دوازده بامو.",
 ]
 
 MIXKIT_IDS = [34788, 14185, 31559]
@@ -81,9 +80,16 @@ def _download(url: str, dest: Path) -> bool:
 async def _tts_sentence(text: str, dest: Path) -> float:
     import edge_tts
 
-    # FaridNeural: best available free Persian neural voice
-    await edge_tts.Communicate(text, "fa-IR-FaridNeural").save(str(dest))
-    return max(0.8, _probe(dest))
+    # Dilara often clearer for short educational lines; fallback Farid
+    for voice in ("fa-IR-DilaraNeural", "fa-IR-FaridNeural"):
+        try:
+            await edge_tts.Communicate(text, voice).save(str(dest))
+            if dest.exists() and dest.stat().st_size > 1000:
+                print(f"tts voice={voice} ok", flush=True)
+                return max(0.8, _probe(dest))
+        except Exception as exc:
+            print(f"tts {voice} fail: {exc}", flush=True)
+    raise RuntimeError(f"TTS failed for: {text}")
 
 
 def _build_synced_audio(work: Path) -> tuple[Path, list[tuple[float, float, str]], float]:
@@ -99,27 +105,8 @@ def _build_synced_audio(work: Path) -> tuple[Path, list[tuple[float, float, str]
             p = parts_dir / f"p{i:02d}.mp3"
             dur = await _tts_sentence(s, p)
             files.append(p)
-            # Caption shows clean text without excessive harakat clutter on screen
-            caption = (
-                s.replace("َ", "")
-                .replace("ِ", "")
-                .replace("ُ", "")
-                .replace("ً", "")
-                .replace("ٌ", "")
-                .replace("ٍ", "")
-                .replace("ّ", "ّ")  # keep tashdid lightly
-            )
-            # simpler caption cleanup: keep readable form
-            caption_map = [
-                "شفق قطبی چیست؟",
-                "خورشید پلاسما را به بیرون می‌فرستد.",
-                "میدان مغناطیسی زمین، ذرات را به سمت قطب‌ها هدایت می‌کند.",
-                "گازهای جو برانگیخته می‌شوند و آسمان روشن می‌شود.",
-                "رنگ به ارتفاع و شیمی بستگی دارد.",
-                "بامو · @12bamo",
-            ]
-            cap = caption_map[i] if i < len(caption_map) else s
-            timeline.append((t, t + dur, cap))
+            # caption = same spoken text (synced)
+            timeline.append((t, t + dur, s if i < len(SENTENCES) - 1 else "بامو · @12bamo"))
             t += dur + 0.08
 
     asyncio.run(gen())
@@ -300,10 +287,6 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
         font-family: "Vazirmatn", Tahoma, sans-serif; color: #fff; direction: rtl;
       }}
       #root {{ position: relative; width: 1080px; height: 1920px; overflow: hidden; }}
-      #film {{
-        position: absolute; inset: 0; width: 100%; height: 100%;
-        object-fit: cover; z-index: 0;
-      }}
       .scrim {{
         position: absolute; inset: 0; z-index: 2; pointer-events: none;
         background: linear-gradient(180deg,
@@ -355,12 +338,12 @@ def main() -> int:
     work.mkdir(parents=True)
 
     _audio, timeline, duration = _build_synced_audio(work)
-    print(json.dumps({"duration": duration, "spoken": SENTENCES, "captions": [t[2] for t in timeline]}, ensure_ascii=False), flush=True)
+    print(json.dumps({"duration": duration, "spoken": SENTENCES}, ensure_ascii=False), flush=True)
 
     _build_vertical_film(work, duration)
     _write_html(work, timeline, duration)
 
-    out = OUT_DIR / f"BAMO_HTML_TTSFIX_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
+    out = OUT_DIR / f"BAMO_HTML_NATURAL_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         _run(["npx", "--yes", "hyperframes@0.9.19", "render", "--gpu", "-o", str(out)], cwd=work, timeout=900)
@@ -369,7 +352,7 @@ def main() -> int:
 
     if not out.exists() or out.stat().st_size < 50_000:
         raise SystemExit("HTML render failed")
-    print(json.dumps({"ok": True, "path": str(out), "engine": "html_hyperframes", "size": out.stat().st_size}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "path": str(out), "size": out.stat().st_size}, ensure_ascii=False))
     return 0
 
 
