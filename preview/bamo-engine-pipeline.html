@@ -18,7 +18,7 @@
 "use strict";
 const canvas=document.getElementById("c"),caption=document.getElementById("caption"),errorBox=document.getElementById("error");
 const gl=canvas.getContext("webgl",{alpha:false,antialias:true,preserveDrawingBuffer:true});
-let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer;
+let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer,waveProgram,bgProgram,waveUniforms={},bgUniforms={},waveGridBuffer,waveIndexBuffer,waveIndexCount=0;
 let currentPalette={bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};
 const vertex=`
 attribute vec2 a_position;
@@ -145,38 +145,234 @@ void main(){
  gl_FragColor=vec4(col,1.0);
 }
 `;
+
+const waveVertex=`
+precision highp float;
+attribute vec2 a_grid;
+uniform vec2 u_resolution;
+uniform float u_time,u_phase;
+varying vec3 v_normal;
+varying vec3 v_world;
+varying vec2 v_uv;
+varying float v_height;
+float waveHeight(vec2 xz){
+ float r1=length(xz-vec2(-.68,0.0));
+ float r2=length(xz-vec2(.68,0.0));
+ float a=sin(7.6*r1-u_time*1.8);
+ float b=sin(7.6*r2-u_time*1.8+u_phase);
+ return .19*(a+b);
+}
+void main(){
+ vec2 xz=a_grid*1.55;
+ float y=waveHeight(xz);
+ float e=.009;
+ float hx1=waveHeight(xz+vec2(e,0.0));
+ float hx2=waveHeight(xz-vec2(e,0.0));
+ float hz1=waveHeight(xz+vec2(0.0,e));
+ float hz2=waveHeight(xz-vec2(0.0,e));
+ vec3 tangentX=vec3(2.0*e,hx1-hx2,0.0);
+ vec3 tangentZ=vec3(0.0,hz1-hz2,2.0*e);
+ v_normal=normalize(cross(tangentZ,tangentX));
+ v_world=vec3(xz.x,y,xz.y);
+ v_uv=a_grid*.5+.5;
+ v_height=y;
+ vec3 ro=vec3(3.1*sin(u_time*.18),1.45+.16*sin(u_time*.27),4.2*cos(u_time*.18));
+ vec3 ww=normalize(-ro);
+ vec3 uu=normalize(cross(ww,vec3(0.0,1.0,0.0)));
+ vec3 vv=cross(uu,ww);
+ vec3 rel=v_world-ro;
+ float vx=dot(rel,uu),vy=dot(rel,vv),vz=dot(rel,ww);
+ float aspect=u_resolution.x/u_resolution.y;
+ float focal=1.65,nearPlane=.1,farPlane=30.0;
+ gl_Position=vec4(vx*focal/aspect,vy*focal,(farPlane/(farPlane-nearPlane))*vz-(farPlane*nearPlane/(farPlane-nearPlane)),vz);
+}
+`;
+const waveFragment=`
+precision highp float;
+uniform float u_time;
+uniform vec3 u_primary,u_secondary,u_accent;
+varying vec3 v_normal;
+varying vec3 v_world;
+varying vec2 v_uv;
+varying float v_height;
+void main(){
+ vec3 n=normalize(v_normal);
+ vec3 lightDir=normalize(vec3(-.45,1.2,.8));
+ vec3 viewDir=normalize(vec3(0.0,1.4,4.5)-v_world);
+ float diff=max(dot(n,lightDir),0.0);
+ float fres=pow(1.0-max(dot(n,viewDir),0.0),3.0);
+ float spec=pow(max(dot(reflect(-lightDir,n),viewDir),0.0),32.0);
+ float bands=.5+.5*sin(v_height*22.0+v_world.x*5.0-u_time*1.4);
+ vec3 base=mix(u_primary,u_secondary,smoothstep(.05,.95,bands));
+ float contour=1.0-smoothstep(.0,.055,abs(fract((v_height+.5)*14.0)-.5));
+ float rA=length(v_world.xz-vec2(-.68,0.0));
+ float rB=length(v_world.xz-vec2(.68,0.0));
+ float sourceA=exp(-rA*30.0),sourceB=exp(-rB*30.0);
+ float ringA=exp(-abs(rA-.18)*45.0),ringB=exp(-abs(rB-.18)*45.0);
+ vec3 col=base*(.22+.9*diff)+u_accent*(.18*fres+.65*spec);
+ col+=u_accent*(contour*.16+(sourceA+sourceB)*.75+(ringA+ringB)*.12);
+ float edgeFade=smoothstep(0.0,.06,min(min(v_uv.x,1.0-v_uv.x),min(v_uv.y,1.0-v_uv.y)));
+ col*=.45+.55*edgeFade;
+ col=col/(1.0+col);
+ col=pow(col,vec3(.9));
+ gl_FragColor=vec4(col,1.0);
+}
+`;
+const bgFragment=`
+precision mediump float;
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform vec3 u_bg,u_primary;
+void main(){
+ vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/u_resolution.y;
+ vec2 gv=fract(uv*vec2(95.0,150.0))-.5;
+ vec2 id=floor(uv*vec2(95.0,150.0));
+ float rnd=fract(sin(dot(id,vec2(127.1,311.7)))*43758.5453);
+ float stars=step(.994,rnd)*pow(max(0.0,1.0-length(gv)*2.0),4.0)*(.45+.55*sin(u_time*1.7+rnd*20.0));
+ float haze=exp(-length(uv-vec2(0.0,.08))*3.0);
+ vec3 col=u_bg+vec3(.35,.55,.9)*stars+u_primary*haze*.075;
+ float vignette=1.0-smoothstep(.35,1.25,length(uv));
+ col*=vignette;
+ gl_FragColor=vec4(col,1.0);
+}
+`;
+
 function hex3(h){const x=(h||"#ffffff").replace("#","");return [parseInt(x.slice(0,2),16)/255,parseInt(x.slice(2,4),16)/255,parseInt(x.slice(4,6),16)/255];}
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+
+function makeProgram(vs,fs){
+ const p=gl.createProgram();
+ gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));
+ gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));
+ gl.linkProgram(p);
+ if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+ return p;
+}
+function bindFullscreen(p){
+ gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+ const loc=gl.getAttribLocation(p,"a_position");
+ gl.enableVertexAttribArray(loc);
+ gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+}
+function createWaveGrid(){
+ const segments=160,stride=segments+1;
+ const vertices=new Float32Array(stride*stride*2);
+ let k=0;
+ for(let z=0;z<=segments;z++){
+  for(let x=0;x<=segments;x++){
+   vertices[k++]=(x/segments)*2-1;
+   vertices[k++]=(z/segments)*2-1;
+  }
+ }
+ const indices=new Uint16Array(segments*segments*6);
+ k=0;
+ for(let z=0;z<segments;z++){
+  for(let x=0;x<segments;x++){
+   const a=z*stride+x,b=a+1,c=a+stride,d=c+1;
+   indices[k++]=a;indices[k++]=c;indices[k++]=b;
+   indices[k++]=b;indices[k++]=c;indices[k++]=d;
+  }
+ }
+ waveGridBuffer=gl.createBuffer();
+ gl.bindBuffer(gl.ARRAY_BUFFER,waveGridBuffer);
+ gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);
+ waveIndexBuffer=gl.createBuffer();
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,waveIndexBuffer);
+ gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,indices,gl.STATIC_DRAW);
+ waveIndexCount=indices.length;
+}
 function initGL(){
  if(!gl)throw new Error("WebGL در مرورگر فعال نیست؛ این موتور به WebGL نیاز دارد.");
- program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vertex));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program);
- if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
- gl.useProgram(program);
- buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+ program=makeProgram(vertex,fragment);
+ waveProgram=makeProgram(waveVertex,waveFragment);
+ bgProgram=makeProgram(vertex,bgFragment);
+ buffer=gl.createBuffer();
+ gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
- const loc=gl.getAttribLocation(program,"a_position");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+ uniforms={};
  ["u_resolution","u_time","u_progress","u_kind","u_phase","u_primary","u_secondary","u_accent","u_bg"].forEach(k=>uniforms[k]=gl.getUniformLocation(program,k));
- gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+ waveUniforms={};
+ ["u_resolution","u_time","u_phase","u_primary","u_secondary","u_accent"].forEach(k=>waveUniforms[k]=gl.getUniformLocation(waveProgram,k));
+ bgUniforms={};
+ ["u_resolution","u_time","u_bg","u_primary"].forEach(k=>bgUniforms[k]=gl.getUniformLocation(bgProgram,k));
+ createWaveGrid();
+ gl.disable(gl.BLEND);
+ gl.disable(gl.DEPTH_TEST);
 }
-function resize(){const dpr=Math.min(window.devicePixelRatio||1,1.5);W=720;H=1280;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);gl.viewport(0,0,canvas.width,canvas.height);}
+function resize(){
+ const dpr=Math.min(window.devicePixelRatio||1,1);
+ W=Math.max(1,window.innerWidth||720);
+ H=Math.max(1,window.innerHeight||1280);
+ canvas.width=Math.round(W*dpr);
+ canvas.height=Math.round(H*dpr);
+ gl.viewport(0,0,canvas.width,canvas.height);
+}
+
 function choosePalette(s){if(s.palette&&s.palette.bg)return s.palette;const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/آرام|صلح|calm/.test(t))return{bg:"#0c0a09",primary:"#f5d0a9",secondary:"#a78bfa",accent:"#67e8f9"};if(/حماسی|قهرمان|epic/.test(t))return{bg:"#0a0a12",primary:"#fbbf24",secondary:"#f472b6",accent:"#38bdf8"};if(/راز|مرموز|mystery/.test(t))return{bg:"#0b0c15",primary:"#818cf8",secondary:"#c084fc",accent:"#22d3ee"};if(/موج|تداخل|wave/.test(t))return{bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};return{bg:"#07101d",primary:"#22d3ee",secondary:"#a78bfa",accent:"#fbbf24"};}
 function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
+
+function drawBackground(p,t){
+ gl.disable(gl.DEPTH_TEST);
+ gl.useProgram(bgProgram);
+ bindFullscreen(bgProgram);
+ gl.uniform2f(bgUniforms.u_resolution,canvas.width,canvas.height);
+ gl.uniform1f(bgUniforms.u_time,t);
+ gl.uniform3fv(bgUniforms.u_bg,hex3(p.bg));
+ gl.uniform3fv(bgUniforms.u_primary,hex3(p.primary));
+ gl.drawArrays(gl.TRIANGLES,0,3);
+}
+function drawWave(p,phase){
+ gl.clear(gl.DEPTH_BUFFER_BIT);
+ gl.enable(gl.DEPTH_TEST);
+ gl.depthFunc(gl.LEQUAL);
+ gl.useProgram(waveProgram);
+ gl.uniform2f(waveUniforms.u_resolution,canvas.width,canvas.height);
+ gl.uniform1f(waveUniforms.u_time,globalTime);
+ gl.uniform1f(waveUniforms.u_phase,phase);
+ gl.uniform3fv(waveUniforms.u_primary,hex3(p.primary));
+ gl.uniform3fv(waveUniforms.u_secondary,hex3(p.secondary));
+ gl.uniform3fv(waveUniforms.u_accent,hex3(p.accent));
+ gl.bindBuffer(gl.ARRAY_BUFFER,waveGridBuffer);
+ const loc=gl.getAttribLocation(waveProgram,"a_grid");
+ gl.enableVertexAttribArray(loc);
+ gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,waveIndexBuffer);
+ gl.drawElements(gl.TRIANGLES,waveIndexCount,gl.UNSIGNED_SHORT,0);
+ gl.disable(gl.DEPTH_TEST);
+}
 function draw(){
  if(!project||!project.scenes.length)return;
  const s=project.scenes[sceneIndex];if(!s)return;
  currentPalette=choosePalette(s);const p=currentPalette;
- gl.useProgram(program);
- gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
- gl.uniform1f(uniforms.u_time,globalTime);
- gl.uniform1f(uniforms.u_progress,Math.min(1,sceneTime/Math.max(.01,s.duration)));
- gl.uniform1f(uniforms.u_kind,kindOf(s));gl.uniform1f(uniforms.u_phase,Number(s.phase||0)+Math.min(1,sceneTime/Math.max(.01,s.duration))*Number(s.phase_sweep||0));
- gl.uniform3fv(uniforms.u_primary,hex3(p.primary));gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));gl.uniform3fv(uniforms.u_accent,hex3(p.accent));gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
- gl.drawArrays(gl.TRIANGLES,0,3);
- caption.textContent=s.text||"";
+ const kind=kindOf(s);
  const progress=Math.min(1,sceneTime/Math.max(.01,s.duration));
- let opacity=1,scale=1;if(progress<.1){opacity=progress/.1;scale=.92+progress*.8;}else if(progress>.88){opacity=(1-progress)/.12;scale=1-(progress-.88)*.3;}
- caption.style.opacity=String(Math.max(0,Math.min(1,opacity)));caption.style.transform="scale("+scale.toFixed(3)+")";
+ const phase=Number(s.phase||0)+progress*Number(s.phase_sweep||0);
+ if(kind===6){
+  drawBackground(p,globalTime);
+  drawWave(p,phase);
+ }else{
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(program);
+  bindFullscreen(program);
+  gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
+  gl.uniform1f(uniforms.u_time,globalTime);
+  gl.uniform1f(uniforms.u_progress,progress);
+  gl.uniform1f(uniforms.u_kind,kind);
+  gl.uniform1f(uniforms.u_phase,phase);
+  gl.uniform3fv(uniforms.u_primary,hex3(p.primary));
+  gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));
+  gl.uniform3fv(uniforms.u_accent,hex3(p.accent));
+  gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
+  gl.drawArrays(gl.TRIANGLES,0,3);
+ }
+ caption.textContent=s.text||"";
+ let opacity=1,scale=1;
+ if(progress<.1){opacity=progress/.1;scale=.92+progress*.8;}
+ else if(progress>.88){opacity=(1-progress)/.12;scale=1-(progress-.88)*.3;}
+ caption.style.opacity=String(Math.max(0,Math.min(1,opacity)));
+ caption.style.transform="scale("+scale.toFixed(3)+")";
 }
+
 function totalDuration(){return project?project.scenes.reduce((a,s)=>a+Number(s.duration||4),0):0;}
 window.BAMO={
  loadProject(p){if(!p||!Array.isArray(p.scenes)||!p.scenes.length)throw new Error("Project must contain scenes");project=p;sceneIndex=0;sceneTime=0;globalTime=0;draw();return true;},
