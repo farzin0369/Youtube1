@@ -2,9 +2,6 @@ name: BAMO Daily English HyperFrames
 
 # PUBLISHING DISABLED — do not upload to YouTube until quality is explicitly approved.
 on:
-  # schedule disabled to prevent accidental daily public uploads
-  # schedule:
-  #   - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
       publish:
@@ -17,9 +14,9 @@ on:
         options: [private, unlisted, public]
         default: private
       language:
-        description: "Narration language"
+        description: "Narration / engine path"
         type: choice
-        options: [en, fa]
+        options: [en, fa, html]
         default: en
 
 concurrency:
@@ -82,7 +79,6 @@ jobs:
           YOUTUBE_DEFAULT_LANGUAGE: ${{ inputs.language }}
         run: |
           set -euo pipefail
-          # Hard stop: never publish unless input is explicitly true
           PUBLISH_FLAG=""
           PRIVACY="private"
           LANG_CODE="${{ inputs.language }}"
@@ -93,7 +89,9 @@ jobs:
           else
             echo "Publish disabled — render only"
           fi
-          if [ "$LANG_CODE" = "fa" ]; then
+          if [ "$LANG_CODE" = "html" ]; then
+            python scripts/bamo_html_compare.py
+          elif [ "$LANG_CODE" = "fa" ]; then
             python scripts/bamo_persian_once.py $PUBLISH_FLAG --privacy "$PRIVACY"
           else
             python scripts/bamo_daily_run.py $PUBLISH_FLAG --privacy "$PRIVACY"
