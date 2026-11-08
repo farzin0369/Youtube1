@@ -37,5 +37,6 @@ jobs:
             artifacts/bamo-science-short-20261108.mp4
             artifacts/bamo-science-short-20261108.srt
             artifacts/bamo-science-short-20261108-qa.json
+            artifacts/bamo-science-short-20261108-review.jpg
           if-no-files-found: error
           retention-days: 14
