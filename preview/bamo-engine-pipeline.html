@@ -7,7 +7,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#030611}
 #c{display:block;width:100%;height:100%}
-#caption{position:fixed;bottom:8%;left:6%;right:6%;text-align:center;color:#fff;font-family:'Vazirmatn',sans-serif;font-size:clamp(24px,4.5vw,40px);font-weight:700;line-height:1.45;text-shadow:0 2px 20px #000,0 0 48px #0008;pointer-events:none;z-index:5;transition:opacity .2s ease,transform .25s ease}
+#caption{position:fixed;bottom:8%;left:6%;right:6%;text-align:right;direction:rtl;color:#fff;font-family:'Vazirmatn',sans-serif;font-size:clamp(24px,4.5vw,40px);font-weight:700;line-height:1.45;text-shadow:0 2px 20px #000,0 0 48px #0008;pointer-events:none;z-index:5;transition:opacity .2s ease,transform .25s ease}
 #error{position:fixed;inset:0;display:none;place-items:center;padding:32px;color:#fff;background:#160b12;font:20px sans-serif;text-align:center;z-index:20}
 </style>
 </head>
@@ -27,7 +27,7 @@ void main(){gl_Position=vec4(a_position,0.0,1.0);}
 const fragment=`
 precision highp float;
 uniform vec2 u_resolution;
-uniform float u_time,u_progress,u_kind;
+uniform float u_time,u_progress,u_kind,u_phase;
 uniform vec3 u_primary,u_secondary,u_accent,u_bg;
 #define MAX_STEPS 92
 #define MAX_DIST 36.0
@@ -67,11 +67,24 @@ float sceneSDF(vec3 p){
    float left=sdCapsule(p,vec3(0,-.8,0),vec3(-.72,.62,0),.055);
    float right=sdCapsule(p,vec3(0,-.8,0),vec3(.72,.62,0),.055);
    return min(left,right);
- }else{
+ }else if(u_kind<5.5){
    float a=sdTorus(p,vec2(.75,.06));
    float b=sdTorus(p,vec2(.48,.045));
    p.xy=rot(1.05)*p.xy;
    return min(min(a,b),sdSphere(p,.22));
+ }else{
+   // Two coherent point sources create a genuine 3D interference surface.
+   float r1=length(p.xz-vec2(-.68,0.0));
+   float r2=length(p.xz-vec2(.68,0.0));
+   float waveA=sin(7.6*r1-t*1.8);
+   float waveB=sin(7.6*r2-t*1.8+u_phase);
+   float height=.19*(waveA+waveB);
+   float surface=abs(p.y-height)-.035;
+   float edge=length(p.xz)-1.55;
+   float sheet=max(surface,edge);
+   float sourceA=sdSphere(p-vec3(-.68,0.0,0.0),.09);
+   float sourceB=sdSphere(p-vec3(.68,0.0,0.0),.09);
+   return min(sheet,min(sourceA,sourceB));
  }
 }
 vec3 getNormal(vec3 p){vec2 e=vec2(.001,0);return normalize(vec3(sceneSDF(p+e.xyy)-sceneSDF(p-e.xyy),sceneSDF(p+e.yxy)-sceneSDF(p-e.yxy),sceneSDF(p+e.yyx)-sceneSDF(p-e.yyx)));}
@@ -142,12 +155,12 @@ function initGL(){
  buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
  const loc=gl.getAttribLocation(program,"a_position");gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
- ["u_resolution","u_time","u_progress","u_kind","u_primary","u_secondary","u_accent","u_bg"].forEach(k=>uniforms[k]=gl.getUniformLocation(program,k));
+ ["u_resolution","u_time","u_progress","u_kind","u_phase","u_primary","u_secondary","u_accent","u_bg"].forEach(k=>uniforms[k]=gl.getUniformLocation(program,k));
  gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
 }
 function resize(){const dpr=Math.min(window.devicePixelRatio||1,1.5);W=720;H=1280;canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);gl.viewport(0,0,canvas.width,canvas.height);}
 function choosePalette(s){if(s.palette&&s.palette.bg)return s.palette;const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/آرام|صلح|calm/.test(t))return{bg:"#0c0a09",primary:"#f5d0a9",secondary:"#a78bfa",accent:"#67e8f9"};if(/حماسی|قهرمان|epic/.test(t))return{bg:"#0a0a12",primary:"#fbbf24",secondary:"#f472b6",accent:"#38bdf8"};if(/راز|مرموز|mystery/.test(t))return{bg:"#0b0c15",primary:"#818cf8",secondary:"#c084fc",accent:"#22d3ee"};if(/موج|تداخل|wave/.test(t))return{bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};return{bg:"#07101d",primary:"#22d3ee",secondary:"#a78bfa",accent:"#fbbf24"};}
-function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
+function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
 function draw(){
  if(!project||!project.scenes.length)return;
  const s=project.scenes[sceneIndex];if(!s)return;
@@ -156,7 +169,7 @@ function draw(){
  gl.uniform2f(uniforms.u_resolution,canvas.width,canvas.height);
  gl.uniform1f(uniforms.u_time,globalTime);
  gl.uniform1f(uniforms.u_progress,Math.min(1,sceneTime/Math.max(.01,s.duration)));
- gl.uniform1f(uniforms.u_kind,kindOf(s));
+ gl.uniform1f(uniforms.u_kind,kindOf(s));gl.uniform1f(uniforms.u_phase,Number(s.phase||0)+progress*Number(s.phase_sweep||0));
  gl.uniform3fv(uniforms.u_primary,hex3(p.primary));gl.uniform3fv(uniforms.u_secondary,hex3(p.secondary));gl.uniform3fv(uniforms.u_accent,hex3(p.accent));gl.uniform3fv(uniforms.u_bg,hex3(p.bg));
  gl.drawArrays(gl.TRIANGLES,0,3);
  caption.textContent=s.text||"";

@@ -1,4 +1,4 @@
-name: BAMO Full-Quality WebGL Render
+name: BAMO Daily Science Short - Wave Interference
 on:
   workflow_dispatch:
   pull_request:
@@ -18,17 +18,24 @@ jobs:
           python-version: "3.11"
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Install Playwright
+      - name: Install Playwright and Persian TTS
         run: |
           python -m pip install --upgrade pip
           python -m pip install playwright edge-tts
           python -m playwright install --with-deps chromium
-      - name: Render sample using HTML engine only
-        run: PYTHONPATH=. python scripts/render_html_engine_sample.py
-      - name: Upload MP4 sample
+      - name: Render today's short with the HTML/WebGL engine
+        env:
+          PYTHONPATH: .
+          BAMO_RENDER_SCALE: "1.0"
+          BAMO_RENDER_FPS: "24"
+        run: python scripts/render_html_engine_sample.py
+      - name: Upload MP4, subtitles and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-atom-structure-full-quality
-          path: artifacts/bamo-html-engine-sample.mp4
+          name: bamo-science-short-20261108
+          path: |
+            artifacts/bamo-science-short-20261108.mp4
+            artifacts/bamo-science-short-20261108.srt
+            artifacts/bamo-science-short-20261108-qa.json
           if-no-files-found: error
           retention-days: 14
