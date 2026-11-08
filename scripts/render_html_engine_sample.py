@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -13,56 +14,61 @@ from app.html_motion_renderer import render_html_project
 OUT = Path("artifacts/bamo-science-short-20261108.mp4")
 SRT = OUT.with_suffix(".srt")
 QA = OUT.with_name("bamo-science-short-20261108-qa.json")
+REVIEW = OUT.with_name("bamo-science-short-20261108-review.jpg")
 VOICE = "fa-IR-FaridNeural"
 FPS = 24
-WIDTH = 720
-HEIGHT = 1280
-TOPIC = "چرا دو موج گاهی همدیگر را تقویت و گاهی خنثی می‌کنند؟"
+WIDTH = 1080
+HEIGHT = 1920
+TOPIC = "چرا دو موج گاهی همدیگر را تقویت یا خنثی می‌کنند؟"
+SOURCES = [
+    "https://openstax.org/books/physics/pages/13-3-wave-interaction-superposition-and-interference",
+    "https://www.acs.psu.edu/drussell/Demos/superposition/superposition.html",
+]
 
 SCENES = [
     {
-        "text": "دو موج همیشه قوی‌تر نمی‌شوند!",
-        "narration": "دو موج همیشه قوی‌تر نمی‌شوند!",
-        "visual_prompt": "دو منبع موج همدوس و حلقه‌های تداخل سه‌بعدی",
+        "text": "دو موج می‌توانند همدیگر را تقویت کنند… یا تضعیف!",
+        "narration": "دو موج می‌توانند همدیگر را تقویت کنند… یا تضعیف!",
+        "visual_prompt": "دو منبع همدوس در میدان موجی سه‌بعدی؛ نمای باز و نزدیک‌شدن دوربین",
         "motif": "interference",
         "phase": 0.0,
-        "phase_sweep": 0.0,
+        "phase_sweep": 0.5,
         "palette": {"bg": "#030817", "primary": "#22d3ee", "secondary": "#818cf8", "accent": "#f0abfc"},
     },
     {
-        "text": "قله با قله؛ دامنهٔ موجِ حاصل بزرگ‌تر می‌شود.",
-        "narration": "قله با قله؛ دامنهٔ موجِ حاصل بزرگ‌تر می‌شود.",
-        "visual_prompt": "تداخل سازنده دو موج هم‌فاز از دو منبع نقطه‌ای",
+        "text": "وقتی قله‌ها هم‌زمان برسند، دامنهٔ برآیند بزرگ‌تر می‌شود.",
+        "narration": "وقتی قله‌ها هم‌زمان برسند، دامنهٔ برآیند بزرگ‌تر می‌شود.",
+        "visual_prompt": "تداخل سازنده دو موج هم‌فاز؛ برآمدگی‌های موج برجسته و روشن",
         "motif": "interference",
         "phase": 0.0,
         "phase_sweep": 0.0,
         "palette": {"bg": "#03151a", "primary": "#2dd4bf", "secondary": "#4ade80", "accent": "#facc15"},
     },
     {
-        "text": "قله با دره؛ دامنهٔ موجِ حاصل کاهش می‌یابد.",
-        "narration": "قله با دره؛ دامنهٔ موجِ حاصل کاهش می‌یابد.",
-        "visual_prompt": "تداخل دو موج با اختلاف فاز و نواحی کاهش دامنه",
+        "text": "اگر قلهٔ یکی به درهٔ دیگری برسد، موج‌های هم‌اندازه خنثی می‌شوند.",
+        "narration": "اگر قلهٔ یکی به درهٔ دیگری برسد، موج‌های هم‌اندازه خنثی می‌شوند.",
+        "visual_prompt": "تداخل ویرانگر با اختلاف فاز ۱۸۰ درجه؛ خطوط گره و سطح کم‌دامنه",
         "motif": "interference",
         "phase": 3.14159265,
         "phase_sweep": 0.0,
         "palette": {"bg": "#10071d", "primary": "#c084fc", "secondary": "#f472b6", "accent": "#22d3ee"},
     },
     {
-        "text": "نیم‌دوره اختلاف فاز؛ برآیندِ دو موجِ هم‌اندازه صفر می‌شود.",
-        "narration": "نیم‌دوره اختلاف فاز؛ برآیندِ دو موجِ هم‌اندازه صفر می‌شود.",
-        "visual_prompt": "سطح تداخل ویرانگر با گره‌های کم‌دامنه در میدان سه‌بعدی",
+        "text": "این تفاوت به اختلاف فاز بستگی دارد؛ نیم‌دوره یعنی ۱۸۰ درجه.",
+        "narration": "این تفاوت به اختلاف فاز بستگی دارد؛ نیم‌دوره یعنی ۱۸۰ درجه.",
+        "visual_prompt": "تداخل با اختلاف فاز میانی؛ ترکیب نواحی تقویت و تضعیف",
         "motif": "interference",
-        "phase": 3.14159265,
+        "phase": 1.57079633,
         "phase_sweep": 0.0,
         "palette": {"bg": "#18080b", "primary": "#fb7185", "secondary": "#f97316", "accent": "#fef08a"},
     },
     {
-        "text": "انرژی از بین نمی‌رود؛ در الگوی کلی بازتوزیع می‌شود.",
-        "narration": "انرژی از بین نمی‌رود؛ در الگوی کلی بازتوزیع می‌شود.",
-        "visual_prompt": "الگوی کامل تداخل موجی و نواحی تقویت و تضعیف",
+        "text": "انرژی نابود نمی‌شود؛ الگوی شدت در فضا بازتوزیع می‌شود.",
+        "narration": "انرژی نابود نمی‌شود؛ الگوی شدت در فضا بازتوزیع می‌شود.",
+        "visual_prompt": "نمای کلی میدان دو منبع با نوارهای روشن و تاریک و تغییر تدریجی فاز",
         "motif": "interference",
-        "phase": 1.57079633,
-        "phase_sweep": 0.0,
+        "phase": 0.0,
+        "phase_sweep": 6.2831853,
         "palette": {"bg": "#061020", "primary": "#38bdf8", "secondary": "#a78bfa", "accent": "#fbbf24"},
     },
 ]
@@ -160,6 +166,8 @@ def main() -> None:
             cursor += duration
         SRT.write_text("\n".join(srt_blocks), encoding="utf-8")
 
+    run(["ffmpeg", "-y", "-i", str(OUT), "-vf", "fps=1/4,scale=360:-1,tile=3x2", "-frames:v", "1", str(REVIEW)])
+
     metadata = json.loads(run([
         "ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(OUT)
     ]))
@@ -172,8 +180,21 @@ def main() -> None:
     if video.get("r_frame_rate") != f"{FPS}/1":
         raise RuntimeError("Final MP4 has unexpected frame rate")
     actual_duration = float(metadata["format"]["duration"])
+    video_duration = float(video.get("duration") or actual_duration)
+    audio_duration = float(audio.get("duration") or actual_duration)
     if not 15 <= actual_duration <= 30:
         raise RuntimeError("Final MP4 duration is outside Shorts target")
+    if abs(video_duration - audio_duration) > 0.10:
+        raise RuntimeError(f"Audio/video duration mismatch: {audio_duration:.3f}s vs {video_duration:.3f}s")
+    if any(scene["text"] != scene["narration"] for scene in SCENES):
+        raise RuntimeError("On-screen text does not exactly match the narrated scene text")
+    subtitle_text = SRT.read_text(encoding="utf-8")
+    if len(re.findall(r"(?m)^\\d+$", subtitle_text)) != len(SCENES):
+        raise RuntimeError("Subtitle cue count does not match scene count")
+    if any(scene["text"] not in subtitle_text for scene in SCENES):
+        raise RuntimeError("Subtitle text does not match narration text")
+    if not REVIEW.is_file() or REVIEW.stat().st_size < 10000:
+        raise RuntimeError("Visual review contact sheet was not created")
 
     report = {
         "topic": TOPIC,
@@ -181,13 +202,20 @@ def main() -> None:
         "engine": "BAMO HTML/WebGL ray-marched two-source interference surface",
         "voice": VOICE,
         "duration_seconds": round(actual_duration, 3),
+        "video_duration_seconds": round(video_duration, 3),
+        "audio_duration_seconds": round(audio_duration, 3),
         "resolution": f"{WIDTH}x{HEIGHT}",
         "fps": FPS,
+        "audio_sample_rate": audio.get("sample_rate"),
+        "audio_channels": audio.get("channels"),
         "video_codec": video.get("codec_name"),
         "audio_codec": audio.get("codec_name"),
         "caption_count": len(SCENES),
-        "caption_alignment": "one caption per narration segment; scene durations derived from each TTS clip",
-        "quality_gate": "PASS",
+        "caption_alignment": "each caption exactly matches its narration segment; SRT timing derives from the corresponding TTS clip",
+        "visual_design": "160x160 animated WebGL mesh, two coherent sources, phase-controlled interference, moving perspective camera",
+        "visual_review_status": "pending manual frame inspection",
+        "quality_gate": "TECHNICAL_PASS_PENDING_VISUAL_REVIEW",
+        "sources": SOURCES,
         "youtube_published": False,
     }
     QA.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -195,6 +223,7 @@ def main() -> None:
     print(f"MP4={OUT.resolve()}")
     print(f"SRT={SRT.resolve()}")
     print(f"QA={QA.resolve()}")
+    print(f"REVIEW={REVIEW.resolve()}")
 
 
 if __name__ == "__main__":
