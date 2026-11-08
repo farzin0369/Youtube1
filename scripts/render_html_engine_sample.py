@@ -189,7 +189,7 @@ def main() -> None:
     if any(scene["text"] != scene["narration"] for scene in SCENES):
         raise RuntimeError("On-screen text does not exactly match the narrated scene text")
     subtitle_text = SRT.read_text(encoding="utf-8")
-    if len(re.findall(r"(?m)^\\d+$", subtitle_text)) != len(SCENES):
+    if len(re.findall(r"(?m)^\d+$", subtitle_text)) != len(SCENES):
         raise RuntimeError("Subtitle cue count does not match scene count")
     if any(scene["text"] not in subtitle_text for scene in SCENES):
         raise RuntimeError("Subtitle text does not match narration text")
