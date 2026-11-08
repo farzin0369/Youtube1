@@ -117,7 +117,7 @@ def render_html_project(
                 raise RuntimeError(f"BAMO WebGL engine boot failed: {details}")
 
             page.evaluate(
-                """(proj) => { window.BAMO.loadProject(proj); window.BAMO.play(); }""",
+                """(proj) => { window.BAMO.loadProject(proj); window.BAMO.pause(); }""",
                 project,
             )
 
@@ -126,7 +126,7 @@ def render_html_project(
             for i in range(n_frames):
                 t = i / fps
                 page.evaluate(f"window.BAMO.seek({t:.4f})")
-                page.wait_for_timeout(15)
+                page.wait_for_timeout(5)
                 frame_path = frames_dir / f"{i:05d}.jpg"
                 page.screenshot(path=str(frame_path), type="jpeg", quality=88)
 
