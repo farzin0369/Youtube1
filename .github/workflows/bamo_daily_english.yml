@@ -2,7 +2,6 @@ name: BAMO Daily English HyperFrames
 
 on:
   schedule:
-    # 12:00 America/New_York ≈ 17:00 UTC (DST-aware approx)
     - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
@@ -15,6 +14,11 @@ on:
         type: choice
         options: [public, unlisted, private]
         default: public
+      language:
+        description: "Narration language"
+        type: choice
+        options: [en, fa]
+        default: en
 
 concurrency:
   group: bamo-daily-english
@@ -41,7 +45,7 @@ jobs:
       - name: System deps
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-liberation
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core fonts-liberation fonts-noto-core fonts-noto-ui-core
 
       - name: Python deps
         run: |
@@ -67,24 +71,34 @@ jobs:
             raise SystemExit("YouTube OAuth failed — check Secrets")
           PY
 
-      - name: Daily factory (HyperFrames official template)
+      - name: Daily factory
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "false"
+          YOUTUBE_DEFAULT_LANGUAGE: ${{ inputs.language == 'fa' && 'fa' || 'en' }}
         run: |
           set -euo pipefail
           PUBLISH_FLAG=""
           PRIVACY="public"
+          LANG_CODE="en"
           if [ "${{ github.event_name }}" = "schedule" ]; then
             PUBLISH_FLAG="--publish"
             PRIVACY="public"
-          elif [ "${{ inputs.publish }}" = "true" ]; then
-            PUBLISH_FLAG="--publish"
+            LANG_CODE="en"
+          else
+            if [ "${{ inputs.publish }}" = "true" ]; then
+              PUBLISH_FLAG="--publish"
+            fi
             PRIVACY="${{ inputs.privacy }}"
+            LANG_CODE="${{ inputs.language }}"
           fi
-          python scripts/bamo_daily_run.py $PUBLISH_FLAG --privacy "$PRIVACY"
+          if [ "$LANG_CODE" = "fa" ]; then
+            python scripts/bamo_persian_once.py $PUBLISH_FLAG --privacy "$PRIVACY"
+          else
+            python scripts/bamo_daily_run.py $PUBLISH_FLAG --privacy "$PRIVACY"
+          fi
 
       - name: Upload artifacts
         if: always()
