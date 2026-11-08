@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Compare engine: same Persian aurora short via HTML + HyperFrames.
-
-Hard-synced captions (per-sentence TTS) + real Mixkit video background.
-"""
+"""HTML/HyperFrames compare — Persian aurora with carefully written TTS text."""
 from __future__ import annotations
 
 import asyncio
@@ -18,15 +15,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "outputs" / "daily"
 
-TITLE = "شفق قطبی چیست؟"
+TITLE = "شَفَقِ قُطبی چیست؟"
+
+# نگارش دقیق + اعراب برای تلفظ درست Edge-TTS
+# برند به صورت قابل‌تلفظ فارسی نوشته شده (نه at twelve bamo)
 SENTENCES = [
-    "شفق قطبی چیست؟",
-    "خورشید پلاسما به بیرون می‌فرستد.",
-    "میدان مغناطیسی زمین ذرات را به سمت قطب‌ها هدایت می‌کند.",
-    "گازهای جو برانگیخته می‌شوند و آسمان روشن می‌شود.",
-    "رنگ به ارتفاع و شیمی بستگی دارد.",
-    "بامو. دنبال کنید at twelve bamo.",
+    "شَفَقِ قُطبی چیست؟",
+    "خورشید پلاسما را به بیرون می‌فِرِستَد.",
+    "میدانِ مَغناطیسیِ زمین، ذرّات را به سَمتِ قُطب‌ها هِدایَت می‌کُنَد.",
+    "گازهایِ جَو بَرانگیخته می‌شَوَند و آسمان روشن می‌شَوَد.",
+    "رَنگ به اِرتِفاع و شیمی بَستگی دارد.",
+    "بامو. دُنبال کُنید: آتِ دَوازده بامو.",
 ]
+
 MIXKIT_IDS = [34788, 14185, 31559]
 UA = "Mozilla/5.0 (compatible; BAMOShorts/1.0)"
 
@@ -80,6 +81,7 @@ def _download(url: str, dest: Path) -> bool:
 async def _tts_sentence(text: str, dest: Path) -> float:
     import edge_tts
 
+    # FaridNeural: best available free Persian neural voice
     await edge_tts.Communicate(text, "fa-IR-FaridNeural").save(str(dest))
     return max(0.8, _probe(dest))
 
@@ -97,7 +99,27 @@ def _build_synced_audio(work: Path) -> tuple[Path, list[tuple[float, float, str]
             p = parts_dir / f"p{i:02d}.mp3"
             dur = await _tts_sentence(s, p)
             files.append(p)
-            timeline.append((t, t + dur, s))
+            # Caption shows clean text without excessive harakat clutter on screen
+            caption = (
+                s.replace("َ", "")
+                .replace("ِ", "")
+                .replace("ُ", "")
+                .replace("ً", "")
+                .replace("ٌ", "")
+                .replace("ٍ", "")
+                .replace("ّ", "ّ")  # keep tashdid lightly
+            )
+            # simpler caption cleanup: keep readable form
+            caption_map = [
+                "شفق قطبی چیست؟",
+                "خورشید پلاسما را به بیرون می‌فرستد.",
+                "میدان مغناطیسی زمین، ذرات را به سمت قطب‌ها هدایت می‌کند.",
+                "گازهای جو برانگیخته می‌شوند و آسمان روشن می‌شود.",
+                "رنگ به ارتفاع و شیمی بستگی دارد.",
+                "بامو · @12bamo",
+            ]
+            cap = caption_map[i] if i < len(caption_map) else s
+            timeline.append((t, t + dur, cap))
             t += dur + 0.08
 
     asyncio.run(gen())
@@ -260,9 +282,7 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
             f'{{opacity: 1, y: 0, duration: 0.25, ease: "power2.out"}}, {start:.2f});'
         )
         out_at = max(start + 0.4, end - 0.12)
-        gsap.append(
-            f'      tl.to("#{bid}", {{opacity: 0, duration: 0.18}}, {out_at:.2f});'
-        )
+        gsap.append(f'      tl.to("#{bid}", {{opacity: 0, duration: 0.18}}, {out_at:.2f});')
 
     ds = f"{duration:.2f}"
     index = f"""<!doctype html>
@@ -335,12 +355,12 @@ def main() -> int:
     work.mkdir(parents=True)
 
     _audio, timeline, duration = _build_synced_audio(work)
-    print(json.dumps({"duration": duration, "captions": [t[2] for t in timeline]}, ensure_ascii=False), flush=True)
+    print(json.dumps({"duration": duration, "spoken": SENTENCES, "captions": [t[2] for t in timeline]}, ensure_ascii=False), flush=True)
 
     _build_vertical_film(work, duration)
     _write_html(work, timeline, duration)
 
-    out = OUT_DIR / f"BAMO_HTML_COMPARE_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
+    out = OUT_DIR / f"BAMO_HTML_TTSFIX_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         _run(["npx", "--yes", "hyperframes@0.9.19", "render", "--gpu", "-o", str(out)], cwd=work, timeout=900)
