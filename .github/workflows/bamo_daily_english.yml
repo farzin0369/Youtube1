@@ -16,7 +16,7 @@ on:
       language:
         description: "Narration / engine path"
         type: choice
-        options: [en, fa, html]
+        options: [en, fa, html, ttv]
         default: en
 
 concurrency:
@@ -89,7 +89,9 @@ jobs:
           else
             echo "Publish disabled — render only"
           fi
-          if [ "$LANG_CODE" = "html" ]; then
+          if [ "$LANG_CODE" = "ttv" ]; then
+            python ttv/render_sample.py
+          elif [ "$LANG_CODE" = "html" ]; then
             python scripts/bamo_html_compare.py
           elif [ "$LANG_CODE" = "fa" ]; then
             python scripts/bamo_persian_once.py $PUBLISH_FLAG --privacy "$PRIVACY"
