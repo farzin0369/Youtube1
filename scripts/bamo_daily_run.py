@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Daily BAMO English Shorts factory.
 
-1) Brain selects one idea from the bank
-2) HyperFrames official kinetic-type renders the video
+1) Brain selects one curated idea
+2) Idea-specific HyperFrames composition (not the HyperFrames promo demo)
 3) YouTube public upload with title/description/tags/hashtags + thumbnail
-4) Reply to a few recent comments in English (best-effort)
+4) Reply to recent comments in English (best-effort)
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from scripts.bamo_hyperframes_factory import render_short
 
 def _make_thumbnail(video: Path) -> Path:
     thumb = video.with_suffix(".jpg")
-    # Grab a mid-frame; HyperFrames kinetic opens strong around 1–3s
     cmd = [
         "ffmpeg",
         "-y",
@@ -69,29 +68,38 @@ def _reply_comments(max_replies: int, dry_run: bool) -> dict:
 
         return reply_to_recent_comments(max_videos=3, max_comments_per_video=max_replies)
     except Exception as exc:
-        # Never fail the daily publish because comment AI is down
         return {"ok": False, "soft_fail": True, "error": str(exc)}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--publish", action="store_true", help="Upload publicly to YouTube")
-    ap.add_argument("--dry-run", action="store_true", help="Select + metadata only, no render")
+    ap.add_argument("--publish", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
     ap.add_argument("--skip-comments", action="store_true")
-    ap.add_argument("--prefer-curated", action="store_true", default=True)
     args = ap.parse_args()
 
     idea = select_idea(prefer_curated=True)
     pkg = build_youtube_package(idea)
-    print(json.dumps({"selected": idea.get("id"), "title": pkg["title"], "curated": idea.get("curated")}, ensure_ascii=False), flush=True)
+    print(
+        json.dumps(
+            {"selected": idea.get("id"), "title": pkg["title"], "curated": idea.get("curated")},
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
 
     if args.dry_run:
         print(json.dumps({"ok": True, "dry_run": True, "package": pkg}, ensure_ascii=False))
         return 0
 
     out = ROOT / "outputs" / "daily" / f"BAMO_{idea.get('id')}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.mp4"
-    video = render_short(pkg["narration"], out)
+    video = render_short(
+        pkg["narration"],
+        out,
+        title=pkg.get("title") or idea.get("title") or "",
+        hook=pkg.get("hook") or idea.get("hook") or "",
+    )
     thumb = _make_thumbnail(video)
 
     upload_result: dict = {"ok": False, "skipped": True}
@@ -119,7 +127,6 @@ def main() -> int:
     }
     append_history(record)
     print(json.dumps(record, ensure_ascii=False, default=str))
-    # comments soft-fail must not fail the job
     return 0 if (not args.publish or upload_result.get("ok")) else 1
 
 
