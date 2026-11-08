@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""TTV sample: idea bank → Persian rewrite → hard-sync TTS → real video → MP4.
-
-No YouTube upload. Portrait Shorts 1080x1920.
-"""
+"""TTV sample: viral FA short — energetic male VO, hook, pauses, big brand, thumbnail."""
 from __future__ import annotations
 
 import asyncio
 import html as html_lib
 import json
-import random
 import shutil
 import subprocess
 import sys
@@ -25,32 +21,36 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# High-virality idea from bank, rewritten in natural Persian.
-# Spoken text carefully written for Edge-TTS (no broken harakat).
+# idea-00002 Hilbert Hotel — curiosity hook, rewritten for retention
+# مکث با جمله کوتاه + ... برای تنفس TTS
 IDEA = {
-    "id": "idea-00001",
-    "title_en": "Why Your Brain Deletes Most of What You See",
-    "title_fa": "چرا مغز بیشتر چیزهایی که می‌بینی را پاک می‌کند؟",
+    "id": "idea-00002",
+    "title_en": "The Infinite Hotel That Always Has Room",
+    "title_fa": "هتلی که همیشه جا دارد",
     "spoken": [
-        "چرا مغز بیشتر چیزهایی که می‌بینی را پاک می‌کند؟",
-        "چشم‌های تو اطلاعات خیلی زیادی می‌گیرد.",
-        "اما ذهن همه را نگه نمی‌دارد.",
-        "دانشمندان به این می‌گویند تنگنای توجه.",
-        "در آزمایش‌ها، آدم‌ها حتی یک گوریل را وسط صحنه نمی‌بینند.",
-        "مغز تو دوربین نیست. یک تدوین‌گر سخت‌گیر است.",
+        "صبر کن...",
+        "یه هتل بی‌نهایت اتاق داره... و همه پره.",
+        "ولی بازم جا داره برای مهمون جدید!",
+        "چطور؟",
+        "هر مهمون از اتاق اِن... می‌ره به اتاق دو برابر اِن.",
+        "اتاق‌های فرد... همه‌ش خالی می‌شه.",
+        "بی‌نهایت... مثل عدد معمولی رفتار نمی‌کنه.",
+        "این... هتل هیلبرتِه.",
         "بامو. یوزرنیم ما: دوازده بامو.",
     ],
     "captions": [
-        "چرا مغز بیشتر دیده‌ها را پاک می‌کند؟",
-        "چشم‌ها اطلاعات زیادی می‌گیرند",
-        "اما ذهن همه را نگه نمی‌دارد",
-        "تنگنای توجه",
-        "گاهی حتی گوریل را نمی‌بینیم",
-        "مغز دوربین نیست؛ تدوین‌گر است",
+        "صبر کن…",
+        "هتل بی‌نهایت… همه پره",
+        "ولی بازم جا داره؟!",
+        "چطور؟",
+        "هر مهمون → اتاق ۲ برابر",
+        "اتاق‌های فرد خالی می‌شن",
+        "بی‌نهایت ≠ عدد معمولی",
+        "هتل هیلبرت",
         "بامو · @12bamo",
     ],
-    "mixkit_ids": [30265, 19649, 26877, 31559],
-    "topic": "psychology",
+    # abstract / motion / cosmic feel
+    "mixkit_ids": [18791, 14185, 31559, 30265],
 }
 
 
@@ -95,19 +95,19 @@ def _download(url: str, dest: Path) -> bool:
         return False
 
 
-async def _tts(text: str, dest: Path) -> float:
+async def _tts_male_energy(text: str, dest: Path) -> float:
+    """Male Persian voice, energetic rate/pitch."""
     import edge_tts
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    for voice in ("fa-IR-DilaraNeural", "fa-IR-FaridNeural"):
-        try:
-            await edge_tts.Communicate(text, voice).save(str(dest))
-            if dest.exists() and dest.stat().st_size > 800:
-                print(f"tts [{voice}] {dest.name} {_probe(dest):.2f}s", flush=True)
-                return max(0.9, _probe(dest))
-        except Exception as exc:
-            print(f"tts fail {voice}: {exc}", flush=True)
-    raise RuntimeError(f"TTS failed: {text}")
+    # Farid = male. Rate up for energy; slight pitch up for punch.
+    voice = "fa-IR-FaridNeural"
+    communicate = edge_tts.Communicate(text, voice, rate="+12%", pitch="+3Hz")
+    await communicate.save(str(dest))
+    if not dest.exists() or dest.stat().st_size < 500:
+        # fallback without prosody
+        await edge_tts.Communicate(text, voice).save(str(dest))
+    return max(0.7, _probe(dest))
 
 
 def _build_audio(work: Path, spoken: list[str], captions: list[str]):
@@ -121,11 +121,13 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
         nonlocal t
         for i, s in enumerate(spoken):
             p = parts_dir / f"p{i:02d}.mp3"
-            dur = await _tts(s, p)
+            dur = await _tts_male_energy(s, p)
+            # extra micro-pause after hook lines
+            gap = 0.12 if i <= 2 else 0.08
             files.append(p)
             cap = captions[i] if i < len(captions) else s
             timeline.append((t, t + dur, cap))
-            t += dur + 0.07
+            t += dur + gap
 
     asyncio.run(gen())
 
@@ -139,7 +141,7 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
             "-i",
             "anullsrc=r=24000:cl=mono",
             "-t",
-            "0.07",
+            "0.08",
             "-q:a",
             "9",
             "-acodec",
@@ -163,7 +165,7 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
         check=True,
         capture_output=True,
     )
-    duration = min(28.0, _probe(full) + 0.25)
+    duration = min(32.0, _probe(full) + 0.35)
     return full, timeline, duration
 
 
@@ -176,16 +178,16 @@ def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
         p = clips_dir / f"mix_{mid}.mp4"
         if _download(url, p):
             clips.append(p)
-            print(f"stock video ok {p.name}", flush=True)
+            print(f"stock ok {p.name}", flush=True)
         if len(clips) >= 3:
             break
     if not clips:
-        raise RuntimeError("no stock video downloaded")
+        raise RuntimeError("no stock video")
 
     tmp = work / "_film"
     tmp.mkdir(exist_ok=True)
     segs = []
-    per = max(4.5, duration / len(clips))
+    per = max(4.0, duration / len(clips))
     for i, c in enumerate(clips):
         seg = tmp / f"s{i}.mp4"
         subprocess.run(
@@ -199,7 +201,7 @@ def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
                 "-t",
                 f"{per:.2f}",
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:brightness=-0.02",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.12:contrast=1.05",
                 "-an",
                 "-c:v",
                 "libx264",
@@ -217,13 +219,12 @@ def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
     if len(segs) == 1:
         raw = segs[0]
     else:
-        # chain xfade
         raw = tmp / "xf.mp4"
         inputs = []
         for s in segs:
             inputs.extend(["-i", str(s)])
         durs = [_probe(s) for s in segs]
-        fade = 0.45
+        fade = 0.4
         parts = []
         prev = "[0:v]"
         acc = durs[0]
@@ -286,18 +287,22 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     beats, gsap = [], []
     for i, (start, end, text) in enumerate(timeline):
         bid = f"beat-{i}"
-        slot = max(0.6, end - start)
+        slot = max(0.55, end - start)
+        # first line = hook → bigger
+        size = 56 if i == 0 else (52 if i <= 2 else 46)
         beats.append(
-            f'      <div id="{bid}" class="beat" data-start="{start:.2f}" '
-            f'data-duration="{slot:.2f}" data-track-index="{10 + i}">{html_lib.escape(text)}</div>'
+            f'      <div id="{bid}" class="beat" style="font-size:{size}px" '
+            f'data-start="{start:.2f}" data-duration="{slot:.2f}" data-track-index="{10 + i}">'
+            f"{html_lib.escape(text)}</div>"
         )
         gsap.append(
-            f'      tl.fromTo("#{bid}", {{opacity:0,y:20,scale:0.98}}, '
-            f'{{opacity:1,y:0,scale:1,duration:0.28,ease:"power2.out"}}, {start:.2f});'
+            f'      tl.fromTo("#{bid}", {{opacity:0,y:28,scale:0.94}}, '
+            f'{{opacity:1,y:0,scale:1,duration:0.3,ease:"power3.out"}}, {start:.2f});'
         )
-        out_at = max(start + 0.45, end - 0.12)
-        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-10,duration:0.2}}, {out_at:.2f});')
+        out_at = max(start + 0.4, end - 0.1)
+        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-12,duration:0.18}}, {out_at:.2f});')
 
+    brand_at = max(0.4, duration - 2.2)
     ds = f"{duration:.2f}"
     html = f"""<!doctype html>
 <html lang="fa" dir="rtl">
@@ -317,19 +322,31 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     .scrim {{
       position: absolute; inset: 0; z-index: 2; pointer-events: none;
       background: linear-gradient(180deg,
-        rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.12) 38%,
-        rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.82) 100%);
+        rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.15) 35%,
+        rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.88) 100%);
     }}
     .beat {{
-      position: absolute; left: 36px; right: 36px; bottom: 300px;
-      text-align: center; font-weight: 900; font-size: 48px; line-height: 1.45;
+      position: absolute; left: 32px; right: 32px; bottom: 320px;
+      text-align: center; font-weight: 900; line-height: 1.4;
       opacity: 0; z-index: 5;
-      text-shadow: 0 4px 22px rgba(0,0,0,0.95), 0 0 4px #000;
+      text-shadow: 0 4px 24px rgba(0,0,0,0.95), 0 0 6px #000;
     }}
-    #brand {{
-      position: absolute; left: 0; right: 0; bottom: 110px; text-align: center;
-      font-weight: 700; font-size: 28px; opacity: 0; z-index: 6;
-      color: rgba(255,255,255,0.92); text-shadow: 0 2px 12px #000;
+    #brand-wrap {{
+      position: absolute; left: 40px; right: 40px; bottom: 90px;
+      text-align: center; opacity: 0; z-index: 8;
+    }}
+    #brand-name {{
+      font-weight: 900; font-size: 72px; letter-spacing: 2px;
+      background: linear-gradient(90deg, #fff 0%, #7dd3fc 50%, #c4b5fd 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 18px rgba(0,0,0,0.9));
+      line-height: 1.1;
+    }}
+    #brand-handle {{
+      margin-top: 10px; font-weight: 700; font-size: 34px;
+      color: rgba(255,255,255,0.95);
+      text-shadow: 0 2px 12px #000;
     }}
   </style>
 </head>
@@ -340,7 +357,10 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
       style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;"></video>
     <div class="scrim clip" data-start="0" data-duration="{ds}" data-track-index="1"></div>
 {chr(10).join(beats)}
-    <div id="brand" class="clip" data-start="0" data-duration="{ds}" data-track-index="30">بامو · @12bamo</div>
+    <div id="brand-wrap" class="clip" data-start="0" data-duration="{ds}" data-track-index="30">
+      <div id="brand-name">بامو</div>
+      <div id="brand-handle">@12bamo</div>
+    </div>
     <audio id="vo" class="clip" src="assets/narration.mp3" data-start="0" data-duration="{ds}"
       data-track-index="40" data-volume="1"></audio>
   </div>
@@ -348,7 +368,10 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     window.__timelines = window.__timelines || {{}};
     const tl = gsap.timeline({{ paused: true }});
 {chr(10).join(gsap)}
-    tl.fromTo("#brand", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.35 }}, {max(0.3, duration - 1.7):.2f});
+    tl.fromTo("#brand-wrap",
+      {{ opacity: 0, y: 30, scale: 0.9 }},
+      {{ opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "power3.out" }},
+      {brand_at:.2f});
     tl.to({{}}, {{ duration: {ds} }}, 0);
     window.__timelines["main"] = tl;
   </script>
@@ -358,6 +381,42 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     (work / "index.html").write_text(html, encoding="utf-8")
 
 
+def _make_thumbnail(video: Path, title: str, thumb: Path) -> Path:
+    """Attractive vertical thumbnail with big title + brand."""
+    frame = thumb.with_suffix(".frame.jpg")
+    subprocess.run(
+        ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
+        check=True,
+        capture_output=True,
+    )
+    # burn title + brand on frame
+    # escape for drawtext
+    t1 = "هتل بی‌نهایت"
+    t2 = "همیشه جا داره؟!"
+    brand = "بامو  @12bamo"
+    vf = (
+        "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+        "eq=saturation=1.15:contrast=1.08,"
+        "drawbox=x=0:y=1400:w=1080:h=520:color=black@0.55:t=fill,"
+        f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+        f"text='{t1}':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1480:"
+        f"borderw=3:bordercolor=black@0.8,"
+        f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+        f"text='{t2}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1570:"
+        f"borderw=3:bordercolor=black@0.8,"
+        f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+        f"text='{brand}':fontcolor=#7dd3fc:fontsize=40:x=(w-text_w)/2:y=1680:"
+        f"borderw=2:bordercolor=black@0.7"
+    )
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", str(frame), "-vf", vf, "-frames:v", "1", "-q:v", "3", str(thumb)],
+        check=True,
+        capture_output=True,
+    )
+    print(f"thumbnail -> {thumb}", flush=True)
+    return thumb
+
+
 def main() -> int:
     work = Path("/tmp/ttv-sample")
     if work.exists():
@@ -365,18 +424,30 @@ def main() -> int:
     work.mkdir(parents=True)
 
     idea = IDEA
-    # Also run analyzer for logs / future pipeline
-    joined = "\n".join(idea["spoken"][:-1])
+    joined = "\n".join(idea["spoken"])
     analysis = TextAnalyzer().analyze(joined, title=idea["title_fa"])
     plan = SceneGenerator(aspect="portrait").from_analysis(analysis)
-    print(json.dumps({"idea": idea["id"], "analysis_tone": analysis.tone, "plan_scenes": len(plan.scenes)}, ensure_ascii=False), flush=True)
+    print(
+        json.dumps(
+            {
+                "idea": idea["id"],
+                "title": idea["title_fa"],
+                "tone": analysis.tone,
+                "scenes": len(plan.scenes),
+                "voice": "fa-IR-FaridNeural +12%",
+            },
+            ensure_ascii=False,
+        ),
+        flush=True,
+    )
 
     _audio, timeline, duration = _build_audio(work, idea["spoken"], idea["captions"])
     _build_film(work, duration, idea["mixkit_ids"])
     _write_html(work, timeline, duration, idea["title_fa"])
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"BAMO_TTV_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.mp4"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+    out = OUT_DIR / f"BAMO_TTV_{stamp}.mp4"
     try:
         subprocess.run(
             ["npx", "--yes", "hyperframes@0.9.19", "render", "--gpu", "-o", str(out)],
@@ -395,14 +466,26 @@ def main() -> int:
     if not out.exists() or out.stat().st_size < 50_000:
         raise SystemExit("render failed")
 
+    thumb = OUT_DIR / f"BAMO_TTV_{stamp}_thumb.jpg"
+    try:
+        _make_thumbnail(out, idea["title_fa"], thumb)
+    except Exception as exc:
+        print(f"thumb warn: {exc}", flush=True)
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", "2", "-i", str(out), "-frames:v", "1", "-q:v", "2", str(thumb)],
+            check=False,
+            capture_output=True,
+        )
+
     meta = {
         "ok": True,
         "idea_id": idea["id"],
         "title": idea["title_fa"],
         "path": str(out),
+        "thumb": str(thumb),
         "size": out.stat().st_size,
         "duration": duration,
-        "engine": "ttv+hyperframes",
+        "voice": "FaridNeural male energetic",
         "publish": False,
     }
     print(json.dumps(meta, ensure_ascii=False))
