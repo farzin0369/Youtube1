@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""TTV sample: viral FA short — energetic male VO, hook, pauses, big brand, thumbnail."""
+"""TTV sample: viral FA short — energetic male VO, hook, pauses, big brand, thumbnail.
+
+Optional: --publish --privacy public|unlisted|private
+"""
 from __future__ import annotations
 
+import argparse
 import asyncio
 import html as html_lib
 import json
@@ -21,8 +25,6 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# idea-00002 Hilbert Hotel — curiosity hook, rewritten for retention
-# مکث با جمله کوتاه + ... برای تنفس TTS
 IDEA = {
     "id": "idea-00002",
     "title_en": "The Infinite Hotel That Always Has Room",
@@ -49,8 +51,16 @@ IDEA = {
         "هتل هیلبرت",
         "بامو · @12bamo",
     ],
-    # abstract / motion / cosmic feel
     "mixkit_ids": [18791, 14185, 31559, 30265],
+    "yt_title": "هتل بی‌نهایت همیشه جا داره؟! 🤯",
+    "yt_desc": (
+        "صبر کن… یه هتل بی‌نهایت اتاق داره و همه پره.\n"
+        "ولی بازم جا داره برای مهمون جدید!\n\n"
+        "هتل هیلبرت و مفهوم بی‌نهایت شمارا.\n\n"
+        "بامو | @12bamo\n"
+        "#shorts #ریاضی #علم #بامو #هیلبرت"
+    ),
+    "yt_tags": ["shorts", "ریاضی", "علم", "بامو", "هیلبرت", "بی‌نهایت", "BAMO"],
 }
 
 
@@ -96,16 +106,13 @@ def _download(url: str, dest: Path) -> bool:
 
 
 async def _tts_male_energy(text: str, dest: Path) -> float:
-    """Male Persian voice, energetic rate/pitch."""
     import edge_tts
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # Farid = male. Rate up for energy; slight pitch up for punch.
     voice = "fa-IR-FaridNeural"
     communicate = edge_tts.Communicate(text, voice, rate="+12%", pitch="+3Hz")
     await communicate.save(str(dest))
     if not dest.exists() or dest.stat().st_size < 500:
-        # fallback without prosody
         await edge_tts.Communicate(text, voice).save(str(dest))
     return max(0.7, _probe(dest))
 
@@ -122,7 +129,6 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
         for i, s in enumerate(spoken):
             p = parts_dir / f"p{i:02d}.mp3"
             dur = await _tts_male_energy(s, p)
-            # extra micro-pause after hook lines
             gap = 0.12 if i <= 2 else 0.08
             files.append(p)
             cap = captions[i] if i < len(captions) else s
@@ -288,7 +294,6 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     for i, (start, end, text) in enumerate(timeline):
         bid = f"beat-{i}"
         slot = max(0.55, end - start)
-        # first line = hook → bigger
         size = 56 if i == 0 else (52 if i <= 2 else 46)
         beats.append(
             f'      <div id="{bid}" class="beat" style="font-size:{size}px" '
@@ -381,16 +386,13 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     (work / "index.html").write_text(html, encoding="utf-8")
 
 
-def _make_thumbnail(video: Path, title: str, thumb: Path) -> Path:
-    """Attractive vertical thumbnail with big title + brand."""
+def _make_thumbnail(video: Path, thumb: Path) -> Path:
     frame = thumb.with_suffix(".frame.jpg")
     subprocess.run(
         ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
         check=True,
         capture_output=True,
     )
-    # burn title + brand on frame
-    # escape for drawtext
     t1 = "هتل بی‌نهایت"
     t2 = "همیشه جا داره؟!"
     brand = "بامو  @12bamo"
@@ -418,6 +420,11 @@ def _make_thumbnail(video: Path, title: str, thumb: Path) -> Path:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--publish", action="store_true")
+    ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
+    args = ap.parse_args()
+
     work = Path("/tmp/ttv-sample")
     if work.exists():
         shutil.rmtree(work, ignore_errors=True)
@@ -435,6 +442,8 @@ def main() -> int:
                 "tone": analysis.tone,
                 "scenes": len(plan.scenes),
                 "voice": "fa-IR-FaridNeural +12%",
+                "publish": bool(args.publish),
+                "privacy": args.privacy,
             },
             ensure_ascii=False,
         ),
@@ -468,7 +477,7 @@ def main() -> int:
 
     thumb = OUT_DIR / f"BAMO_TTV_{stamp}_thumb.jpg"
     try:
-        _make_thumbnail(out, idea["title_fa"], thumb)
+        _make_thumbnail(out, thumb)
     except Exception as exc:
         print(f"thumb warn: {exc}", flush=True)
         subprocess.run(
@@ -476,6 +485,21 @@ def main() -> int:
             check=False,
             capture_output=True,
         )
+
+    upload_result: dict = {"ok": False, "skipped": True}
+    if args.publish:
+        from app.youtube_client import upload_video
+
+        upload_result = upload_video(
+            video_path=out,
+            title=idea["yt_title"][:100],
+            description=idea["yt_desc"][:5000],
+            tags=idea["yt_tags"],
+            privacy=args.privacy,
+            thumbnail_path=thumb if thumb.exists() else None,
+            category_id="27",
+        )
+        print(json.dumps({"upload": upload_result}, ensure_ascii=False), flush=True)
 
     meta = {
         "ok": True,
@@ -486,10 +510,10 @@ def main() -> int:
         "size": out.stat().st_size,
         "duration": duration,
         "voice": "FaridNeural male energetic",
-        "publish": False,
+        "upload": upload_result,
     }
     print(json.dumps(meta, ensure_ascii=False))
-    return 0
+    return 0 if (not args.publish or upload_result.get("ok")) else 1
 
 
 if __name__ == "__main__":
