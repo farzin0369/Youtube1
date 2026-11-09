@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""TTV sample with PER-SENTENCE visual matching.
-
-Each spoken line gets a stock clip chosen for that line's meaning.
-"""
+"""TTV sample — hard-synced speech / caption / concept-matched visuals."""
 from __future__ import annotations
 
 import argparse
@@ -25,43 +22,66 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# idea-00002 — each line has its OWN relevant Mixkit clip id(s)
+# Each beat: spoken + caption + EXACT conceptual clip
+# Mixkit: hotel door, keypad door, key, stairs, room service, infinity corridor
 IDEA = {
     "id": "idea-00002",
     "title_fa": "هتلی که همیشه جا دارد",
-    "spoken": [
-        "صبر کن...",
-        "یه هتل بی‌نهایت اتاق داره... و همه پره.",
-        "ولی بازم جا داره برای مهمون جدید!",
-        "چطور؟",
-        "هر مهمون از اتاق اِن... می‌ره به اتاق دو برابر اِن.",
-        "اتاق‌های فرد... همه‌ش خالی می‌شه.",
-        "بی‌نهایت... مثل عدد معمولی رفتار نمی‌کنه.",
-        "این... هتل هیلبرتِه.",
-        "بامو. یوزرنیم ما: دوازده بامو.",
-    ],
-    "captions": [
-        "صبر کن…",
-        "هتل بی‌نهایت… همه پره",
-        "ولی بازم جا داره؟!",
-        "چطور؟",
-        "هر مهمون → اتاق ۲ برابر",
-        "اتاق‌های فرد خالی می‌شن",
-        "بی‌نهایت ≠ عدد معمولی",
-        "هتل هیلبرت",
-        "بامو · @12bamo",
-    ],
-    # MATCHED visuals — hotel door, corridor, stairs, infinity hall
-    "visuals_per_line": [
-        [32960],           # infinity corridor — hook tension
-        [21817, 22223],    # hotel door / hotel stairs — hotel is full
-        [21900],           # room service / hotel interior — still has room
-        [32960],           # how? infinity corridor
-        [21817, 22392],    # door + checkout — move guest to 2n
-        [22223, 32960],    # stairs + infinite corridor — odd rooms free
-        [32960],           # infinity abstract corridor
-        [21817],           # hotel door — Hilbert hotel
-        [22223],           # brand on hotel stairs
+    "beats": [
+        {
+            "spoken": "صبر کن...",
+            "caption": "صبر کن…",
+            "visual": 32960,  # infinity corridor — hook / mystery
+            "concept": "تنش و بی‌نهایت",
+        },
+        {
+            "spoken": "یه هتل بی‌نهایت اتاق داره... و همه پره.",
+            "caption": "هتل بی‌نهایت… همه پره",
+            "visual": 21817,  # opening hotel room door
+            "concept": "اتاق/در هتل پر",
+        },
+        {
+            "spoken": "ولی بازم جا داره برای مهمون جدید!",
+            "caption": "ولی بازم جا داره?!",
+            "visual": 21821,  # hotel door keypad — still can open
+            "concept": "در هنوز باز می‌شود",
+        },
+        {
+            "spoken": "چطور؟",
+            "caption": "چطور؟",
+            "visual": 32960,  # infinity corridor question
+            "concept": "سؤال / بی‌نهایت",
+        },
+        {
+            "spoken": "هر مهمون از اتاق اِن... می‌ره به اتاق دو برابر اِن.",
+            "caption": "مهمون → اتاق ۲ برابر",
+            "visual": 22223,  # walking hotel stairs = moving guests
+            "concept": "جابه‌جایی مهمان",
+        },
+        {
+            "spoken": "اتاق‌های فرد... همه‌ش خالی می‌شه.",
+            "caption": "اتاق‌های فرد خالی می‌شن",
+            "visual": 22392,  # checking out — rooms free
+            "concept": "خالی شدن اتاق",
+        },
+        {
+            "spoken": "بی‌نهایت... مثل عدد معمولی رفتار نمی‌کنه.",
+            "caption": "بی‌نهایت ≠ عدد معمولی",
+            "visual": 32960,  # infinity corridor
+            "concept": "بی‌نهایت غیرعادی",
+        },
+        {
+            "spoken": "این... هتل هیلبرتِه.",
+            "caption": "هتل هیلبرت",
+            "visual": 21812,  # door with key — named hotel reveal
+            "concept": "هویت هتل",
+        },
+        {
+            "spoken": "بامو. یوزرنیم ما: دوازده بامو.",
+            "caption": "بامو · @12bamo",
+            "visual": 21900,  # hotel room service / brand in hotel world
+            "concept": "برند در فضای هتل",
+        },
     ],
     "yt_title": "هتل بی‌نهایت همیشه جا داره؟! 🤯",
     "yt_desc": (
@@ -122,7 +142,7 @@ def _fetch_mix(mid: int, dest_dir: Path) -> Path | None:
     dest = dest_dir / f"mix_{mid}.mp4"
     url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
     if _download(url, dest):
-        print(f"matched clip ok {dest.name}", flush=True)
+        print(f"clip ok {mid} -> {dest.name}", flush=True)
         return dest
     return None
 
@@ -132,29 +152,42 @@ async def _tts_male_energy(text: str, dest: Path) -> float:
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     voice = "fa-IR-FaridNeural"
-    await edge_tts.Communicate(text, voice, rate="+12%", pitch="+3Hz").save(str(dest))
+    await edge_tts.Communicate(text, voice, rate="+10%", pitch="+2Hz").save(str(dest))
     if not dest.exists() or dest.stat().st_size < 500:
         await edge_tts.Communicate(text, voice).save(str(dest))
     return max(0.7, _probe(dest))
 
 
-def _build_audio(work: Path, spoken: list[str], captions: list[str]):
+def _build_audio_and_timeline(work: Path, beats: list[dict]):
+    """TTS per beat. Timeline includes micro-gaps so film can match 1:1."""
     parts_dir = work / "parts"
     parts_dir.mkdir(parents=True, exist_ok=True)
     files: list[Path] = []
-    timeline: list[tuple[float, float, str]] = []
+    timeline: list[dict] = []
     t = 0.0
 
     async def gen() -> None:
         nonlocal t
-        for i, s in enumerate(spoken):
+        for i, b in enumerate(beats):
             p = parts_dir / f"p{i:02d}.mp3"
-            dur = await _tts_male_energy(s, p)
-            gap = 0.12 if i <= 2 else 0.08
+            speech = await _tts_male_energy(b["spoken"], p)
+            gap = 0.10 if i < len(beats) - 1 else 0.25
             files.append(p)
-            cap = captions[i] if i < len(captions) else s
-            timeline.append((t, t + dur, cap))
-            t += dur + gap
+            timeline.append(
+                {
+                    "i": i,
+                    "start": round(t, 3),
+                    "speech_end": round(t + speech, 3),
+                    "end": round(t + speech + gap, 3),
+                    "speech": speech,
+                    "gap": gap,
+                    "caption": b["caption"],
+                    "visual": b["visual"],
+                    "concept": b["concept"],
+                    "spoken": b["spoken"],
+                }
+            )
+            t += speech + gap
 
     asyncio.run(gen())
 
@@ -168,7 +201,7 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
             "-i",
             "anullsrc=r=24000:cl=mono",
             "-t",
-            "0.08",
+            "0.10",
             "-q:a",
             "9",
             "-acodec",
@@ -192,139 +225,108 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
         check=True,
         capture_output=True,
     )
-    duration = min(32.0, _probe(full) + 0.35)
+    # pad end silence already in last gap
+    duration = max(_probe(full), timeline[-1]["end"] if timeline else 1.0)
+    duration = min(34.0, duration + 0.05)
     return full, timeline, duration
 
 
-def _build_matched_film(
-    work: Path,
-    timeline: list[tuple[float, float, str]],
-    visuals_per_line: list[list[int]],
-    duration: float,
-) -> Path:
-    """One relevant clip segment per spoken line (hard visual sync)."""
+def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Path:
+    """Hard-cut film: each beat's clip lasts EXACTLY that beat's timeline window."""
     clips_dir = work / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     tmp = work / "_film"
     tmp.mkdir(exist_ok=True)
 
-    # cache downloads
     cache: dict[int, Path] = {}
-    for ids in visuals_per_line:
-        for mid in ids:
-            if mid not in cache:
-                p = _fetch_mix(mid, clips_dir)
-                if p:
-                    cache[mid] = p
-
+    for beat in timeline:
+        mid = int(beat["visual"])
+        if mid not in cache:
+            p = _fetch_mix(mid, clips_dir)
+            if p:
+                cache[mid] = p
     if not cache:
-        raise RuntimeError("no matched stock clips downloaded")
+        raise RuntimeError("no matched clips")
 
     segs: list[Path] = []
-    for i, (start, end, _cap) in enumerate(timeline):
-        slot = max(1.2, end - start + 0.05)
-        ids = visuals_per_line[i] if i < len(visuals_per_line) else list(cache.keys())
-        src = None
-        for mid in ids:
-            if mid in cache:
-                src = cache[mid]
-                break
-        if src is None:
-            src = next(iter(cache.values()))
-
-        seg = tmp / f"line_{i:02d}.mp4"
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-stream_loop",
-                "-1",
-                "-i",
-                str(src),
-                "-t",
-                f"{slot:.2f}",
-                "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.04",
-                "-an",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-pix_fmt",
-                "yuv420p",
-                str(seg),
-            ],
-            check=True,
-            capture_output=True,
+    for beat in timeline:
+        mid = int(beat["visual"])
+        src = cache.get(mid) or next(iter(cache.values()))
+        slot = max(0.9, beat["end"] - beat["start"])
+        seg = tmp / f"line_{beat['i']:02d}.mp4"
+        # slight zoom-in for motion without changing meaning
+        vf = (
+            f"scale=1080:1920:force_original_aspect_ratio=increase,"
+            f"crop=1080:1920,fps=30,"
+            f"zoompan=z='min(1.08,1+0.0015*on)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d=1:s=1080x1920:fps=30,"
+            f"eq=saturation=1.08:contrast=1.05"
         )
+        # zoompan can be heavy; fallback to simple scale if fails
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-stream_loop",
+            "-1",
+            "-i",
+            str(src),
+            "-t",
+            f"{slot:.3f}",
+            "-vf",
+            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.05",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            str(seg),
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
         segs.append(seg)
-        print(f"visual line {i}: {src.name} for {slot:.2f}s", flush=True)
+        print(
+            f"SYNC beat {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s "
+            f"clip={mid} concept={beat['concept']} | {beat['spoken'][:40]}",
+            flush=True,
+        )
 
-    # xfade chain between line segments
-    if len(segs) == 1:
-        raw = segs[0]
-    else:
-        inputs = []
-        for s in segs:
-            inputs.extend(["-i", str(s)])
-        durs = [_probe(s) for s in segs]
-        fade = 0.25
-        parts = []
-        prev = "[0:v]"
-        acc = durs[0]
-        out_l = "[0:v]"
-        for i in range(1, len(segs)):
-            out_l = f"[x{i}]"
-            off = max(0.05, acc - fade)
-            parts.append(
-                f"{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={off:.2f}{out_l}"
-            )
-            prev = out_l
-            acc = acc + durs[i] - fade
-        raw = tmp / "xf.mp4"
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    *inputs,
-                    "-filter_complex",
-                    ";".join(parts),
-                    "-map",
-                    out_l,
-                    "-an",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "veryfast",
-                    "-pix_fmt",
-                    "yuv420p",
-                    str(raw),
-                ],
-                check=True,
-                capture_output=True,
-            )
-        except Exception:
-            # fallback concat
-            lst = tmp / "list.txt"
-            lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
-            subprocess.run(
-                ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(raw)],
-                check=True,
-                capture_output=True,
-            )
+    # HARD CONCAT (no xfade) so durations stay exact vs narration
+    lst = tmp / "list.txt"
+    lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
+    raw = tmp / "concat.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(lst),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(raw),
+        ],
+        check=True,
+        capture_output=True,
+    )
 
     out = work / "assets" / "film.mp4"
     subprocess.run(
         [
             "ffmpeg",
             "-y",
-            "-stream_loop",
-            "-1",
             "-i",
             str(raw),
             "-t",
-            f"{duration:.2f}",
+            f"{duration:.3f}",
             "-c:v",
             "libx264",
             "-preset",
@@ -337,14 +339,20 @@ def _build_matched_film(
         check=True,
         capture_output=True,
     )
+    print(f"film duration target={duration:.2f} actual={_probe(out):.2f}", flush=True)
     return out
 
 
-def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: float, title: str) -> None:
+def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -> None:
     beats, gsap = [], []
-    for i, (start, end, text) in enumerate(timeline):
+    for beat in timeline:
+        i = beat["i"]
+        start = beat["start"]
+        # caption lives only during speech, not the gap
+        end = beat["speech_end"]
+        text = beat["caption"]
         bid = f"beat-{i}"
-        slot = max(0.55, end - start)
+        slot = max(0.5, end - start)
         size = 56 if i == 0 else (52 if i <= 2 else 46)
         beats.append(
             f'      <div id="{bid}" class="beat" style="font-size:{size}px" '
@@ -352,13 +360,13 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
             f"{html_lib.escape(text)}</div>"
         )
         gsap.append(
-            f'      tl.fromTo("#{bid}", {{opacity:0,y:28,scale:0.94}}, '
-            f'{{opacity:1,y:0,scale:1,duration:0.3,ease:"power3.out"}}, {start:.2f});'
+            f'      tl.fromTo("#{bid}", {{opacity:0,y:24,scale:0.96}}, '
+            f'{{opacity:1,y:0,scale:1,duration:0.22,ease:"power2.out"}}, {start:.2f});'
         )
-        out_at = max(start + 0.4, end - 0.1)
-        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-12,duration:0.18}}, {out_at:.2f});')
+        out_at = max(start + 0.35, end - 0.08)
+        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-10,duration:0.15}}, {out_at:.2f});')
 
-    brand_at = max(0.4, duration - 2.2)
+    brand_at = max(0.4, duration - 2.0)
     ds = f"{duration:.2f}"
     html = f"""<!doctype html>
 <html lang="fa" dir="rtl">
@@ -378,8 +386,8 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
     .scrim {{
       position: absolute; inset: 0; z-index: 2; pointer-events: none;
       background: linear-gradient(180deg,
-        rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.15) 35%,
-        rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.88) 100%);
+        rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.12) 35%,
+        rgba(0,0,0,0.48) 68%, rgba(0,0,0,0.88) 100%);
     }}
     .beat {{
       position: absolute; left: 32px; right: 32px; bottom: 320px;
@@ -426,7 +434,7 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
 {chr(10).join(gsap)}
     tl.fromTo("#brand-wrap",
       {{ opacity: 0, y: 30, scale: 0.9 }},
-      {{ opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "power3.out" }},
+      {{ opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power3.out" }},
       {brand_at:.2f});
     tl.to({{}}, {{ duration: {ds} }}, 0);
     window.__timelines["main"] = tl;
@@ -440,7 +448,7 @@ def _write_html(work: Path, timeline: list[tuple[float, float, str]], duration: 
 def _make_thumbnail(video: Path, thumb: Path) -> Path:
     frame = thumb.with_suffix(".frame.jpg")
     subprocess.run(
-        ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
+        ["ffmpeg", "-y", "-ss", "3.0", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
         check=True,
         capture_output=True,
     )
@@ -481,17 +489,20 @@ def main() -> int:
     work.mkdir(parents=True)
 
     idea = IDEA
-    joined = "\n".join(idea["spoken"])
+    beats = idea["beats"]
+    joined = "\n".join(b["spoken"] for b in beats)
     analysis = TextAnalyzer().analyze(joined, title=idea["title_fa"])
     plan = SceneGenerator(aspect="portrait").from_analysis(analysis)
+
     print(
         json.dumps(
             {
                 "idea": idea["id"],
-                "title": idea["title_fa"],
-                "mode": "per_sentence_matched_visuals",
-                "tone": analysis.tone,
-                "scenes": len(plan.scenes),
+                "mode": "hard_sync_concept_match",
+                "beats": [
+                    {"i": i, "concept": b["concept"], "visual": b["visual"], "spoken": b["spoken"]}
+                    for i, b in enumerate(beats)
+                ],
                 "publish": bool(args.publish),
             },
             ensure_ascii=False,
@@ -499,8 +510,8 @@ def main() -> int:
         flush=True,
     )
 
-    _audio, timeline, duration = _build_audio(work, idea["spoken"], idea["captions"])
-    _build_matched_film(work, timeline, idea["visuals_per_line"], duration)
+    _audio, timeline, duration = _build_audio_and_timeline(work, beats)
+    _build_matched_film(work, timeline, duration)
     _write_html(work, timeline, duration, idea["title_fa"])
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -558,7 +569,7 @@ def main() -> int:
         "thumb": str(thumb),
         "size": out.stat().st_size,
         "duration": duration,
-        "visual_mode": "per_sentence_matched",
+        "mode": "hard_sync_concept_match",
         "upload": upload_result,
     }
     print(json.dumps(meta, ensure_ascii=False))
