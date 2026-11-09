@@ -1,11 +1,10 @@
 name: BAMO Daily English HyperFrames
 
-# PUBLISHING DISABLED — do not upload to YouTube until quality is explicitly approved.
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload to YouTube (KEEP FALSE unless quality approved)"
+        description: "Upload to YouTube"
         type: boolean
         default: false
       privacy:
@@ -70,27 +69,27 @@ jobs:
             raise SystemExit("YouTube OAuth failed — check Secrets")
           PY
 
-      - name: Factory (render only by default — no publish)
+      - name: Factory
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "false"
-          YOUTUBE_DEFAULT_LANGUAGE: ${{ inputs.language }}
+          YOUTUBE_DEFAULT_LANGUAGE: fa
         run: |
           set -euo pipefail
           PUBLISH_FLAG=""
-          PRIVACY="private"
+          PRIVACY="${{ inputs.privacy }}"
           LANG_CODE="${{ inputs.language }}"
           if [ "${{ inputs.publish }}" = "true" ]; then
-            echo "WARNING: publish explicitly requested"
+            echo "Publish requested → privacy=$PRIVACY"
             PUBLISH_FLAG="--publish"
-            PRIVACY="${{ inputs.privacy }}"
           else
-            echo "Publish disabled — render only"
+            echo "Render only — no upload"
+            PRIVACY="private"
           fi
           if [ "$LANG_CODE" = "ttv" ]; then
-            python ttv/render_sample.py
+            python ttv/render_sample.py $PUBLISH_FLAG --privacy "$PRIVACY"
           elif [ "$LANG_CODE" = "html" ]; then
             python scripts/bamo_html_compare.py
           elif [ "$LANG_CODE" = "fa" ]; then
