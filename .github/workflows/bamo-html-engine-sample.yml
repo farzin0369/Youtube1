@@ -1,4 +1,4 @@
-name: BAMO Daily Science Short - Wave Interference
+name: BAMO Daily Science Short - Saturn Rings
 on:
   workflow_dispatch:
   pull_request:
@@ -28,15 +28,15 @@ jobs:
           PYTHONPATH: .
           BAMO_RENDER_SCALE: "1.0"
           BAMO_RENDER_FPS: "24"
-        run: python scripts/render_html_engine_sample.py
+        run: python scripts/render_bamo_daily_20261109.py
       - name: Upload MP4, subtitles and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-science-short-20261108
+          name: bamo-science-short-20261109
           path: |
-            artifacts/bamo-science-short-20261108.mp4
-            artifacts/bamo-science-short-20261108.srt
-            artifacts/bamo-science-short-20261108-qa.json
-            artifacts/bamo-science-short-20261108-review.jpg
+            artifacts/bamo-science-short-20261109.mp4
+            artifacts/bamo-science-short-20261109.srt
+            artifacts/bamo-science-short-20261109-qa.json
+            artifacts/bamo-science-short-20261109-review.jpg
           if-no-files-found: error
           retention-days: 14
