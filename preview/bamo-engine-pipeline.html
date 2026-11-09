@@ -72,6 +72,13 @@ float sceneSDF(vec3 p){
    float b=sdTorus(p,vec2(.48,.045));
    p.xy=rot(1.05)*p.xy;
    return min(min(a,b),sdSphere(p,.22));
+ }else if(u_kind<7.5){
+   // Saturn body and a separately orbiting icy moon. The ring is rendered
+   // as thousands of discrete particles in the ray-plane pass below.
+   float core=sdSphere(p,.62+.012*sin(t*1.7));
+   vec3 moonPos=vec3(1.42*cos(t*.38),.09+.025*sin(t*.61),1.42*sin(t*.38));
+   float moon=sdSphere(p-moonPos,.078);
+   return min(core,moon);
  }else{
    // Two coherent point sources create a genuine 3D interference surface.
    float r1=length(p.xz-vec2(-.68,0.0));
@@ -109,6 +116,7 @@ float march(vec3 ro,vec3 rd,out vec3 hit){
  }
  return MAX_DIST;
 }
+float hash21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 void main(){
  vec2 uv=(gl_FragCoord.xy-.5*u_resolution)/u_resolution.y;
  float t=u_time;
@@ -137,6 +145,47 @@ void main(){
    col=base*(.16+.92*diff)+u_accent*(.18*fres+spec*.8);
    col+=u_primary*(.12/(.08+abs(sceneSDF(hit+ n*.035))));
    float fog=1.0-exp(-d*.055);col=mix(col,u_bg,fog*.38);
+ }
+ if(u_kind>6.5 && u_kind<7.5){
+   // Intersect the camera ray with Saturn's tilted ring plane.
+   vec3 ringRo=ro,ringRd=rd;
+   ringRo.xz=rot(0.12*sin(t*.22))*ringRo.xz;
+   ringRo.xy=rot(.10*cos(t*.19))*ringRo.xy;
+   ringRd.xz=rot(0.12*sin(t*.22))*ringRd.xz;
+   ringRd.xy=rot(.10*cos(t*.19))*ringRd.xy;
+   if(abs(ringRd.y)>.0001){
+     float planeT=-ringRo.y/ringRd.y;
+     if(planeT>0.0 && planeT<MAX_DIST){
+       vec3 rp=ringRo+ringRd*planeT;
+       float radius=length(rp.xz);
+       if(radius>.72 && radius<1.70){
+         float angle=atan(rp.z,rp.x);
+         float particleAlpha=0.0;
+         vec3 particleColor=vec3(0.0);
+         for(int layer=0;layer<4;layer++){
+           float lf=float(layer);
+           float cells=260.0;
+           float coord=angle/6.2831853*cells+lf*.31;
+           float cell=floor(coord);
+           float along=fract(coord)-.5;
+           float seed=hash21(vec2(cell,lf*19.7));
+           float centerRadius=.80+lf*.205+(hash21(vec2(cell+41.0,lf*3.1))-.5)*.055;
+           float particleSize=.006+.009*hash21(vec2(cell+9.0,lf*13.0));
+           if(seed>.985)particleSize*=1.8;
+           float arcOffset=along*6.2831853/cells*centerRadius;
+           float particleDistance=length(vec2(radius-centerRadius,arcOffset));
+           float core=1.0-smoothstep(particleSize*.45,particleSize,particleDistance);
+           float glow=exp(-particleDistance*95.0)*.12;
+           particleAlpha=max(particleAlpha,clamp(core+glow,0.0,1.0));
+           vec3 tint=mix(u_primary,u_secondary,seed);
+           particleColor+=tint*(core*.9+glow*.45);
+         }
+         float faintDust=smoothstep(.72,.82,radius)*(1.0-smoothstep(1.63,1.72,radius));
+         col=mix(col,particleColor,clamp(particleAlpha,0.0,1.0));
+         col+=mix(u_primary,u_secondary,.35)*faintDust*.012;
+       }
+     }
+   }
  }
  float vignette=1.0-smoothstep(.35,1.25,length(uv));
  col*=vignette;
@@ -309,7 +358,7 @@ function resize(){
 }
 
 function choosePalette(s){if(s.palette&&s.palette.bg)return s.palette;const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/آرام|صلح|calm/.test(t))return{bg:"#0c0a09",primary:"#f5d0a9",secondary:"#a78bfa",accent:"#67e8f9"};if(/حماسی|قهرمان|epic/.test(t))return{bg:"#0a0a12",primary:"#fbbf24",secondary:"#f472b6",accent:"#38bdf8"};if(/راز|مرموز|mystery/.test(t))return{bg:"#0b0c15",primary:"#818cf8",secondary:"#c084fc",accent:"#22d3ee"};if(/موج|تداخل|wave/.test(t))return{bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};return{bg:"#07101d",primary:"#22d3ee",secondary:"#a78bfa",accent:"#fbbf24"};}
-function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
+function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6,saturn:7})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
 
 function drawBackground(p,t){
  gl.disable(gl.DEPTH_TEST);
