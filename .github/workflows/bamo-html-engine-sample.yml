@@ -1,6 +1,13 @@
 name: BAMO Daily Science Short - Saturn Rings
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-html-only-engine-sample
+    paths:
+      - "preview/bamo-engine-pipeline.html"
+      - "scripts/render_bamo_daily_*.py"
+      - ".github/workflows/bamo-html-engine-sample.yml"
   pull_request:
     branches:
       - main
