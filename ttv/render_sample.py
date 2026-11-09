@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""TTV sample: viral FA short — energetic male VO, hook, pauses, big brand, thumbnail.
+"""TTV sample with PER-SENTENCE visual matching.
 
-Optional: --publish --privacy public|unlisted|private
+Each spoken line gets a stock clip chosen for that line's meaning.
 """
 from __future__ import annotations
 
@@ -25,9 +25,9 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
+# idea-00002 — each line has its OWN relevant Mixkit clip id(s)
 IDEA = {
     "id": "idea-00002",
-    "title_en": "The Infinite Hotel That Always Has Room",
     "title_fa": "هتلی که همیشه جا دارد",
     "spoken": [
         "صبر کن...",
@@ -51,7 +51,18 @@ IDEA = {
         "هتل هیلبرت",
         "بامو · @12bamo",
     ],
-    "mixkit_ids": [18791, 14185, 31559, 30265],
+    # MATCHED visuals — hotel door, corridor, stairs, infinity hall
+    "visuals_per_line": [
+        [32960],           # infinity corridor — hook tension
+        [21817, 22223],    # hotel door / hotel stairs — hotel is full
+        [21900],           # room service / hotel interior — still has room
+        [32960],           # how? infinity corridor
+        [21817, 22392],    # door + checkout — move guest to 2n
+        [22223, 32960],    # stairs + infinite corridor — odd rooms free
+        [32960],           # infinity abstract corridor
+        [21817],           # hotel door — Hilbert hotel
+        [22223],           # brand on hotel stairs
+    ],
     "yt_title": "هتل بی‌نهایت همیشه جا داره؟! 🤯",
     "yt_desc": (
         "صبر کن… یه هتل بی‌نهایت اتاق داره و همه پره.\n"
@@ -87,6 +98,8 @@ def _probe(path: Path) -> float:
 
 def _download(url: str, dest: Path) -> bool:
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.stat().st_size > 80_000:
+        return True
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
         with urllib.request.urlopen(req, timeout=180) as resp, dest.open("wb") as f:
@@ -105,13 +118,21 @@ def _download(url: str, dest: Path) -> bool:
         return False
 
 
+def _fetch_mix(mid: int, dest_dir: Path) -> Path | None:
+    dest = dest_dir / f"mix_{mid}.mp4"
+    url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
+    if _download(url, dest):
+        print(f"matched clip ok {dest.name}", flush=True)
+        return dest
+    return None
+
+
 async def _tts_male_energy(text: str, dest: Path) -> float:
     import edge_tts
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     voice = "fa-IR-FaridNeural"
-    communicate = edge_tts.Communicate(text, voice, rate="+12%", pitch="+3Hz")
-    await communicate.save(str(dest))
+    await edge_tts.Communicate(text, voice, rate="+12%", pitch="+3Hz").save(str(dest))
     if not dest.exists() or dest.stat().st_size < 500:
         await edge_tts.Communicate(text, voice).save(str(dest))
     return max(0.7, _probe(dest))
@@ -175,27 +196,43 @@ def _build_audio(work: Path, spoken: list[str], captions: list[str]):
     return full, timeline, duration
 
 
-def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
+def _build_matched_film(
+    work: Path,
+    timeline: list[tuple[float, float, str]],
+    visuals_per_line: list[list[int]],
+    duration: float,
+) -> Path:
+    """One relevant clip segment per spoken line (hard visual sync)."""
     clips_dir = work / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
-    clips: list[Path] = []
-    for mid in mix_ids:
-        url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
-        p = clips_dir / f"mix_{mid}.mp4"
-        if _download(url, p):
-            clips.append(p)
-            print(f"stock ok {p.name}", flush=True)
-        if len(clips) >= 3:
-            break
-    if not clips:
-        raise RuntimeError("no stock video")
-
     tmp = work / "_film"
     tmp.mkdir(exist_ok=True)
-    segs = []
-    per = max(4.0, duration / len(clips))
-    for i, c in enumerate(clips):
-        seg = tmp / f"s{i}.mp4"
+
+    # cache downloads
+    cache: dict[int, Path] = {}
+    for ids in visuals_per_line:
+        for mid in ids:
+            if mid not in cache:
+                p = _fetch_mix(mid, clips_dir)
+                if p:
+                    cache[mid] = p
+
+    if not cache:
+        raise RuntimeError("no matched stock clips downloaded")
+
+    segs: list[Path] = []
+    for i, (start, end, _cap) in enumerate(timeline):
+        slot = max(1.2, end - start + 0.05)
+        ids = visuals_per_line[i] if i < len(visuals_per_line) else list(cache.keys())
+        src = None
+        for mid in ids:
+            if mid in cache:
+                src = cache[mid]
+                break
+        if src is None:
+            src = next(iter(cache.values()))
+
+        seg = tmp / f"line_{i:02d}.mp4"
         subprocess.run(
             [
                 "ffmpeg",
@@ -203,11 +240,11 @@ def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
                 "-stream_loop",
                 "-1",
                 "-i",
-                str(c),
+                str(src),
                 "-t",
-                f"{per:.2f}",
+                f"{slot:.2f}",
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.12:contrast=1.05",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.04",
                 "-an",
                 "-c:v",
                 "libx264",
@@ -221,47 +258,61 @@ def _build_film(work: Path, duration: float, mix_ids: list[int]) -> Path:
             capture_output=True,
         )
         segs.append(seg)
+        print(f"visual line {i}: {src.name} for {slot:.2f}s", flush=True)
 
+    # xfade chain between line segments
     if len(segs) == 1:
         raw = segs[0]
     else:
-        raw = tmp / "xf.mp4"
         inputs = []
         for s in segs:
             inputs.extend(["-i", str(s)])
         durs = [_probe(s) for s in segs]
-        fade = 0.4
+        fade = 0.25
         parts = []
         prev = "[0:v]"
         acc = durs[0]
         out_l = "[0:v]"
         for i in range(1, len(segs)):
             out_l = f"[x{i}]"
-            off = max(0.1, acc - fade)
-            parts.append(f"{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={off:.2f}{out_l}")
+            off = max(0.05, acc - fade)
+            parts.append(
+                f"{prev}[{i}:v]xfade=transition=fade:duration={fade}:offset={off:.2f}{out_l}"
+            )
             prev = out_l
             acc = acc + durs[i] - fade
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                *inputs,
-                "-filter_complex",
-                ";".join(parts),
-                "-map",
-                out_l,
-                "-an",
-                "-c:v",
-                "libx264",
-                "-preset",
-                "veryfast",
-                "-pix_fmt",
-                "yuv420p",
-                str(raw),
-            ],
-            check=True,
-            capture_output=True,
-        )
+        raw = tmp / "xf.mp4"
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    *inputs,
+                    "-filter_complex",
+                    ";".join(parts),
+                    "-map",
+                    out_l,
+                    "-an",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-pix_fmt",
+                    "yuv420p",
+                    str(raw),
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except Exception:
+            # fallback concat
+            lst = tmp / "list.txt"
+            lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
+            subprocess.run(
+                ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(raw)],
+                check=True,
+                capture_output=True,
+            )
 
     out = work / "assets" / "film.mp4"
     subprocess.run(
@@ -415,14 +466,13 @@ def _make_thumbnail(video: Path, thumb: Path) -> Path:
         check=True,
         capture_output=True,
     )
-    print(f"thumbnail -> {thumb}", flush=True)
     return thumb
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--publish", action="store_true")
-    ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
+    ap.add_argument("--privacy", default="private", choices=["public", "unlisted", "private"])
     args = ap.parse_args()
 
     work = Path("/tmp/ttv-sample")
@@ -439,11 +489,10 @@ def main() -> int:
             {
                 "idea": idea["id"],
                 "title": idea["title_fa"],
+                "mode": "per_sentence_matched_visuals",
                 "tone": analysis.tone,
                 "scenes": len(plan.scenes),
-                "voice": "fa-IR-FaridNeural +12%",
                 "publish": bool(args.publish),
-                "privacy": args.privacy,
             },
             ensure_ascii=False,
         ),
@@ -451,7 +500,7 @@ def main() -> int:
     )
 
     _audio, timeline, duration = _build_audio(work, idea["spoken"], idea["captions"])
-    _build_film(work, duration, idea["mixkit_ids"])
+    _build_matched_film(work, timeline, idea["visuals_per_line"], duration)
     _write_html(work, timeline, duration, idea["title_fa"])
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -509,7 +558,7 @@ def main() -> int:
         "thumb": str(thumb),
         "size": out.stat().st_size,
         "duration": duration,
-        "voice": "FaridNeural male energetic",
+        "visual_mode": "per_sentence_matched",
         "upload": upload_result,
     }
     print(json.dumps(meta, ensure_ascii=False))
