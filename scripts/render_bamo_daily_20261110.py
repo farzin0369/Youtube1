@@ -61,8 +61,8 @@ SCENES = [
     {
         "text": "تبخیر، در زایلم کشش ایجاد می‌کند و آب را بالا می‌کشد.",
         "narration": "تبخیر، در زایلم کشش ایجاد می‌کند و آب را بالا می‌کشد.",
-        "visual_prompt": "نمای نزدیک لوله زایلم با ستون آب پیوسته؛ ذرات آب رو به بالا حرکت می‌کنند",
-        "motif": "xylem",
+        "visual_prompt": "نمای ماکرو از زنجیرهٔ سه‌بعدی مولکول‌های آب که با پیوندهای هیدروژنی به هم متصل‌اند و رو به بالا حرکت می‌کنند",
+        "motif": "xylem_flow",
         "palette": {"bg": "#07131f", "primary": "#41c9ee", "secondary": "#83b8e8", "accent": "#f2d78d"},
     },
     {
@@ -243,8 +243,8 @@ def main() -> None:
         "caption_count": len(SCENES),
         "voice_clip_durations_seconds": [round(value, 3) for value in voice_lengths],
         "caption_alignment": "each on-screen caption exactly matches its separate Persian narration clip; cue timing follows that clip",
-        "visual_scene_motifs": ["plant", "root", "xylem", "stomata", "xylem", "plant"],
-        "visual_design": "dedicated 3D plant silhouette with roots and leaves, cutaway xylem vessel with upward water particles, stomata with escaping vapour, and root hairs; orbiting perspective camera",
+        "visual_scene_motifs": ["plant", "root", "xylem", "stomata", "xylem_flow", "plant"],
+        "visual_design": "3D plant silhouette, branching root close-up, open-front xylem vessel exposing the water column and upward particles, stomata with escaping vapour, and a separate rising chain of hydrogen-bonded water molecules; orbiting perspective camera",
         "visual_review_status": "pending manual frame inspection",
         "quality_gate": "TECHNICAL_PASS_PENDING_MANUAL_VISUAL_REVIEW",
         "sources": SOURCES,
