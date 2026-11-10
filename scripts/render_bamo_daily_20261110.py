@@ -11,6 +11,8 @@ from pathlib import Path
 import edge_tts
 from app.html_motion_renderer import render_html_project
 
+# Use the runner's FFmpeg binary for metadata checks; do not assume ffprobe is installed.
+
 OUT = Path("artifacts/bamo-science-short-20261110.mp4")
 SRT = OUT.with_suffix(".srt")
 QA = OUT.with_name("bamo-science-short-20261110-qa.json")
