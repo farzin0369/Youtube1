@@ -1,13 +1,11 @@
-name: BAMO Daily Science Short - Saturn Rings
+name: BAMO Daily Science Short - Plant Water Transport
 on:
   workflow_dispatch:
   push:
     branches:
       - feat/bamo-html-only-engine-sample
     paths:
-      - "preview/bamo-engine-pipeline.html"
-      - "scripts/render_bamo_daily_*.py"
-      - ".github/workflows/bamo-html-engine-sample.yml"
+      - "scripts/render_bamo_daily_20261110.py"
   pull_request:
     branches:
       - main
@@ -35,15 +33,15 @@ jobs:
           PYTHONPATH: .
           BAMO_RENDER_SCALE: "1.0"
           BAMO_RENDER_FPS: "24"
-        run: python scripts/render_bamo_daily_20261109.py
+        run: python scripts/render_bamo_daily_20261110.py
       - name: Upload MP4, subtitles and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-science-short-20261109
+          name: bamo-science-short-20261110
           path: |
-            artifacts/bamo-science-short-20261109.mp4
-            artifacts/bamo-science-short-20261109.srt
-            artifacts/bamo-science-short-20261109-qa.json
-            artifacts/bamo-science-short-20261109-review.jpg
+            artifacts/bamo-science-short-20261110.mp4
+            artifacts/bamo-science-short-20261110.srt
+            artifacts/bamo-science-short-20261110-qa.json
+            artifacts/bamo-science-short-20261110-review.jpg
           if-no-files-found: error
           retention-days: 14
