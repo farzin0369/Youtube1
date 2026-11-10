@@ -8,10 +8,10 @@ on:
         required: false
         default: ""
       mode:
-        description: "list or update"
+        description: "list | update | comment | both"
         type: choice
-        options: [update, list]
-        default: update
+        options: [update, list, comment, both]
+        default: both
       privacy:
         description: "Keep current, or force privacy"
         type: choice
@@ -32,7 +32,7 @@ jobs:
       - name: Deps
         run: pip install -q google-api-python-client google-auth google-auth-oauthlib
 
-      - name: Run SEO update
+      - name: Run
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -42,17 +42,21 @@ jobs:
           VID="${{ inputs.video_id }}"
           MODE="${{ inputs.mode }}"
           PRIV="${{ inputs.privacy }}"
+
           if [ "$MODE" = "list" ]; then
             python scripts/youtube_update_seo.py --list
             exit 0
           fi
-          ARGS=()
-          if [ -n "$VID" ]; then
-            ARGS+=(--video-id "$VID")
-          else
-            ARGS+=(--latest-private)
+
+          if [ "$MODE" = "update" ] || [ "$MODE" = "both" ]; then
+            ARGS=()
+            if [ -n "$VID" ]; then ARGS+=(--video-id "$VID"); else ARGS+=(--latest-private); fi
+            if [ "$PRIV" != "keep" ]; then ARGS+=(--privacy "$PRIV"); fi
+            python scripts/youtube_update_seo.py "${ARGS[@]}"
           fi
-          if [ "$PRIV" != "keep" ]; then
-            ARGS+=(--privacy "$PRIV")
+
+          if [ "$MODE" = "comment" ] || [ "$MODE" = "both" ]; then
+            CARGS=()
+            if [ -n "$VID" ]; then CARGS+=(--video-id "$VID"); else CARGS+=(--latest-private); fi
+            python scripts/youtube_pin_comment.py "${CARGS[@]}"
           fi
-          python scripts/youtube_update_seo.py "${ARGS[@]}"
