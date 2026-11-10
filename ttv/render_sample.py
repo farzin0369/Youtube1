@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV sample — hard-synced speech / caption / concept-matched visuals."""
+"""TTV — math short: 0.999... = 1 | hard A/V sync + concept-matched visuals."""
 from __future__ import annotations
 
 import argparse
@@ -22,76 +22,74 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Each beat: spoken + caption + EXACT conceptual clip
-# Mixkit: hotel door, keypad door, key, stairs, room service, infinity corridor
+# Math viral: 0.999... = 1
 IDEA = {
-    "id": "idea-00002",
-    "title_fa": "هتلی که همیشه جا دارد",
+    "id": "math-00001",
+    "title_fa": "۰٫۹۹۹… واقعاً برابر ۱ است؟",
     "beats": [
         {
-            "spoken": "صبر کن...",
-            "caption": "صبر کن…",
-            "visual": 32960,  # infinity corridor — hook / mystery
-            "concept": "تنش و بی‌نهایت",
+            "spoken": "صبر کن... این یکی عجیبه.",
+            "caption": "صبر کن… عجیبه",
+            "visual": 32960,
+            "concept": "قلاب / بی‌نهایت",
         },
         {
-            "spoken": "یه هتل بی‌نهایت اتاق داره... و همه پره.",
-            "caption": "هتل بی‌نهایت… همه پره",
-            "visual": 21817,  # opening hotel room door
-            "concept": "اتاق/در هتل پر",
+            "spoken": "صفر ممیز نُه نُه نُه... تا بی‌نهایت.",
+            "caption": "۰٫۹۹۹… تا بی‌نهایت",
+            "visual": 32960,
+            "concept": "تکرار تا بی‌نهایت",
         },
         {
-            "spoken": "ولی بازم جا داره برای مهمون جدید!",
-            "caption": "ولی بازم جا داره?!",
-            "visual": 21821,  # hotel door keypad — still can open
-            "concept": "در هنوز باز می‌شود",
+            "spoken": "خیلی‌ها فکر می‌کنن از یک کمتره.",
+            "caption": "فکر می‌کنی از ۱ کمتره؟",
+            "visual": 9010,
+            "concept": "دانش‌آموز / شک",
         },
         {
-            "spoken": "چطور؟",
-            "caption": "چطور؟",
-            "visual": 32960,  # infinity corridor question
-            "concept": "سؤال / بی‌نهایت",
+            "spoken": "اما برابرِ یکِه.",
+            "caption": "اما = ۱",
+            "visual": 9000,
+            "concept": "مطالعه / کشف",
         },
         {
-            "spoken": "هر مهمون از اتاق اِن... می‌ره به اتاق دو برابر اِن.",
-            "caption": "مهمون → اتاق ۲ برابر",
-            "visual": 22223,  # walking hotel stairs = moving guests
-            "concept": "جابه‌جایی مهمان",
+            "spoken": "فرض کن ایکس بشه صفر ممیز نُه تکراری.",
+            "caption": "x = ۰٫۹۹۹…",
+            "visual": 9005,
+            "concept": "فرض ریاضی",
         },
         {
-            "spoken": "اتاق‌های فرد... همه‌ش خالی می‌شه.",
-            "caption": "اتاق‌های فرد خالی می‌شن",
-            "visual": 22392,  # checking out — rooms free
-            "concept": "خالی شدن اتاق",
+            "spoken": "ده برابرش می‌شه نُه ممیز نُه تکراری. کم کن از هم.",
+            "caption": "۱۰x − x",
+            "visual": 9000,
+            "concept": "عملیات جبری",
         },
         {
-            "spoken": "بی‌نهایت... مثل عدد معمولی رفتار نمی‌کنه.",
-            "caption": "بی‌نهایت ≠ عدد معمولی",
-            "visual": 32960,  # infinity corridor
-            "concept": "بی‌نهایت غیرعادی",
+            "spoken": "نه ایکس می‌شه نُه. پس ایکس می‌شه یک.",
+            "caption": "۹x = ۹ → x = ۱",
+            "visual": 9001,
+            "concept": "نتیجه قطعی",
         },
         {
-            "spoken": "این... هتل هیلبرتِه.",
-            "caption": "هتل هیلبرت",
-            "visual": 21812,  # door with key — named hotel reveal
-            "concept": "هویت هتل",
+            "spoken": "ریاضی گاهی خلافِ حسه... اما درسته.",
+            "caption": "خلاف حس، اما درست",
+            "visual": 32960,
+            "concept": "بینش ریاضی",
         },
         {
             "spoken": "بامو. یوزرنیم ما: دوازده بامو.",
             "caption": "بامو · @12bamo",
-            "visual": 21900,  # hotel room service / brand in hotel world
-            "concept": "برند در فضای هتل",
+            "visual": 9010,
+            "concept": "برند",
         },
     ],
-    "yt_title": "هتل بی‌نهایت همیشه جا داره؟! 🤯",
+    "yt_title": "۰٫۹۹۹… واقعاً برابر ۱ است؟! 🤯",
     "yt_desc": (
-        "صبر کن… یه هتل بی‌نهایت اتاق داره و همه پره.\n"
-        "ولی بازم جا داره برای مهمون جدید!\n\n"
-        "هتل هیلبرت و مفهوم بی‌نهایت شمارا.\n\n"
+        "صفر ممیز نه تکراری تا بی‌نهایت... برابر یک است.\n"
+        "اثبات ساده با جبر.\n\n"
         "بامو | @12bamo\n"
-        "#shorts #ریاضی #علم #بامو #هیلبرت"
+        "#shorts #ریاضی #علم #بامو #math"
     ),
-    "yt_tags": ["shorts", "ریاضی", "علم", "بامو", "هیلبرت", "بی‌نهایت", "BAMO"],
+    "yt_tags": ["shorts", "ریاضی", "math", "علم", "بامو", "BAMO", "۰٫۹۹۹"],
 }
 
 
@@ -142,7 +140,7 @@ def _fetch_mix(mid: int, dest_dir: Path) -> Path | None:
     dest = dest_dir / f"mix_{mid}.mp4"
     url = f"https://assets.mixkit.co/videos/{mid}/{mid}-720.mp4"
     if _download(url, dest):
-        print(f"clip ok {mid} -> {dest.name}", flush=True)
+        print(f"clip ok {mid}", flush=True)
         return dest
     return None
 
@@ -159,7 +157,6 @@ async def _tts_male_energy(text: str, dest: Path) -> float:
 
 
 def _build_audio_and_timeline(work: Path, beats: list[dict]):
-    """TTS per beat. Timeline includes micro-gaps so film can match 1:1."""
     parts_dir = work / "parts"
     parts_dir.mkdir(parents=True, exist_ok=True)
     files: list[Path] = []
@@ -225,14 +222,12 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         check=True,
         capture_output=True,
     )
-    # pad end silence already in last gap
     duration = max(_probe(full), timeline[-1]["end"] if timeline else 1.0)
     duration = min(34.0, duration + 0.05)
     return full, timeline, duration
 
 
 def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Path:
-    """Hard-cut film: each beat's clip lasts EXACTLY that beat's timeline window."""
     clips_dir = work / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     tmp = work / "_film"
@@ -254,44 +249,37 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
         src = cache.get(mid) or next(iter(cache.values()))
         slot = max(0.9, beat["end"] - beat["start"])
         seg = tmp / f"line_{beat['i']:02d}.mp4"
-        # slight zoom-in for motion without changing meaning
-        vf = (
-            f"scale=1080:1920:force_original_aspect_ratio=increase,"
-            f"crop=1080:1920,fps=30,"
-            f"zoompan=z='min(1.08,1+0.0015*on)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d=1:s=1080x1920:fps=30,"
-            f"eq=saturation=1.08:contrast=1.05"
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-stream_loop",
+                "-1",
+                "-i",
+                str(src),
+                "-t",
+                f"{slot:.3f}",
+                "-vf",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.05",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-pix_fmt",
+                "yuv420p",
+                str(seg),
+            ],
+            check=True,
+            capture_output=True,
         )
-        # zoompan can be heavy; fallback to simple scale if fails
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-stream_loop",
-            "-1",
-            "-i",
-            str(src),
-            "-t",
-            f"{slot:.3f}",
-            "-vf",
-            "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.05",
-            "-an",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-pix_fmt",
-            "yuv420p",
-            str(seg),
-        ]
-        subprocess.run(cmd, check=True, capture_output=True)
         segs.append(seg)
         print(
-            f"SYNC beat {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s "
-            f"clip={mid} concept={beat['concept']} | {beat['spoken'][:40]}",
+            f"SYNC {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s "
+            f"clip={mid} | {beat['concept']} | {beat['spoken'][:36]}",
             flush=True,
         )
 
-    # HARD CONCAT (no xfade) so durations stay exact vs narration
     lst = tmp / "list.txt"
     lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
     raw = tmp / "concat.mp4"
@@ -339,7 +327,7 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
         check=True,
         capture_output=True,
     )
-    print(f"film duration target={duration:.2f} actual={_probe(out):.2f}", flush=True)
+    print(f"film target={duration:.2f} actual={_probe(out):.2f}", flush=True)
     return out
 
 
@@ -348,7 +336,6 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     for beat in timeline:
         i = beat["i"]
         start = beat["start"]
-        # caption lives only during speech, not the gap
         end = beat["speech_end"]
         text = beat["caption"]
         bid = f"beat-{i}"
@@ -448,22 +435,22 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
 def _make_thumbnail(video: Path, thumb: Path) -> Path:
     frame = thumb.with_suffix(".frame.jpg")
     subprocess.run(
-        ["ffmpeg", "-y", "-ss", "3.0", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
+        ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
         check=True,
         capture_output=True,
     )
-    t1 = "هتل بی‌نهایت"
-    t2 = "همیشه جا داره؟!"
+    t1 = "۰٫۹۹۹… = ۱ ؟!"
+    t2 = "ریاضی خلاف حس"
     brand = "بامو  @12bamo"
     vf = (
         "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-        "eq=saturation=1.15:contrast=1.08,"
+        "eq=saturation=1.12:contrast=1.08,"
         "drawbox=x=0:y=1400:w=1080:h=520:color=black@0.55:t=fill,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t1}':fontcolor=white:fontsize=64:x=(w-text_w)/2:y=1480:"
+        f"text='{t1}':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1480:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t2}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1570:"
+        f"text='{t2}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=1570:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
         f"text='{brand}':fontcolor=#7dd3fc:fontsize=40:x=(w-text_w)/2:y=1680:"
@@ -492,17 +479,15 @@ def main() -> int:
     beats = idea["beats"]
     joined = "\n".join(b["spoken"] for b in beats)
     analysis = TextAnalyzer().analyze(joined, title=idea["title_fa"])
-    plan = SceneGenerator(aspect="portrait").from_analysis(analysis)
+    _ = SceneGenerator(aspect="portrait").from_analysis(analysis)
 
     print(
         json.dumps(
             {
                 "idea": idea["id"],
-                "mode": "hard_sync_concept_match",
-                "beats": [
-                    {"i": i, "concept": b["concept"], "visual": b["visual"], "spoken": b["spoken"]}
-                    for i, b in enumerate(beats)
-                ],
+                "title": idea["title_fa"],
+                "mode": "math_hard_sync",
+                "beats": [{ "concept": b["concept"], "visual": b["visual"] } for b in beats],
                 "publish": bool(args.publish),
             },
             ensure_ascii=False,
@@ -569,7 +554,7 @@ def main() -> int:
         "thumb": str(thumb),
         "size": out.stat().st_size,
         "duration": duration,
-        "mode": "hard_sync_concept_match",
+        "mode": "math_hard_sync",
         "upload": upload_result,
     }
     print(json.dumps(meta, ensure_ascii=False))
