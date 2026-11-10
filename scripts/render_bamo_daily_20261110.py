@@ -188,6 +188,8 @@ def main() -> None:
             "-movflags", "+faststart", "-t", f"{total_duration:.3f}", str(OUT),
         ]
         run(cmd)
+        # Probe the silent render before TemporaryDirectory removes it.
+        video_duration = probe_duration(silent)
 
         cursor = 0.0
         srt_blocks = []
@@ -209,7 +211,6 @@ def main() -> None:
     if abs(float(media["fps"]) - FPS) > 0.01:
         raise RuntimeError("Final MP4 has unexpected frame rate")
     actual_duration = float(media["duration"])
-    video_duration = probe_duration(silent)
     audio_duration = total_duration
     if not 15 <= actual_duration <= 30:
         raise RuntimeError("Final MP4 duration is outside Shorts target")
