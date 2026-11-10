@@ -74,6 +74,7 @@ jobs:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           YOUTUBE_CONTAINS_SYNTHETIC_MEDIA: "false"
           YOUTUBE_DEFAULT_LANGUAGE: fa
         run: |
@@ -87,6 +88,11 @@ jobs:
           else
             echo "Render only — no upload"
             PRIVACY="private"
+          fi
+          if [ -n "${ELEVENLABS_API_KEY:-}" ]; then
+            echo "ElevenLabs key present — natural TTS enabled"
+          else
+            echo "No ELEVENLABS_API_KEY — fallback Edge-TTS"
           fi
           if [ "$LANG_CODE" = "ttv" ]; then
             python ttv/render_sample.py $PUBLISH_FLAG --privacy "$PRIVACY"
