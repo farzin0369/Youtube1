@@ -22,69 +22,70 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Viral math: 0.999... = 1 — clean Persian for natural TTS
+# Spoken text uses selective harakat so TTS says نُه (9) not نَه (no).
+# User-preferred form: نُه‌صَد و نَوَد و نُه هَزارُم
 IDEA = {
     "id": "math-00001",
     "title_fa": "۰٫۹۹۹… واقعاً برابر ۱ است؟",
     "beats": [
         {
-            "spoken": "صبر کن. این یکی عجیبه.",
+            "spoken": "صَبر کُن. این یِکی عَجیبه.",
             "caption": "صبر کن… عجیبه",
             "visual": 32960,
             "concept": "قلاب",
         },
         {
-            "spoken": "صفر ممیز نه نه نه، تا بی نهایت.",
-            "caption": "۰٫۹۹۹… تا بی‌نهایت",
+            "spoken": "نُه‌صَد و نَوَد و نُه هَزارُم. تا بی‌نِهایت.",
+            "caption": "نُه‌صد و نود و نُه هزارم",
             "visual": 32960,
-            "concept": "بی‌نهایت",
+            "concept": "عدد",
         },
         {
-            "spoken": "خیلی‌ها فکر می‌کنند از یک کمتر است.",
+            "spoken": "خِیلی‌ها فِکر می‌کُنَند از یِک کَمتر اَست.",
             "caption": "فکر می‌کنی از ۱ کمتره؟",
             "visual": 9010,
             "concept": "شک",
         },
         {
-            "spoken": "اما برابر یک است.",
+            "spoken": "اَمّا بَرابَرِ یِک اَست.",
             "caption": "اما = ۱",
             "visual": 9000,
             "concept": "کشف",
         },
         {
-            "spoken": "فرض کن ایکس بشود صفر ممیز نه تکراری.",
-            "caption": "x = ۰٫۹۹۹…",
+            "spoken": "فَرض کُن ایکس بِشَوَد نُه‌صَد و نَوَد و نُه هَزارُمِ تِکراری.",
+            "caption": "x = نُه‌صد… تکراری",
             "visual": 9005,
             "concept": "فرض",
         },
         {
-            "spoken": "ده برابرش می‌شود نه ممیز نه تکراری. بعد کم کن.",
+            "spoken": "دَه بَرابَرَش می‌شَوَد نُه مَمیز نُه تِکراری. بَعد کَم کُن.",
             "caption": "۱۰x − x",
             "visual": 9000,
             "concept": "جبر",
         },
         {
-            "spoken": "نه ایکس می‌شود نه. پس ایکس می‌شود یک.",
+            "spoken": "نُه ایکس می‌شَوَد نُه. پَس ایکس می‌شَوَد یِک.",
             "caption": "۹x = ۹ → x = ۱",
             "visual": 9001,
             "concept": "نتیجه",
         },
         {
-            "spoken": "ریاضی گاهی خلاف حس است، اما درست است.",
+            "spoken": "رِیاضی گاهی خِلافِ حِس اَست، اَمّا دُرُست اَست.",
             "caption": "خلاف حس، اما درست",
             "visual": 32960,
             "concept": "بینش",
         },
         {
-            "spoken": "بامو. یوزرنیم ما دوازده بامو.",
+            "spoken": "بامو. یوزِرنیمِ ما دَوازْدَه بامو.",
             "caption": "بامو · @12bamo",
             "visual": 9010,
             "concept": "برند",
         },
     ],
-    "yt_title": "۰٫۹۹۹… واقعاً برابر ۱ است؟! 🤯 #shorts",
+    "yt_title": "نُه‌صد و نود و نُه هزارم برابر ۱ است؟! 🤯 #shorts",
     "yt_desc": (
-        "صفر ممیز نه تکراری تا بی‌نهایت... برابر یک است.\n"
+        "نُه‌صد و نود و نُه هزارمِ تکراری تا بی‌نهایت... برابر یک است.\n"
         "اثبات ساده با جبر — در ۳۰ ثانیه.\n\n"
         "بامو | @12bamo\n"
         "#shorts #ریاضی #علم #بامو #math #آموزش"
@@ -175,7 +176,6 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         print(json.dumps({"tts_engine": engine, "duration": duration}, ensure_ascii=False), flush=True)
         return full, timeline, duration
 
-    # fallback edge-tts
     import asyncio
     import edge_tts
 
