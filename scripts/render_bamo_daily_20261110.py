@@ -85,7 +85,7 @@ def probe_duration(path: Path) -> float:
         capture_output=True, text=True,
     )
     output = result.stderr + result.stdout
-    match = re.search(r"Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)", output)
+    match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
     if not match:
         raise RuntimeError(f"FFmpeg could not read media duration for {path}: {output[-1200:]}")
     hours, minutes, seconds = match.groups()
@@ -100,21 +100,21 @@ def probe_media_info(path: Path) -> dict[str, object]:
     output = result.stderr + result.stdout
     video_line = next((line for line in output.splitlines() if "Video:" in line), "")
     audio_line = next((line for line in output.splitlines() if "Audio:" in line), "")
-    duration_match = re.search(r"Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)", output)
-    dimensions = re.search(r"\\b(\\d{2,5})x(\\d{2,5})\\b", video_line)
-    fps_match = re.search(r"([0-9]+(?:\\.[0-9]+)?)\\s+fps\\b", video_line)
-    sample_match = re.search(r"([0-9]+)\\s+Hz\\b", audio_line)
+    duration_match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
+    dimensions = re.search(r"\b(\d{2,5})x(\d{2,5})\b", video_line)
+    fps_match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s+fps\b", video_line)
+    sample_match = re.search(r"([0-9]+)\s+Hz\b", audio_line)
     if not video_line or not audio_line or not duration_match or not dimensions or not fps_match or not sample_match:
         raise RuntimeError(f"FFmpeg could not inspect final MP4 streams: {output[-1800:]}")
     hours, minutes, seconds = duration_match.groups()
-    channel_count = 1 if re.search(r"\\bmono\\b", audio_line) else (2 if re.search(r"\\bstereo\\b", audio_line) else 0)
+    channel_count = 1 if re.search(r"\bmono\b", audio_line) else (2 if re.search(r"\bstereo\b", audio_line) else 0)
     return {
         "duration": int(hours) * 3600 + int(minutes) * 60 + float(seconds),
         "width": int(dimensions.group(1)),
         "height": int(dimensions.group(2)),
         "fps": float(fps_match.group(1)),
-        "video_codec": re.search(r"Video:\\s*([a-zA-Z0-9_]+)", video_line).group(1),
-        "audio_codec": re.search(r"Audio:\\s*([a-zA-Z0-9_]+)", audio_line).group(1),
+        "video_codec": re.search(r"Video:\s*([a-zA-Z0-9_]+)", video_line).group(1),
+        "audio_codec": re.search(r"Audio:\s*([a-zA-Z0-9_]+)", audio_line).group(1),
         "audio_sample_rate": int(sample_match.group(1)),
         "audio_channels": channel_count,
     }
