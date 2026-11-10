@@ -73,14 +73,14 @@ float sceneSDF(vec3 p){
    float b=sdTorus(p,vec2(.48,.045));
    p.xy=rot(1.05)*p.xy;
    return min(min(a,b),sdSphere(p,.22));
- }else if(u_kind<7.5){
+ }else if(u_kind>=6.5 && u_kind<7.5){
    // Saturn body and a separately orbiting icy moon. The ring is rendered
    // as thousands of discrete particles in the ray-plane pass below.
    float core=sdSphere(p,.62+.012*sin(t*1.7));
    vec3 moonPos=vec3(1.42*cos(t*.38),.09+.025*sin(t*.61),1.42*sin(t*.38));
    float moon=sdSphere(p-moonPos,.078);
    return min(core,moon);
- }else if(u_kind<8.5){
+ }else if(u_kind>=5.5 && u_kind<6.5){
    // Two coherent point sources create a genuine 3D interference surface.
    float r1=length(p.xz-vec2(-.68,0.0));
    float r2=length(p.xz-vec2(.68,0.0));
@@ -93,7 +93,7 @@ float sceneSDF(vec3 p){
    float sourceA=sdSphere(p-vec3(-.68,0.0,0.0),.09);
    float sourceB=sdSphere(p-vec3(.68,0.0,0.0),.09);
    return min(sheet,min(sourceA,sourceB));
- }else if(u_kind<9.5){
+ }else if(u_kind>=7.5 && u_kind<8.5){
    // Full plant: stem, branching roots, paired leaves and a moving sap column.
    float stem=sdCapsule(p,vec3(0,-.92,0),vec3(0,.72,0),.09);
    float roots=min(sdCapsule(p,vec3(0,-.78,0),vec3(-.48,-1.34,.03),.045),sdCapsule(p,vec3(0,-.78,0),vec3(.48,-1.34,-.03),.045));
@@ -105,7 +105,7 @@ float sceneSDF(vec3 p){
    float drops=10.0;
    for(int i=0;i<5;i++){float fi=float(i);float y=mod(t*.52+fi*.33,1.48)-.74;drops=min(drops,sdSphere(p-vec3(.0,y,.035),.034));}
    return min(min(stem,roots),min(branches,min(leaves,min(veins,drops))));
- }else if(u_kind<10.5){
+ }else if(u_kind>=8.5 && u_kind<9.5){
    // Xylem cutaway: hollow vessel wall, continuous water column and rising droplets.
    float wall=max(abs(length(p.xz)-.27)-.055,abs(p.y)-.94);
    float water=max(length(p.xz)-.165,abs(p.y)-.89);
@@ -114,7 +114,7 @@ float sceneSDF(vec3 p){
    float beads=10.0;
    for(int i=0;i<6;i++){float fi=float(i);float y=mod(t*.46+fi*.31,1.66)-.83;beads=min(beads,sdSphere(p-vec3(.025*sin(t+fi),y,0),.045));}
    return min(min(wall,water),min(rings,beads));
- }else if(u_kind<11.5){
+ }else if(u_kind>=9.5 && u_kind<10.5){
    // Leaf stomata: epidermis, paired guard cells, open pore and escaping vapour.
    float blade=sdEllipsoid(p,vec3(.96,.075,.62));
    float guardL=sdEllipsoid(p-vec3(-.205,.075,0),vec3(.155,.19,.13));
