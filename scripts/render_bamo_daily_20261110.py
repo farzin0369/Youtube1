@@ -12,6 +12,7 @@ import edge_tts
 from app.html_motion_renderer import render_html_project
 
 # Use the runner's FFmpeg binary for metadata checks; do not assume ffprobe is installed.
+# The workflow installs FFmpeg/ffprobe from Ubuntu packages before this script runs.
 
 OUT = Path("artifacts/bamo-science-short-20261110.mp4")
 SRT = OUT.with_suffix(".srt")
