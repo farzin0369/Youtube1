@@ -112,6 +112,7 @@ def main() -> None:
         root = Path(tmp)
         voices = asyncio.run(make_voice_files(root))
         voice_lengths = [probe_duration(p) for p in voices]
+        print("VOICE_CLIP_SECONDS=" + json.dumps([round(value, 3) for value in voice_lengths]))
         scene_durations = [max(3.0, d + 0.18) for d in voice_lengths]
 
         project = {
