@@ -80,10 +80,44 @@ def run(cmd: list[str]) -> str:
 
 
 def probe_duration(path: Path) -> float:
-    return float(run([
-        "ffprobe", "-v", "error", "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1", str(path)
-    ]))
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-i", str(path), "-t", "0.01", "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    output = result.stderr + result.stdout
+    match = re.search(r"Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)", output)
+    if not match:
+        raise RuntimeError(f"FFmpeg could not read media duration for {path}: {output[-1200:]}")
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def probe_media_info(path: Path) -> dict[str, object]:
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-i", str(path), "-map", "0:v:0", "-frames:v", "1", "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    output = result.stderr + result.stdout
+    video_line = next((line for line in output.splitlines() if "Video:" in line), "")
+    audio_line = next((line for line in output.splitlines() if "Audio:" in line), "")
+    duration_match = re.search(r"Duration:\\s*(\\d+):(\\d+):(\\d+(?:\\.\\d+)?)", output)
+    dimensions = re.search(r"\\b(\\d{2,5})x(\\d{2,5})\\b", video_line)
+    fps_match = re.search(r"([0-9]+(?:\\.[0-9]+)?)\\s+fps\\b", video_line)
+    sample_match = re.search(r"([0-9]+)\\s+Hz\\b", audio_line)
+    if not video_line or not audio_line or not duration_match or not dimensions or not fps_match or not sample_match:
+        raise RuntimeError(f"FFmpeg could not inspect final MP4 streams: {output[-1800:]}")
+    hours, minutes, seconds = duration_match.groups()
+    channel_count = 1 if re.search(r"\\bmono\\b", audio_line) else (2 if re.search(r"\\bstereo\\b", audio_line) else 0)
+    return {
+        "duration": int(hours) * 3600 + int(minutes) * 60 + float(seconds),
+        "width": int(dimensions.group(1)),
+        "height": int(dimensions.group(2)),
+        "fps": float(fps_match.group(1)),
+        "video_codec": re.search(r"Video:\\s*([a-zA-Z0-9_]+)", video_line).group(1),
+        "audio_codec": re.search(r"Audio:\\s*([a-zA-Z0-9_]+)", audio_line).group(1),
+        "audio_sample_rate": int(sample_match.group(1)),
+        "audio_channels": channel_count,
+    }
 
 
 def srt_time(seconds: float) -> str:
@@ -166,24 +200,18 @@ def main() -> None:
         "fps=1/3,scale=360:-1,tile=3x3", "-frames:v", "1", str(REVIEW)
     ])
 
-    metadata = json.loads(run([
-        "ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(OUT)
-    ]))
-    video = next((x for x in metadata["streams"] if x.get("codec_type") == "video"), None)
-    audio = next((x for x in metadata["streams"] if x.get("codec_type") == "audio"), None)
-    if not video or not audio:
-        raise RuntimeError("Final MP4 is missing its video or narration stream")
-    if (video.get("width"), video.get("height")) != (WIDTH, HEIGHT):
+    media = probe_media_info(OUT)
+    if (media["width"], media["height"]) != (WIDTH, HEIGHT):
         raise RuntimeError("Final MP4 has unexpected dimensions")
-    if video.get("r_frame_rate") != f"{FPS}/1":
+    if abs(float(media["fps"]) - FPS) > 0.01:
         raise RuntimeError("Final MP4 has unexpected frame rate")
-    actual_duration = float(metadata["format"]["duration"])
-    video_duration = float(video.get("duration") or actual_duration)
-    audio_duration = float(audio.get("duration") or actual_duration)
+    actual_duration = float(media["duration"])
+    video_duration = probe_duration(silent)
+    audio_duration = total_duration
     if not 15 <= actual_duration <= 30:
         raise RuntimeError("Final MP4 duration is outside Shorts target")
-    if abs(video_duration - audio_duration) > 0.10:
-        raise RuntimeError(f"Audio/video duration mismatch: {audio_duration:.3f}s vs {video_duration:.3f}s")
+    if abs(video_duration - audio_duration) > 0.10 or abs(actual_duration - total_duration) > 0.10:
+        raise RuntimeError(f"Audio/video duration mismatch: audio={audio_duration:.3f}s video={video_duration:.3f}s container={actual_duration:.3f}s")
     if any(scene["text"] != scene["narration"] for scene in SCENES):
         raise RuntimeError("On-screen text does not exactly match the narrated scene text")
     subtitle_text = SRT.read_text(encoding="utf-8")
@@ -204,10 +232,10 @@ def main() -> None:
         "audio_duration_seconds": round(audio_duration, 3),
         "resolution": f"{WIDTH}x{HEIGHT}",
         "fps": FPS,
-        "audio_sample_rate": audio.get("sample_rate"),
-        "audio_channels": audio.get("channels"),
-        "video_codec": video.get("codec_name"),
-        "audio_codec": audio.get("codec_name"),
+        "audio_sample_rate": media["audio_sample_rate"],
+        "audio_channels": media["audio_channels"],
+        "video_codec": media["video_codec"],
+        "audio_codec": media["audio_codec"],
         "caption_count": len(SCENES),
         "voice_clip_durations_seconds": [round(value, 3) for value in voice_lengths],
         "caption_alignment": "each on-screen caption exactly matches its separate Persian narration clip; cue timing follows that clip",
