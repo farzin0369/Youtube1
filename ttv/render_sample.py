@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV viral short — ElevenLabs natural male voice + hard A/V sync."""
+"""TTV viral short — Dunning-Kruger (trending psych) + ElevenLabs."""
 from __future__ import annotations
 
 import argparse
@@ -22,75 +22,73 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Spoken text uses selective harakat so TTS says نُه (9) not نَه (no).
-# User-preferred form: نُه‌صَد و نَوَد و نُه هَزارُم
+# Trending psych: Dunning–Kruger — short clear lines for better TTS
 IDEA = {
-    "id": "math-00001",
-    "title_fa": "۰٫۹۹۹… واقعاً برابر ۱ است؟",
+    "id": "psych-00001",
+    "title_fa": "اثر دانینگ کروگر",
     "beats": [
         {
-            "spoken": "صَبر کُن. این یِکی عَجیبه.",
-            "caption": "صبر کن… عجیبه",
-            "visual": 32960,
+            "spoken": "یک حقیقت عجیب درباره مغز.",
+            "caption": "یک حقیقت عجیب…",
+            "visual": 9018,
             "concept": "قلاب",
         },
         {
-            "spoken": "نُه‌صَد و نَوَد و نُه هَزارُم. تا بی‌نِهایت.",
-            "caption": "نُه‌صد و نود و نُه هزارم",
-            "visual": 32960,
-            "concept": "عدد",
+            "spoken": "هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی.",
+            "caption": "کمتر بدانی → بیشتر مطمئنی",
+            "visual": 9012,
+            "concept": "پارادوکس",
         },
         {
-            "spoken": "خِیلی‌ها فِکر می‌کُنَند از یِک کَمتر اَست.",
-            "caption": "فکر می‌کنی از ۱ کمتره؟",
+            "spoken": "اسمش اثر دانینگ کروگر است.",
+            "caption": "اثر دانینگ–کروگر",
+            "visual": 9000,
+            "concept": "نام",
+        },
+        {
+            "spoken": "تازه‌کارها معمولاً خودشان را خیلی قوی می‌بینند.",
+            "caption": "تازه‌کار = اعتماد کاذب",
+            "visual": 9001,
+            "concept": "اعتماد کاذب",
+        },
+        {
+            "spoken": "چون هنوز نمی‌دانند چه چیزهایی را نمی‌دانند.",
+            "caption": "نمی‌دانند که نمی‌دانند",
             "visual": 9010,
+            "concept": "نابینایی",
+        },
+        {
+            "spoken": "با یادگیری واقعی، اول اعتماد پایین می‌آید.",
+            "caption": "یادگیری → شک سالم",
+            "visual": 9006,
             "concept": "شک",
         },
         {
-            "spoken": "اَمّا بَرابَرِ یِک اَست.",
-            "caption": "اما = ۱",
-            "visual": 9000,
-            "concept": "کشف",
+            "spoken": "بعد کم‌کم دوباره بالا می‌رود. این بار واقعی.",
+            "caption": "اعتماد واقعی",
+            "visual": 9002,
+            "concept": "رشد",
         },
         {
-            "spoken": "فَرض کُن ایکس بِشَوَد نُه‌صَد و نَوَد و نُه هَزارُمِ تِکراری.",
-            "caption": "x = نُه‌صد… تکراری",
-            "visual": 9005,
-            "concept": "فرض",
+            "spoken": "پس اگر همیشه مطمئنی که حقی… شاید هنوز اول راهی.",
+            "caption": "همیشه مطمئنی؟ مراقب باش",
+            "visual": 9018,
+            "concept": "نکته",
         },
         {
-            "spoken": "دَه بَرابَرَش می‌شَوَد نُه مَمیز نُه تِکراری. بَعد کَم کُن.",
-            "caption": "۱۰x − x",
-            "visual": 9000,
-            "concept": "جبر",
-        },
-        {
-            "spoken": "نُه ایکس می‌شَوَد نُه. پَس ایکس می‌شَوَد یِک.",
-            "caption": "۹x = ۹ → x = ۱",
-            "visual": 9001,
-            "concept": "نتیجه",
-        },
-        {
-            "spoken": "رِیاضی گاهی خِلافِ حِس اَست، اَمّا دُرُست اَست.",
-            "caption": "خلاف حس، اما درست",
-            "visual": 32960,
-            "concept": "بینش",
-        },
-        {
-            "spoken": "بامو. یوزِرنیمِ ما دَوازْدَه بامو.",
+            "spoken": "بامو. یوزرنیم ما دوازده بامو.",
             "caption": "بامو · @12bamo",
             "visual": 9010,
             "concept": "برند",
         },
     ],
-    "yt_title": "نُه‌صد و نود و نُه هزارم برابر ۱ است؟! 🤯 #shorts",
+    "yt_title": "هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی 🧠 #shorts",
     "yt_desc": (
-        "نُه‌صد و نود و نُه هزارمِ تکراری تا بی‌نهایت... برابر یک است.\n"
-        "اثبات ساده با جبر — در ۳۰ ثانیه.\n\n"
+        "اثر دانینگ–کروگر: چرا تازه‌کارها این‌قدر به خودشان مطمئن‌اند؟\n\n"
         "بامو | @12bamo\n"
-        "#shorts #ریاضی #علم #بامو #math #آموزش"
+        "#shorts #روانشناسی #مغز #دانینگ_کروگر #بامو"
     ),
-    "yt_tags": ["shorts", "ریاضی", "math", "علم", "بامو", "BAMO", "آموزش"],
+    "yt_tags": ["shorts", "روانشناسی", "مغز", "دانینگ_کروگر", "بامو", "BAMO", "علم"],
 }
 
 
@@ -147,7 +145,6 @@ def _fetch_mix(mid: int, dest_dir: Path) -> Path | None:
 
 
 def _build_audio_and_timeline(work: Path, beats: list[dict]):
-    """Prefer ElevenLabs; fall back to edge-tts."""
     spoken = [b["spoken"] for b in beats]
     parts_dir = work / "parts"
     parts_dir.mkdir(parents=True, exist_ok=True)
@@ -188,10 +185,10 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         for i, b in enumerate(beats):
             p = parts_dir / f"p{i:02d}.mp3"
             await edge_tts.Communicate(
-                b["spoken"], "fa-IR-FaridNeural", rate="+8%", pitch="+1Hz"
+                b["spoken"], "fa-IR-FaridNeural", rate="+6%", pitch="+0Hz"
             ).save(str(p))
             speech = max(0.7, _probe(p))
-            gap = 0.10 if i < len(beats) - 1 else 0.25
+            gap = 0.12 if i < len(beats) - 1 else 0.25
             files.append(p)
             timeline.append(
                 {
@@ -219,7 +216,7 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
             "-i",
             "anullsrc=r=24000:cl=mono",
             "-t",
-            "0.10",
+            "0.12",
             "-q:a",
             "9",
             "-acodec",
@@ -281,7 +278,7 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
                 "-t",
                 f"{slot:.3f}",
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.05",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.1:contrast=1.06",
                 "-an",
                 "-c:v",
                 "libx264",
@@ -359,7 +356,7 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
         text = beat["caption"]
         bid = f"beat-{i}"
         slot = max(0.5, end - start)
-        size = 56 if i == 0 else (52 if i <= 2 else 46)
+        size = 54 if i == 0 else (50 if i <= 2 else 44)
         beats.append(
             f'      <div id="{bid}" class="beat" style="font-size:{size}px" '
             f'data-start="{start:.2f}" data-duration="{slot:.2f}" data-track-index="{10 + i}">'
@@ -392,8 +389,8 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     .scrim {{
       position: absolute; inset: 0; z-index: 2; pointer-events: none;
       background: linear-gradient(180deg,
-        rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.12) 35%,
-        rgba(0,0,0,0.48) 68%, rgba(0,0,0,0.88) 100%);
+        rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 35%,
+        rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.9) 100%);
     }}
     .beat {{
       position: absolute; left: 32px; right: 32px; bottom: 320px;
@@ -454,12 +451,12 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
 def _make_thumbnail(video: Path, thumb: Path) -> Path:
     frame = thumb.with_suffix(".frame.jpg")
     subprocess.run(
-        ["ffmpeg", "-y", "-ss", "2.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
+        ["ffmpeg", "-y", "-ss", "2.0", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
         check=True,
         capture_output=True,
     )
-    t1 = "۰٫۹۹۹… = ۱ ؟!"
-    t2 = "ریاضی خلاف حس"
+    t1 = "کمتر بدانی"
+    t2 = "بیشتر مطمئنی؟!"
     brand = "بامو  @12bamo"
     vf = (
         "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
@@ -469,7 +466,7 @@ def _make_thumbnail(video: Path, thumb: Path) -> Path:
         f"text='{t1}':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1480:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t2}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=1570:"
+        f"text='{t2}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1570:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
         f"text='{brand}':fontcolor=#7dd3fc:fontsize=40:x=(w-text_w)/2:y=1680:"
