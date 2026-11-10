@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV viral short — Dunning-Kruger (trending psych) + ElevenLabs."""
+"""TTV viral emotional short — عشق یا وابستگی (high comment bait)."""
 from __future__ import annotations
 
 import argparse
@@ -22,58 +22,58 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Trending psych: Dunning–Kruger — short clear lines for better TTS
+# High-engagement: love vs attachment — people comment & share
 IDEA = {
-    "id": "psych-00001",
-    "title_fa": "اثر دانینگ کروگر",
+    "id": "emotion-00001",
+    "title_fa": "عشق یا وابستگی؟",
     "beats": [
         {
-            "spoken": "یک حقیقت عجیب درباره مغز.",
-            "caption": "یک حقیقت عجیب…",
+            "spoken": "یک لحظه صبر کن.",
+            "caption": "یک لحظه صبر کن…",
             "visual": 9018,
             "concept": "قلاب",
         },
         {
-            "spoken": "هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی.",
-            "caption": "کمتر بدانی → بیشتر مطمئنی",
+            "spoken": "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.",
+            "caption": "عشق؟ یا وابستگی؟",
             "visual": 9012,
-            "concept": "پارادوکس",
+            "concept": "شوک",
         },
         {
-            "spoken": "اسمش اثر دانینگ کروگر است.",
-            "caption": "اثر دانینگ–کروگر",
-            "visual": 9000,
-            "concept": "نام",
-        },
-        {
-            "spoken": "تازه‌کارها معمولاً خودشان را خیلی قوی می‌بینند.",
-            "caption": "تازه‌کار = اعتماد کاذب",
+            "spoken": "عشق واقعی حس آرامش می‌ده.",
+            "caption": "عشق = آرامش",
             "visual": 9001,
-            "concept": "اعتماد کاذب",
+            "concept": "آرامش",
         },
         {
-            "spoken": "چون هنوز نمی‌دانند چه چیزهایی را نمی‌دانند.",
-            "caption": "نمی‌دانند که نمی‌دانند",
+            "spoken": "وابستگی حس اضطراب و ترس از دست دادن.",
+            "caption": "وابستگی = اضطراب",
             "visual": 9010,
-            "concept": "نابینایی",
+            "concept": "اضطراب",
         },
         {
-            "spoken": "با یادگیری واقعی، اول اعتماد پایین می‌آید.",
-            "caption": "یادگیری → شک سالم",
+            "spoken": "اگه بدون اون شخص نمی‌تونی آروم باشی…",
+            "caption": "بدونش آروم نیستی؟",
+            "visual": 9012,
+            "concept": "تست",
+        },
+        {
+            "spoken": "احتمالاً عاشق نیستی. وابسته شدی.",
+            "caption": "وابسته شدی",
             "visual": 9006,
-            "concept": "شک",
+            "concept": "نتیجه",
         },
         {
-            "spoken": "بعد کم‌کم دوباره بالا می‌رود. این بار واقعی.",
-            "caption": "اعتماد واقعی",
-            "visual": 9002,
-            "concept": "رشد",
-        },
-        {
-            "spoken": "پس اگر همیشه مطمئنی که حقی… شاید هنوز اول راهی.",
-            "caption": "همیشه مطمئنی؟ مراقب باش",
+            "spoken": "عشق تو را آزادتر می‌کند. وابستگی محدودت می‌کند.",
+            "caption": "عشق آزاد می‌کند",
             "visual": 9018,
-            "concept": "نکته",
+            "concept": "تفاوت",
+        },
+        {
+            "spoken": "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟",
+            "caption": "تو کامنت بنویس…",
+            "visual": 9002,
+            "concept": "CTA کامنت",
         },
         {
             "spoken": "بامو. یوزرنیم ما دوازده بامو.",
@@ -82,13 +82,15 @@ IDEA = {
             "concept": "برند",
         },
     ],
-    "yt_title": "هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی 🧠 #shorts",
+    "yt_title": "عشق حس آرامشه… وابستگی حس اضطرابه 💔 تو کدومی؟",
     "yt_desc": (
-        "اثر دانینگ–کروگر: چرا تازه‌کارها این‌قدر به خودشان مطمئن‌اند؟\n\n"
+        "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.\n\n"
+        "عشق آزادت می‌کند. وابستگی محدودت می‌کند.\n\n"
+        "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟\n\n"
         "بامو | @12bamo\n"
-        "#shorts #روانشناسی #مغز #دانینگ_کروگر #بامو"
+        "#shorts #عشق #وابستگی #روانشناسی #رابطه"
     ),
-    "yt_tags": ["shorts", "روانشناسی", "مغز", "دانینگ_کروگر", "بامو", "BAMO", "علم"],
+    "yt_tags": ["shorts", "عشق", "وابستگی", "روانشناسی", "رابطه", "احساس", "بامو", "12bamo"],
 }
 
 
@@ -185,10 +187,10 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         for i, b in enumerate(beats):
             p = parts_dir / f"p{i:02d}.mp3"
             await edge_tts.Communicate(
-                b["spoken"], "fa-IR-FaridNeural", rate="+6%", pitch="+0Hz"
+                b["spoken"], "fa-IR-FaridNeural", rate="+4%", pitch="+0Hz"
             ).save(str(p))
             speech = max(0.7, _probe(p))
-            gap = 0.12 if i < len(beats) - 1 else 0.25
+            gap = 0.14 if i < len(beats) - 1 else 0.28
             files.append(p)
             timeline.append(
                 {
@@ -216,7 +218,7 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
             "-i",
             "anullsrc=r=24000:cl=mono",
             "-t",
-            "0.12",
+            "0.14",
             "-q:a",
             "9",
             "-acodec",
@@ -278,7 +280,7 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
                 "-t",
                 f"{slot:.3f}",
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.1:contrast=1.06",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.12:contrast=1.06",
                 "-an",
                 "-c:v",
                 "libx264",
@@ -292,10 +294,6 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
             capture_output=True,
         )
         segs.append(seg)
-        print(
-            f"SYNC {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s clip={mid} | {beat['spoken'][:40]}",
-            flush=True,
-        )
 
     lst = tmp / "list.txt"
     lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
@@ -404,7 +402,7 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     }}
     #brand-name {{
       font-weight: 900; font-size: 72px; letter-spacing: 2px;
-      background: linear-gradient(90deg, #fff 0%, #7dd3fc 50%, #c4b5fd 100%);
+      background: linear-gradient(90deg, #fff 0%, #f9a8d4 50%, #c4b5fd 100%);
       -webkit-background-clip: text; background-clip: text;
       -webkit-text-fill-color: transparent;
       filter: drop-shadow(0 4px 18px rgba(0,0,0,0.9));
@@ -455,21 +453,21 @@ def _make_thumbnail(video: Path, thumb: Path) -> Path:
         check=True,
         capture_output=True,
     )
-    t1 = "کمتر بدانی"
-    t2 = "بیشتر مطمئنی؟!"
+    t1 = "عشق یا وابستگی؟"
+    t2 = "تو کدومی؟"
     brand = "بامو  @12bamo"
     vf = (
         "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-        "eq=saturation=1.12:contrast=1.08,"
+        "eq=saturation=1.15:contrast=1.08,"
         "drawbox=x=0:y=1400:w=1080:h=520:color=black@0.55:t=fill,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t1}':fontcolor=white:fontsize=58:x=(w-text_w)/2:y=1480:"
+        f"text='{t1}':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=1480:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t2}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1570:"
+        f"text='{t2}':fontcolor=#f9a8d4:fontsize=52:x=(w-text_w)/2:y=1570:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{brand}':fontcolor=#7dd3fc:fontsize=40:x=(w-text_w)/2:y=1680:"
+        f"text='{brand}':fontcolor=#c4b5fd:fontsize=40:x=(w-text_w)/2:y=1680:"
         f"borderw=2:bordercolor=black@0.7"
     )
     subprocess.run(
@@ -504,7 +502,6 @@ def main() -> int:
                 "title": idea["title_fa"],
                 "has_elevenlabs": bool(os.environ.get("ELEVENLABS_API_KEY")),
                 "publish": bool(args.publish),
-                "privacy": args.privacy,
             },
             ensure_ascii=False,
         ),
@@ -558,7 +555,7 @@ def main() -> int:
             tags=idea["yt_tags"],
             privacy=args.privacy,
             thumbnail_path=thumb if thumb.exists() else None,
-            category_id="27",
+            category_id="22",
         )
         print(json.dumps({"upload": upload_result}, ensure_ascii=False), flush=True)
 
