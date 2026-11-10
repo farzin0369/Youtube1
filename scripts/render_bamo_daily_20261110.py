@@ -28,51 +28,44 @@ SOURCES = [
 
 SCENES = [
     {
-        "text": "چطور یک درخت، آب را تا نوک شاخه‌های بلندش بالا می‌کشد؟",
-        "narration": "چطور یک درخت، آب را تا نوک شاخه‌های بلندش بالا می‌کشد؟",
-        "visual_prompt": "نمای کامل یک درخت سه‌بعدی با ریشه‌های گسترده، ساقه و برگ‌های متحرک؛ دوربین از خاک به تاج درخت حرکت می‌کند",
+        "text": "درختان بلند، آب را چطور تا برگ‌ها بالا می‌برند؟",
+        "narration": "درختان بلند، آب را چطور تا برگ‌ها بالا می‌برند؟",
+        "visual_prompt": "نمای کامل یک درخت سه‌بعدی؛ دوربین از ریشه‌ها به سوی تاج و برگ‌ها بالا می‌رود",
         "motif": "plant",
         "palette": {"bg": "#06131b", "primary": "#50dfbd", "secondary": "#9bc9ef", "accent": "#f3d58a"},
     },
     {
-        "text": "آب از خاک وارد ریشه می‌شود و به آوندهای چوبی، یعنی زایلم، می‌رسد.",
-        "narration": "آب از خاک وارد ریشه می‌شود و به آوندهای چوبی، یعنی زایلم، می‌رسد.",
-        "visual_prompt": "نمای ماکرو سه‌بعدی ریشه و تارهای کشنده در خاک؛ قطره‌های آب به سوی ریشه حرکت می‌کنند",
+        "text": "آب از ریشه وارد آوندهای چوبی، زایلم، می‌شود.",
+        "narration": "آب از ریشه وارد آوندهای چوبی، زایلم، می‌شود.",
+        "visual_prompt": "نمای ماکرو سه‌بعدی ریشه و تارهای کشنده در خاک؛ قطره‌های آب به سمت ریشه حرکت می‌کنند",
         "motif": "root",
         "palette": {"bg": "#11140f", "primary": "#6ed8b2", "secondary": "#c5a77c", "accent": "#a6e8ff"},
     },
     {
-        "text": "در زایلم، مولکول‌های آب با پیوندهای هیدروژنی به هم متصل می‌مانند.",
-        "narration": "در زایلم، مولکول‌های آب با پیوندهای هیدروژنی به هم متصل می‌مانند.",
+        "text": "پیوندهای هیدروژنی، مولکول‌های آب را کنار هم نگه می‌دارند.",
+        "narration": "پیوندهای هیدروژنی، مولکول‌های آب را کنار هم نگه می‌دارند.",
         "visual_prompt": "برش مقطعی سه‌بعدی از لوله زایلم؛ ستون پیوسته آب و قطره‌های آبی در حال صعود",
         "motif": "xylem",
         "palette": {"bg": "#071725", "primary": "#55d9ff", "secondary": "#6ba6e8", "accent": "#e5f8ff"},
     },
     {
-        "text": "از سطح سلول‌های برگ، آب تبخیر می‌شود و از روزنه‌ها بیرون می‌رود.",
-        "narration": "از سطح سلول‌های برگ، آب تبخیر می‌شود و از روزنه‌ها بیرون می‌رود.",
+        "text": "در برگ، آب تبخیر و از روزنه‌ها خارج می‌شود.",
+        "narration": "در برگ، آب تبخیر و از روزنه‌ها خارج می‌شود.",
         "visual_prompt": "نمای میکروسکوپی سه‌بعدی روزنه برگ با دو سلول نگهبان و بخار آب در حال خروج",
         "motif": "stomata",
         "palette": {"bg": "#101b16", "primary": "#82e0ad", "secondary": "#b8e5d0", "accent": "#b8dfff"},
     },
     {
-        "text": "این تبخیر، بالای ستون آب کشش منفی ایجاد می‌کند و آن را بالا می‌کشد.",
-        "narration": "این تبخیر، بالای ستون آب کشش منفی ایجاد می‌کند و آن را بالا می‌کشد.",
-        "visual_prompt": "نمای نزدیک لوله زایلم با ستون آب پیوسته؛ حرکت قطره‌ها رو به بالا و نشانه‌های کشش در امتداد لوله",
+        "text": "تبخیر، در زایلم کشش ایجاد می‌کند و آب را بالا می‌کشد.",
+        "narration": "تبخیر، در زایلم کشش ایجاد می‌کند و آب را بالا می‌کشد.",
+        "visual_prompt": "نمای نزدیک لوله زایلم با ستون آب پیوسته؛ ذرات آب رو به بالا حرکت می‌کنند",
         "motif": "xylem",
         "palette": {"bg": "#07131f", "primary": "#41c9ee", "secondary": "#83b8e8", "accent": "#f2d78d"},
     },
     {
-        "text": "چسبندگی آب به دیوارهٔ آوندها هم به پایداری ستون در برابر گرانش کمک می‌کند.",
-        "narration": "چسبندگی آب به دیوارهٔ آوندها هم به پایداری ستون در برابر گرانش کمک می‌کند.",
-        "visual_prompt": "نمای ماکرو از دیواره داخلی آوند چوبی و ستون آب چسبیده به دیواره، همراه با ذرات متحرک",
-        "motif": "xylem",
-        "palette": {"bg": "#0b1521", "primary": "#58d4e8", "secondary": "#b3c9ed", "accent": "#f2c78d"},
-    },
-    {
-        "text": "این سازوکار، نظریهٔ کشش–همبستگی است؛ برگ‌ها آب را می‌کشند، نه پمپ ریشه.",
-        "narration": "این سازوکار، نظریهٔ کشش–همبستگی است؛ برگ‌ها آب را می‌کشند، نه پمپ ریشه.",
-        "visual_prompt": "عقب‌نشینی سینمایی دوربین از ریشه تا تاج درخت و نمایش مسیر پیوسته آب از خاک تا برگ",
+        "text": "این سازوکار، کشش–همبستگی است؛ ریشه پمپ اصلی نیست.",
+        "narration": "این سازوکار، کشش–همبستگی است؛ ریشه پمپ اصلی نیست.",
+        "visual_prompt": "عقب‌نشینی سینمایی دوربین از ریشه تا تاج درخت و نمایش مسیر پیوسته آب تا برگ‌ها",
         "motif": "plant",
         "palette": {"bg": "#06131b", "primary": "#70e2bf", "secondary": "#9dcdf1", "accent": "#f4d68b"},
     },
@@ -105,7 +98,7 @@ async def make_voice_files(root: Path) -> list[Path]:
     paths = []
     for index, scene in enumerate(SCENES, start=1):
         path = root / f"scene-{index:02d}.mp3"
-        talk = edge_tts.Communicate(scene["narration"], VOICE, rate="+2%", volume="+0%")
+        talk = edge_tts.Communicate(scene["narration"], VOICE, rate="+8%", volume="+0%")
         await talk.save(str(path))
         if not path.is_file() or path.stat().st_size < 1000:
             raise RuntimeError(f"Persian TTS did not create scene {index}")
@@ -119,7 +112,7 @@ def main() -> None:
         root = Path(tmp)
         voices = asyncio.run(make_voice_files(root))
         voice_lengths = [probe_duration(p) for p in voices]
-        scene_durations = [max(3.15, d + 0.24) for d in voice_lengths]
+        scene_durations = [max(3.0, d + 0.18) for d in voice_lengths]
 
         project = {
             "format": "short",
@@ -215,8 +208,9 @@ def main() -> None:
         "video_codec": video.get("codec_name"),
         "audio_codec": audio.get("codec_name"),
         "caption_count": len(SCENES),
+        "voice_clip_durations_seconds": [round(value, 3) for value in voice_lengths],
         "caption_alignment": "each on-screen caption exactly matches its separate Persian narration clip; cue timing follows that clip",
-        "visual_scene_motifs": ["plant", "root", "xylem", "stomata", "xylem", "xylem", "plant"],
+        "visual_scene_motifs": ["plant", "root", "xylem", "stomata", "xylem", "plant"],
         "visual_design": "dedicated 3D plant silhouette with roots and leaves, cutaway xylem vessel with upward water particles, stomata with escaping vapour, and root hairs; orbiting perspective camera",
         "visual_review_status": "pending manual frame inspection",
         "quality_gate": "TECHNICAL_PASS_PENDING_MANUAL_VISUAL_REVIEW",
