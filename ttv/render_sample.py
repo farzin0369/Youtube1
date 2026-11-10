@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""TTV — math short: 0.999... = 1 | hard A/V sync + concept-matched visuals."""
+"""TTV viral short — ElevenLabs natural male voice + hard A/V sync."""
 from __future__ import annotations
 
 import argparse
-import asyncio
 import html as html_lib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -22,74 +22,74 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Math viral: 0.999... = 1
+# Viral math: 0.999... = 1 — clean Persian for natural TTS
 IDEA = {
     "id": "math-00001",
     "title_fa": "۰٫۹۹۹… واقعاً برابر ۱ است؟",
     "beats": [
         {
-            "spoken": "صبر کن... این یکی عجیبه.",
+            "spoken": "صبر کن. این یکی عجیبه.",
             "caption": "صبر کن… عجیبه",
             "visual": 32960,
-            "concept": "قلاب / بی‌نهایت",
+            "concept": "قلاب",
         },
         {
-            "spoken": "صفر ممیز نُه نُه نُه... تا بی‌نهایت.",
+            "spoken": "صفر ممیز نه نه نه، تا بی نهایت.",
             "caption": "۰٫۹۹۹… تا بی‌نهایت",
             "visual": 32960,
-            "concept": "تکرار تا بی‌نهایت",
+            "concept": "بی‌نهایت",
         },
         {
-            "spoken": "خیلی‌ها فکر می‌کنن از یک کمتره.",
+            "spoken": "خیلی‌ها فکر می‌کنند از یک کمتر است.",
             "caption": "فکر می‌کنی از ۱ کمتره؟",
             "visual": 9010,
-            "concept": "دانش‌آموز / شک",
+            "concept": "شک",
         },
         {
-            "spoken": "اما برابرِ یکِه.",
+            "spoken": "اما برابر یک است.",
             "caption": "اما = ۱",
             "visual": 9000,
-            "concept": "مطالعه / کشف",
+            "concept": "کشف",
         },
         {
-            "spoken": "فرض کن ایکس بشه صفر ممیز نُه تکراری.",
+            "spoken": "فرض کن ایکس بشود صفر ممیز نه تکراری.",
             "caption": "x = ۰٫۹۹۹…",
             "visual": 9005,
-            "concept": "فرض ریاضی",
+            "concept": "فرض",
         },
         {
-            "spoken": "ده برابرش می‌شه نُه ممیز نُه تکراری. کم کن از هم.",
+            "spoken": "ده برابرش می‌شود نه ممیز نه تکراری. بعد کم کن.",
             "caption": "۱۰x − x",
             "visual": 9000,
-            "concept": "عملیات جبری",
+            "concept": "جبر",
         },
         {
-            "spoken": "نه ایکس می‌شه نُه. پس ایکس می‌شه یک.",
+            "spoken": "نه ایکس می‌شود نه. پس ایکس می‌شود یک.",
             "caption": "۹x = ۹ → x = ۱",
             "visual": 9001,
-            "concept": "نتیجه قطعی",
+            "concept": "نتیجه",
         },
         {
-            "spoken": "ریاضی گاهی خلافِ حسه... اما درسته.",
+            "spoken": "ریاضی گاهی خلاف حس است، اما درست است.",
             "caption": "خلاف حس، اما درست",
             "visual": 32960,
-            "concept": "بینش ریاضی",
+            "concept": "بینش",
         },
         {
-            "spoken": "بامو. یوزرنیم ما: دوازده بامو.",
+            "spoken": "بامو. یوزرنیم ما دوازده بامو.",
             "caption": "بامو · @12bamo",
             "visual": 9010,
             "concept": "برند",
         },
     ],
-    "yt_title": "۰٫۹۹۹… واقعاً برابر ۱ است؟! 🤯",
+    "yt_title": "۰٫۹۹۹… واقعاً برابر ۱ است؟! 🤯 #shorts",
     "yt_desc": (
         "صفر ممیز نه تکراری تا بی‌نهایت... برابر یک است.\n"
-        "اثبات ساده با جبر.\n\n"
+        "اثبات ساده با جبر — در ۳۰ ثانیه.\n\n"
         "بامو | @12bamo\n"
-        "#shorts #ریاضی #علم #بامو #math"
+        "#shorts #ریاضی #علم #بامو #math #آموزش"
     ),
-    "yt_tags": ["shorts", "ریاضی", "math", "علم", "بامو", "BAMO", "۰٫۹۹۹"],
+    "yt_tags": ["shorts", "ریاضی", "math", "علم", "بامو", "BAMO", "آموزش"],
 }
 
 
@@ -145,29 +145,52 @@ def _fetch_mix(mid: int, dest_dir: Path) -> Path | None:
     return None
 
 
-async def _tts_male_energy(text: str, dest: Path) -> float:
-    import edge_tts
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    voice = "fa-IR-FaridNeural"
-    await edge_tts.Communicate(text, voice, rate="+10%", pitch="+2Hz").save(str(dest))
-    if not dest.exists() or dest.stat().st_size < 500:
-        await edge_tts.Communicate(text, voice).save(str(dest))
-    return max(0.7, _probe(dest))
-
-
 def _build_audio_and_timeline(work: Path, beats: list[dict]):
+    """Prefer ElevenLabs; fall back to edge-tts."""
+    spoken = [b["spoken"] for b in beats]
     parts_dir = work / "parts"
     parts_dir.mkdir(parents=True, exist_ok=True)
+    engine = "edge"
+
+    if os.environ.get("ELEVENLABS_API_KEY", "").strip():
+        from ttv.tts_elevenlabs import synthesize_beats
+
+        meta = synthesize_beats(spoken, parts_dir)
+        engine = "elevenlabs"
+        timeline = []
+        for row, b in zip(meta["timeline"], beats):
+            timeline.append(
+                {
+                    **row,
+                    "caption": b["caption"],
+                    "visual": b["visual"],
+                    "concept": b["concept"],
+                }
+            )
+        narr_src = Path(meta["path"])
+        full = work / "assets" / "narration.mp3"
+        full.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(narr_src, full)
+        duration = min(34.0, max(_probe(full), timeline[-1]["end"] if timeline else 1.0) + 0.05)
+        print(json.dumps({"tts_engine": engine, "duration": duration}, ensure_ascii=False), flush=True)
+        return full, timeline, duration
+
+    # fallback edge-tts
+    import asyncio
+    import edge_tts
+
     files: list[Path] = []
-    timeline: list[dict] = []
+    timeline = []
     t = 0.0
 
     async def gen() -> None:
         nonlocal t
         for i, b in enumerate(beats):
             p = parts_dir / f"p{i:02d}.mp3"
-            speech = await _tts_male_energy(b["spoken"], p)
+            await edge_tts.Communicate(
+                b["spoken"], "fa-IR-FaridNeural", rate="+8%", pitch="+1Hz"
+            ).save(str(p))
+            speech = max(0.7, _probe(p))
             gap = 0.10 if i < len(beats) - 1 else 0.25
             files.append(p)
             timeline.append(
@@ -177,7 +200,6 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
                     "speech_end": round(t + speech, 3),
                     "end": round(t + speech + gap, 3),
                     "speech": speech,
-                    "gap": gap,
                     "caption": b["caption"],
                     "visual": b["visual"],
                     "concept": b["concept"],
@@ -187,7 +209,6 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
             t += speech + gap
 
     asyncio.run(gen())
-
     silence = parts_dir / "sil.mp3"
     subprocess.run(
         [
@@ -222,8 +243,8 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         check=True,
         capture_output=True,
     )
-    duration = max(_probe(full), timeline[-1]["end"] if timeline else 1.0)
-    duration = min(34.0, duration + 0.05)
+    duration = min(34.0, max(_probe(full), timeline[-1]["end"]) + 0.05)
+    print(json.dumps({"tts_engine": engine, "duration": duration}, ensure_ascii=False), flush=True)
     return full, timeline, duration
 
 
@@ -275,8 +296,7 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
         )
         segs.append(seg)
         print(
-            f"SYNC {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s "
-            f"clip={mid} | {beat['concept']} | {beat['spoken'][:36]}",
+            f"SYNC {beat['i']}: {beat['start']:.2f}-{beat['end']:.2f}s clip={mid} | {beat['spoken'][:40]}",
             flush=True,
         )
 
@@ -327,7 +347,6 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
         check=True,
         capture_output=True,
     )
-    print(f"film target={duration:.2f} actual={_probe(out):.2f}", flush=True)
     return out
 
 
@@ -486,9 +505,9 @@ def main() -> int:
             {
                 "idea": idea["id"],
                 "title": idea["title_fa"],
-                "mode": "math_hard_sync",
-                "beats": [{ "concept": b["concept"], "visual": b["visual"] } for b in beats],
+                "has_elevenlabs": bool(os.environ.get("ELEVENLABS_API_KEY")),
                 "publish": bool(args.publish),
+                "privacy": args.privacy,
             },
             ensure_ascii=False,
         ),
@@ -554,7 +573,7 @@ def main() -> int:
         "thumb": str(thumb),
         "size": out.stat().st_size,
         "duration": duration,
-        "mode": "math_hard_sync",
+        "tts": "elevenlabs" if os.environ.get("ELEVENLABS_API_KEY") else "edge",
         "upload": upload_result,
     }
     print(json.dumps(meta, ensure_ascii=False))
