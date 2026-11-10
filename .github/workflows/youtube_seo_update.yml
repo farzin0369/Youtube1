@@ -1,0 +1,58 @@
+name: YouTube SEO Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "Video ID (leave empty to use latest private)"
+        required: false
+        default: ""
+      mode:
+        description: "list or update"
+        type: choice
+        options: [update, list]
+        default: update
+      privacy:
+        description: "Keep current, or force privacy"
+        type: choice
+        options: [keep, private, unlisted, public]
+        default: keep
+
+jobs:
+  seo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deps
+        run: pip install -q google-api-python-client google-auth google-auth-oauthlib
+
+      - name: Run SEO update
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          VID="${{ inputs.video_id }}"
+          MODE="${{ inputs.mode }}"
+          PRIV="${{ inputs.privacy }}"
+          if [ "$MODE" = "list" ]; then
+            python scripts/youtube_update_seo.py --list
+            exit 0
+          fi
+          ARGS=()
+          if [ -n "$VID" ]; then
+            ARGS+=(--video-id "$VID")
+          else
+            ARGS+=(--latest-private)
+          fi
+          if [ "$PRIV" != "keep" ]; then
+            ARGS+=(--privacy "$PRIV")
+          fi
+          python scripts/youtube_update_seo.py "${ARGS[@]}"
