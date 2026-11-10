@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV viral emotional short — عشق یا وابستگی (high comment bait)."""
+"""TTV viral emotional short — عشق یا وابستگی | one unique visual per line."""
 from __future__ import annotations
 
 import argparse
@@ -22,63 +22,63 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# High-engagement: love vs attachment — people comment & share
+# Each beat has a UNIQUE Mixkit id that matches the meaning of the line.
 IDEA = {
-    "id": "emotion-00001",
+    "id": "emotion-00002",
     "title_fa": "عشق یا وابستگی؟",
     "beats": [
         {
             "spoken": "یک لحظه صبر کن.",
             "caption": "یک لحظه صبر کن…",
-            "visual": 9018,
-            "concept": "قلاب",
+            "visual": 3026,  # looking out train window — pause/reflect
+            "concept": "مکث / فکر",
         },
         {
             "spoken": "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.",
             "caption": "عشق؟ یا وابستگی؟",
-            "visual": 9012,
-            "concept": "شوک",
+            "visual": 130,  # couple on crosswalk — relationship question
+            "concept": "رابطه / سؤال",
         },
         {
             "spoken": "عشق واقعی حس آرامش می‌ده.",
             "caption": "عشق = آرامش",
-            "visual": 9001,
+            "visual": 1002,  # surfer sunset ocean — calm peace
             "concept": "آرامش",
         },
         {
             "spoken": "وابستگی حس اضطراب و ترس از دست دادن.",
             "caption": "وابستگی = اضطراب",
-            "visual": 9010,
+            "visual": 134,  # man followed in city — anxiety/fear
             "concept": "اضطراب",
         },
         {
             "spoken": "اگه بدون اون شخص نمی‌تونی آروم باشی…",
             "caption": "بدونش آروم نیستی؟",
-            "visual": 9012,
-            "concept": "تست",
+            "visual": 1024,  # alone on rocks by water — loneliness
+            "concept": "تنهایی",
         },
         {
             "spoken": "احتمالاً عاشق نیستی. وابسته شدی.",
             "caption": "وابسته شدی",
-            "visual": 9006,
-            "concept": "نتیجه",
+            "visual": 2526,  # arms crossed + city — closed/dependent
+            "concept": "وابستگی",
         },
         {
             "spoken": "عشق تو را آزادتر می‌کند. وابستگی محدودت می‌کند.",
             "caption": "عشق آزاد می‌کند",
-            "visual": 9018,
-            "concept": "تفاوت",
+            "visual": 104,  # woman walking through trees — freedom
+            "concept": "آزادی",
         },
         {
             "spoken": "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟",
             "caption": "تو کامنت بنویس…",
-            "visual": 9002,
-            "concept": "CTA کامنت",
+            "visual": 1510,  # coffee/talk bar — engagement CTA
+            "concept": "دعوت به کامنت",
         },
         {
             "spoken": "بامو. یوزرنیم ما دوازده بامو.",
             "caption": "بامو · @12bamo",
-            "visual": 9010,
+            "visual": 1014,  # couple beach walk — warm brand close
             "concept": "برند",
         },
     ],
@@ -260,6 +260,8 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
             p = _fetch_mix(mid, clips_dir)
             if p:
                 cache[mid] = p
+            else:
+                print(f"WARN missing mix {mid}", flush=True)
     if not cache:
         raise RuntimeError("no matched clips")
 
@@ -294,6 +296,10 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
             capture_output=True,
         )
         segs.append(seg)
+        print(
+            f"VISUAL {beat['i']}: clip={mid} | {beat['concept']} | {beat['spoken'][:40]}",
+            flush=True,
+        )
 
     lst = tmp / "list.txt"
     lst.write_text("".join(f"file '{p.resolve()}'\n" for p in segs), encoding="utf-8")
@@ -500,6 +506,8 @@ def main() -> int:
             {
                 "idea": idea["id"],
                 "title": idea["title_fa"],
+                "visuals": [b["visual"] for b in beats],
+                "concepts": [b["concept"] for b in beats],
                 "has_elevenlabs": bool(os.environ.get("ELEVENLABS_API_KEY")),
                 "publish": bool(args.publish),
             },
