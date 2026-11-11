@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV viral emotional short — عشق یا وابستگی | one unique visual per line."""
+"""TTV viral emotional short — عشق یا وابستگی | clothed, concept-matched, no repeats."""
 from __future__ import annotations
 
 import argparse
@@ -22,45 +22,45 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Each beat has a UNIQUE Mixkit id that matches the meaning of the line.
+# Fully clothed Mixkit only — no beach/surfer/swimwear
 IDEA = {
-    "id": "emotion-00002",
+    "id": "emotion-00003",
     "title_fa": "عشق یا وابستگی؟",
     "beats": [
         {
             "spoken": "یک لحظه صبر کن.",
             "caption": "یک لحظه صبر کن…",
-            "visual": 3026,  # looking out train window — pause/reflect
+            "visual": 3026,  # looking out train window
             "concept": "مکث / فکر",
         },
         {
             "spoken": "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.",
             "caption": "عشق؟ یا وابستگی؟",
-            "visual": 130,  # couple on crosswalk — relationship question
+            "visual": 130,  # couple walking crosswalk — clothed
             "concept": "رابطه / سؤال",
         },
         {
             "spoken": "عشق واقعی حس آرامش می‌ده.",
             "caption": "عشق = آرامش",
-            "visual": 1002,  # surfer sunset ocean — calm peace
+            "visual": 118,  # cloudy sky — calm
             "concept": "آرامش",
         },
         {
             "spoken": "وابستگی حس اضطراب و ترس از دست دادن.",
             "caption": "وابستگی = اضطراب",
-            "visual": 134,  # man followed in city — anxiety/fear
+            "visual": 134,  # man alone city — anxiety
             "concept": "اضطراب",
         },
         {
             "spoken": "اگه بدون اون شخص نمی‌تونی آروم باشی…",
             "caption": "بدونش آروم نیستی؟",
-            "visual": 1024,  # alone on rocks by water — loneliness
+            "visual": 9012,  # stressed studying alone
             "concept": "تنهایی",
         },
         {
             "spoken": "احتمالاً عاشق نیستی. وابسته شدی.",
             "caption": "وابسته شدی",
-            "visual": 2526,  # arms crossed + city — closed/dependent
+            "visual": 2526,  # arms crossed city
             "concept": "وابستگی",
         },
         {
@@ -72,13 +72,13 @@ IDEA = {
         {
             "spoken": "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟",
             "caption": "تو کامنت بنویس…",
-            "visual": 1510,  # coffee/talk bar — engagement CTA
+            "visual": 1510,  # coffee bar / talk
             "concept": "دعوت به کامنت",
         },
         {
             "spoken": "بامو. یوزرنیم ما دوازده بامو.",
             "caption": "بامو · @12bamo",
-            "visual": 1014,  # couple beach walk — warm brand close
+            "visual": 9001,  # smiling students — warm close
             "concept": "برند",
         },
     ],
