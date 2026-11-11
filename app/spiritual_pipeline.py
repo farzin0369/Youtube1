@@ -21,6 +21,7 @@ from app.youtube_history import (
     add_fingerprint_tag, build_generation_history, fetch_recent_channel_videos, require_unique,
 )
 from app.bamo_editorial_review import review_package
+from app.bamo_agent_council import review_with_council
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 
@@ -208,7 +209,19 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
             policy=channel_config.get("content") or {},
         )
         save_json(out_dir / "editorial_review.json", editorial_review)
-        logger.info("BAMO 11-role review passed roles=%s", len(editorial_review["roles"]))
+        logger.info("BAMO deterministic role gates passed roles=%s", len(editorial_review["roles"]))
+
+        stage = "BAMO independent 11-agent council"
+        agent_council = review_with_council(
+            content, render=render, media_qa=media_quality,
+            memory_dir=Path(os.getenv("BAMO_AGENT_MEMORY_DIR") or "state/agent_memory"),
+        )
+        save_json(out_dir / "agent_council.json", agent_council)
+        logger.info(
+            "BAMO independent council passed agents=%s distinct_provider_models=%s approvals=%s average_score=%s",
+            agent_council["agents_completed"], agent_council["distinct_provider_models_observed"],
+            agent_council["approvals"], agent_council["average_score"],
+        )
         description = _description(content, render, float(tts["duration_seconds"]))
         upload: dict[str, Any] = {"skipped": True, "reason": "dry-run"}
         if not dry_run:
@@ -257,7 +270,7 @@ def run(*, dry_run: bool = False, upload_private: bool = False) -> dict[str, Any
         result = {
             "run_id": run_id, "started_at": started_at, "finished_at": utc_now_iso(), "dry_run": dry_run,
             "title": content["title"], "word_count": content["word_count"],
-            "editorial_review": editorial_review,
+            "editorial_review": editorial_review, "agent_council": agent_council,
             "tts": {key: value for key, value in tts.items() if key != "path"}, "media_qa": media_quality,
             "render": render, "upload": upload, "comments": comments,
         }

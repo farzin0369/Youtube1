@@ -63,6 +63,7 @@ def _chat_completions(
     temperature: float,
     json_mode: bool,
     timeout: float,
+    max_attempts: int = 3,
 ) -> str:
     """One OpenAI-compatible chat completion with bounded retry on transient errors."""
     body: dict[str, Any] = {
@@ -73,7 +74,7 @@ def _chat_completions(
         ],
         "temperature": temperature,
     }
-    if "pollinations.ai" in base_url:
+    if "pollinations.ai" in base_url or "openrouter.ai" in base_url:
         body["max_tokens"] = max_tokens
     else:
         body["max_completion_tokens"] = max_tokens
@@ -81,7 +82,7 @@ def _chat_completions(
         body["response_format"] = {"type": "json_object"}
     payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_error: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(max(1, min(3, int(max_attempts)))):
         request = urllib.request.Request(
             f"{base_url}/chat/completions",
             data=payload,
