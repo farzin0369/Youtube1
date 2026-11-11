@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Post a top-level channel comment on a video (latest private by default).
-
-YouTube Data API v3 cannot pin comments programmatically.
-This script posts the comment as the channel; pin in Studio (⋯ → Pin).
-"""
+"""Post a top-level channel comment on a video (latest private by default)."""
 from __future__ import annotations
 
 import argparse
@@ -16,17 +12,19 @@ sys.path.insert(0, str(ROOT))
 
 from app.youtube_client import _build_credentials
 
-DEFAULT_COMMENT = """هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی 🧠
+DEFAULT_COMMENT = """عشق واقعی شلوغ نیست 🤍
 
-اثر دانینگ–کروگر همینه: تازه‌کارها معمولاً بیش از حد به خودشون مطمئنن.
-با یادگیری واقعی، اول شک می‌آد… بعد اعتماد واقعی ساخته می‌شه.
+مثل دو نفر که بدون حرف، آروم کنار هم هستن.
+نه ترس… نه اضطراب. فقط امنیت.
 
-اگر برات مفید بود:
+اگه پیشش نفس عمیق می‌کشی — همونه.
+
+تو کامنت بنویس: پیش کی آروم‌تری؟
+
 ✅ لایک کن
 ✅ سابسکرایب بامو | @12bamo
-✅ تو کامنت بنویس: تا حالا کجا بیش از حد مطمئن بودی؟
 
-#روانشناسی #مغز #دانینگ_کروگر"""
+#عشق #آرامش #روانشناسی"""
 
 
 def _yt():
@@ -83,7 +81,7 @@ def post_comment(video_id: str, text: str) -> dict:
         "comment_id": resp.get("id"),
         "text": top.get("textDisplay") or top.get("textOriginal"),
         "url": f"https://www.youtube.com/watch?v={video_id}&lc={resp.get('id')}",
-        "pin_note": "API cannot pin — open Studio → Comments → ⋯ on this comment → Pin",
+        "pin_note": "API cannot pin — Studio → Comments → ⋯ → Pin",
     }
 
 
@@ -91,6 +89,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--video-id", default="")
     ap.add_argument("--latest-private", action="store_true")
+    ap.add_argument("--latest", action="store_true")
     ap.add_argument("--text-file", default="")
     args = ap.parse_args()
 
@@ -105,9 +104,15 @@ def main() -> int:
             return 1
         video_id = priv[0]["video_id"]
         print(json.dumps({"selected": priv[0]}, ensure_ascii=False))
+    elif args.latest and not video_id:
+        if not videos:
+            print(json.dumps({"ok": False, "error": "No videos"}, ensure_ascii=False))
+            return 1
+        video_id = videos[0]["video_id"]
+        print(json.dumps({"selected": videos[0]}, ensure_ascii=False))
 
     if not video_id:
-        print(json.dumps({"ok": False, "error": "Need --video-id or --latest-private"}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "error": "Need --video-id or --latest-private or --latest"}, ensure_ascii=False))
         return 1
 
     text = DEFAULT_COMMENT
