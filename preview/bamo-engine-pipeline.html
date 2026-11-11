@@ -18,7 +18,7 @@
 "use strict";
 const canvas=document.getElementById("c"),caption=document.getElementById("caption"),errorBox=document.getElementById("error");
 const gl=canvas.getContext("webgl",{alpha:false,antialias:true,preserveDrawingBuffer:true});
-let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer,waveProgram,bgProgram,waveUniforms={},bgUniforms={},waveGridBuffer,waveIndexBuffer,waveIndexCount=0;
+let project=null,sceneIndex=0,sceneTime=0,globalTime=0,playing=false,lastNow=0,W=720,H=1280,program,uniforms={},buffer,waveProgram,bgProgram,waveUniforms={},bgUniforms={},waveGridBuffer,waveIndexBuffer,waveIndexCount=0;let auroraProgram,auroraUniforms={},auroraSphere,auroraField,auroraCurtains,auroraParticles;
 let currentPalette={bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};
 const vertex=`
 attribute vec2 a_position;
@@ -413,6 +413,8 @@ void main(){
 }
 `;
 
+const auroraVertex = "\nprecision highp float;\nattribute vec3 a_position;\nattribute vec3 a_normal;\nuniform vec2 u_resolution;\nuniform float u_time,u_phase,u_object_type;\nvarying vec3 v_world;\nvarying vec3 v_normal;\nvarying float v_type;\nvarying float v_height;\nvoid main(){\n float kind=u_object_type;\n vec3 p=a_position;\n vec3 n=a_normal;\n if(kind<0.5){\n   float spin=u_time*.045;\n   mat2 r=mat2(cos(spin),-sin(spin),sin(spin),cos(spin));\n   p.xz=r*p.xz;\n   n.xz=r*n.xz;\n   p*=.79;\n }else if(kind<1.5){\n   float fi=floor(p.x+.5),s=p.y,side=p.z;\n   float a=fi*1.5707963+u_time*.025+u_phase*.045;\n   float x=.98*sin(3.1415926*s);\n   float y=1.12*cos(3.1415926*s);\n   vec2 tangent=normalize(vec2(.98*3.1415926*cos(3.1415926*s),-1.12*3.1415926*sin(3.1415926*s)));\n   vec2 normal=vec2(-tangent.y,tangent.x);\n   vec3 c=vec3(x+normal.x*side*.010,y+normal.y*side*.010,0.0);\n   p=vec3(c.x*cos(a),c.y,c.x*sin(a));\n   n=normalize(vec3(cos(a),.1,sin(a)));\n }else if(kind<2.5){\n   float fi=floor(p.x+.5),y=p.y,side=p.z;\n   float f=clamp((y-.48)/1.0,0.0,1.0);\n   float a=fi*1.256637+u_time*.035+u_phase*.10;\n   float r=mix(.78,.91,f)+.055*sin(u_time*1.2+fi+f*4.0);\n   float twist=.045*sin(u_time*.8+fi+f*5.0);\n   a+=side*(.035+twist);\n   p=vec3(r*cos(a),y+.025*sin(u_time+fi*1.7+f*8.0),r*sin(a));\n   n=normalize(vec3(cos(a),.08,sin(a)));\n }else{\n   float fi=p.x;\n   float x=-1.68+mod(u_time*.42+fi*.23,1.35);\n   float y=.22+.20*sin(fi*2.1+u_time*.65);\n   float z=.18*sin(fi*1.4+u_time*.35);\n   p=vec3(x,y,z);\n   n=vec3(0.0,1.0,0.0);\n   gl_PointSize=8.0+2.0*sin(fi+u_time*3.0);\n }\n v_world=p;\n v_normal=normalize(n);\n v_type=kind;\n v_height=p.y;\n vec3 ro=vec3(3.1*sin(u_time*.18+u_phase*.12),1.25+.16*sin(u_time*.27),4.2*cos(u_time*.18+u_phase*.12));\n vec3 ww=normalize(-ro);\n vec3 uu=normalize(cross(ww,vec3(0.0,1.0,0.0)));\n vec3 vv=cross(uu,ww);\n vec3 rel=p-ro;\n float vx=dot(rel,uu),vy=dot(rel,vv),vz=dot(rel,ww);\n float aspect=u_resolution.x/u_resolution.y;\n float focal=1.75,nearPlane=.1,farPlane=30.0;\n gl_Position=vec4(vx*focal/aspect,vy*focal,(farPlane/(farPlane-nearPlane))*vz-(farPlane*nearPlane/(farPlane-nearPlane)),vz);\n}";
+const auroraFragment = "\nprecision highp float;\nuniform float u_time;\nuniform vec3 u_primary,u_secondary,u_accent;\nvarying vec3 v_world;\nvarying vec3 v_normal;\nvarying float v_type;\nvarying float v_height;\nvoid main(){\n if(v_type>2.5){\n   vec2 q=gl_PointCoord-vec2(.5);\n   float d=length(q);\n   float alpha=1.0-smoothstep(.12,.5,d);\n   vec3 c=mix(u_accent,u_primary,.35+.35*sin(u_time*2.0+v_world.x*8.0));\n   gl_FragColor=vec4(c*(.65+alpha),alpha);\n   return;\n }\n vec3 n=normalize(v_normal);\n vec3 lightDir=normalize(vec3(-.6,1.1,1.4));\n float diff=max(dot(n,lightDir),0.0);\n vec3 viewDir=normalize(vec3(3.1*sin(u_time*.18),1.25,4.2*cos(u_time*.18))-v_world);\n float rim=pow(1.0-max(dot(n,viewDir),0.0),3.0);\n vec3 col;\n float alpha=1.0;\n if(v_type<.5){\n   float land=sin(v_world.x*12.0+sin(v_world.z*8.0))*cos(v_world.y*13.0+v_world.z*4.0);\n   vec3 ocean=mix(vec3(.004,.018,.075),vec3(.012,.16,.34),.5+.5*v_world.y);\n   vec3 terrain=mix(vec3(.025,.12,.075),vec3(.16,.34,.19),.5+.5*sin(v_world.x*4.0+v_world.z*6.0));\n   col=mix(ocean,terrain,smoothstep(-.18,.42,land));\n   col=col*(.30+.92*diff)+u_primary*(.20*rim);\n   col+=vec3(.015,.035,.08);\n }else if(v_type<1.5){\n   col=mix(u_secondary,u_accent,.35+.25*sin(v_height*7.0+u_time));\n   col*=.35+.55*diff;\n   alpha=.42;\n }else{\n   float folds=.5+.5*sin(v_world.x*13.0+v_height*7.0+u_time*1.6);\n   float ripple=.5+.5*sin(v_height*18.0-u_time*2.8+v_world.z*6.0);\n   col=mix(u_primary,u_secondary,clamp(folds*.68+ripple*.32,0.0,1.0));\n   col=col*(.42+.68*diff)+u_accent*(.25*rim);\n   alpha=.64;\n }\n gl_FragColor=vec4(col,alpha);\n}";
 function hex3(h){const x=(h||"#ffffff").replace("#","");return [parseInt(x.slice(0,2),16)/255,parseInt(x.slice(2,4),16)/255,parseInt(x.slice(4,6),16)/255];}
 function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
 
@@ -457,10 +459,91 @@ function createWaveGrid(){
  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,indices,gl.STATIC_DRAW);
  waveIndexCount=indices.length;
 }
+
+function pushAuroraVertex(out,p,n){out.push(p[0],p[1],p[2],n[0],n[1],n[2]);}
+function makeAuroraBuffer(data){
+ const b=gl.createBuffer();
+ gl.bindBuffer(gl.ARRAY_BUFFER,b);
+ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);
+ return {buffer:b,count:data.length/6};
+}
+function createAuroraMeshes(){
+ const sphere=[],lat=36,lon=56;
+ const point=(y,x)=>{const th=y/lat*Math.PI,ph=x/lon*Math.PI*2;return [Math.sin(th)*Math.cos(ph),Math.cos(th),Math.sin(th)*Math.sin(ph)];};
+ for(let y=0;y<lat;y++)for(let x=0;x<lon;x++){
+   const a=point(y,x),b=point(y,x+1),c=point(y+1,x),d=point(y+1,x+1);
+   pushAuroraVertex(sphere,a,a);pushAuroraVertex(sphere,c,c);pushAuroraVertex(sphere,b,b);
+   pushAuroraVertex(sphere,b,b);pushAuroraVertex(sphere,c,c);pushAuroraVertex(sphere,d,d);
+ }
+ auroraSphere=makeAuroraBuffer(sphere);
+ const field=[];
+ for(let fi=0;fi<4;fi++)for(let i=0;i<64;i++){
+   const s0=i/64,s1=(i+1)/64;
+   const a=[fi,s0,-1],b=[fi,s0,1],c=[fi,s1,-1],d=[fi,s1,1],n=[0,1,0];
+   pushAuroraVertex(field,a,n);pushAuroraVertex(field,c,n);pushAuroraVertex(field,b,n);
+   pushAuroraVertex(field,b,n);pushAuroraVertex(field,c,n);pushAuroraVertex(field,d,n);
+ }
+ auroraField=makeAuroraBuffer(field);
+ const curtains=[];
+ for(let fi=0;fi<5;fi++)for(let i=0;i<28;i++){
+   const y0=.48+i/28,y1=.48+(i+1)/28;
+   const a=[fi,y0,-1],b=[fi,y0,1],c=[fi,y1,-1],d=[fi,y1,1],n=[0,1,0];
+   pushAuroraVertex(curtains,a,n);pushAuroraVertex(curtains,c,n);pushAuroraVertex(curtains,b,n);
+   pushAuroraVertex(curtains,b,n);pushAuroraVertex(curtains,c,n);pushAuroraVertex(curtains,d,n);
+ }
+ auroraCurtains=makeAuroraBuffer(curtains);
+ const particles=[];
+ for(let i=0;i<14;i++)pushAuroraVertex(particles,[i,0,0],[0,1,0]);
+ auroraParticles=makeAuroraBuffer(particles);
+}
+function bindAuroraMesh(mesh){
+ gl.bindBuffer(gl.ARRAY_BUFFER,mesh.buffer);
+ const p=gl.getAttribLocation(auroraProgram,"a_position");
+ const n=gl.getAttribLocation(auroraProgram,"a_normal");
+ gl.enableVertexAttribArray(p);
+ gl.vertexAttribPointer(p,3,gl.FLOAT,false,24,0);
+ gl.enableVertexAttribArray(n);
+ gl.vertexAttribPointer(n,3,gl.FLOAT,false,24,12);
+}
+function drawAuroraObject(mesh,type){
+ gl.uniform1f(auroraUniforms.u_object_type,type);
+ bindAuroraMesh(mesh);
+ gl.drawArrays(type>2.5?gl.POINTS:gl.TRIANGLES,0,mesh.count);
+}
+function drawAurora(p,phase){
+ drawBackground(p,globalTime);
+ gl.clear(gl.DEPTH_BUFFER_BIT);
+ gl.enable(gl.DEPTH_TEST);
+ gl.depthFunc(gl.LEQUAL);
+ gl.disable(gl.CULL_FACE);
+ gl.useProgram(auroraProgram);
+ gl.uniform2f(auroraUniforms.u_resolution,canvas.width,canvas.height);
+ gl.uniform1f(auroraUniforms.u_time,globalTime);
+ gl.uniform1f(auroraUniforms.u_phase,phase);
+ gl.uniform3fv(auroraUniforms.u_primary,hex3(p.primary));
+ gl.uniform3fv(auroraUniforms.u_secondary,hex3(p.secondary));
+ gl.uniform3fv(auroraUniforms.u_accent,hex3(p.accent));
+ gl.disable(gl.BLEND);
+ gl.depthMask(true);
+ drawAuroraObject(auroraSphere,0.0);
+ gl.enable(gl.BLEND);
+ gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+ gl.depthMask(false);
+ drawAuroraObject(auroraField,1.0);
+ drawAuroraObject(auroraCurtains,2.0);
+ drawAuroraObject(auroraParticles,3.0);
+ gl.depthMask(true);
+ gl.disable(gl.BLEND);
+ gl.disable(gl.DEPTH_TEST);
+}
+
 function initGL(){
  if(!gl)throw new Error("WebGL در مرورگر فعال نیست؛ این موتور به WebGL نیاز دارد.");
  program=makeProgram(vertex,fragment);
  waveProgram=makeProgram(waveVertex,waveFragment);
+ auroraProgram=makeProgram(auroraVertex,auroraFragment);
+ auroraUniforms={};
+ ["u_resolution","u_time","u_phase","u_object_type","u_primary","u_secondary","u_accent"].forEach(k=>auroraUniforms[k]=gl.getUniformLocation(auroraProgram,k));
  bgProgram=makeProgram(vertex,bgFragment);
  buffer=gl.createBuffer();
  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
@@ -472,6 +555,7 @@ function initGL(){
  bgUniforms={};
  ["u_resolution","u_time","u_bg","u_primary"].forEach(k=>bgUniforms[k]=gl.getUniformLocation(bgProgram,k));
  createWaveGrid();
+ createAuroraMeshes();
  gl.disable(gl.BLEND);
  gl.disable(gl.DEPTH_TEST);
 }
@@ -523,7 +607,9 @@ function draw(){
  const kind=kindOf(s);
  const progress=Math.min(1,sceneTime/Math.max(.01,s.duration));
  const phase=Number(s.phase||0)+progress*Number(s.phase_sweep||0);
- if(kind===6){
+ if(kind===13){
+  drawAurora(p,phase);
+ }else if(kind===6){
   drawBackground(p,globalTime);
   drawWave(p,phase);
  }else{
