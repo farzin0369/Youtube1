@@ -12,12 +12,11 @@ sys.path.insert(0, str(ROOT))
 
 from app.youtube_client import _build_credentials
 
-# Max search + Shorts retention — قالی/دریا/AI
-DEFAULT_TITLE = "این قالی نیست… دریاست! 🌊😱 هوش مصنوعی ساختش"
+DEFAULT_TITLE = "این قالی نیست… دریاست! 🌊😱 BAMO"
 DEFAULT_DESC = """فکر می‌کنی این یه قالیه؟
 دوباره نگاه کن… زیرش دریاست 🌊
 
-ساخته‌شده با هوش مصنوعی — فقط برای چند ثانیه نگات می‌کنه و رها نمی‌کنه.
+ساخته‌شده برای BAMO — @12bamo
 
 اگه تا آخر دیدی، تو کامنت بنویس: قالی یا دریا؟
 
