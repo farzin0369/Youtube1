@@ -4,19 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       video_id:
-        description: "Video ID (leave empty to use latest private)"
+        description: "Video ID (empty = latest upload)"
         required: false
         default: ""
       mode:
         description: "list | update | comment | both"
         type: choice
         options: [update, list, comment, both]
-        default: both
+        default: update
       privacy:
         description: "Keep current, or force privacy"
         type: choice
         options: [keep, private, unlisted, public]
         default: keep
+      target:
+        description: "Which video when video_id empty"
+        type: choice
+        options: [latest, latest-private]
+        default: latest
 
 jobs:
   seo:
@@ -42,6 +47,7 @@ jobs:
           VID="${{ inputs.video_id }}"
           MODE="${{ inputs.mode }}"
           PRIV="${{ inputs.privacy }}"
+          TARGET="${{ inputs.target }}"
 
           if [ "$MODE" = "list" ]; then
             python scripts/youtube_update_seo.py --list
@@ -50,13 +56,25 @@ jobs:
 
           if [ "$MODE" = "update" ] || [ "$MODE" = "both" ]; then
             ARGS=()
-            if [ -n "$VID" ]; then ARGS+=(--video-id "$VID"); else ARGS+=(--latest-private); fi
+            if [ -n "$VID" ]; then
+              ARGS+=(--video-id "$VID")
+            elif [ "$TARGET" = "latest-private" ]; then
+              ARGS+=(--latest-private)
+            else
+              ARGS+=(--latest)
+            fi
             if [ "$PRIV" != "keep" ]; then ARGS+=(--privacy "$PRIV"); fi
             python scripts/youtube_update_seo.py "${ARGS[@]}"
           fi
 
           if [ "$MODE" = "comment" ] || [ "$MODE" = "both" ]; then
             CARGS=()
-            if [ -n "$VID" ]; then CARGS+=(--video-id "$VID"); else CARGS+=(--latest-private); fi
-            python scripts/youtube_pin_comment.py "${CARGS[@]}"
+            if [ -n "$VID" ]; then
+              CARGS+=(--video-id "$VID")
+            elif [ "$TARGET" = "latest-private" ]; then
+              CARGS+=(--latest-private)
+            else
+              CARGS+=(--latest)
+            fi
+            python scripts/youtube_pin_comment.py "${CARGS[@]}" || true
           fi
