@@ -1,0 +1,7 @@
+name = "hamrah-mobile-backend"
+main = "src/index.js"
+compatibility_date = "2026-10-21"
+
+[vars]
+# Set ALLOWED_ORIGIN to the exact HTTPS GitHub Pages app origin after deployment.
+ALLOWED_ORIGIN = ""

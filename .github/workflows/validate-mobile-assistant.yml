@@ -1,0 +1,38 @@
+name: Validate mobile assistant
+
+on:
+  pull_request:
+    paths:
+      - "mobile-assistant/**"
+      - ".github/workflows/validate-mobile-assistant.yml"
+  push:
+    branches:
+      - feat/atlas-ai-mobile-assistant-clean
+    paths:
+      - "mobile-assistant/**"
+      - ".github/workflows/validate-mobile-assistant.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check JavaScript syntax
+        run: node --check mobile-assistant/app.js
+      - name: Check backend JavaScript syntax
+        run: node --input-type=module --check < mobile-assistant/backend/src/index.js
+      - name: Validate manifest JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('mobile-assistant/manifest.webmanifest','utf8')); console.log('Manifest JSON valid')"
+      - name: Check required app files
+        run: |
+          test -s mobile-assistant/index.html
+          test -s mobile-assistant/styles.css
+          test -s mobile-assistant/app.js
+          test -s mobile-assistant/sw.js
+          test -s mobile-assistant/README.md
