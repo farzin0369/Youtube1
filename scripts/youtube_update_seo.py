@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List recent channel videos and update title/description/tags for one of them."""
+"""List recent channel videos and update title/description/tags."""
 from __future__ import annotations
 
 import argparse
@@ -12,23 +12,24 @@ sys.path.insert(0, str(ROOT))
 
 from app.youtube_client import _build_credentials
 
-# Viral SEO — عشق واقعی / آرامش (comment-bait)
-DEFAULT_TITLE = "عشق واقعی شلوغ نیست… فقط آرامش 🤍 پیش کی آروم‌تری؟"
-DEFAULT_DESC = """عشق واقعی شلوغ نیست.
+# High-retention Persian Shorts SEO (emotion + question CTA)
+DEFAULT_TITLE = "اگه پیشش نفس عمیق می‌کشی… عاشقی 🤍 وگرنه وابسته‌ای"
+DEFAULT_DESC = """یک تست ساده برای تشخیص عشق از وابستگی:
+
+اگه پیشش نفس عمیق می‌کشی و آروم می‌شی → عشقه.
+اگه بدونش مضطربی و می‌ترسی از دستش بدی → وابستگیه.
+
+عشق واقعی شلوغ نیست.
 مثل دو نفر که بدون حرف، آروم کنار هم هستن.
+نه ترس. نه اضطراب. فقط امنیت.
 
-نه ترس از دست دادن.
-نه اضطراب.
-فقط امنیت. فقط آرامش.
-
-اگه پیشش نفس عمیق می‌کشی… همونه.
-عشق واقعی تو را کوچک نمی‌کند. بزرگ‌ترت می‌کند.
+عشق تو را کوچک نمی‌کند — بزرگ‌ترت می‌کند.
 
 👉 تو کامنت بنویس: پیش کی آروم‌تری؟
 
-سابسکرایب: بامو | @12bamo
+سابسکرایب کن: بامو | @12bamo
 
-#shorts #عشق #آرامش #روانشناسی #رابطه #احساس #عشق_واقعی #وابستگی #خودشناسی #بامو"""
+#shorts #عشق #آرامش #روانشناسی #رابطه #احساس #عشق_واقعی #وابستگی #خودشناسی #بامو #شورتس #روانشناسی_رابطه"""
 DEFAULT_TAGS = [
     "shorts",
     "شورتس",
@@ -44,12 +45,12 @@ DEFAULT_TAGS = [
     "امنیت عاطفی",
     "روانشناسی رابطه",
     "حقیقت عشق",
-    "بامو",
-    "12bamo",
-    "روانشناسی تاریک",
     "عشق یا وابستگی",
     "آرامش در رابطه",
     "درد دل",
+    "بامو",
+    "12bamo",
+    "روانشناسی تاریک",
 ]
 
 
@@ -144,13 +145,13 @@ def update_video(
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--list", action="store_true", help="List recent videos and exit")
-    ap.add_argument("--video-id", default="", help="Specific video id to update")
-    ap.add_argument("--latest-private", action="store_true", help="Update newest private video")
-    ap.add_argument("--latest", action="store_true", help="Update newest video regardless of privacy")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--video-id", default="")
+    ap.add_argument("--latest-private", action="store_true")
+    ap.add_argument("--latest", action="store_true")
     ap.add_argument("--privacy", default="", choices=["", "private", "unlisted", "public"])
     ap.add_argument("--title", default=DEFAULT_TITLE)
-    ap.add_argument("--description-file", default="", help="Optional path to description text")
+    ap.add_argument("--description-file", default="")
     args = ap.parse_args()
 
     videos = list_recent(20)
