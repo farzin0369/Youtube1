@@ -1,0 +1,30 @@
+name: Ssemble-Open checks
+
+on:
+  push:
+    branches: ["feat/ssemble-open-cpu"]
+    paths:
+      - "ssemble-open/**"
+      - "tests/ssemble-open/**"
+      - ".github/workflows/ssemble-open-checks.yml"
+  pull_request:
+    paths:
+      - "ssemble-open/**"
+      - "tests/ssemble-open/**"
+      - ".github/workflows/ssemble-open-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  python-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Syntax check
+        run: python -m py_compile ssemble-open/clipper.py
+      - name: Unit tests
+        run: python -m unittest discover -s tests/ssemble-open -v
