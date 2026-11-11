@@ -1,14 +1,11 @@
-name: BAMO Daily Science Short - Plant Water Transport
+name: BAMO Daily Science Short - Aurora
 on:
   workflow_dispatch:
   push:
     branches:
       - feat/bamo-html-only-engine-sample
     paths:
-      - "scripts/render_bamo_daily_20261110.py"
-  pull_request:
-    branches:
-      - main
+      - "scripts/render_bamo_daily_20261111.py"
 permissions:
   contents: read
   actions: read
@@ -33,11 +30,11 @@ jobs:
           PYTHONPATH: .
           BAMO_RENDER_SCALE: "1.0"
           BAMO_RENDER_FPS: "24"
-        run: python scripts/render_bamo_daily_20261110.py
+        run: python scripts/render_bamo_daily_20261111.py
       - name: Upload MP4, subtitles and QA report
         uses: actions/upload-artifact@v4
         with:
-          name: bamo-science-short-20261110
+          name: bamo-science-short-20261111
           path: |
             artifacts/bamo-science-short-20261110.mp4
             artifacts/bamo-science-short-20261110.srt
