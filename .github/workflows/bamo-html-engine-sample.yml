@@ -6,6 +6,8 @@ on:
       - feat/bamo-html-only-engine-sample
     paths:
       - "scripts/render_bamo_daily_20261111.py"
+      - "app/html_motion_renderer.py"
+      - "preview/bamo-engine-pipeline.html"
 permissions:
   contents: read
   actions: read
