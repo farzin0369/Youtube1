@@ -36,9 +36,9 @@ jobs:
         with:
           name: bamo-science-short-20261111
           path: |
-            artifacts/bamo-science-short-20261110.mp4
-            artifacts/bamo-science-short-20261110.srt
-            artifacts/bamo-science-short-20261110-qa.json
-            artifacts/bamo-science-short-20261110-review.jpg
+            artifacts/bamo-science-short-20261111.mp4
+            artifacts/bamo-science-short-20261111.srt
+            artifacts/bamo-science-short-20261111-qa.json
+            artifacts/bamo-science-short-20261111-review.jpg
           if-no-files-found: error
           retention-days: 14
