@@ -12,43 +12,44 @@ sys.path.insert(0, str(ROOT))
 
 from app.youtube_client import _build_credentials
 
-# Default SEO for Dunning-Kruger short
-DEFAULT_TITLE = "هرچه کمتر بدانی بیشتر فکر می‌کنی بلدی 😱 مغز این‌طور فریبت می‌ده"
-DEFAULT_DESC = """هرچه کمتر بدانی، بیشتر فکر می‌کنی بلدی.
+# Viral SEO — عشق واقعی / آرامش (comment-bait)
+DEFAULT_TITLE = "عشق واقعی شلوغ نیست… فقط آرامش 🤍 پیش کی آروم‌تری؟"
+DEFAULT_DESC = """عشق واقعی شلوغ نیست.
+مثل دو نفر که بدون حرف، آروم کنار هم هستن.
 
-اسم این پدیده اثر دانینگ–کروگره.
-تازه‌کارها معمولاً خودشون رو خیلی قوی می‌بینن…
-چون هنوز نمی‌دونن چه چیزهایی رو نمی‌دونن.
+نه ترس از دست دادن.
+نه اضطراب.
+فقط امنیت. فقط آرامش.
 
-با یادگیری واقعی، اول اعتماد پایین میاد.
-بعد کم‌کم دوباره بالا می‌ره — این بار واقعی.
+اگه پیشش نفس عمیق می‌کشی… همونه.
+عشق واقعی تو را کوچک نمی‌کند. بزرگ‌ترت می‌کند.
 
-اگه همیشه مطمئنی که حقی، شاید هنوز اول راهی.
+👉 تو کامنت بنویس: پیش کی آروم‌تری؟
 
-👉 سابسکرایب کن: بامو | @12bamo
+سابسکرایب: بامو | @12bamo
 
-#shorts #روانشناسی #مغز #دانینگ_کروگر #اثر_دانینگ_کروگر #حقیقت #علم #رشد_فردی #خودشناسی #بامو"""
+#shorts #عشق #آرامش #روانشناسی #رابطه #احساس #عشق_واقعی #وابستگی #خودشناسی #بامو"""
 DEFAULT_TAGS = [
     "shorts",
     "شورتس",
+    "عشق",
+    "آرامش",
     "روانشناسی",
-    "مغز",
-    "دانینگ کروگر",
-    "اثر دانینگ کروگر",
-    "dunning kruger",
-    "روانشناسی رفتاری",
+    "رابطه",
+    "احساس",
+    "عشق واقعی",
+    "وابستگی",
     "خودشناسی",
     "رشد فردی",
-    "حقیقت مغز",
-    "باگ مغز",
-    "اعتماد به نفس کاذب",
-    "یادگیری",
-    "علم",
-    "دانستنی",
+    "امنیت عاطفی",
+    "روانشناسی رابطه",
+    "حقیقت عشق",
     "بامو",
     "12bamo",
-    "حقایق روانشناسی",
     "روانشناسی تاریک",
+    "عشق یا وابستگی",
+    "آرامش در رابطه",
+    "درد دل",
 ]
 
 
@@ -74,7 +75,6 @@ def list_recent(max_results: int = 15) -> list[dict]:
     for it in pl.get("items") or []:
         vid = it["contentDetails"]["videoId"]
         sn = it.get("snippet") or {}
-        # privacy from videos.list
         out.append(
             {
                 "video_id": vid,
@@ -83,7 +83,6 @@ def list_recent(max_results: int = 15) -> list[dict]:
                 "url": f"https://www.youtube.com/watch?v={vid}",
             }
         )
-    # enrich privacy
     if out:
         ids = ",".join(x["video_id"] for x in out)
         vr = yt.videos().list(part="status,snippet", id=ids).execute()
@@ -104,11 +103,10 @@ def update_video(
     title: str,
     description: str,
     tags: list[str],
-    category_id: str = "27",
+    category_id: str = "22",
     privacy: str | None = None,
 ) -> dict:
     yt = _yt()
-    # must fetch current snippet (categoryId required on update)
     cur = yt.videos().list(part="snippet,status", id=video_id).execute()
     items = cur.get("items") or []
     if not items:
@@ -126,7 +124,6 @@ def update_video(
             "defaultAudioLanguage": "fa",
         },
     }
-    # only change privacy if explicitly requested
     if privacy:
         body["status"] = {
             "privacyStatus": privacy,
@@ -150,6 +147,7 @@ def main() -> int:
     ap.add_argument("--list", action="store_true", help="List recent videos and exit")
     ap.add_argument("--video-id", default="", help="Specific video id to update")
     ap.add_argument("--latest-private", action="store_true", help="Update newest private video")
+    ap.add_argument("--latest", action="store_true", help="Update newest video regardless of privacy")
     ap.add_argument("--privacy", default="", choices=["", "private", "unlisted", "public"])
     ap.add_argument("--title", default=DEFAULT_TITLE)
     ap.add_argument("--description-file", default="", help="Optional path to description text")
@@ -169,9 +167,15 @@ def main() -> int:
             return 1
         video_id = priv[0]["video_id"]
         print(json.dumps({"selected_private": priv[0]}, ensure_ascii=False))
+    elif args.latest and not video_id:
+        if not videos:
+            print(json.dumps({"ok": False, "error": "No videos found"}, ensure_ascii=False))
+            return 1
+        video_id = videos[0]["video_id"]
+        print(json.dumps({"selected_latest": videos[0]}, ensure_ascii=False))
 
     if not video_id:
-        print(json.dumps({"ok": False, "error": "Provide --video-id or --latest-private"}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "error": "Provide --video-id or --latest-private or --latest"}, ensure_ascii=False))
         return 1
 
     desc = DEFAULT_DESC
