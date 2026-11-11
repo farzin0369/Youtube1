@@ -50,11 +50,25 @@ def word_count(text: str) -> int:
 
 
 def ensure_deps() -> None:
-    subprocess.check_call([
-        sys.executable, "-m", "pip", "install", "-q",
-        "diffusers>=0.33.0", "transformers", "accelerate", "safetensors",
-        "sentencepiece", "ftfy", "imageio", "imageio-ffmpeg", "edge-tts",
-    ])
+    # GitHub Actions installs dependencies with `colab install` before executing
+    # this script. Avoid running pip inside the live Jupyter kernel: replacing
+    # packages during an active kernel session can break the remote connection.
+    if os.getenv("COLAB_DEPS_READY") != "1":
+        try:
+            import diffusers  # noqa: F401
+            import transformers  # noqa: F401
+            import accelerate  # noqa: F401
+            import safetensors  # noqa: F401
+            import sentencepiece  # noqa: F401
+            import ftfy  # noqa: F401
+            import imageio  # noqa: F401
+            import edge_tts  # noqa: F401
+        except ImportError:
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "install", "-q",
+                "diffusers>=0.33.0", "transformers", "accelerate", "safetensors",
+                "sentencepiece", "ftfy", "imageio", "imageio-ffmpeg", "edge-tts",
+            ])
     if shutil.which("ffmpeg") is None:
         subprocess.check_call(["apt-get", "update", "-qq"])
         subprocess.check_call(["apt-get", "install", "-y", "-qq", "ffmpeg"])

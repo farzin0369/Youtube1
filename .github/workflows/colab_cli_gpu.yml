@@ -5,9 +5,17 @@ name: Colab CLI GPU cinematic render
 on:
   workflow_dispatch:
   workflow_call:
+  # Run the real Colab render for this integration PR only when its GPU
+  # runner or Wan renderer changes; it never uploads to YouTube.
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/colab_cli_gpu.yml"
+      - "scripts/colab_wan_real_short.py"
 
 jobs:
   render:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feat/eleven-agent-youtube-integration' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
@@ -83,12 +91,12 @@ jobs:
             exit 1
           fi
 
-          echo 'import subprocess,sys; subprocess.check_call([sys.executable,"-m","pip","install","-q","diffusers>=0.33.0","transformers","accelerate","safetensors","sentencepiece","ftfy","imageio","imageio-ffmpeg","edge-tts"])' \
-            | colab exec -s "$SESSION" 2>&1 | tee -a output/colab_cli/run.log || true
+          # Use the CLI package installer instead of pip inside the Jupyter kernel.
+          # The previous inline pip install could interrupt the kernel connection.
+          colab install -s "$SESSION" "diffusers>=0.33.0" transformers accelerate safetensors sentencepiece ftfy imageio imageio-ffmpeg edge-tts 2>&1 | tee -a output/colab_cli/run.log
 
-          set +e
-          colab exec -s "$SESSION" -f scripts/colab_wan_real_short.py 2>&1 | tee -a output/colab_cli/run.log
-          set -e
+          # Wan inference can be silent for minutes; give the remote kernel a real timeout.
+          colab exec -s "$SESSION" --timeout 7200 --env COLAB_DEPS_READY=1 -f scripts/colab_wan_real_short.py 2>&1 | tee -a output/colab_cli/run.log
 
           colab download -s "$SESSION" /content/video_raw.mp4 output/colab_cli/video_raw.mp4 2>&1 | tee -a output/colab_cli/run.log || true
           colab download -s "$SESSION" /content/final_short.mp4 output/colab_cli/final_short.mp4 2>&1 | tee -a output/colab_cli/run.log || true
