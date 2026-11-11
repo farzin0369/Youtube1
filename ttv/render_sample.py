@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TTV viral emotional short — عشق یا وابستگی | clothed, concept-matched, no repeats."""
+"""TTV soft emotional short — حس صمیمیت مثل ریل پرنده‌ها (پوشیده، بدون تکرار)."""
 from __future__ import annotations
 
 import argparse
@@ -22,75 +22,76 @@ from ttv.core.text_analyzer import TextAnalyzer
 OUT_DIR = ROOT / "outputs" / "daily"
 UA = "Mozilla/5.0 (compatible; BAMO-TTV/1.0)"
 
-# Fully clothed Mixkit only — no beach/surfer/swimwear
+# Soft pair-bond vibe: آرامش کنار هم بودن (clothed only)
 IDEA = {
-    "id": "emotion-00003",
-    "title_fa": "عشق یا وابستگی؟",
+    "id": "emotion-00004",
+    "title_fa": "عشق واقعی این شکلیه",
     "beats": [
         {
-            "spoken": "یک لحظه صبر کن.",
-            "caption": "یک لحظه صبر کن…",
-            "visual": 3026,  # looking out train window
-            "concept": "مکث / فکر",
+            "spoken": "ببین.",
+            "caption": "ببین…",
+            "visual": 1530,  # woman pets dog — soft affection
+            "concept": "قلاب نرم",
         },
         {
-            "spoken": "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.",
-            "caption": "عشق؟ یا وابستگی؟",
-            "visual": 130,  # couple walking crosswalk — clothed
-            "concept": "رابطه / سؤال",
-        },
-        {
-            "spoken": "عشق واقعی حس آرامش می‌ده.",
-            "caption": "عشق = آرامش",
-            "visual": 118,  # cloudy sky — calm
+            "spoken": "عشق واقعی شلوغ نیست.",
+            "caption": "عشق واقعی شلوغ نیست",
+            "visual": 118,  # calm sky
             "concept": "آرامش",
         },
         {
-            "spoken": "وابستگی حس اضطراب و ترس از دست دادن.",
-            "caption": "وابستگی = اضطراب",
-            "visual": 134,  # man alone city — anxiety
-            "concept": "اضطراب",
+            "spoken": "مثل دو نفر که بدون حرف هم، آروم کنار هم هستن.",
+            "caption": "آروم کنار هم",
+            "visual": 130,  # couple walking clothed
+            "concept": "کنار هم",
         },
         {
-            "spoken": "اگه بدون اون شخص نمی‌تونی آروم باشی…",
-            "caption": "بدونش آروم نیستی؟",
-            "visual": 9012,  # stressed studying alone
-            "concept": "تنهایی",
+            "spoken": "نه ترس از دست دادن. نه اضطراب.",
+            "caption": "نه ترس… نه اضطراب",
+            "visual": 134,  # alone anxiety contrast
+            "concept": "تضاد اضطراب",
         },
         {
-            "spoken": "احتمالاً عاشق نیستی. وابسته شدی.",
-            "caption": "وابسته شدی",
-            "visual": 2526,  # arms crossed city
-            "concept": "وابستگی",
+            "spoken": "فقط امنیت. فقط آرامش.",
+            "caption": "فقط امنیت و آرامش",
+            "visual": 534,  # woman and dog forest — warm bond
+            "concept": "امنیت",
         },
         {
-            "spoken": "عشق تو را آزادتر می‌کند. وابستگی محدودت می‌کند.",
-            "caption": "عشق آزاد می‌کند",
-            "visual": 104,  # woman walking through trees — freedom
-            "concept": "آزادی",
+            "spoken": "اگه پیشش نفس عمیق می‌کشی… همونه.",
+            "caption": "پیشش نفس عمیق می‌کشی؟",
+            "visual": 104,  # walking trees — free/calm
+            "concept": "تست احساس",
         },
         {
-            "spoken": "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟",
-            "caption": "تو کامنت بنویس…",
-            "visual": 1510,  # coffee bar / talk
-            "concept": "دعوت به کامنت",
+            "spoken": "عشق واقعی تو را کوچک نمی‌کند. بزرگ‌ترت می‌کند.",
+            "caption": "بزرگ‌ترت می‌کند",
+            "visual": 3026,  # window reflection — depth
+            "concept": "رشد",
+        },
+        {
+            "spoken": "تو کامنت بنویس: پیش کی آروم‌تری؟",
+            "caption": "پیش کی آروم‌تری؟",
+            "visual": 1510,  # coffee talk
+            "concept": "CTA",
         },
         {
             "spoken": "بامو. یوزرنیم ما دوازده بامو.",
             "caption": "بامو · @12bamo",
-            "visual": 9001,  # smiling students — warm close
+            "visual": 9001,  # warm smiles
             "concept": "برند",
         },
     ],
-    "yt_title": "عشق حس آرامشه… وابستگی حس اضطرابه 💔 تو کدومی؟",
+    "yt_title": "عشق واقعی شلوغ نیست… فقط آرامش 🤍 پیش کی آروم‌تری؟",
     "yt_desc": (
-        "چیزی که اسمش را عشق می‌ذاری، شاید وابستگی باشه.\n\n"
-        "عشق آزادت می‌کند. وابستگی محدودت می‌کند.\n\n"
-        "تو کامنت بنویس: عشقت آروم‌کننده است یا مضطرب‌کننده؟\n\n"
+        "عشق واقعی شلوغ نیست.\n"
+        "مثل دو نفر که بدون حرف، آروم کنار هم هستن.\n\n"
+        "نه ترس. نه اضطراب. فقط امنیت.\n\n"
+        "تو کامنت بنویس: پیش کی آروم‌تری؟\n\n"
         "بامو | @12bamo\n"
-        "#shorts #عشق #وابستگی #روانشناسی #رابطه"
+        "#shorts #عشق #آرامش #روانشناسی #رابطه"
     ),
-    "yt_tags": ["shorts", "عشق", "وابستگی", "روانشناسی", "رابطه", "احساس", "بامو", "12bamo"],
+    "yt_tags": ["shorts", "عشق", "آرامش", "روانشناسی", "رابطه", "احساس", "بامو", "12bamo"],
 }
 
 
@@ -187,10 +188,10 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
         for i, b in enumerate(beats):
             p = parts_dir / f"p{i:02d}.mp3"
             await edge_tts.Communicate(
-                b["spoken"], "fa-IR-FaridNeural", rate="+4%", pitch="+0Hz"
+                b["spoken"], "fa-IR-FaridNeural", rate="+2%", pitch="+0Hz"
             ).save(str(p))
             speech = max(0.7, _probe(p))
-            gap = 0.14 if i < len(beats) - 1 else 0.28
+            gap = 0.16 if i < len(beats) - 1 else 0.3
             files.append(p)
             timeline.append(
                 {
@@ -218,7 +219,7 @@ def _build_audio_and_timeline(work: Path, beats: list[dict]):
             "-i",
             "anullsrc=r=24000:cl=mono",
             "-t",
-            "0.14",
+            "0.16",
             "-q:a",
             "9",
             "-acodec",
@@ -282,7 +283,7 @@ def _build_matched_film(work: Path, timeline: list[dict], duration: float) -> Pa
                 "-t",
                 f"{slot:.3f}",
                 "-vf",
-                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.12:contrast=1.06",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,eq=saturation=1.08:contrast=1.04",
                 "-an",
                 "-c:v",
                 "libx264",
@@ -360,18 +361,18 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
         text = beat["caption"]
         bid = f"beat-{i}"
         slot = max(0.5, end - start)
-        size = 54 if i == 0 else (50 if i <= 2 else 44)
+        size = 56 if i == 0 else (50 if i <= 2 else 44)
         beats.append(
             f'      <div id="{bid}" class="beat" style="font-size:{size}px" '
             f'data-start="{start:.2f}" data-duration="{slot:.2f}" data-track-index="{10 + i}">'
             f"{html_lib.escape(text)}</div>"
         )
         gsap.append(
-            f'      tl.fromTo("#{bid}", {{opacity:0,y:24,scale:0.96}}, '
-            f'{{opacity:1,y:0,scale:1,duration:0.22,ease:"power2.out"}}, {start:.2f});'
+            f'      tl.fromTo("#{bid}", {{opacity:0,y:20,scale:0.97}}, '
+            f'{{opacity:1,y:0,scale:1,duration:0.28,ease:"power2.out"}}, {start:.2f});'
         )
-        out_at = max(start + 0.35, end - 0.08)
-        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-10,duration:0.15}}, {out_at:.2f});')
+        out_at = max(start + 0.4, end - 0.1)
+        gsap.append(f'      tl.to("#{bid}", {{opacity:0,y:-8,duration:0.18}}, {out_at:.2f});')
 
     brand_at = max(0.4, duration - 2.0)
     ds = f"{duration:.2f}"
@@ -393,14 +394,14 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     .scrim {{
       position: absolute; inset: 0; z-index: 2; pointer-events: none;
       background: linear-gradient(180deg,
-        rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 35%,
-        rgba(0,0,0,0.5) 68%, rgba(0,0,0,0.9) 100%);
+        rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.12) 40%,
+        rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.88) 100%);
     }}
     .beat {{
-      position: absolute; left: 32px; right: 32px; bottom: 320px;
-      text-align: center; font-weight: 900; line-height: 1.4;
+      position: absolute; left: 36px; right: 36px; bottom: 340px;
+      text-align: center; font-weight: 900; line-height: 1.45;
       opacity: 0; z-index: 5;
-      text-shadow: 0 4px 24px rgba(0,0,0,0.95), 0 0 6px #000;
+      text-shadow: 0 4px 22px rgba(0,0,0,0.95), 0 0 6px #000;
     }}
     #brand-wrap {{
       position: absolute; left: 40px; right: 40px; bottom: 90px;
@@ -408,7 +409,7 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     }}
     #brand-name {{
       font-weight: 900; font-size: 72px; letter-spacing: 2px;
-      background: linear-gradient(90deg, #fff 0%, #f9a8d4 50%, #c4b5fd 100%);
+      background: linear-gradient(90deg, #fff 0%, #fbcfe8 45%, #ddd6fe 100%);
       -webkit-background-clip: text; background-clip: text;
       -webkit-text-fill-color: transparent;
       filter: drop-shadow(0 4px 18px rgba(0,0,0,0.9));
@@ -440,8 +441,8 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
     const tl = gsap.timeline({{ paused: true }});
 {chr(10).join(gsap)}
     tl.fromTo("#brand-wrap",
-      {{ opacity: 0, y: 30, scale: 0.9 }},
-      {{ opacity: 1, y: 0, scale: 1, duration: 0.4, ease: "power3.out" }},
+      {{ opacity: 0, y: 28, scale: 0.92 }},
+      {{ opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "power3.out" }},
       {brand_at:.2f});
     tl.to({{}}, {{ duration: {ds} }}, 0);
     window.__timelines["main"] = tl;
@@ -455,25 +456,25 @@ def _write_html(work: Path, timeline: list[dict], duration: float, title: str) -
 def _make_thumbnail(video: Path, thumb: Path) -> Path:
     frame = thumb.with_suffix(".frame.jpg")
     subprocess.run(
-        ["ffmpeg", "-y", "-ss", "2.0", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
+        ["ffmpeg", "-y", "-ss", "1.5", "-i", str(video), "-frames:v", "1", "-q:v", "2", str(frame)],
         check=True,
         capture_output=True,
     )
-    t1 = "عشق یا وابستگی؟"
-    t2 = "تو کدومی؟"
+    t1 = "عشق واقعی شلوغ نیست"
+    t2 = "فقط آرامش 🤍"
     brand = "بامو  @12bamo"
     vf = (
         "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
-        "eq=saturation=1.15:contrast=1.08,"
+        "eq=saturation=1.1:contrast=1.05,"
         "drawbox=x=0:y=1400:w=1080:h=520:color=black@0.55:t=fill,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t1}':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=1480:"
+        f"text='{t1}':fontcolor=white:fontsize=52:x=(w-text_w)/2:y=1480:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{t2}':fontcolor=#f9a8d4:fontsize=52:x=(w-text_w)/2:y=1570:"
+        f"text='{t2}':fontcolor=#fbcfe8:fontsize=48:x=(w-text_w)/2:y=1570:"
         f"borderw=3:bordercolor=black@0.8,"
         f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-        f"text='{brand}':fontcolor=#c4b5fd:fontsize=40:x=(w-text_w)/2:y=1680:"
+        f"text='{brand}':fontcolor=#ddd6fe:fontsize=38:x=(w-text_w)/2:y=1680:"
         f"borderw=2:bordercolor=black@0.7"
     )
     subprocess.run(
@@ -507,7 +508,6 @@ def main() -> int:
                 "idea": idea["id"],
                 "title": idea["title_fa"],
                 "visuals": [b["visual"] for b in beats],
-                "concepts": [b["concept"] for b in beats],
                 "has_elevenlabs": bool(os.environ.get("ELEVENLABS_API_KEY")),
                 "publish": bool(args.publish),
             },
