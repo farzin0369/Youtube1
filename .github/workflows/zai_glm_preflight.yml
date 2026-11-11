@@ -1,0 +1,47 @@
+name: Z.ai GLM API preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check that an API key is configured
+        env:
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+        run: |
+          if [ -z "$ZAI_API_KEY" ]; then
+            echo "::error::ZAI_API_KEY is not configured. This check cannot run without an eligible Z.ai API key/quota."
+            exit 1
+          fi
+      - name: Send a minimal GLM request without exposing credentials
+        env:
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          ZAI_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.z.ai/api/paas/v4' }}
+          ZAI_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            --max-time 90 \
+            -X POST "${ZAI_BASE_URL%/}/chat/completions" \
+            -H "Authorization: Bearer $ZAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data "$(jq -n --arg model "$ZAI_MODEL" '{model:$model,messages:[{role:"user",content:"Reply with the single word OK."}],max_tokens:8,temperature:0}')")"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::error::Z.ai API returned HTTP $status. Check the endpoint, model access, quota, and key in the Z.ai console."
+            rm -f "$response_file"
+            exit 1
+          fi
+          if ! jq -e '.choices[0].message.content | strings | length > 0' "$response_file" >/dev/null; then
+            echo "::error::The API response did not contain a usable assistant message."
+            rm -f "$response_file"
+            exit 1
+          fi
+          echo "Z.ai API preflight passed for model: $ZAI_MODEL"
+          rm -f "$response_file"
