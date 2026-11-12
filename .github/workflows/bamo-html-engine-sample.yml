@@ -1,0 +1,47 @@
+name: BAMO Daily Science Short - Gecko Adhesion
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/bamo-html-only-engine-sample
+    paths:
+      - "scripts/render_bamo_daily_20261112.py"
+      - ".github/workflows/bamo-html-engine-sample.yml"
+      - "app/html_motion_renderer.py"
+      - "preview/bamo-engine-pipeline.html"
+permissions:
+  contents: read
+  actions: read
+jobs:
+  render-html-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install FFmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - name: Install Playwright and Persian TTS
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright edge-tts
+          python -m playwright install --with-deps chromium
+      - name: Render today's short with the HTML/WebGL engine
+        env:
+          PYTHONPATH: .
+          BAMO_RENDER_SCALE: "1.0"
+          BAMO_RENDER_FPS: "24"
+        run: python scripts/render_bamo_daily_20261112.py
+      - name: Upload MP4, subtitles and QA report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bamo-science-short-20261112
+          path: |
+            artifacts/bamo-science-short-20261112.mp4
+            artifacts/bamo-science-short-20261112.srt
+            artifacts/bamo-science-short-20261112-qa.json
+            artifacts/bamo-science-short-20261112-review.jpg
+          if-no-files-found: error
+          retention-days: 14
