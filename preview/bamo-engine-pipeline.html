@@ -174,6 +174,79 @@ float sceneSDF(vec3 p){
      solar=min(solar,sdSphere(p-vec3(x,y,z),.027));
    }
    return min(earth,min(field,min(curtains,solar)));
+ }else if(u_kind>=13.5 && u_kind<14.5){
+   // Whole Tokay gecko on a smooth vertical glass surface.
+   float glass=sdBox(p-vec3(0.0,0.0,-.55),vec3(1.62,1.20,.035));
+   float body=sdEllipsoid(p-vec3(-.06,0.0,0.0),vec3(.66,.22,.30));
+   float chest=sdEllipsoid(p-vec3(.43,.015,0.0),vec3(.34,.24,.29));
+   float head=sdEllipsoid(p-vec3(.70,.13,0.0),vec3(.30,.22,.26));
+   float snout=sdEllipsoid(p-vec3(.91,.045,0.0),vec3(.20,.12,.20));
+   float tail=min(sdCapsule(p,vec3(-.58,-.02,0.0),vec3(-.96,-.14,0.0),.15),
+                  sdCapsule(p,vec3(-.96,-.14,0.0),vec3(-1.42,-.30,.015),.075));
+   float legs=10.0;
+   legs=min(legs,sdCapsule(p,vec3(.36,-.10,.20),vec3(.68,-.34,.49),.065));
+   legs=min(legs,sdCapsule(p,vec3(.36,-.10,-.20),vec3(.68,-.34,-.49),.065));
+   legs=min(legs,sdCapsule(p,vec3(-.43,-.10,.22),vec3(-.76,-.34,.48),.075));
+   legs=min(legs,sdCapsule(p,vec3(-.43,-.10,-.22),vec3(-.76,-.34,-.48),.075));
+   float feet=min(sdEllipsoid(p-vec3(.72,-.35,.52),vec3(.18,.055,.12)),
+                  sdEllipsoid(p-vec3(.72,-.35,-.52),vec3(.18,.055,.12)));
+   feet=min(feet,sdEllipsoid(p-vec3(-.80,-.35,.51),vec3(.17,.055,.12)));
+   feet=min(feet,sdEllipsoid(p-vec3(-.80,-.35,-.51),vec3(.17,.055,.12)));
+   float toes=10.0;
+   for(int i=0;i<3;i++){
+     float fi=float(i)-1.0;
+     toes=min(toes,sdCapsule(p,vec3(.77,-.35,.52),vec3(.94,-.37,.52+fi*.075),.023));
+     toes=min(toes,sdCapsule(p,vec3(.77,-.35,-.52),vec3(.94,-.37,-.52-fi*.075),.023));
+   }
+   float eyes=min(sdSphere(p-vec3(.78,.245,.205),.065),sdSphere(p-vec3(.78,.245,-.205),.065));
+   return min(glass,min(min(body,chest),min(head,min(snout,min(tail,min(legs,min(feet,min(toes,eyes))))))));
+ }else if(u_kind>=14.5 && u_kind<15.5){
+   // Macro toe pad with five spreading digits and fine contact filaments.
+   float glass=sdBox(p-vec3(0.0,0.0,-.49),vec3(1.18,.92,.035));
+   float pad=sdEllipsoid(p-vec3(-.10,-.05,0.0),vec3(.34,.12,.28));
+   float digits=10.0;
+   float filaments=10.0;
+   for(int i=0;i<5;i++){
+     float fi=float(i)-2.0;
+     vec3 base=vec3(.02,-.04,fi*.075);
+     vec3 tip=vec3(.64+.035*cos(fi*1.2),-.055,fi*.16);
+     digits=min(digits,sdCapsule(p,base,tip,.052));
+     digits=min(digits,sdEllipsoid(p-tip,vec3(.12,.045,.075)));
+     filaments=min(filaments,sdCapsule(p,tip+vec3(0,0,-.015),tip+vec3(.035,-.005,-.38),.012));
+   }
+   return min(glass,min(pad,min(digits,filaments)));
+ }else if(u_kind>=15.5 && u_kind<16.5){
+   // Magnified keratin setae branching into flattened spatula-like tips.
+   float ground=sdBox(p-vec3(0.0,-.91,0.0),vec3(1.35,.035,.60));
+   float cluster=10.0;
+   for(int i=0;i<5;i++){
+     float fi=float(i);
+     float x=(fi-2.0)*.43;
+     float shaft=sdCapsule(p,vec3(x,-.86,0.0),vec3(x,.36,0.0),.034);
+     float branchL=sdCapsule(p,vec3(x,.30,0.0),vec3(x-.18,.67,0.0),.020);
+     float branchR=sdCapsule(p,vec3(x,.30,0.0),vec3(x+.18,.67,0.0),.020);
+     float tipL=sdEllipsoid(p-vec3(x-.23,.70,0.0),vec3(.105,.026,.085));
+     float tipR=sdEllipsoid(p-vec3(x+.23,.70,0.0),vec3(.105,.026,.085));
+     float tipC=sdEllipsoid(p-vec3(x,.76,0.0),vec3(.085,.023,.078));
+     cluster=min(cluster,min(shaft,min(branchL,min(branchR,min(tipL,min(tipR,tipC))))));
+   }
+   return min(ground,cluster);
+ }else if(u_kind>=16.5 && u_kind<17.5){
+   // Contact close-up: spatula tips nearly touch a molecularly smooth substrate.
+   float substrate=sdBox(p-vec3(0.0,.84,0.0),vec3(1.30,.045,.62));
+   float hairs=10.0;
+   float molecules=10.0;
+   for(int i=0;i<5;i++){
+     float fi=float(i);
+     float x=(fi-2.0)*.43;
+     hairs=min(hairs,sdCapsule(p,vec3(x,-.78,0.0),vec3(x,.54,0.0),.030));
+     hairs=min(hairs,sdCapsule(p,vec3(x,.42,0.0),vec3(x-.16,.73,0.0),.018));
+     hairs=min(hairs,sdCapsule(p,vec3(x,.42,0.0),vec3(x+.16,.73,0.0),.018));
+     hairs=min(hairs,sdEllipsoid(p-vec3(x-.20,.755,0.0),vec3(.095,.020,.07)));
+     hairs=min(hairs,sdEllipsoid(p-vec3(x+.20,.755,0.0),vec3(.095,.020,.07)));
+     molecules=min(molecules,sdSphere(p-vec3(x,.785,.12),.026));
+   }
+   return min(substrate,min(hairs,molecules));
  }else{
    // A rising chain of water molecules joined by hydrogen-bond links.
    float chain=10.0;
@@ -269,6 +342,26 @@ void main(){
        float pulse=.5+.5*sin(t*4.0+hit.x*8.0+u_phase);
        col=mix(u_secondary,u_accent,pulse*.55)*(.24+.72*diff)+u_accent*(.30*fres+spec);
      }
+   }
+   if(u_kind>=13.5 && u_kind<14.5){
+     float scalePattern=.5+.5*sin(hit.x*28.0+sin(hit.z*23.0)*2.0)*sin(hit.y*24.0);
+     vec3 skin=mix(u_primary,u_secondary,smoothstep(.18,.82,scalePattern)*.62);
+     col=skin*(.30+.94*diff)+u_accent*(.22*fres+.82*spec);
+     if(hit.z>.12 && hit.y>.18)col=mix(col,u_accent,.18);
+   }else if(u_kind>=14.5 && u_kind<15.5){
+     float padPattern=.5+.5*sin(hit.z*25.0+hit.x*7.0);
+     vec3 padColor=mix(u_primary,u_secondary,padPattern*.32);
+     col=padColor*(.32+.90*diff)+u_accent*(.20*fres+.72*spec);
+     if(hit.z<-.40)col=mix(col,u_bg,.52);
+   }else if(u_kind>=15.5 && u_kind<16.5){
+     float heightColor=clamp((hit.y+.9)/1.7,0.0,1.0);
+     vec3 setaColor=mix(u_secondary,u_primary,heightColor);
+     col=setaColor*(.34+.90*diff)+u_accent*(.30*fres+.86*spec);
+   }else if(u_kind>=16.5 && u_kind<17.5){
+     float contactGlow=exp(-abs(hit.y-.77)*48.0);
+     vec3 contactColor=mix(u_secondary,u_primary,clamp((hit.y+.8)/1.6,0.0,1.0));
+     col=contactColor*(.32+.88*diff)+u_accent*(.32*fres+.88*spec);
+     col+=u_accent*contactGlow*.35;
    }
    col+=u_primary*(.12/(.08+abs(sceneSDF(hit+ n*.035))));
    float fog=1.0-exp(-d*.055);col=mix(col,u_bg,fog*.38);
@@ -569,7 +662,7 @@ function resize(){
 }
 
 function choosePalette(s){if(s.palette&&s.palette.bg)return s.palette;const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/آرام|صلح|calm/.test(t))return{bg:"#0c0a09",primary:"#f5d0a9",secondary:"#a78bfa",accent:"#67e8f9"};if(/حماسی|قهرمان|epic/.test(t))return{bg:"#0a0a12",primary:"#fbbf24",secondary:"#f472b6",accent:"#38bdf8"};if(/راز|مرموز|mystery/.test(t))return{bg:"#0b0c15",primary:"#818cf8",secondary:"#c084fc",accent:"#22d3ee"};if(/موج|تداخل|wave/.test(t))return{bg:"#050817",primary:"#22d3ee",secondary:"#a78bfa",accent:"#f472b6"};return{bg:"#07101d",primary:"#22d3ee",secondary:"#a78bfa",accent:"#fbbf24"};}
-function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6,saturn:7,plant:8,xylem:9,stomata:10,root:11,xylem_flow:12,aurora:13})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
+function kindOf(s){if(s.motif){return({ellipse:0,wave:1,path:2,light:3,choice:4,cosmic:5,growth:3,abstract:5,interference:6,saturn:7,plant:8,xylem:9,stomata:10,root:11,xylem_flow:12,aurora:13,gecko:14,gecko_toe:15,gecko_setae:16,gecko_contact:17})[s.motif]??5;}const t=((s.narration||"")+" "+(s.visual_prompt||"")+" "+(s.text||"")).toLowerCase();if(/بیضی|کانون|ellipse/.test(t))return 0;if(/موج|تداخل|wave|phase/.test(t))return 1;if(/مسیر|قدم|راه|path|journey/.test(t))return 2;if(/نور|طلوع|light|hope/.test(t))return 3;if(/انتخاب|دو راه|choice/.test(t))return 4;return 5;}
 
 function drawBackground(p,t){
  gl.disable(gl.DEPTH_TEST);
