@@ -1,0 +1,126 @@
+name: BAMO Persian HTML Factory
+
+on:
+  schedule:
+    - cron: "0 16 * * *" # 19:30 Asia/Tehran (UTC+03:30)
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload the rendered video (never public)"
+        required: true
+        type: boolean
+        default: false
+      privacy:
+        description: "YouTube visibility for an enabled upload"
+        required: true
+        type: choice
+        options:
+          - unlisted
+          - private
+        default: unlisted
+      expand_batches:
+        description: "Idea-bank expansion batches for this run"
+        required: true
+        type: number
+        default: 6
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fa-factory-daily
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      FA_PRIVACY: ${{ github.event_name == 'workflow_dispatch' && inputs.privacy || vars.FA_PRIVACY || 'unlisted' }}
+      FA_EXPAND_BATCHES: ${{ github.event_name == 'workflow_dispatch' && inputs.expand_batches || vars.FA_EXPAND_BATCHES || '6' }}
+      PYTHONPATH: ${{ github.workspace }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set up Node.js for HyperFrames
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install FFmpeg and Persian fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
+          fc-cache -f
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install edge-tts google-api-python-client google-auth-oauthlib google-auth-httplib2 pytest
+
+      - name: Initialize or preserve the Persian seed bank
+        run: python -m fa_factory.seed_data
+
+      - name: Expand idea bank when a model key is configured
+        shell: bash
+        run: |
+          if [[ -n "${GROQ_API_KEY:-}" || -n "${OPENROUTER_API_KEY:-}" ]]; then
+            python -m fa_factory.expand_bank --target 10000 --batches "${FA_EXPAND_BATCHES}" --per-batch 10
+          else
+            echo "No idea-expansion API key configured; keeping the curated bank unchanged."
+          fi
+
+      - name: Run Persian factory tests
+        run: python -m pytest -q tests/test_fa_factory.py
+
+      - name: Render and QC without publishing (manual default)
+        if: github.event_name == 'workflow_dispatch' && inputs.publish != true
+        run: python -m fa_factory.run
+
+      - name: Render, QC, and upload privately/unlisted
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+        run: python -m fa_factory.run --publish --privacy "${FA_PRIVACY}"
+
+      - name: Upload rendered video and project as evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fa-factory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            outputs/fa_daily/
+            /tmp/fa_work/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit idea bank and successful-use history
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/fa/ideas_fa.jsonl data/fa/history.jsonl
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(fa-factory): update Persian ideas and history"
+            git push
+          else
+            echo "No Persian bank/history changes to commit."
+          fi
