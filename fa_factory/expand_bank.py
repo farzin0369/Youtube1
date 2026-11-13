@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Grow the Persian bank toward 10,000 DISTINCT ideas using a free LLM (OpenRouter).
+"""Grow the Persian bank toward 10,000 DISTINCT ideas with an LLM (Groq or OpenRouter).
 
 Pipeline per batch:  generate -> structural validation -> near-duplicate check
--> independent fact-check pass by a second model -> append only if it passes.
+-> independent fact-check pass by a DIFFERENT model -> append only if it passes.
 Nothing unverified is ever marked available. Safe to run daily; each run appends.
 
-  OPENROUTER_API_KEY=... python fa_factory/expand_bank.py --target 10000 --batches 6
+  GROQ_API_KEY=... python fa_factory/expand_bank.py --target 10000 --batches 6
 """
 from __future__ import annotations
 
@@ -21,8 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fa_factory import bank  # noqa: E402
 
 API = "https://openrouter.ai/api/v1/chat/completions"
+GROQ_API = "https://api.groq.com/openai/v1/chat/completions"
 GEN_MODELS = ["meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-72b-instruct:free", "deepseek/deepseek-chat-v3-0324:free"]
 CHK_MODELS = ["deepseek/deepseek-chat-v3-0324:free", "meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen-2.5-72b-instruct:free"]
+GROQ_GEN = ["llama-3.3-70b-versatile"]
+GROQ_CHK = ["openai/gpt-oss-20b"]  # different model family from the generator
 
 TOPICS = {  # category -> (visual, subtopics to rotate so batches differ)
     "فضا و نجوم": ("cosmos", ["سیاره‌ها", "ستاره‌ها", "سیاه‌چاله", "کهکشان‌ها", "ماه‌ها", "اخترفیزیک", "سفرهای فضایی", "تلسکوپ‌ها"]),
@@ -52,16 +55,29 @@ CHK_PROMPT = """به‌عنوان بررسی‌کنندهٔ دقیق واقعی�
 ادعای اصلی: {claim}"""
 
 
+def _post(url: str, key: str, model: str, prompt: str, temperature: float, timeout: int) -> str:
+    body = json.dumps({"model": model, "temperature": temperature, "messages": [{"role": "user", "content": prompt}]}).encode()
+    req = urllib.request.Request(url, data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())["choices"][0]["message"]["content"]
+
+
 def chat(prompt: str, models: list[str], key: str, temperature: float = 0.8) -> str:
-    last = None
-    for m in models:
-        body = json.dumps({"model": m, "temperature": temperature, "messages": [{"role": "user", "content": prompt}]}).encode()
-        req = urllib.request.Request(API, data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=180) as r:
-                return json.loads(r.read())["choices"][0]["message"]["content"]
-        except Exception as exc:
-            last = exc
+    """Prefer Groq (GROQ_API_KEY) when present, then OpenRouter free models."""
+    last: Exception | None = None
+    groq = os.environ.get("GROQ_API_KEY", "").strip()
+    if groq:
+        for m in (GROQ_GEN if models is GEN_MODELS else GROQ_CHK):
+            try:
+                return _post(GROQ_API, groq, m, prompt, temperature, 120)
+            except Exception as exc:
+                last = exc
+    if key:
+        for m in models:
+            try:
+                return _post(API, key, m, prompt, temperature, 180)
+            except Exception as exc:
+                last = exc
     raise RuntimeError(f"all models failed: {last}")
 
 
@@ -83,8 +99,8 @@ def main() -> int:
     ap.add_argument("--per-batch", type=int, default=10)
     args = ap.parse_args()
     key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not key:
-        print("OPENROUTER_API_KEY not set; nothing added")
+    if not key and not os.environ.get("GROQ_API_KEY", "").strip():
+        print("Neither GROQ_API_KEY nor OPENROUTER_API_KEY set; nothing added")
         return 0
 
     ideas = bank.load()
@@ -93,11 +109,11 @@ def main() -> int:
     cats = list(TOPICS)
     added = rejected = 0
     for b in range(args.batches):
-        if n >= args.target:
+        if n + added >= args.target:
             break
-        cat = cats[(n + b) % len(cats)]
+        cat = cats[(n + added + b) % len(cats)]
         visual, subs = TOPICS[cat]
-        sub = subs[(n // len(cats) + b) % len(subs)]
+        sub = subs[((n + added) // len(cats) + b) % len(subs)]
         avoid = "؛ ".join(i["title"] for i in ideas[-60:] if i["category"] == cat)[:900]
         try:
             raw = chat(GEN_PROMPT.format(n=args.per_batch, sub=sub, cat=cat, avoid=avoid or "—"), GEN_MODELS, key)
