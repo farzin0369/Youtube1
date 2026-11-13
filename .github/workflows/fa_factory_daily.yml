@@ -3,6 +3,11 @@ name: BAMO Persian HTML Factory
 on:
   schedule:
     - cron: "0 16 * * *" # 19:30 Asia/Tehran (UTC+03:30)
+  pull_request:
+    paths:
+      - "fa_factory/**"
+      - "tests/test_fa_factory.py"
+      - ".github/workflows/fa_factory_daily.yml"
   workflow_dispatch:
     inputs:
       publish:
@@ -80,6 +85,7 @@ jobs:
         run: python -m fa_factory.seed_data
 
       - name: Expand idea bank when a model key is configured
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           if [[ -n "${GROQ_API_KEY:-}" || -n "${OPENROUTER_API_KEY:-}" ]]; then
@@ -111,7 +117,7 @@ jobs:
           retention-days: 14
 
       - name: Commit idea bank and successful-use history
-        if: success()
+        if: success() && github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
