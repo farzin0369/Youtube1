@@ -55,3 +55,16 @@ def test_html_has_all_beats_and_rtl():
     for k in range(len(beats)):
         assert f'id="beat{k}"' in h
     assert "__" not in h.replace("__timelines", "").replace("__bamo", "")
+
+def test_cli_rejects_public_upload_mode():
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "fa_factory.run", "--privacy", "public", "--dry-run"],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "invalid choice" in result.stderr
