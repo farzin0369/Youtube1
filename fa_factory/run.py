@@ -68,7 +68,7 @@ def render(workdir: Path, out: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--publish", action="store_true")
-    ap.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
+    ap.add_argument("--privacy", default="private", choices=["private", "unlisted"])
     ap.add_argument("--dry-run", action="store_true", help="pick idea + metadata only")
     ap.add_argument("--build-only", action="store_true", help="audio + HTML only, skip render")
     ap.add_argument("--fake-tts", action="store_true", help="offline test: silent audio")
