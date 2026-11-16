@@ -89,7 +89,7 @@ def main() -> int:
         print(json.dumps({"ok": True, "package": pkg}, ensure_ascii=False, indent=2))
         return 0
 
-    work = Path("/tmp/fa_work") / idea["id"]
+    work = OUT / "projects" / idea["id"]
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
     audio, beats, dur = tts.build_audio(idea["sentences"], work, fake=args.fake_tts)
