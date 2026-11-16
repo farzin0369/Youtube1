@@ -115,8 +115,9 @@ def main() -> int:
 
         upload = upload_video(video_path=video, title=pkg["title"], description=pkg["description"],
                               tags=pkg["tags"], privacy=args.privacy, thumbnail_path=thumb, category_id=pkg["category_id"])
-        if upload.get("ok"):
-            bank.record_use(idea, ok=True, video=str(video), upload=upload)
+    # A QC-passed render consumes the idea even when this run is preview-only.
+    # This prevents scheduled preview mode from selecting the same topic every day.
+    bank.record_use(idea, ok=True, video=str(video), uploaded=bool(upload.get("ok")), upload=upload)
     print(json.dumps({"upload": upload}, ensure_ascii=False, default=str))
     return 0 if (not args.publish or upload.get("ok")) else 1
 
