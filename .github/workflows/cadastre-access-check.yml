@@ -31,7 +31,8 @@ jobs:
 
           const targets = [
             { name: 'Google', url: 'https://www.google.com/' },
-            { name: 'Iran mining cadastre', url: 'https://cadastre.mimt.gov.ir/cadastre' }
+            { name: 'Cadastre domain root', url: 'https://cadastre.mimt.gov.ir/' },
+            { name: 'Cadastre application', url: 'https://cadastre.mimt.gov.ir/cadastre' }
           ];
 
           const browser = await chromium.launch({ headless: true });
@@ -41,17 +42,17 @@ jobs:
           for (const target of targets) {
             try {
               const response = await page.goto(target.url, {
-                waitUntil: 'domcontentloaded',
-                timeout: 45000
+                waitUntil: 'commit',
+                timeout: 30000
               });
-              console.log(JSON.stringify({
+              const result = {
                 site: target.name,
                 requestedUrl: target.url,
                 finalUrl: page.url(),
                 httpStatus: response?.status() ?? null,
-                title: await page.title(),
                 result: response && response.ok() ? 'reachable' : 'responded_non_2xx'
-              }));
+              };
+              console.log(JSON.stringify(result));
               if (!response || !response.ok()) failures++;
             } catch (error) {
               failures++;
